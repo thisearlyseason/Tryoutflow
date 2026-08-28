@@ -7,6 +7,7 @@ export type TryoutDraft = {
   organizationId: OrganizationId;
   seasonId: string | null;
   name: string;
+  slug: string;
   sport: string;
   timezone: string;
   status: TryoutStatus;
@@ -14,25 +15,27 @@ export type TryoutDraft = {
   registrationEndsAt: Date | null;
   publishedAt: Date | null;
   finalizedAt: Date | null;
+  version: number;
   createdAt: Date;
   updatedAt: Date;
 };
 
 export type CreateTryoutDraft = Omit<TryoutDraft, 'id'>;
 
-export type SaveTryoutStep = Pick<
-  TryoutDraft,
-  'id' | 'organizationId' | 'status' | 'publishedAt' | 'finalizedAt' | 'updatedAt'
->;
+export type LifecycleTransition =
+  | { kind: 'updated'; tryout: TryoutDraft }
+  | { kind: 'not_found' | 'conflict' | 'invalid_transition' };
 
 /** Application port for durable tryout configuration storage. */
 export interface TryoutGateway {
   createDraft(input: CreateTryoutDraft): Promise<TryoutDraft>;
-  findById(input: {
+  transitionLifecycle(input: {
     organizationId: OrganizationId;
     tryoutId: string;
-  }): Promise<TryoutDraft | null>;
-  saveStep(input: SaveTryoutStep): Promise<TryoutDraft>;
+    expectedVersion: number;
+    action: 'publish' | 'finalize';
+    requestedAt: Date;
+  }): Promise<LifecycleTransition>;
 }
 
 export type SeasonRecord = {

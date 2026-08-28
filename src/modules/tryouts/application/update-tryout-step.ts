@@ -6,23 +6,25 @@ import type { OrganizationId } from '../../../lib/ids';
 import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import { requireCapability } from '../../organizations/application/require-capability';
-import { transitionTryout, type TryoutLifecycleAction } from '../domain/lifecycle';
 import type { TryoutDraft, TryoutGateway } from '../domain/tryout';
+import { defaultTryoutGateway } from './tryout-dependencies';
 
 const schema = z.object({
   organizationId: z.uuid(),
   tryoutId: z.uuid(),
+  expectedVersion: z.number().int().nonnegative(),
   action: z.enum(['publish', 'finalize']),
 });
 
 export type UpdateTryoutStepError = {
-  code: 'invalid_input' | 'forbidden' | 'not_found' | 'invalid_transition' | 'unexpected';
+  code:
+    'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'invalid_transition' | 'unexpected';
 };
 
 export async function updateTryoutStep(
   input: unknown,
   actor: { authorization: AuthorizationContext },
-  dependencies: { gateway: TryoutGateway; clock?: Clock },
+  dependencies: { gateway?: TryoutGateway; clock?: Clock } = {},
 ): Promise<AppResult<TryoutDraft, UpdateTryoutStepError>> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
@@ -40,37 +42,16 @@ export async function updateTryoutStep(
   }
 
   try {
-    const current = await dependencies.gateway.findById({
+    const result = await (
+      dependencies.gateway ?? (await defaultTryoutGateway())
+    ).transitionLifecycle({
       organizationId,
       tryoutId: parsed.data.tryoutId,
+      expectedVersion: parsed.data.expectedVersion,
+      action: parsed.data.action,
+      requestedAt: (dependencies.clock ?? new SystemClock()).now(),
     });
-    if (!current) {
-      return failure({ code: 'not_found' });
-    }
-
-    let status;
-    try {
-      status = transitionTryout(current.status, parsed.data.action as TryoutLifecycleAction);
-    } catch {
-      return failure({ code: 'invalid_transition' });
-    }
-
-    const now = (dependencies.clock ?? new SystemClock()).now();
-    const publishedAt = status === 'published' ? now : current.publishedAt;
-    if (status === 'finalized' && !publishedAt) {
-      return failure({ code: 'invalid_transition' });
-    }
-
-    return success(
-      await dependencies.gateway.saveStep({
-        id: current.id,
-        organizationId,
-        status,
-        publishedAt,
-        finalizedAt: status === 'finalized' ? now : null,
-        updatedAt: now,
-      }),
-    );
+    return result.kind === 'updated' ? success(result.tryout) : failure({ code: result.kind });
   } catch {
     return failure({ code: 'unexpected' });
   }

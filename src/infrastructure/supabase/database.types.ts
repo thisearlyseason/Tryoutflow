@@ -606,6 +606,7 @@ export type Database = {
           terminology: Json;
           timezone: string;
           updated_at: string;
+          version: number;
         };
         Insert: {
           blind_mode?: boolean;
@@ -628,6 +629,7 @@ export type Database = {
           terminology?: Json;
           timezone: string;
           updated_at?: string;
+          version?: number;
         };
         Update: {
           blind_mode?: boolean;
@@ -650,6 +652,7 @@ export type Database = {
           terminology?: Json;
           timezone?: string;
           updated_at?: string;
+          version?: number;
         };
         Relationships: [
           {
@@ -692,12 +695,42 @@ export type Database = {
         };
         Returns: boolean;
       };
+      can_manage_session_group: {
+        Args: {
+          target_group_id: string;
+          target_organization_id: string;
+          target_session_id: string;
+          target_tryout_id: string;
+        };
+        Returns: boolean;
+      };
       can_manage_tryout_configuration: {
         Args: {
           target_division_id?: string;
           target_group_id?: string;
           target_organization_id: string;
           target_session_id?: string;
+          target_tryout_id: string;
+        };
+        Returns: boolean;
+      };
+      can_manage_tryout_division: {
+        Args: {
+          target_division_id: string;
+          target_organization_id: string;
+          target_tryout_id: string;
+        };
+        Returns: boolean;
+      };
+      can_manage_tryout_root: {
+        Args: { target_organization_id: string; target_tryout_id: string };
+        Returns: boolean;
+      };
+      can_manage_tryout_session: {
+        Args: {
+          target_division_id: string;
+          target_organization_id: string;
+          target_session_id: string;
           target_tryout_id: string;
         };
         Returns: boolean;
@@ -736,6 +769,35 @@ export type Database = {
           timezone: string;
         }[];
       };
+      create_tryout_draft: {
+        Args: {
+          p_name: string;
+          p_organization_id: string;
+          p_registration_ends_at: string;
+          p_registration_starts_at: string;
+          p_season_id: string;
+          p_slug: string;
+          p_sport: string;
+          p_timezone: string;
+        };
+        Returns: {
+          created_at: string;
+          finalized_at: string;
+          name: string;
+          organization_id: string;
+          published_at: string;
+          registration_ends_at: string;
+          registration_starts_at: string;
+          season_id: string;
+          slug: string;
+          sport: string;
+          status: string;
+          timezone: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        }[];
+      };
       has_active_configuration_assignment: {
         Args: {
           required_role?: string;
@@ -768,6 +830,32 @@ export type Database = {
         Returns: boolean;
       };
       is_valid_organization_slug: { Args: { value: string }; Returns: boolean };
+      transition_tryout_lifecycle: {
+        Args: {
+          p_action: string;
+          p_expected_version: number;
+          p_organization_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          created_at: string;
+          finalized_at: string;
+          name: string;
+          organization_id: string;
+          outcome: string;
+          published_at: string;
+          registration_ends_at: string;
+          registration_starts_at: string;
+          season_id: string;
+          slug: string;
+          sport: string;
+          status: string;
+          timezone: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;

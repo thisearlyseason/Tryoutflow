@@ -24,6 +24,7 @@ const storedDraft: TryoutDraft = {
   organizationId,
   seasonId: null,
   name: 'Fall ID Camp',
+  slug: 'fall-id-camp',
   sport: 'Hockey',
   timezone: 'America/Edmonton',
   status: 'draft',
@@ -31,15 +32,27 @@ const storedDraft: TryoutDraft = {
   registrationEndsAt: null,
   publishedAt: null,
   finalizedAt: null,
+  version: 0,
   createdAt: new Date('2026-08-28T12:00:00.000Z'),
   updatedAt: new Date('2026-08-28T12:00:00.000Z'),
 };
 
 function gateway(overrides: Partial<TryoutGateway> = {}): TryoutGateway {
+  const transitionLifecycle = vi.fn(
+    async (input: Parameters<TryoutGateway['transitionLifecycle']>[0]) => ({
+      kind: 'updated' as const,
+      tryout: {
+        ...storedDraft,
+        status: (input.action === 'publish' ? 'published' : 'finalized') as TryoutDraft['status'],
+        publishedAt: input.action === 'publish' ? input.requestedAt : storedDraft.publishedAt,
+        finalizedAt: input.action === 'finalize' ? input.requestedAt : null,
+        version: input.expectedVersion + 1,
+      },
+    }),
+  );
   return {
     createDraft: vi.fn(async (input) => ({ ...storedDraft, ...input, id: tryoutId })),
-    findById: vi.fn(async () => storedDraft),
-    saveStep: vi.fn(async (input) => ({ ...storedDraft, ...input })),
+    transitionLifecycle,
     ...overrides,
   };
 }
@@ -108,59 +121,55 @@ describe('tryout configuration commands', () => {
     expect(repository.createDraft).not.toHaveBeenCalled();
   });
 
-  it('persists a valid publish transition with the supplied lifecycle timestamp', async () => {
+  it('sends an expected version to the atomic publish transition', async () => {
     const repository = gateway();
     const finalizedAt = new Date('2026-08-28T14:00:00.000Z');
 
     const result = await updateTryoutStep(
-      { organizationId, tryoutId, action: 'publish' },
+      { organizationId, tryoutId, expectedVersion: 0, action: 'publish' },
       { authorization: ownerAuthorization },
       { gateway: repository, clock: new FixedClock(finalizedAt) },
     );
 
     expect(result).toEqual({ ok: true, value: expect.objectContaining({ status: 'published' }) });
-    expect(repository.saveStep).toHaveBeenCalledWith(
+    expect(repository.transitionLifecycle).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: tryoutId,
-        status: 'published',
-        publishedAt: finalizedAt,
-        finalizedAt: null,
-        updatedAt: finalizedAt,
+        tryoutId,
+        expectedVersion: 0,
+        action: 'publish',
+        requestedAt: finalizedAt,
       }),
     );
   });
 
-  it('preserves the publication instant when finalizing a current published record', async () => {
-    const publishedAt = new Date('2026-08-28T13:00:00.000Z');
+  it('uses an atomic finalize transition instead of a read-then-write sequence', async () => {
     const finalizedAt = new Date('2026-08-28T14:00:00.000Z');
-    const repository = gateway({
-      findById: vi.fn(async () => ({ ...storedDraft, status: 'published' as const, publishedAt })),
-    });
+    const repository = gateway();
 
     const result = await updateTryoutStep(
-      { organizationId, tryoutId, action: 'finalize' },
+      { organizationId, tryoutId, expectedVersion: 1, action: 'finalize' },
       { authorization: ownerAuthorization },
       { gateway: repository, clock: new FixedClock(finalizedAt) },
     );
 
     expect(result).toEqual({ ok: true, value: expect.objectContaining({ status: 'finalized' }) });
-    expect(repository.saveStep).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'finalized', publishedAt, finalizedAt }),
+    expect(repository.transitionLifecycle).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'finalize', expectedVersion: 1, requestedAt: finalizedAt }),
     );
   });
 
-  it('does not persist an invalid regression supplied after a current record is loaded', async () => {
+  it('surfaces a stale compare-and-swap version without persisting a transition', async () => {
     const repository = gateway({
-      findById: vi.fn(async () => ({ ...storedDraft, status: 'finalized' as const })),
+      transitionLifecycle: vi.fn(async () => ({ kind: 'conflict' as const })),
     });
 
     const result = await updateTryoutStep(
-      { organizationId, tryoutId, action: 'publish' },
+      { organizationId, tryoutId, expectedVersion: 0, action: 'publish' },
       { authorization: ownerAuthorization },
       { gateway: repository },
     );
 
-    expect(result).toEqual({ ok: false, error: { code: 'invalid_transition' } });
-    expect(repository.saveStep).not.toHaveBeenCalled();
+    expect(result).toEqual({ ok: false, error: { code: 'conflict' } });
+    expect(repository.transitionLifecycle).toHaveBeenCalledTimes(1);
   });
 });
