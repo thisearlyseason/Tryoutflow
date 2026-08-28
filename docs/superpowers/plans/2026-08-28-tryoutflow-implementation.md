@@ -56,6 +56,7 @@ Registry versions were checked on 2026-08-28. Before Task 1 installs them, confi
 - Keep TypeScript strict; do not introduce broad `any`, unchecked casts, or client-exposed service credentials.
 - Write a failing test first, confirm the expected failure, implement the minimum behavior, refactor only after green, and run related regressions.
 - Every tenant-bound schema change includes `organization_id`, RLS, tenant-safe constraints, indexes, allowed tests, and denied tests in the same task.
+- Every task that adds or changes a migration regenerates and commits `src/infrastructure/supabase/database.types.ts` with `npx supabase gen types typescript --local`.
 - Every public or privileged mutation validates with Zod, authorizes on the server, and returns typed validation, permission, conflict, or unexpected errors.
 - Individual evaluator scores are integers on 1–5 or 1–10 scales; internal score math uses deterministic decimal semantics and rounds only for display.
 - Incomplete evaluations never count as zero; genuine ties retain equal rank; numerical rank never selects an athlete automatically.
@@ -119,7 +120,7 @@ The implementation may add focused files inside these directories, but it must n
 - Create: `package.json`
 - Create: `package-lock.json`
 - Create: `.nvmrc`
-- Create: `.gitignore`
+- Modify: `.gitignore`
 - Create: `.env.example`
 - Create: `tsconfig.json`
 - Create: `next.config.ts`
@@ -252,6 +253,7 @@ Commit: `git commit -m "feat: add TryoutFlow accessible design foundation"`.
 
 **Files:**
 - Create: `supabase/config.toml`
+- Create: `supabase/seed.sql`
 - Create: `supabase/migrations/202608280001_extensions_and_primitives.sql`
 - Create: `supabase/migrations/202608280002_profiles_organizations.sql`
 - Create: `supabase/tests/001_primitives.test.sql`
@@ -628,6 +630,7 @@ Commit: `git commit -m "feat: add guided tryout setup and publishing"`.
 - Create: `src/modules/registration/domain/duplicate-detection.ts`
 - Create: `src/modules/registration/application/register-athlete.ts`
 - Create: `src/modules/registration/application/public-registration-rate-limiter.ts`
+- Create: `src/modules/registration/application/registration-confirmation-notifier.ts`
 - Create: `src/infrastructure/registration/postgres-registration-rate-limiter.ts`
 - Create: `src/app/(registration)/register/[tryoutSlug]/page.tsx`
 - Create: `src/app/(registration)/register/[tryoutSlug]/confirmation/page.tsx`
