@@ -4,6 +4,18 @@ test('shows the organization onboarding form', async ({ page }) => {
   await page.goto('/start');
   await expect(page.getByRole('heading', { name: 'Set up your organization' })).toBeVisible();
   await expect(page.getByLabel('Organization URL')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create organization' })).toBeVisible();
+});
+
+test('shows invitation recovery guidance without exposing organization details', async ({
+  page,
+}) => {
+  await page.goto('/invite/short?error=invalid_or_expired');
+  await expect(
+    page.getByRole('heading', { name: 'This invitation is no longer valid' }),
+  ).toBeVisible();
+  await expect(page.getByText(/ask an administrator to send a new invitation/i)).toBeVisible();
+  await expect(page.getByText('Badlands Hockey Academy')).toHaveCount(0);
 });
 
 test('protects a direct organization URL when no session is present', async ({ page }) => {

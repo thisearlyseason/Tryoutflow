@@ -1,12 +1,15 @@
 import { z } from 'zod';
 
-import type { Clock } from '../../../lib/clock';
 import type { OrganizationId, UserId } from '../../../lib/ids';
 import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from './capabilities';
 import { defaultOrganizationGateway } from './organization-dependencies';
 import { requireCapability } from './require-capability';
-import type { OrganizationGateway, OrganizationSettings } from '../domain/organization';
+import {
+  isIanaTimeZone,
+  type OrganizationGateway,
+  type OrganizationSettings,
+} from '../domain/organization';
 
 const schema = z
   .object({
@@ -24,10 +27,11 @@ export type UpdateOrganizationSettingsError = {
 export async function updateOrganizationSettings(
   input: unknown,
   actor: { userId: UserId; authorization: AuthorizationContext },
-  dependencies: { gateway?: OrganizationGateway; clock?: Clock } = {},
+  dependencies: { gateway?: OrganizationGateway } = {},
 ): Promise<AppResult<OrganizationSettings, UpdateOrganizationSettingsError>> {
   const parsed = schema.safeParse(input);
-  if (!parsed.success) return failure({ code: 'invalid_input' });
+  if (!parsed.success || (parsed.data.timezone && !isIanaTimeZone(parsed.data.timezone)))
+    return failure({ code: 'invalid_input' });
   const organizationId = parsed.data.organizationId as OrganizationId;
   if (!requireCapability(actor.authorization, 'organization:update', { organizationId }).ok)
     return failure({ code: 'forbidden' });

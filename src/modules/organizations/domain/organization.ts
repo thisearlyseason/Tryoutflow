@@ -74,3 +74,12 @@ export function normalizeOrganizationSlug(value: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+export function isIanaTimeZone(value: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -8,7 +8,6 @@ import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from './capabilities';
 import { requireCapability } from './require-capability';
 import { defaultOrganizationGateway } from './organization-dependencies';
-import { NoopInvitationNotifier } from './invitation-notifier';
 import type { InvitationNotifier, OrganizationGateway } from '../domain/organization';
 
 const schema = z.object({
@@ -17,6 +16,7 @@ const schema = z.object({
   role: z.enum(['administrator', 'member']),
 });
 export type InviteMemberError = { code: 'invalid_input' | 'forbidden' | 'conflict' | 'unexpected' };
+export type InvitationDelivery = 'manual_share' | 'notifier_enqueued';
 
 export function invitationTokenDigest(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -31,7 +31,12 @@ export async function inviteMember(
     clock?: Clock;
     tokenGenerator?: () => string;
   } = {},
-): Promise<AppResult<{ invitationId: string }, InviteMemberError>> {
+): Promise<
+  AppResult<
+    { invitationId: string; delivery: InvitationDelivery; shareUrl: string },
+    InviteMemberError
+  >
+> {
   const parsed = schema.safeParse(
     typeof input === 'object' && input !== null
       ? {
@@ -62,14 +67,22 @@ export async function inviteMember(
       expiresAt,
       createdByUserId: actor.userId,
     });
-    await (dependencies.notifier ?? new NoopInvitationNotifier()).enqueue({
-      invitationId: invitation.id,
-      organizationId,
-      email: parsed.data.email,
-      token,
-      expiresAt,
-    });
-    return success({ invitationId: invitation.id });
+    let delivery: InvitationDelivery = 'manual_share';
+    if (dependencies.notifier) {
+      try {
+        await dependencies.notifier.enqueue({
+          invitationId: invitation.id,
+          organizationId,
+          email: parsed.data.email,
+          token,
+          expiresAt,
+        });
+        delivery = 'notifier_enqueued';
+      } catch {
+        // The caller receives the ephemeral one-time URL instead of a false delivery claim.
+      }
+    }
+    return success({ invitationId: invitation.id, delivery, shareUrl: `/invite/${token}` });
   } catch (error) {
     return failure({
       code: (error as { code?: string }).code === '23505' ? 'conflict' : 'unexpected',

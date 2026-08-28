@@ -4,6 +4,7 @@ import { failure, success, type AppResult } from '../../../lib/result';
 import { defaultOrganizationGateway } from './organization-dependencies';
 import {
   defaultOrganizationTerminology,
+  isIanaTimeZone,
   normalizeOrganizationSlug,
   type Organization,
   type OrganizationGateway,
@@ -35,6 +36,7 @@ export async function createOrganization(
   const slug = parsed.success ? normalizeOrganizationSlug(parsed.data.slug) : '';
   if (
     !parsed.success ||
+    !isIanaTimeZone(parsed.data.timezone) ||
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) ||
     slug.length < 3 ||
     slug.length > 63

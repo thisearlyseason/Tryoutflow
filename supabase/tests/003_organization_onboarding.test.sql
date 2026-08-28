@@ -1,5 +1,5 @@
 begin;
-select plan(7);
+select plan(16);
 
 select has_column('public', 'organizations', 'terminology', 'organization terminology defaults are persisted');
 select col_type_is('public', 'organizations', 'sport_defaults', 'jsonb', 'organization sport defaults are structured');
@@ -37,6 +37,97 @@ select is(
   1::bigint,
   'onboarding creates the owner membership in the same database operation'
 );
+
+select ok(
+  pg_get_functiondef('public.accept_organization_invitation(text)'::regprocedure) ilike '%for update%',
+  'invitation acceptance takes a row lock before changing lifecycle state'
+);
+
+reset role;
+insert into auth.users (id)
+values
+  ('88888888-8888-4888-8888-888888888888'),
+  ('77777777-7777-4777-8777-777777777777'),
+  ('66666666-6666-4666-8666-666666666666');
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '99999999-9999-4999-8999-999999999999', true);
+select set_config('request.jwt.claim', '{"sub":"99999999-9999-4999-8999-999999999999","email":"owner@example.com","role":"authenticated"}', true);
+
+insert into public.organization_invitations (
+  id, organization_id, email, role, token_digest, expires_at, created_by_user_id
+)
+select
+  '10000000-0000-4000-8000-000000000001', id, 'invitee@example.com', 'member', 'forged-acceptance', now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
+from public.organizations where slug = 'badlands-hockey-academy';
+
+select throws_ok(
+  $$update public.organization_invitations set accepted_at = now(), accepted_by_user_id = '88888888-8888-4888-8888-888888888888' where token_digest = 'forged-acceptance'$$,
+  '55000',
+  'invitation acceptance is reserved for the acceptance command',
+  'owners cannot forge an accepted invitation through REST updates'
+);
+
+update public.organization_invitations set revoked_at = now() where token_digest = 'forged-acceptance';
+select throws_ok(
+  $$update public.organization_invitations set revoked_at = null where token_digest = 'forged-acceptance'$$,
+  '55000',
+  'a revoked invitation cannot be reactivated',
+  'owners cannot un-revoke an invitation through REST updates'
+);
+
+insert into public.organization_invitations (
+  id, organization_id, email, role, token_digest, expires_at, created_by_user_id
+)
+select
+  '10000000-0000-4000-8000-000000000002', id, 'invitee@example.com', 'member', 'matching-email', now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
+from public.organizations where slug = 'badlands-hockey-academy';
+
+select set_config('request.jwt.claim.sub', '88888888-8888-4888-8888-888888888888', true);
+select set_config('request.jwt.claim', '{"sub":"88888888-8888-4888-8888-888888888888","email":"invitee@example.com","role":"authenticated"}', true);
+select is((select outcome from public.accept_organization_invitation('matching-email')), 'accepted', 'matching email can accept one active invitation');
+select is((select count(*) from public.organization_members where user_id = '88888888-8888-4888-8888-888888888888'), 1::bigint, 'successful acceptance creates one membership');
+select is((select outcome from public.accept_organization_invitation('matching-email')), 'invalid', 'accepted invitation cannot be replayed');
+
+select set_config('request.jwt.claim.sub', '99999999-9999-4999-8999-999999999999', true);
+select set_config('request.jwt.claim', '{"sub":"99999999-9999-4999-8999-999999999999","email":"owner@example.com","role":"authenticated"}', true);
+insert into public.organization_invitations (
+  id, organization_id, email, role, token_digest, expires_at, created_by_user_id
+)
+select
+  '10000000-0000-4000-8000-000000000003', id, 'invitee@example.com', 'member', 'wrong-email', now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
+from public.organizations where slug = 'badlands-hockey-academy';
+
+select set_config('request.jwt.claim.sub', '77777777-7777-4777-8777-777777777777', true);
+select set_config('request.jwt.claim', '{"sub":"77777777-7777-4777-8777-777777777777","email":"other@example.com","role":"authenticated"}', true);
+select is((select outcome from public.accept_organization_invitation('wrong-email')), 'wrong_email', 'wrong email cannot accept an invitation');
+
+select set_config('request.jwt.claim.sub', '99999999-9999-4999-8999-999999999999', true);
+select set_config('request.jwt.claim', '{"sub":"99999999-9999-4999-8999-999999999999","email":"owner@example.com","role":"authenticated"}', true);
+insert into public.organization_invitations (
+  id, organization_id, email, role, token_digest, created_at, expires_at, created_by_user_id
+)
+select
+  '10000000-0000-4000-8000-000000000004', id, 'invitee@example.com', 'member', 'expired', now() - interval '2 minutes', now() - interval '1 minute', '99999999-9999-4999-8999-999999999999'
+from public.organizations where slug = 'badlands-hockey-academy';
+
+select set_config('request.jwt.claim.sub', '66666666-6666-4666-8666-666666666666', true);
+select set_config('request.jwt.claim', '{"sub":"66666666-6666-4666-8666-666666666666","email":"invitee@example.com","role":"authenticated"}', true);
+select is((select outcome from public.accept_organization_invitation('expired')), 'expired', 'expired invitation cannot be accepted');
+
+select set_config('request.jwt.claim.sub', '99999999-9999-4999-8999-999999999999', true);
+select set_config('request.jwt.claim', '{"sub":"99999999-9999-4999-8999-999999999999","email":"owner@example.com","role":"authenticated"}', true);
+insert into public.organization_invitations (
+  id, organization_id, email, role, token_digest, expires_at, created_by_user_id
+)
+select
+  '10000000-0000-4000-8000-000000000005', id, 'invitee@example.com', 'member', 'duplicate-membership', now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
+from public.organizations where slug = 'badlands-hockey-academy';
+
+select set_config('request.jwt.claim.sub', '88888888-8888-4888-8888-888888888888', true);
+select set_config('request.jwt.claim', '{"sub":"88888888-8888-4888-8888-888888888888","email":"invitee@example.com","role":"authenticated"}', true);
+select is((select outcome from public.accept_organization_invitation('duplicate-membership')), 'duplicate_membership', 'existing members cannot consume an additional invitation');
 
 select * from finish();
 rollback;

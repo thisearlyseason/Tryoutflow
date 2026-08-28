@@ -7,7 +7,6 @@ import { updateOrganizationSettings } from '../../../src/modules/organizations/a
 import type { OrganizationGateway } from '../../../src/modules/organizations/domain/organization';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
-import { FixedClock } from '../../../src/lib/clock';
 
 const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as OrganizationId;
 const ownerId = '11111111-1111-4111-8111-111111111111' as UserId;
@@ -77,26 +76,60 @@ describe('organization onboarding', () => {
     expect(result).toEqual({ ok: false, error: { code: 'slug_conflict' } });
   });
 
+  it('rejects a non-IANA timezone during organization creation', async () => {
+    const repository = gateway();
+    const result = await createOrganization(
+      { name: 'Badlands Hockey Academy', slug: 'badlands-hockey-academy', timezone: 'rink-time' },
+      { userId: ownerId },
+      { gateway: repository },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'invalid_input' } });
+    expect(repository.createWithOwner).not.toHaveBeenCalled();
+  });
+
   it('issues a member invitation with a hashed token and temporary notifier port', async () => {
-    const notifier = { enqueue: vi.fn(async () => undefined) };
     const repository = gateway();
 
     const result = await inviteMember(
       { organizationId, email: ' Coach@Example.com ', role: 'member' },
       { userId: ownerId, authorization: ownerContext },
-      { gateway: repository, notifier, tokenGenerator: () => 'high-entropy-token' },
+      { gateway: repository, tokenGenerator: () => 'high-entropy-token' },
     );
 
-    expect(result).toEqual({ ok: true, value: { invitationId: 'invite-1' } });
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        invitationId: 'invite-1',
+        delivery: 'manual_share',
+        shareUrl: '/invite/high-entropy-token',
+      },
+    });
     expect(repository.createInvitation).toHaveBeenCalledWith(
       expect.objectContaining({
         email: 'coach@example.com',
         tokenDigest: expect.not.stringMatching('high-entropy-token'),
       }),
     );
-    expect(notifier.enqueue).toHaveBeenCalledWith(
-      expect.objectContaining({ token: 'high-entropy-token' }),
+  });
+
+  it('falls back to explicit secure sharing when the temporary notifier fails', async () => {
+    const notifier = { enqueue: vi.fn(async () => Promise.reject(new Error('mail offline'))) };
+
+    const result = await inviteMember(
+      { organizationId, email: 'coach@example.com', role: 'member' },
+      { userId: ownerId, authorization: ownerContext },
+      { gateway: gateway(), notifier, tokenGenerator: () => 'high-entropy-token' },
     );
+
+    expect(result).toEqual({
+      ok: true,
+      value: expect.objectContaining({
+        delivery: 'manual_share',
+        shareUrl: '/invite/high-entropy-token',
+      }),
+    });
+    expect(notifier.enqueue).toHaveBeenCalledTimes(1);
   });
 
   it('rejects unauthorized owner role assignment before issuing an invitation', async () => {
@@ -138,6 +171,32 @@ describe('organization onboarding', () => {
     });
   });
 
+  it('updates only submitted settings fields so existing defaults are preserved', async () => {
+    const repository = gateway();
+    await updateOrganizationSettings(
+      { organizationId, timezone: 'America/Chicago' },
+      { userId: ownerId, authorization: ownerContext },
+      { gateway: repository },
+    );
+
+    expect(repository.updateSettings).toHaveBeenCalledWith({
+      organizationId,
+      timezone: 'America/Chicago',
+    });
+  });
+
+  it('rejects a timezone that is not an IANA timezone', async () => {
+    const repository = gateway();
+    const result = await updateOrganizationSettings(
+      { organizationId, timezone: 'rink-time' },
+      { userId: ownerId, authorization: ownerContext },
+      { gateway: repository },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'invalid_input' } });
+    expect(repository.updateSettings).not.toHaveBeenCalled();
+  });
+
   it('does not permit a stale cross-organization context to mutate settings', async () => {
     const repository = gateway();
     const result = await updateOrganizationSettings(
@@ -149,7 +208,7 @@ describe('organization onboarding', () => {
           organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' as OrganizationId,
         },
       },
-      { gateway: repository, clock: new FixedClock(new Date('2026-08-28T00:00:00Z')) },
+      { gateway: repository },
     );
 
     expect(result).toEqual({ ok: false, error: { code: 'forbidden' } });
