@@ -42,6 +42,36 @@ values
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '66666666-6666-4666-8666-666666666666', 'member'),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '77777777-7777-4777-8777-777777777777', 'administrator');
 
+insert into public.tryouts (id, organization_id, name, slug, sport, timezone)
+values (
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'Tenant isolation camp',
+  'tenant-isolation-camp',
+  'Hockey',
+  'America/Edmonton'
+);
+
+insert into public.tryout_divisions (id, organization_id, tryout_id, name, sort_order)
+values (
+  'ffffffff-ffff-4fff-8fff-ffffffffffff',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'U15',
+  1
+);
+
+insert into public.tryout_sessions (id, organization_id, tryout_id, division_id, name, starts_at, ends_at)
+values (
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'ffffffff-ffff-4fff-8fff-ffffffffffff',
+  'Session one',
+  '2026-09-10T17:00:00Z',
+  '2026-09-10T18:00:00Z'
+);
+
 select throws_ok(
   $$update public.organization_members set status = 'disabled' where organization_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' and user_id = '11111111-1111-4111-8111-111111111111'$$,
   '23514',

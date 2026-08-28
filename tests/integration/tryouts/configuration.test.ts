@@ -1,0 +1,166 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { FixedClock } from '../../../src/lib/clock';
+import type { OrganizationId, UserId } from '../../../src/lib/ids';
+import { createTryout } from '../../../src/modules/tryouts/application/create-tryout';
+import { updateTryoutStep } from '../../../src/modules/tryouts/application/update-tryout-step';
+import type { TryoutDraft, TryoutGateway } from '../../../src/modules/tryouts/domain/tryout';
+import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
+
+const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as OrganizationId;
+const ownerId = '11111111-1111-4111-8111-111111111111' as UserId;
+const tryoutId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+const ownerAuthorization: AuthorizationContext = {
+  userId: ownerId,
+  organizationId,
+  organizationRole: 'owner',
+  membershipStatus: 'active',
+  assignments: [],
+};
+
+const storedDraft: TryoutDraft = {
+  id: tryoutId,
+  organizationId,
+  seasonId: null,
+  name: 'Fall ID Camp',
+  sport: 'Hockey',
+  timezone: 'America/Edmonton',
+  status: 'draft',
+  registrationStartsAt: null,
+  registrationEndsAt: null,
+  publishedAt: null,
+  finalizedAt: null,
+  createdAt: new Date('2026-08-28T12:00:00.000Z'),
+  updatedAt: new Date('2026-08-28T12:00:00.000Z'),
+};
+
+function gateway(overrides: Partial<TryoutGateway> = {}): TryoutGateway {
+  return {
+    createDraft: vi.fn(async (input) => ({ ...storedDraft, ...input, id: tryoutId })),
+    findById: vi.fn(async () => storedDraft),
+    saveStep: vi.fn(async (input) => ({ ...storedDraft, ...input })),
+    ...overrides,
+  };
+}
+
+describe('tryout configuration commands', () => {
+  it('creates a tenant-scoped draft using the supplied clock', async () => {
+    const repository = gateway();
+    const now = new Date('2026-08-28T13:00:00.000Z');
+
+    const result = await createTryout(
+      {
+        organizationId,
+        name: 'Fall ID Camp',
+        sport: 'Hockey',
+        timezone: 'America/Edmonton',
+      },
+      { authorization: ownerAuthorization },
+      { gateway: repository, clock: new FixedClock(now) },
+    );
+
+    expect(result).toEqual({ ok: true, value: expect.objectContaining({ status: 'draft' }) });
+    expect(repository.createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId, createdAt: now, updatedAt: now }),
+    );
+  });
+
+  it('rejects a stale organization authorization before persisting a draft', async () => {
+    const repository = gateway();
+
+    const result = await createTryout(
+      {
+        organizationId,
+        name: 'Fall ID Camp',
+        sport: 'Hockey',
+        timezone: 'America/Edmonton',
+      },
+      {
+        authorization: {
+          ...ownerAuthorization,
+          organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' as OrganizationId,
+        },
+      },
+      { gateway: repository },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'forbidden' } });
+    expect(repository.createDraft).not.toHaveBeenCalled();
+  });
+
+  it('does not persist a registration window with an invalid instant range', async () => {
+    const repository = gateway();
+    const result = await createTryout(
+      {
+        organizationId,
+        name: 'Fall ID Camp',
+        sport: 'Hockey',
+        timezone: 'America/Edmonton',
+        registrationStartsAt: '2026-09-10T17:00:00.000Z',
+        registrationEndsAt: '2026-09-10T17:00:00.000Z',
+      },
+      { authorization: ownerAuthorization },
+      { gateway: repository },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'invalid_time_range' } });
+    expect(repository.createDraft).not.toHaveBeenCalled();
+  });
+
+  it('persists a valid publish transition with the supplied lifecycle timestamp', async () => {
+    const repository = gateway();
+    const finalizedAt = new Date('2026-08-28T14:00:00.000Z');
+
+    const result = await updateTryoutStep(
+      { organizationId, tryoutId, action: 'publish' },
+      { authorization: ownerAuthorization },
+      { gateway: repository, clock: new FixedClock(finalizedAt) },
+    );
+
+    expect(result).toEqual({ ok: true, value: expect.objectContaining({ status: 'published' }) });
+    expect(repository.saveStep).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: tryoutId,
+        status: 'published',
+        publishedAt: finalizedAt,
+        finalizedAt: null,
+        updatedAt: finalizedAt,
+      }),
+    );
+  });
+
+  it('preserves the publication instant when finalizing a current published record', async () => {
+    const publishedAt = new Date('2026-08-28T13:00:00.000Z');
+    const finalizedAt = new Date('2026-08-28T14:00:00.000Z');
+    const repository = gateway({
+      findById: vi.fn(async () => ({ ...storedDraft, status: 'published' as const, publishedAt })),
+    });
+
+    const result = await updateTryoutStep(
+      { organizationId, tryoutId, action: 'finalize' },
+      { authorization: ownerAuthorization },
+      { gateway: repository, clock: new FixedClock(finalizedAt) },
+    );
+
+    expect(result).toEqual({ ok: true, value: expect.objectContaining({ status: 'finalized' }) });
+    expect(repository.saveStep).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'finalized', publishedAt, finalizedAt }),
+    );
+  });
+
+  it('does not persist an invalid regression supplied after a current record is loaded', async () => {
+    const repository = gateway({
+      findById: vi.fn(async () => ({ ...storedDraft, status: 'finalized' as const })),
+    });
+
+    const result = await updateTryoutStep(
+      { organizationId, tryoutId, action: 'publish' },
+      { authorization: ownerAuthorization },
+      { gateway: repository },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'invalid_transition' } });
+    expect(repository.saveStep).not.toHaveBeenCalled();
+  });
+});

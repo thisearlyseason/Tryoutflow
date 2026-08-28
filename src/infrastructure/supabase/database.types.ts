@@ -268,6 +268,232 @@ export type Database = {
         };
         Relationships: [];
       };
+      seasons: {
+        Row: {
+          created_at: string;
+          ends_on: string | null;
+          id: string;
+          name: string;
+          organization_id: string;
+          starts_on: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          ends_on?: string | null;
+          id?: string;
+          name: string;
+          organization_id: string;
+          starts_on?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          ends_on?: string | null;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          starts_on?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'seasons_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      session_groups: {
+        Row: {
+          capacity: number | null;
+          created_at: string;
+          id: string;
+          name: string;
+          organization_id: string;
+          session_id: string;
+          sort_order: number;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          capacity?: number | null;
+          created_at?: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+          session_id: string;
+          sort_order: number;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          capacity?: number | null;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          session_id?: string;
+          sort_order?: number;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'session_groups_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
+      tryout_divisions: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          id: string;
+          max_age: number | null;
+          min_age: number | null;
+          name: string;
+          organization_id: string;
+          sort_order: number;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          max_age?: number | null;
+          min_age?: number | null;
+          name: string;
+          organization_id: string;
+          sort_order: number;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          max_age?: number | null;
+          min_age?: number | null;
+          name?: string;
+          organization_id?: string;
+          sort_order?: number;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_divisions_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      tryout_positions: {
+        Row: {
+          code: string | null;
+          created_at: string;
+          id: string;
+          is_preset: boolean;
+          name: string;
+          organization_id: string;
+          sort_order: number;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          code?: string | null;
+          created_at?: string;
+          id?: string;
+          is_preset?: boolean;
+          name: string;
+          organization_id: string;
+          sort_order: number;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          code?: string | null;
+          created_at?: string;
+          id?: string;
+          is_preset?: boolean;
+          name?: string;
+          organization_id?: string;
+          sort_order?: number;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_positions_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      tryout_sessions: {
+        Row: {
+          capacity: number | null;
+          created_at: string;
+          division_id: string;
+          ends_at: string;
+          id: string;
+          location: string | null;
+          name: string;
+          organization_id: string;
+          sort_order: number;
+          starts_at: string;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          capacity?: number | null;
+          created_at?: string;
+          division_id: string;
+          ends_at: string;
+          id?: string;
+          location?: string | null;
+          name: string;
+          organization_id: string;
+          sort_order?: number;
+          starts_at: string;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          capacity?: number | null;
+          created_at?: string;
+          division_id?: string;
+          ends_at?: string;
+          id?: string;
+          location?: string | null;
+          name?: string;
+          organization_id?: string;
+          sort_order?: number;
+          starts_at?: string;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_sessions_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
       tryout_staff_assignments: {
         Row: {
           athlete_id: string | null;
@@ -322,11 +548,123 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'tryout_staff_assignments_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_staff_assignments_group_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id', 'group_id'];
+            isOneToOne: false;
+            referencedRelation: 'session_groups';
+            referencedColumns: ['organization_id', 'tryout_id', 'session_id', 'id'];
+          },
+          {
             foreignKeyName: 'tryout_staff_assignments_organization_id_fkey';
             columns: ['organization_id'];
             isOneToOne: false;
             referencedRelation: 'organizations';
             referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'tryout_staff_assignments_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_staff_assignments_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      tryouts: {
+        Row: {
+          blind_mode: boolean;
+          created_at: string;
+          description: string | null;
+          ends_at: string | null;
+          finalized_at: string | null;
+          id: string;
+          name: string;
+          organization_id: string;
+          published_at: string | null;
+          registration_ends_at: string | null;
+          registration_starts_at: string | null;
+          score_visibility: string;
+          season_id: string | null;
+          slug: string;
+          sport: string;
+          starts_at: string | null;
+          status: string;
+          terminology: Json;
+          timezone: string;
+          updated_at: string;
+        };
+        Insert: {
+          blind_mode?: boolean;
+          created_at?: string;
+          description?: string | null;
+          ends_at?: string | null;
+          finalized_at?: string | null;
+          id?: string;
+          name: string;
+          organization_id: string;
+          published_at?: string | null;
+          registration_ends_at?: string | null;
+          registration_starts_at?: string | null;
+          score_visibility?: string;
+          season_id?: string | null;
+          slug: string;
+          sport: string;
+          starts_at?: string | null;
+          status?: string;
+          terminology?: Json;
+          timezone: string;
+          updated_at?: string;
+        };
+        Update: {
+          blind_mode?: boolean;
+          created_at?: string;
+          description?: string | null;
+          ends_at?: string | null;
+          finalized_at?: string | null;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          published_at?: string | null;
+          registration_ends_at?: string | null;
+          registration_starts_at?: string | null;
+          score_visibility?: string;
+          season_id?: string | null;
+          slug?: string;
+          sport?: string;
+          starts_at?: string | null;
+          status?: string;
+          terminology?: Json;
+          timezone?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryouts_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'tryouts_organization_season_fkey';
+            columns: ['organization_id', 'season_id'];
+            isOneToOne: false;
+            referencedRelation: 'seasons';
+            referencedColumns: ['organization_id', 'id'];
           },
         ];
       };
@@ -354,8 +692,28 @@ export type Database = {
         };
         Returns: boolean;
       };
+      can_manage_tryout_configuration: {
+        Args: {
+          target_division_id?: string;
+          target_group_id?: string;
+          target_organization_id: string;
+          target_session_id?: string;
+          target_tryout_id: string;
+        };
+        Returns: boolean;
+      };
       can_read_tenant_record: {
         Args: { target_organization_id: string };
+        Returns: boolean;
+      };
+      can_read_tryout_configuration: {
+        Args: {
+          target_division_id?: string;
+          target_group_id?: string;
+          target_organization_id: string;
+          target_session_id?: string;
+          target_tryout_id: string;
+        };
         Returns: boolean;
       };
       create_organization_with_owner: {
@@ -377,6 +735,17 @@ export type Database = {
           terminology: Json;
           timezone: string;
         }[];
+      };
+      has_active_configuration_assignment: {
+        Args: {
+          required_role?: string;
+          target_division_id?: string;
+          target_group_id?: string;
+          target_organization_id: string;
+          target_session_id?: string;
+          target_tryout_id: string;
+        };
+        Returns: boolean;
       };
       has_active_platform_support_elevation: {
         Args: { target_organization_id: string };
