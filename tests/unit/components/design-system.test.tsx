@@ -33,20 +33,42 @@ describe('TryoutFlow design system', () => {
     expect(document.documentElement).toHaveStyle({ colorScheme: 'light' });
   });
 
-  it('keeps controls at the 44 px mobile target and gives keyboard focus an electric-blue ring', () => {
-    const { container } = render(<Input aria-label="Tryout name" />);
+  it('keeps buttons, inputs, and mobile navigation links at the 44 px target', () => {
+    render(
+      <>
+        <Button>Go</Button>
+        <Input aria-label="Tryout name" />
+        <MobileNav
+          items={[
+            { href: '/tryouts', label: 'Tryouts' },
+            { href: '/athletes', label: 'Athletes' },
+            { href: '/settings', label: 'Settings' },
+          ]}
+        />
+      </>,
+    );
+
+    const button = screen.getByRole('button', { name: 'Go' });
     const input = screen.getByRole('textbox', { name: 'Tryout name' });
 
     expect(getComputedStyle(document.documentElement).getPropertyValue('--target-mobile')).toBe(
       '44px',
     );
+    expect(button).toHaveClass('min-h-[var(--target-mobile)]', 'min-w-[var(--target-mobile)]');
+    expect(input).toHaveClass('min-h-[var(--target-mobile)]', 'min-w-[var(--target-mobile)]');
+    for (const link of screen.getAllByRole('link')) {
+      expect(link).toHaveClass('min-h-[var(--target-mobile)]', 'min-w-[var(--target-mobile)]');
+    }
+  });
+
+  it('gives keyboard focus an electric-blue ring', () => {
+    render(<Input aria-label="Tryout name" />);
+    const input = screen.getByRole('textbox', { name: 'Tryout name' });
+
     expect(getComputedStyle(document.documentElement).getPropertyValue('--color-focus')).toBe(
       '#0057ff',
     );
-    expect(container.firstChild).toHaveClass(
-      'min-h-[var(--target-mobile)]',
-      'focus:ring-[var(--color-focus)]',
-    );
+    expect(input).toHaveClass('focus:ring-[var(--color-focus)]');
   });
 
   it('disables busy primary actions without replacing their accessible name', () => {
@@ -58,10 +80,26 @@ describe('TryoutFlow design system', () => {
   });
 
   it('pairs every status color with a readable status label', () => {
-    render(<StatusBadge status="callback" />);
+    const statuses = [
+      ['callback', 'Callback'],
+      ['complete', 'Complete'],
+      ['in-progress', 'In progress'],
+      ['selected', 'Selected'],
+      ['waitlisted', 'Waitlisted'],
+    ] as const;
 
-    expect(screen.getByText('Callback')).toBeVisible();
-    expect(screen.getByText('Callback')).toHaveAttribute('data-status', 'callback');
+    render(
+      <>
+        {statuses.map(([status]) => (
+          <StatusBadge key={status} status={status} />
+        ))}
+      </>,
+    );
+
+    for (const [status, label] of statuses) {
+      expect(screen.getByText(label)).toBeVisible();
+      expect(screen.getByText(label)).toHaveAttribute('data-status', status);
+    }
   });
 
   it('removes nonessential animation when reduced motion is requested', () => {

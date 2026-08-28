@@ -36,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       aria-busy={busy || undefined}
       className={[
-        'inline-flex min-h-[var(--target-mobile)] items-center justify-center rounded-[var(--radius-control)] px-4 py-2 text-sm font-bold tracking-wide transition-colors duration-[var(--duration-enter)] disabled:cursor-not-allowed disabled:opacity-55',
+        'inline-flex min-h-[var(--target-mobile)] min-w-[var(--target-mobile)] items-center justify-center rounded-[var(--radius-control)] px-4 py-2 text-sm font-bold tracking-wide transition-colors duration-[var(--duration-enter)] disabled:cursor-not-allowed disabled:opacity-55',
         focusRingClassName,
         variantClassNames[variant],
         className,
