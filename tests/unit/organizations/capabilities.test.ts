@@ -16,18 +16,19 @@ const ownerAContext: AuthorizationContext = {
   userId: ownerA,
   organizationId: organizationA,
   organizationRole: 'owner',
+  membershipStatus: 'active',
   assignments: [],
 };
 
 const evaluatorContext: AuthorizationContext = {
   userId: evaluator,
   organizationId: organizationA,
-  organizationRole: null,
+  organizationRole: 'member',
+  membershipStatus: 'active',
   assignments: [
     {
       role: 'evaluator',
-      tryoutId: assignedTryout,
-      sessionId: assignedSession,
+      scope: { kind: 'session', tryoutId: assignedTryout, sessionId: assignedSession },
     },
   ],
 };
@@ -35,8 +36,9 @@ const evaluatorContext: AuthorizationContext = {
 const checkinContext: AuthorizationContext = {
   userId: checkinStaff,
   organizationId: organizationA,
-  organizationRole: null,
-  assignments: [{ role: 'checkin', tryoutId: assignedTryout }],
+  organizationRole: 'member',
+  membershipStatus: 'active',
+  assignments: [{ role: 'checkin', scope: { kind: 'tryout', tryoutId: assignedTryout } }],
 };
 
 describe('capabilities', () => {
@@ -69,6 +71,29 @@ describe('capabilities', () => {
     ).toBe(false);
   });
 
+  it('allows an evaluator to read only their own assigned evaluation', () => {
+    const assignedEvaluation = {
+      organizationId: organizationA,
+      tryoutId: assignedTryout,
+      sessionId: assignedSession,
+      evaluatorUserId: evaluator,
+    };
+
+    expect(can(evaluatorContext, 'evaluation:read', assignedEvaluation)).toBe(true);
+    expect(
+      can(evaluatorContext, 'evaluation:read', { ...assignedEvaluation, evaluatorUserId: ownerA }),
+    ).toBe(false);
+
+    const unassignedEvaluatorContext: AuthorizationContext = {
+      userId: evaluator,
+      organizationId: organizationA,
+      organizationRole: 'member',
+      membershipStatus: 'active',
+      assignments: [],
+    };
+    expect(can(unassignedEvaluatorContext, 'evaluation:read', assignedEvaluation)).toBe(false);
+  });
+
   it('denies owner access to another organization resource', () => {
     expect(can(ownerAContext, 'athlete:read', { organizationId: organizationB })).toBe(false);
   });
@@ -97,8 +122,9 @@ describe('capabilities', () => {
     const reviewerContext: AuthorizationContext = {
       userId: ownerA,
       organizationId: organizationA,
-      organizationRole: null,
-      assignments: [{ role: 'reviewer', tryoutId: assignedTryout }],
+      organizationRole: 'member',
+      membershipStatus: 'active',
+      assignments: [{ role: 'reviewer', scope: { kind: 'tryout', tryoutId: assignedTryout } }],
     };
 
     const finalizedRoster = {
@@ -109,5 +135,50 @@ describe('capabilities', () => {
 
     expect(can(reviewerContext, 'roster:read', finalizedRoster)).toBe(true);
     expect(can(reviewerContext, 'roster:write', finalizedRoster)).toBe(false);
+  });
+
+  it('denies malformed runtime contexts that do not carry an active membership role', () => {
+    const untrustedContext = {
+      ...evaluatorContext,
+      membershipStatus: 'disabled',
+    } as unknown as AuthorizationContext;
+
+    expect(
+      can(untrustedContext, 'evaluation:update-own', {
+        organizationId: organizationA,
+        tryoutId: assignedTryout,
+        sessionId: assignedSession,
+        evaluatorUserId: evaluator,
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps a division grant bounded by both its tryout and division', () => {
+    const divisionId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const divisionContext: AuthorizationContext = {
+      userId: evaluator,
+      organizationId: organizationA,
+      organizationRole: 'member',
+      membershipStatus: 'active',
+      assignments: [
+        { role: 'director', scope: { kind: 'division', tryoutId: assignedTryout, divisionId } },
+      ],
+    };
+
+    expect(
+      can(divisionContext, 'tryout:read', {
+        organizationId: organizationA,
+        tryoutId: assignedTryout,
+        divisionId,
+      }),
+    ).toBe(true);
+    expect(
+      can(divisionContext, 'tryout:read', {
+        organizationId: organizationA,
+        tryoutId: assignedTryout,
+        divisionId: 'abababab-abab-4bab-8bab-abababababab',
+      }),
+    ).toBe(false);
+    expect(can(divisionContext, 'tryout:read', { organizationId: organizationA })).toBe(false);
   });
 });

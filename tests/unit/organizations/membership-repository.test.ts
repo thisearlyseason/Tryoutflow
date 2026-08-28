@@ -11,15 +11,23 @@ describe('buildAuthorizationContext', () => {
     const context = buildAuthorizationContext(
       { organizationId, userId, role: 'member', status: 'active' },
       [
-        { role: 'evaluator', tryoutId: 'tryout-1', revokedAt: null, expiresAt: null },
+        {
+          role: 'evaluator',
+          scopeKind: 'tryout',
+          tryoutId: 'tryout-1',
+          revokedAt: null,
+          expiresAt: null,
+        },
         {
           role: 'checkin',
+          scopeKind: 'tryout',
           tryoutId: 'tryout-1',
           revokedAt: '2026-08-28T00:00:00Z',
           expiresAt: null,
         },
         {
           role: 'reviewer',
+          scopeKind: 'tryout',
           tryoutId: 'tryout-1',
           revokedAt: null,
           expiresAt: '2026-08-27T00:00:00Z',
@@ -32,7 +40,8 @@ describe('buildAuthorizationContext', () => {
       userId,
       organizationId,
       organizationRole: 'member',
-      assignments: [{ role: 'evaluator', tryoutId: 'tryout-1' }],
+      membershipStatus: 'active',
+      assignments: [{ role: 'evaluator', scope: { kind: 'tryout', tryoutId: 'tryout-1' } }],
     });
   });
 
@@ -44,5 +53,24 @@ describe('buildAuthorizationContext', () => {
         new Date('2026-08-28T00:00:00Z'),
       ),
     ).toBeNull();
+  });
+
+  it('drops malformed assignments rather than treating a missing tryout scope as a wildcard', () => {
+    const context = buildAuthorizationContext(
+      { organizationId, userId, role: 'member', status: 'active' },
+      [
+        {
+          role: 'evaluator',
+          scopeKind: 'division',
+          tryoutId: '',
+          divisionId: 'division-1',
+          revokedAt: null,
+          expiresAt: null,
+        },
+      ],
+      new Date('2026-08-28T00:00:00Z'),
+    );
+
+    expect(context?.assignments).toEqual([]);
   });
 });

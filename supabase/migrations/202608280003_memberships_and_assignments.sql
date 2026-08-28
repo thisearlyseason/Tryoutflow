@@ -35,7 +35,11 @@ begin
     return new;
   end if;
 
-  if tg_op = 'UPDATE' and new.role = 'owner' and new.status = 'active' then
+  if tg_op = 'UPDATE'
+    and new.role = 'owner'
+    and new.status = 'active'
+    and new.organization_id = old.organization_id
+    and new.user_id = old.user_id then
     return new;
   end if;
 
@@ -101,7 +105,9 @@ create table public.tryout_staff_assignments (
   organization_id uuid not null references public.organizations (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
   role text not null,
+  scope_kind text not null,
   tryout_id uuid not null,
+  division_id uuid,
   session_id uuid,
   group_id uuid,
   athlete_id uuid,
@@ -112,6 +118,14 @@ create table public.tryout_staff_assignments (
   updated_at timestamptz not null default now(),
   constraint tryout_staff_assignments_organization_id_id_key unique (organization_id, id),
   constraint tryout_staff_assignments_role check (role in ('director', 'evaluator', 'checkin', 'reviewer')),
+  constraint tryout_staff_assignments_scope_kind check (scope_kind in ('tryout', 'division', 'session', 'group', 'athlete')),
+  constraint tryout_staff_assignments_valid_scope check (
+    (scope_kind = 'tryout' and division_id is null and session_id is null and group_id is null and athlete_id is null)
+    or (scope_kind = 'division' and division_id is not null and session_id is null and group_id is null and athlete_id is null)
+    or (scope_kind = 'session' and division_id is null and session_id is not null and group_id is null and athlete_id is null)
+    or (scope_kind = 'group' and division_id is null and session_id is not null and group_id is not null and athlete_id is null)
+    or (scope_kind = 'athlete' and division_id is null and session_id is null and group_id is null and athlete_id is not null)
+  ),
   constraint tryout_staff_assignments_expiry_after_creation check (expires_at is null or expires_at > created_at)
 );
 
@@ -121,6 +135,7 @@ on public.tryout_staff_assignments (
   user_id,
   role,
   tryout_id,
+  division_id,
   session_id,
   group_id,
   athlete_id
@@ -128,7 +143,7 @@ on public.tryout_staff_assignments (
 where revoked_at is null;
 
 create index tryout_staff_assignments_active_user_scope_idx
-on public.tryout_staff_assignments (user_id, organization_id, role, tryout_id, session_id)
+on public.tryout_staff_assignments (user_id, organization_id, role, tryout_id, division_id, session_id)
 where revoked_at is null;
 
 create trigger set_tryout_staff_assignments_updated_at
@@ -195,6 +210,7 @@ create function public.has_active_staff_assignment(
   target_organization_id uuid,
   required_role text,
   target_tryout_id uuid,
+  target_division_id uuid default null,
   target_session_id uuid default null,
   target_group_id uuid default null,
   target_athlete_id uuid default null
@@ -213,6 +229,7 @@ as $$
         and assignment.user_id = auth.uid()
         and assignment.role = required_role
         and assignment.tryout_id = target_tryout_id
+        and (assignment.division_id is null or assignment.division_id = target_division_id)
         and (assignment.session_id is null or assignment.session_id = target_session_id)
         and (assignment.group_id is null or assignment.group_id = target_group_id)
         and (assignment.athlete_id is null or assignment.athlete_id = target_athlete_id)
@@ -224,6 +241,7 @@ $$;
 create function public.can_access_evaluation(
   target_organization_id uuid,
   target_tryout_id uuid,
+  target_division_id uuid,
   target_session_id uuid,
   evaluator_user_id uuid,
   is_mutation boolean
@@ -242,6 +260,7 @@ as $$
         target_organization_id,
         'evaluator',
         target_tryout_id,
+        target_division_id,
         target_session_id
       )
     );
@@ -265,12 +284,12 @@ as $$
 $$;
 
 revoke all on function public.is_active_organization_member(uuid, text[]) from public;
-revoke all on function public.has_active_staff_assignment(uuid, text, uuid, uuid, uuid, uuid) from public;
+revoke all on function public.has_active_staff_assignment(uuid, text, uuid, uuid, uuid, uuid, uuid) from public;
 revoke all on function public.has_active_platform_support_elevation(uuid) from public;
 grant execute on function public.is_active_organization_member(uuid, text[]) to authenticated;
-grant execute on function public.has_active_staff_assignment(uuid, text, uuid, uuid, uuid, uuid) to authenticated;
+grant execute on function public.has_active_staff_assignment(uuid, text, uuid, uuid, uuid, uuid, uuid) to authenticated;
 grant execute on function public.can_read_tenant_record(uuid) to anon, authenticated;
-grant execute on function public.can_access_evaluation(uuid, uuid, uuid, uuid, boolean) to anon, authenticated;
+grant execute on function public.can_access_evaluation(uuid, uuid, uuid, uuid, uuid, boolean) to anon, authenticated;
 
 alter table public.organization_members enable row level security;
 alter table public.organization_invitations enable row level security;

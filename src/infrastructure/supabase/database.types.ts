@@ -263,6 +263,7 @@ export type Database = {
         Row: {
           athlete_id: string | null;
           created_at: string;
+          division_id: string | null;
           expires_at: string | null;
           granted_by_user_id: string;
           group_id: string | null;
@@ -270,6 +271,7 @@ export type Database = {
           organization_id: string;
           revoked_at: string | null;
           role: string;
+          scope_kind: string;
           session_id: string | null;
           tryout_id: string;
           updated_at: string;
@@ -278,6 +280,7 @@ export type Database = {
         Insert: {
           athlete_id?: string | null;
           created_at?: string;
+          division_id?: string | null;
           expires_at?: string | null;
           granted_by_user_id: string;
           group_id?: string | null;
@@ -285,6 +288,7 @@ export type Database = {
           organization_id: string;
           revoked_at?: string | null;
           role: string;
+          scope_kind: string;
           session_id?: string | null;
           tryout_id: string;
           updated_at?: string;
@@ -293,6 +297,7 @@ export type Database = {
         Update: {
           athlete_id?: string | null;
           created_at?: string;
+          division_id?: string | null;
           expires_at?: string | null;
           granted_by_user_id?: string;
           group_id?: string | null;
@@ -300,6 +305,7 @@ export type Database = {
           organization_id?: string;
           revoked_at?: string | null;
           role?: string;
+          scope_kind?: string;
           session_id?: string | null;
           tryout_id?: string;
           updated_at?: string;
@@ -324,6 +330,7 @@ export type Database = {
         Args: {
           evaluator_user_id: string;
           is_mutation: boolean;
+          target_division_id: string;
           target_organization_id: string;
           target_session_id: string;
           target_tryout_id: string;
@@ -342,6 +349,7 @@ export type Database = {
         Args: {
           required_role: string;
           target_athlete_id?: string;
+          target_division_id?: string;
           target_group_id?: string;
           target_organization_id: string;
           target_session_id?: string;

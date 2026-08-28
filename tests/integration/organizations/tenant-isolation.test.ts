@@ -14,6 +14,7 @@ describe('organization authorization boundary', () => {
       userId: ownerA,
       organizationId: organizationA,
       organizationRole: 'owner',
+      membershipStatus: 'active',
       assignments: [],
     };
 

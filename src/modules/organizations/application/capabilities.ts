@@ -1,6 +1,11 @@
 import type { OrganizationId, UserId } from '../../../lib/ids';
 
-import type { OrganizationRole, ScopedRole, StaffAssignment } from '../domain/roles';
+import {
+  isOrganizationRole,
+  type OrganizationRole,
+  type ScopedRole,
+  type StaffAssignment,
+} from '../domain/roles';
 
 export type Capability =
   | 'organization:read'
@@ -23,13 +28,15 @@ export type Capability =
 export type AuthorizationContext = {
   userId: UserId;
   organizationId: OrganizationId;
-  organizationRole: OrganizationRole | null;
+  organizationRole: OrganizationRole;
+  membershipStatus: 'active';
   assignments: StaffAssignment[];
 };
 
 export type AuthorizationResource = {
   organizationId: OrganizationId;
   tryoutId?: string;
+  divisionId?: string;
   sessionId?: string;
   groupId?: string;
   athleteId?: string;
@@ -77,12 +84,25 @@ function assignmentMatchesResource(
   assignment: StaffAssignment,
   resource: AuthorizationResource,
 ): boolean {
-  return (
-    (!assignment.tryoutId || assignment.tryoutId === resource.tryoutId) &&
-    (!assignment.sessionId || assignment.sessionId === resource.sessionId) &&
-    (!assignment.groupId || assignment.groupId === resource.groupId) &&
-    (!assignment.athleteId || assignment.athleteId === resource.athleteId)
-  );
+  if (resource.tryoutId !== assignment.scope.tryoutId) {
+    return false;
+  }
+
+  switch (assignment.scope.kind) {
+    case 'tryout':
+      return true;
+    case 'division':
+      return resource.divisionId === assignment.scope.divisionId;
+    case 'session':
+      return resource.sessionId === assignment.scope.sessionId;
+    case 'group':
+      return (
+        resource.sessionId === assignment.scope.sessionId &&
+        resource.groupId === assignment.scope.groupId
+      );
+    case 'athlete':
+      return resource.athleteId === assignment.scope.athleteId;
+  }
 }
 
 function hasScopedRole(
@@ -112,6 +132,10 @@ export function can(
     return false;
   }
 
+  if (!isOrganizationRole(context.organizationRole) || context.membershipStatus !== 'active') {
+    return false;
+  }
+
   if (hasOrganizationCapability(context, capability)) {
     return true;
   }
@@ -132,7 +156,7 @@ export function can(
     ].includes(capability);
   }
 
-  if (capability === 'evaluation:update-own') {
+  if (capability === 'evaluation:update-own' || capability === 'evaluation:read') {
     return (
       resource.evaluatorUserId === context.userId && hasScopedRole(context, 'evaluator', resource)
     );
