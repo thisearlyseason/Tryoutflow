@@ -1,12 +1,12 @@
 import type { Clock } from '@/lib/clock';
-import type { OrganizationId, UserId } from '@/lib/ids';
+import type { AuditEntityId, OrganizationId, UserId } from '@/lib/ids';
 
 export type AuditEvent = {
   organizationId: OrganizationId;
   actorId: UserId | null;
   action: string;
   entityType: string;
-  entityId: string;
+  entityId: AuditEntityId;
   occurredAt: Date;
 };
 

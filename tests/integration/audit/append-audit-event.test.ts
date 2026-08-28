@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FixedClock } from '../../../src/lib/clock';
-import { parseOrganizationId, parseUserId } from '../../../src/lib/ids';
+import { parseAuditEntityId, parseOrganizationId, parseUserId } from '../../../src/lib/ids';
 import {
   appendAuditEvent,
   type AuditEvent,
@@ -23,7 +23,7 @@ describe('appendAuditEvent', () => {
       actorId: parseUserId('0c9cbb1d-1e53-4ddf-b3dc-ec55bd2f5df5'),
       action: 'organization.created',
       entityType: 'organization',
-      entityId: '6053b548-2bd8-4c57-9c13-c1381e4d29cc',
+      entityId: parseAuditEntityId('6053b548-2bd8-4c57-9c13-c1381e4d29cc'),
     });
 
     expect(events).toEqual([
