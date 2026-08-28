@@ -7,9 +7,11 @@ type SignInPageProps = {
 };
 
 const messages: Record<string, string> = {
+  abuse_protection_unavailable: 'Sign-in is temporarily unavailable. Please try again shortly.',
   auth_callback_failed: 'That sign-in link has expired or was already used. Please sign in again.',
   auth_callback_missing: 'Your sign-in link is incomplete. Request a new one and try again.',
   invalid_credentials: 'We could not verify that email and password. Please try again.',
+  rate_limited: 'Too many sign-in attempts. Please wait a few minutes before trying again.',
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
@@ -53,6 +55,12 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           />
           <button type="submit">Sign in</button>
         </form>
+        <p>
+          <a href="/forgot-password">Forgot your password?</a>
+        </p>
+        <p>
+          <a href="/verify-email">Need a new verification link?</a>
+        </p>
       </section>
     </main>
   );

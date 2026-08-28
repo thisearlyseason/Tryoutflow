@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import type { NextRequest, NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 
 import { getClientEnvironment } from '../../lib/env';
 import type { Database } from './database.types';
@@ -31,10 +31,17 @@ export async function createServerSupabaseClient() {
   );
 }
 
-export function createProxySupabaseClient(request: NextRequest, response: NextResponse) {
-  const environment = getClientEnvironment();
+function copyResponseCookies(from: NextResponse, to: NextResponse) {
+  from.cookies.getAll().forEach(({ name, value, ...options }) => {
+    to.cookies.set(name, value, options);
+  });
+}
 
-  return createServerClient<Database>(
+export function createProxySupabaseClient(request: NextRequest) {
+  const environment = getClientEnvironment();
+  let response = NextResponse.next({ request });
+
+  const supabase = createServerClient<Database>(
     environment.NEXT_PUBLIC_SUPABASE_URL,
     environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
@@ -45,10 +52,21 @@ export function createProxySupabaseClient(request: NextRequest, response: NextRe
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             request.cookies.set(name, value);
-            response.cookies.set(name, value, options);
           });
+
+          const refreshedResponse = NextResponse.next({ request });
+          copyResponseCookies(response, refreshedResponse);
+          cookiesToSet.forEach(({ name, value, options }) => {
+            refreshedResponse.cookies.set(name, value, options);
+          });
+          response = refreshedResponse;
         },
       },
     },
   );
+
+  return {
+    response: () => response,
+    supabase,
+  };
 }

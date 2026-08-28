@@ -11,17 +11,26 @@ function signInUrl(request: NextRequest): URL {
 }
 
 export async function proxy(request: NextRequest) {
-  const response = NextResponse.next({ request });
-  const supabase = createProxySupabaseClient(request, response);
+  const proxyClient = createProxySupabaseClient(request);
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } = await proxyClient.supabase.auth.getUser();
 
-  if (request.nextUrl.pathname.startsWith('/app') && !user) {
-    return NextResponse.redirect(signInUrl(request));
+  if (
+    (request.nextUrl.pathname === '/app' || request.nextUrl.pathname.startsWith('/app/')) &&
+    !user
+  ) {
+    const redirectResponse = NextResponse.redirect(signInUrl(request));
+    proxyClient
+      .response()
+      .cookies.getAll()
+      .forEach(({ name, value, ...options }) => {
+        redirectResponse.cookies.set(name, value, options);
+      });
+    return redirectResponse;
   }
 
-  return response;
+  return proxyClient.response();
 }
 
 export const config = {

@@ -11,6 +11,25 @@ const signInInputSchema = z.object({
 
 export type SignInError = 'invalid_input' | 'invalid_credentials';
 
+export type PasswordSignInAbuseProtection = {
+  check(attempt: {
+    email: string;
+    botVerificationToken?: string;
+  }): Promise<
+    { allowed: true } | { allowed: false; reason: 'rate_limited' | 'bot_verification_required' }
+  >;
+};
+
+export type SignInDependencies = {
+  abuseProtection?: PasswordSignInAbuseProtection;
+};
+
+const localPasswordSignInAbuseProtection: PasswordSignInAbuseProtection = {
+  async check() {
+    return { allowed: true };
+  },
+};
+
 export function safeInternalPath(next: string | null | undefined, fallback = '/app'): string {
   if (
     !next ||
@@ -34,11 +53,31 @@ export function safeInternalPath(next: string | null | undefined, fallback = '/a
 
 export async function signInWithPassword(
   input: unknown,
-): Promise<AppResult<{ redirectTo: string }, SignInError>> {
+  dependencies: SignInDependencies = {},
+): Promise<
+  AppResult<
+    { redirectTo: string },
+    SignInError | 'rate_limited' | 'bot_verification_required' | 'abuse_protection_unavailable'
+  >
+> {
   const parsedInput = signInInputSchema.safeParse(input);
 
   if (!parsedInput.success) {
     return failure('invalid_input');
+  }
+
+  try {
+    const decision = await (
+      dependencies.abuseProtection ?? localPasswordSignInAbuseProtection
+    ).check({
+      email: parsedInput.data.email,
+    });
+
+    if (!decision.allowed) {
+      return failure(decision.reason);
+    }
+  } catch {
+    return failure('abuse_protection_unavailable');
   }
 
   const supabase = await createServerSupabaseClient();
