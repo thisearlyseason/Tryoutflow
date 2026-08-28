@@ -13,7 +13,12 @@ select has_table('public'::name, 'audit_logs'::name, 'audit logs exist');
 select has_column('public'::name, 'audit_logs'::name, 'organization_id'::name, 'audit logs are tenant scoped');
 select has_column('public'::name, 'audit_logs'::name, 'occurred_at'::name, 'audit logs record when events occur');
 select has_index('public'::name, 'audit_logs'::name, 'audit_logs_organization_id_id_key'::name, 'audit logs have a tenant composite key');
-select policies_are('public'::name, 'audit_logs'::name, array[]::name[]);
+select policies_are(
+  'public'::name,
+  'audit_logs'::name,
+  array['audit_logs_select_administrator']::name[],
+  'audit logs are visible only to organization administrators'
+);
 select ok((select relrowsecurity from pg_class where oid = 'public.profiles'::regclass), 'profiles have row level security enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.organizations'::regclass), 'organizations have row level security enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.audit_logs'::regclass), 'audit logs have row level security enabled');
