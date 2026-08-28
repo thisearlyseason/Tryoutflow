@@ -1,0 +1,2 @@
+-- Seed data is intentionally empty until the authentication and membership schema exists.
+-- Keeping this file in place makes local resets deterministic from the first migration.

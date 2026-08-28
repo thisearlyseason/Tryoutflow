@@ -20,6 +20,8 @@
     "test:integration": "vitest run --config vitest.integration.config.ts tests/integration",
     "test:contract": "vitest run --config vitest.integration.config.ts tests/contract",
     "test:db": "supabase test db",
+    "supabase:start": "supabase start",
+    "supabase:reset": "supabase db reset",
     "test:e2e": "playwright test",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build"
   },
