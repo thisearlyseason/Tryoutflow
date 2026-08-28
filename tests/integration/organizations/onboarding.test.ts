@@ -160,7 +160,11 @@ describe('organization onboarding', () => {
   it('updates organization defaults only with a current organization capability', async () => {
     const repository = gateway();
     const result = await updateOrganizationSettings(
-      { organizationId, timezone: 'America/Chicago', terminology: { athlete: 'Player' } },
+      {
+        organizationId,
+        timezone: 'America/Chicago',
+        terminology: { athlete: 'Player', athletes: 'Players' },
+      },
       { userId: ownerId, authorization: ownerContext },
       { gateway: repository },
     );
@@ -183,6 +187,18 @@ describe('organization onboarding', () => {
       organizationId,
       timezone: 'America/Chicago',
     });
+  });
+
+  it('rejects partial terminology updates so singular and plural values cannot be dropped', async () => {
+    const repository = gateway();
+    const result = await updateOrganizationSettings(
+      { organizationId, terminology: { athlete: 'Player' } },
+      { userId: ownerId, authorization: ownerContext },
+      { gateway: repository },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'invalid_input' } });
+    expect(repository.updateSettings).not.toHaveBeenCalled();
   });
 
   it('rejects a timezone that is not an IANA timezone', async () => {

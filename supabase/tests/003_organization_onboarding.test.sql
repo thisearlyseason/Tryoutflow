@@ -62,19 +62,26 @@ select
   '10000000-0000-4000-8000-000000000001', id, 'invitee@example.com', 'member', 'forged-acceptance', now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
 from public.organizations where slug = 'badlands-hockey-academy';
 
+select set_config('app.invitation_acceptance', 'true', true);
 select throws_ok(
   $$update public.organization_invitations set accepted_at = now(), accepted_by_user_id = '88888888-8888-4888-8888-888888888888' where token_digest = 'forged-acceptance'$$,
-  '55000',
-  'invitation acceptance is reserved for the acceptance command',
-  'owners cannot forge an accepted invitation through REST updates'
+  '42501',
+  null,
+  'owners cannot forge acceptance even after setting the former lifecycle GUC'
 );
 
+reset role;
 update public.organization_invitations set revoked_at = now() where token_digest = 'forged-acceptance';
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '99999999-9999-4999-8999-999999999999', true);
+select set_config('request.jwt.claim', '{"sub":"99999999-9999-4999-8999-999999999999","email":"owner@example.com","role":"authenticated"}', true);
+select set_config('app.invitation_acceptance', 'true', true);
 select throws_ok(
   $$update public.organization_invitations set revoked_at = null where token_digest = 'forged-acceptance'$$,
-  '55000',
-  'a revoked invitation cannot be reactivated',
-  'owners cannot un-revoke an invitation through REST updates'
+  '42501',
+  null,
+  'owners cannot un-revoke an invitation even after setting the former lifecycle GUC'
 );
 
 insert into public.organization_invitations (

@@ -15,7 +15,13 @@ const schema = z
   .object({
     organizationId: z.uuid(),
     timezone: z.string().trim().min(1).max(100).optional(),
-    terminology: z.record(z.string(), z.string().trim().min(1).max(60)).optional(),
+    terminology: z
+      .object({
+        athlete: z.string().trim().min(1).max(60),
+        athletes: z.string().trim().min(1).max(60),
+      })
+      .strict()
+      .optional(),
     sportDefaults: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
     tagDefaults: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
   })
