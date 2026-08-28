@@ -268,6 +268,226 @@ export type Database = {
         };
         Relationships: [];
       };
+      registration_form_versions: {
+        Row: {
+          created_at: string;
+          id: string;
+          organization_id: string;
+          published_at: string | null;
+          registration_form_id: string;
+          schema: Json;
+          status: string;
+          tryout_id: string;
+          updated_at: string;
+          version_number: number;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          published_at?: string | null;
+          registration_form_id: string;
+          schema: Json;
+          status?: string;
+          tryout_id: string;
+          updated_at?: string;
+          version_number: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          published_at?: string | null;
+          registration_form_id?: string;
+          schema?: Json;
+          status?: string;
+          tryout_id?: string;
+          updated_at?: string;
+          version_number?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'registration_form_versions_form_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_form_id'];
+            isOneToOne: false;
+            referencedRelation: 'registration_forms';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
+      registration_forms: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          organization_id: string;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'registration_forms_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      rubric_categories: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          guidance: string | null;
+          id: string;
+          is_priority: boolean;
+          name: string;
+          organization_id: string;
+          rubric_version_id: string;
+          scale_max: number;
+          scale_min: number;
+          sort_order: number;
+          tryout_id: string;
+          updated_at: string;
+          weight: number;
+        };
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          guidance?: string | null;
+          id?: string;
+          is_priority?: boolean;
+          name: string;
+          organization_id: string;
+          rubric_version_id: string;
+          scale_max: number;
+          scale_min: number;
+          sort_order: number;
+          tryout_id: string;
+          updated_at?: string;
+          weight: number;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          guidance?: string | null;
+          id?: string;
+          is_priority?: boolean;
+          name?: string;
+          organization_id?: string;
+          rubric_version_id?: string;
+          scale_max?: number;
+          scale_min?: number;
+          sort_order?: number;
+          tryout_id?: string;
+          updated_at?: string;
+          weight?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'rubric_categories_version_fkey';
+            columns: ['organization_id', 'tryout_id', 'rubric_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'rubric_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
+      rubric_versions: {
+        Row: {
+          created_at: string;
+          id: string;
+          organization_id: string;
+          published_at: string | null;
+          rubric_id: string;
+          status: string;
+          tryout_id: string;
+          updated_at: string;
+          version_number: number;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          published_at?: string | null;
+          rubric_id: string;
+          status?: string;
+          tryout_id: string;
+          updated_at?: string;
+          version_number: number;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          published_at?: string | null;
+          rubric_id?: string;
+          status?: string;
+          tryout_id?: string;
+          updated_at?: string;
+          version_number?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'rubric_versions_rubric_fkey';
+            columns: ['organization_id', 'tryout_id', 'rubric_id'];
+            isOneToOne: false;
+            referencedRelation: 'rubrics';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
+      rubrics: {
+        Row: {
+          created_at: string;
+          id: string;
+          name: string;
+          organization_id: string;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'rubrics_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       seasons: {
         Row: {
           created_at: string;
@@ -346,6 +566,51 @@ export type Database = {
             columns: ['organization_id', 'tryout_id', 'session_id'];
             isOneToOne: false;
             referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
+      session_rubrics: {
+        Row: {
+          created_at: string;
+          id: string;
+          organization_id: string;
+          rubric_version_id: string;
+          session_id: string;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          rubric_version_id: string;
+          session_id: string;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          rubric_version_id?: string;
+          session_id?: string;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'session_rubrics_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'session_rubrics_version_fkey';
+            columns: ['organization_id', 'tryout_id', 'rubric_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'rubric_versions';
             referencedColumns: ['organization_id', 'tryout_id', 'id'];
           },
         ];
@@ -769,6 +1034,30 @@ export type Database = {
           timezone: string;
         }[];
       };
+      create_registration_form_revision: {
+        Args: {
+          p_organization_id: string;
+          p_registration_form_id: string;
+          p_source_version_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version_id: string;
+          version_number: number;
+        }[];
+      };
+      create_rubric_revision: {
+        Args: {
+          p_organization_id: string;
+          p_rubric_id: string;
+          p_source_version_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version_id: string;
+          version_number: number;
+        }[];
+      };
       create_tryout_draft: {
         Args: {
           p_name: string;
@@ -830,6 +1119,28 @@ export type Database = {
         Returns: boolean;
       };
       is_valid_organization_slug: { Args: { value: string }; Returns: boolean };
+      publish_registration_form_version: {
+        Args: {
+          p_expected_version: number;
+          p_organization_id: string;
+          p_version_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version_id: string;
+        }[];
+      };
+      publish_rubric_version: {
+        Args: {
+          p_expected_version: number;
+          p_organization_id: string;
+          p_rubric_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version_id: string;
+        }[];
+      };
       transition_tryout_lifecycle: {
         Args: {
           p_action: string;
