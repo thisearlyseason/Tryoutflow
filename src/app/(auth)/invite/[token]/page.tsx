@@ -1,4 +1,9 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+
+import { acceptInvitation } from '../../../../modules/organizations/application/accept-invitation';
+import { createServerSupabaseClient } from '../../../../infrastructure/supabase/server';
+import { parseUserId } from '../../../../lib/ids';
 
 type InvitePageProps = {
   params: Promise<{ token: string }>;
@@ -24,12 +29,44 @@ export default async function InvitePage({ params, searchParams }: InvitePagePro
     );
   }
 
+  const client = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+
+  if (!user?.email) {
+    return (
+      <main className="auth-page">
+        <section aria-labelledby="invite-heading" className="auth-card">
+          <h1 id="invite-heading">Your invitation is ready</h1>
+          <p>Sign in with the email address that received this invitation to confirm access.</p>
+          <Link href={`/sign-in?next=${encodeURIComponent(`/invite/${token}`)}`}>
+            Continue to sign in
+          </Link>
+        </section>
+      </main>
+    );
+  }
+  const invitationActor = { userId: parseUserId(user.id), email: user.email };
+
+  async function accept() {
+    'use server';
+    const result = await acceptInvitation(token, invitationActor);
+    if (!result.ok) redirect(`/invite/${token}?error=invalid_or_expired`);
+    redirect(`/app/${result.value.organizationSlug}/home`);
+  }
+
   return (
     <main className="auth-page">
       <section aria-labelledby="invite-heading" className="auth-card">
         <h1 id="invite-heading">Your invitation is ready</h1>
-        <p>Finish setting up your account from the invitation email to join your organization.</p>
-        <Link href="/sign-in">Continue to sign in</Link>
+        <p>
+          Confirm access to join your organization. This link can only be used by the invited email
+          address.
+        </p>
+        <form action={accept}>
+          <button type="submit">Accept invitation</button>
+        </form>
       </section>
     </main>
   );

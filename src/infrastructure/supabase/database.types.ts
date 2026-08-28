@@ -163,7 +163,10 @@ export type Database = {
           id: string;
           name: string;
           slug: string;
+          sport_defaults: Json;
           status: string;
+          tag_defaults: Json;
+          terminology: Json;
           timezone: string;
           updated_at: string;
         };
@@ -172,7 +175,10 @@ export type Database = {
           id?: string;
           name: string;
           slug: string;
+          sport_defaults?: Json;
           status?: string;
+          tag_defaults?: Json;
+          terminology?: Json;
           timezone?: string;
           updated_at?: string;
         };
@@ -181,7 +187,10 @@ export type Database = {
           id?: string;
           name?: string;
           slug?: string;
+          sport_defaults?: Json;
           status?: string;
+          tag_defaults?: Json;
+          terminology?: Json;
           timezone?: string;
           updated_at?: string;
         };
@@ -326,6 +335,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      accept_organization_invitation: {
+        Args: { p_token_digest: string };
+        Returns: {
+          organization_id: string;
+          organization_slug: string;
+          outcome: string;
+        }[];
+      };
       can_access_evaluation: {
         Args: {
           evaluator_user_id: string;
@@ -340,6 +357,26 @@ export type Database = {
       can_read_tenant_record: {
         Args: { target_organization_id: string };
         Returns: boolean;
+      };
+      create_organization_with_owner: {
+        Args: {
+          p_name: string;
+          p_slug: string;
+          p_sport_defaults: Json;
+          p_tag_defaults: Json;
+          p_terminology: Json;
+          p_timezone: string;
+        };
+        Returns: {
+          organization_id: string;
+          organization_name: string;
+          organization_slug: string;
+          owner_user_id: string;
+          sport_defaults: Json;
+          tag_defaults: Json;
+          terminology: Json;
+          timezone: string;
+        }[];
       };
       has_active_platform_support_elevation: {
         Args: { target_organization_id: string };
