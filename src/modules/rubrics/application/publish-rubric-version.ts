@@ -14,18 +14,59 @@ const inputSchema = z.object({
 });
 
 export type PublishRubricVersionError = {
-  code: 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'invalid_draft' | 'unexpected';
+  code:
+    | 'invalid_input'
+    | 'forbidden'
+    | 'not_found'
+    | 'conflict'
+    | 'invalid_draft'
+    | 'capacity'
+    | 'unexpected';
 };
+
+export type PublishRubricVersionOutcome =
+  | { kind: 'published'; versionId: string }
+  | { kind: 'not_found' | 'conflict' | 'invalid_draft' | 'capacity' | 'forbidden' | 'unexpected' };
 
 export type PublishRubricVersionGateway = {
   publish(input: {
     organizationId: OrganizationId;
     rubricId: string;
     expectedVersion: number;
-  }): Promise<
-    { kind: 'published'; versionId: string } | { kind: 'not_found' | 'conflict' | 'invalid_draft' }
-  >;
+  }): Promise<PublishRubricVersionOutcome>;
 };
+
+type RpcRow = { outcome?: unknown; version_id?: unknown };
+type RpcError = { code?: unknown } | null;
+
+export function mapPublishRubricVersionResponse(
+  data: unknown,
+  error: RpcError,
+): PublishRubricVersionOutcome {
+  if (error?.code === '42501') return { kind: 'forbidden' };
+  if (error) return { kind: 'unexpected' };
+  if (
+    !Array.isArray(data) ||
+    data.length !== 1 ||
+    typeof data[0] !== 'object' ||
+    data[0] === null
+  ) {
+    return { kind: 'unexpected' };
+  }
+  const row = data[0] as RpcRow;
+  if (row.outcome === 'published' && typeof row.version_id === 'string') {
+    return { kind: 'published', versionId: row.version_id };
+  }
+  if (
+    row.outcome === 'not_found' ||
+    row.outcome === 'conflict' ||
+    row.outcome === 'invalid_draft' ||
+    row.outcome === 'capacity'
+  ) {
+    return { kind: row.outcome };
+  }
+  return { kind: 'unexpected' };
+}
 
 export async function publishRubricVersion(
   input: unknown,
@@ -68,18 +109,7 @@ async function defaultRubricVersionGateway(): Promise<PublishRubricVersionGatewa
         p_rubric_id: input.rubricId,
         p_expected_version: input.expectedVersion,
       });
-      if (error) throw error;
-      const result = data?.[0];
-      if (!result || result.outcome === 'not_found') {
-        return { kind: 'not_found' as const };
-      }
-      if (result.outcome === 'conflict') {
-        return { kind: 'conflict' as const };
-      }
-      if (result.outcome === 'invalid_draft') {
-        return { kind: 'invalid_draft' as const };
-      }
-      return { kind: 'published', versionId: result.version_id };
+      return mapPublishRubricVersionResponse(data, error);
     },
   };
 }

@@ -24,6 +24,7 @@ export const RegistrationFormFieldSchema = z
     helpText: z.string().trim().max(500).optional(),
     options: z.array(z.string().trim().min(1).max(120)).min(1).max(100).optional(),
   })
+  .strict()
   .superRefine((field, context) => {
     if (field.kind === 'select' && !field.options) {
       context.addIssue({
@@ -44,6 +45,7 @@ export const RegistrationFormFieldSchema = z
 /** An allow-listed public registration schema; answers are validated against its immutable version. */
 export const RegistrationFormSchema = z
   .object({ fields: z.array(RegistrationFormFieldSchema).max(100) })
+  .strict()
   .superRefine((schema, context) => {
     const keys = new Set<string>();
     const order = new Set<number>();

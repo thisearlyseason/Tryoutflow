@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
-import { publishRubricVersion } from '../../../src/modules/rubrics/application/publish-rubric-version';
+import {
+  mapPublishRubricVersionResponse,
+  publishRubricVersion,
+} from '../../../src/modules/rubrics/application/publish-rubric-version';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
 
 const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as OrganizationId;
@@ -57,5 +60,24 @@ describe('rubric version publishing', () => {
     );
 
     expect(result).toEqual({ ok: false, error: { code: 'conflict' } });
+  });
+
+  it('maps PostgreSQL authorization failures and malformed RPC responses safely', () => {
+    expect(mapPublishRubricVersionResponse(null, { code: '42501' })).toEqual({ kind: 'forbidden' });
+    expect(
+      mapPublishRubricVersionResponse([{ outcome: 'capacity', version_id: null }], null),
+    ).toEqual({
+      kind: 'capacity',
+    });
+    expect(
+      mapPublishRubricVersionResponse([{ outcome: 'published', version_id: null }], null),
+    ).toEqual({
+      kind: 'unexpected',
+    });
+    expect(
+      mapPublishRubricVersionResponse([{ outcome: 'unknown', version_id: 'version-1' }], null),
+    ).toEqual({
+      kind: 'unexpected',
+    });
   });
 });

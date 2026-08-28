@@ -65,4 +65,29 @@ describe('rubric validation', () => {
     expect(valid.success).toBe(true);
     expect(invalid.success).toBe(false);
   });
+
+  it('rejects unknown keys, wrong JSON types, and oversized form schemas', () => {
+    expect(
+      RegistrationFormSchema.safeParse({
+        fields: [],
+        analytics: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      RegistrationFormSchema.safeParse({
+        fields: [{ key: 'email', label: 'Email', kind: 'email', required: 'true', sortOrder: '0' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      RegistrationFormSchema.safeParse({
+        fields: Array.from({ length: 101 }, (_, sortOrder) => ({
+          key: `field_${sortOrder}`,
+          label: `Field ${sortOrder}`,
+          kind: 'text',
+          required: false,
+          sortOrder,
+        })),
+      }).success,
+    ).toBe(false);
+  });
 });
