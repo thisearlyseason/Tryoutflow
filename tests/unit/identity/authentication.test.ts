@@ -37,6 +37,11 @@ import InvitePage from '../../../src/app/(auth)/invite/[token]/page';
 import { requestEmailVerification } from '../../../src/modules/identity/application/request-email-verification';
 import { requestPasswordRecovery as requestPasswordRecoveryCommand } from '../../../src/modules/identity/application/request-password-recovery';
 import {
+  createPasswordSignInRateLimiter,
+  getTrustedSignInRequestContext,
+} from '../../../src/modules/identity/application/password-sign-in-rate-limiter';
+import {
+  resetDefaultPasswordSignInAbuseProtectionForTests,
   safeInternalPath,
   signInWithPassword,
   type PasswordSignInAbuseProtection,
@@ -61,6 +66,7 @@ describe('authentication session boundaries', () => {
     auth.updateUser.mockReset();
     responseCookies.set.mockReset();
     createServerClientMock.mockClear();
+    resetDefaultPasswordSignInAbuseProtectionForTests();
   });
 
   it('redirects an anonymous app request to sign in with a safe return path', async () => {
@@ -117,6 +123,67 @@ describe('authentication session boundaries', () => {
     );
 
     expect(result).toEqual({ ok: false, error: 'rate_limited' });
+  });
+
+  it('denies excessive attempts through the default page-action protection path', async () => {
+    auth.signInWithPassword.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await expect(
+        signInWithPassword({
+          email: 'COACH@example.com',
+          password: 'correct horse battery staple',
+        }),
+      ).resolves.toEqual({ ok: true, value: { redirectTo: '/app' } });
+    }
+
+    await expect(
+      signInWithPassword({
+        email: 'coach@example.com',
+        password: 'correct horse battery staple',
+      }),
+    ).resolves.toEqual({ ok: false, error: 'rate_limited' });
+    expect(auth.signInWithPassword).toHaveBeenCalledTimes(5);
+  });
+
+  it('bounds and expires default-compatible in-memory limiter records', async () => {
+    let now = 0;
+    const limiter = createPasswordSignInRateLimiter({
+      maxAttempts: 1,
+      maxEntries: 2,
+      now: () => now,
+      windowMs: 100,
+    });
+
+    await limiter.check({ email: 'first@example.com' });
+    await limiter.check({ email: 'second@example.com' });
+    await limiter.check({ email: 'third@example.com' });
+
+    expect(limiter.entryCount()).toBe(2);
+
+    now = 101;
+    await limiter.check({ email: 'fresh@example.com' });
+
+    expect(limiter.entryCount()).toBe(1);
+  });
+
+  it('normalizes the account identifier and uses only trusted deployment network context', async () => {
+    const limiter = createPasswordSignInRateLimiter({ maxAttempts: 1 });
+    const context = getTrustedSignInRequestContext(
+      new Headers({
+        'x-forwarded-for': '203.0.113.7',
+        'x-vercel-forwarded-for': '198.51.100.8',
+      }),
+    );
+
+    await limiter.check({ email: 'COACH@example.com', requestContext: context });
+    const repeatedAttempt = await limiter.check({
+      email: 'coach@example.com',
+      requestContext: context,
+    });
+
+    expect(context).toEqual({ networkAddress: '198.51.100.8' });
+    expect(repeatedAttempt).toEqual({ allowed: false, reason: 'rate_limited' });
   });
 
   it('fails closed when the configured abuse protection cannot be reached', async () => {
@@ -201,7 +268,9 @@ describe('authentication session boundaries', () => {
     expect(request.cookies.get('sb-first')?.value).toBe('first-value');
     expect(request.cookies.get('sb-refresh')?.value).toBe('refresh-value');
     expect(response.headers.get('x-middleware-request-cookie')).toContain('sb-first=first-value');
-    expect(response.headers.get('x-middleware-request-cookie')).toContain('sb-refresh=refresh-value');
+    expect(response.headers.get('x-middleware-request-cookie')).toContain(
+      'sb-refresh=refresh-value',
+    );
     expect(response.cookies.get('sb-first')?.value).toBe('first-value');
     expect(response.cookies.get('sb-refresh')?.value).toBe('refresh-value');
     expect(response.headers.get('set-cookie')).toContain('sb-first=first-value');

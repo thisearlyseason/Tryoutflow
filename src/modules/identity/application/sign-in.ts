@@ -2,32 +2,27 @@ import { z } from 'zod';
 
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
 import { failure, success, type AppResult } from '../../../lib/result';
+import {
+  getDefaultPasswordSignInAbuseProtection,
+  type PasswordSignInAbuseProtection,
+  type SignInRequestContext,
+} from './password-sign-in-rate-limiter';
+
+export type { PasswordSignInAbuseProtection } from './password-sign-in-rate-limiter';
+export { resetDefaultPasswordSignInAbuseProtectionForTests } from './password-sign-in-rate-limiter';
 
 const signInInputSchema = z.object({
   email: z.email(),
+  botVerificationToken: z.string().min(1).optional(),
   password: z.string().min(1),
   next: z.string().optional(),
 });
 
 export type SignInError = 'invalid_input' | 'invalid_credentials';
 
-export type PasswordSignInAbuseProtection = {
-  check(attempt: {
-    email: string;
-    botVerificationToken?: string;
-  }): Promise<
-    { allowed: true } | { allowed: false; reason: 'rate_limited' | 'bot_verification_required' }
-  >;
-};
-
 export type SignInDependencies = {
   abuseProtection?: PasswordSignInAbuseProtection;
-};
-
-const localPasswordSignInAbuseProtection: PasswordSignInAbuseProtection = {
-  async check() {
-    return { allowed: true };
-  },
+  requestContext?: SignInRequestContext;
 };
 
 export function safeInternalPath(next: string | null | undefined, fallback = '/app'): string {
@@ -68,9 +63,11 @@ export async function signInWithPassword(
 
   try {
     const decision = await (
-      dependencies.abuseProtection ?? localPasswordSignInAbuseProtection
+      dependencies.abuseProtection ?? getDefaultPasswordSignInAbuseProtection()
     ).check({
       email: parsedInput.data.email,
+      botVerificationToken: parsedInput.data.botVerificationToken,
+      requestContext: dependencies.requestContext,
     });
 
     if (!decision.allowed) {

@@ -1,5 +1,7 @@
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { getTrustedSignInRequestContext } from '../../../modules/identity/application/password-sign-in-rate-limiter';
 import { signInWithPassword } from '../../../modules/identity/application/sign-in';
 
 type SignInPageProps = {
@@ -21,11 +23,16 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   async function submit(formData: FormData) {
     'use server';
 
-    const result = await signInWithPassword({
-      email: formData.get('email'),
-      password: formData.get('password'),
-      next: parameters.next,
-    });
+    const result = await signInWithPassword(
+      {
+        email: formData.get('email'),
+        password: formData.get('password'),
+        next: parameters.next,
+      },
+      {
+        requestContext: getTrustedSignInRequestContext(await headers()),
+      },
+    );
 
     if (!result.ok) {
       redirect(`/sign-in?error=${result.error}`);
