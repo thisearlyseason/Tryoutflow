@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light;
+
+  --color-canvas: #f7f3ea;
+  --color-surface: #ffffff;
+  --color-surface-muted: #eee8dc;
+  --color-text: #18212f;
+  --color-text-muted: #526170;
+  --color-primary: #0057ff;
+  --color-primary-foreground: #ffffff;
+  --color-performance: #c7f000;
+  --color-performance-foreground: #18212f;
+  --color-selection: #ff6b5f;
+  --color-selection-foreground: #18212f;
+  --color-destructive: #c92a2a;
+  --color-destructive-foreground: #ffffff;
+  --color-focus: #0057ff;
+  --color-border: #c9c1b5;
+
+  --radius-control: 0.625rem;
+  --radius-surface: 1rem;
+  --shadow-surface: 0 10px 28px rgb(24 33 47 / 12%);
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --target-mobile: 44px;
+  --duration-enter: 160ms;
+  --duration-exit: 120ms;
+  --font-score: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-bib: 'Arial Black', 'Arial Narrow', Impact, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-enter: 0ms;
+    --duration-exit: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
