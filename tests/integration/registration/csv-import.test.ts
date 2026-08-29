@@ -5,6 +5,8 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { dumpLocalSupabaseSchemas } from '../../../scripts/lib/local-supabase-database.mjs';
+
 const primaryDatabaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const isolatedDatabaseName = `tryoutflow_csv_${randomUUID().replaceAll('-', '')}`;
@@ -52,34 +54,7 @@ beforeAll(() => {
     ],
     { stdio: 'pipe' },
   );
-  const databaseContainer = execFileSync(
-    'docker',
-    ['ps', '--filter', 'name=supabase_db_', '--format', '{{.Names}}'],
-    { encoding: 'utf8' },
-  )
-    .trim()
-    .split('\n')[0];
-  if (!databaseContainer) throw new Error('local Supabase database container not found');
-  const schema = execFileSync(
-    'docker',
-    [
-      'exec',
-      databaseContainer,
-      'pg_dump',
-      '-U',
-      'postgres',
-      '-d',
-      'postgres',
-      '--schema-only',
-      '--no-owner',
-      '--schema=public',
-      '--schema=private',
-    ],
-    { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 },
-  )
-    .split('\n')
-    .filter((line) => !line.startsWith('ALTER DEFAULT PRIVILEGES'))
-    .join('\n');
+  const schema = dumpLocalSupabaseSchemas(primaryDatabaseUrl, ['public', 'private']);
   execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1'], {
     input: schema,
     maxBuffer: 50 * 1024 * 1024,

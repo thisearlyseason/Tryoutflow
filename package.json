@@ -17,7 +17,7 @@
     "format:check": "prettier --check .",
     "test": "npm run test:unit",
     "test:unit": "vitest run --config vitest.config.ts tests/unit",
-    "test:integration": "vitest run --config vitest.integration.config.ts tests/integration",
+    "test:integration": "node scripts/run-integration-tests.mjs",
     "test:contract": "vitest run --config vitest.integration.config.ts tests/contract",
     "test:db": "supabase test db",
     "db:types": "supabase gen types typescript --local > src/infrastructure/supabase/database.types.ts && prettier --write src/infrastructure/supabase/database.types.ts && node scripts/postprocess-database-types.mjs && prettier --write src/infrastructure/supabase/database.types.ts",
