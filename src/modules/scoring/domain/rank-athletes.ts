@@ -8,6 +8,7 @@ import {
 
 export type RankableScoreSummary = Readonly<{
   aggregate: CanonicalScore | null;
+  priorityCategoryId: string | null;
   priorityCategoryAggregate: CanonicalScore | null;
 }>;
 export type RankableAthlete = Readonly<{
@@ -55,6 +56,7 @@ function projectRankedAthlete(
     stableOrder: athlete.stableOrder,
     summary: {
       aggregate: athlete.summary.aggregate,
+      priorityCategoryId: athlete.summary.priorityCategoryId,
       priorityCategoryAggregate: athlete.summary.priorityCategoryAggregate,
     },
     rank,
@@ -66,7 +68,7 @@ export function rankAthletes(athletes: readonly RankableAthlete[]): RankedAthlet
   assertBoundedCollection(athletes.length, MAX_ATHLETE_COUNT, 'athlete', true);
   const athleteIds = new Set<string>();
   const stableOrders = new Set<string>();
-  let scoredPriorityConfiguration: boolean | null = null;
+  let scoredPriorityCategoryId: string | null | undefined;
   for (const athlete of athletes) {
     assertOpaqueId(athlete.athleteId, 'athleteId');
     assertOpaqueId(athlete.stableOrder, 'stableOrder');
@@ -76,18 +78,29 @@ export function rankAthletes(athletes: readonly RankableAthlete[]): RankedAthlet
     stableOrders.add(athlete.stableOrder);
     if (athlete.summary.aggregate !== null)
       parseCanonicalScore(athlete.summary.aggregate, 'aggregate');
-    if (athlete.summary.priorityCategoryAggregate !== null) {
-      parseCanonicalScore(athlete.summary.priorityCategoryAggregate, 'priority aggregate');
+    const priorityCategoryId = athlete.summary.priorityCategoryId;
+    const priorityCategoryAggregate = athlete.summary.priorityCategoryAggregate;
+    if (priorityCategoryId !== null) assertOpaqueId(priorityCategoryId, 'priority categoryId');
+    if ((priorityCategoryId === null) !== (priorityCategoryAggregate === null)) {
+      throw new RangeError('priority category identity and aggregate must be supplied together');
+    }
+    if (priorityCategoryAggregate !== null) {
+      parseCanonicalScore(priorityCategoryAggregate, 'priority aggregate');
       if (athlete.summary.aggregate === null) {
         throw new RangeError('priority aggregate cannot exist without an overall aggregate');
       }
     }
+    if (athlete.summary.aggregate === null && priorityCategoryId !== null) {
+      throw new RangeError('unscored rows cannot carry priority evidence');
+    }
     if (athlete.summary.aggregate !== null) {
-      const hasPriority = athlete.summary.priorityCategoryAggregate !== null;
-      if (scoredPriorityConfiguration !== null && scoredPriorityConfiguration !== hasPriority) {
+      if (
+        scoredPriorityCategoryId !== undefined &&
+        scoredPriorityCategoryId !== priorityCategoryId
+      ) {
         throw new RangeError('priority category configuration must be consistent for scored rows');
       }
-      scoredPriorityConfiguration = hasPriority;
+      scoredPriorityCategoryId = priorityCategoryId;
     }
   }
   const ordered = [...athletes].sort((left, right) => {

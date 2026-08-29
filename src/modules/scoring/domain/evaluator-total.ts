@@ -3,18 +3,18 @@ import {
   assertOpaqueId,
   canonicalizeScore,
   MAX_CATEGORY_COUNT,
-  parseBoundedDecimal,
+  parseWeightDecimal,
   ScoreDecimal,
   type CanonicalScore,
 } from './decimal';
 import { exactNormalizedScore } from './normalize-score';
+import type { SupportedScaleMaximum } from './normalize-score';
 
 export type WeightedCategoryScore = Readonly<{
   categoryId: string;
   score: number | null;
-  scaleMax: number;
+  scaleMax: SupportedScaleMaximum;
   weight: string;
-  required: boolean;
   isPriority?: boolean;
 }>;
 
@@ -59,36 +59,32 @@ export function calculateEvaluatorTotal(
   assertBoundedCollection(categories.length, MAX_CATEGORY_COUNT, 'rubric category');
   const categoryIds = new Set<string>();
   let configuredWeight = new ScoreDecimal(0);
-  let completedWeight = new ScoreDecimal(0);
   let weightedNormalizedTotal = new ScoreDecimal(0);
-  let requiredScoreMissing = false;
+  let scoreMissing = false;
 
   for (const category of categories) {
     assertOpaqueId(category.categoryId, 'categoryId');
     if (categoryIds.has(category.categoryId)) throw new RangeError('duplicate categoryId');
     categoryIds.add(category.categoryId);
-    if (typeof category.required !== 'boolean') throw new TypeError('required must be boolean');
     if (category.isPriority !== undefined && typeof category.isPriority !== 'boolean') {
       throw new TypeError('isPriority must be boolean');
     }
-    const weight = parseBoundedDecimal(category.weight, 'category weight');
+    const weight = parseWeightDecimal(category.weight);
     if (!weight.greaterThan(0) || weight.greaterThan(100)) {
       throw new RangeError('category weight must be greater than zero and at most one hundred');
     }
     configuredWeight = configuredWeight.plus(weight);
     if (category.score === null) {
       exactNormalizedScore({ score: 1, scaleMax: category.scaleMax });
-      if (category.required) requiredScoreMissing = true;
+      scoreMissing = true;
       continue;
     }
     const normalized = exactNormalizedScore({ score: category.score, scaleMax: category.scaleMax });
-    completedWeight = completedWeight.plus(weight);
     weightedNormalizedTotal = weightedNormalizedTotal.plus(normalized.times(weight));
   }
 
   if (!configuredWeight.equals(100))
     throw new RangeError('category weights must total exactly 100');
-  if (requiredScoreMissing) return null;
-  if (completedWeight.isZero()) return null;
-  return canonicalizeScore(weightedNormalizedTotal.dividedBy(completedWeight));
+  if (scoreMissing) return null;
+  return canonicalizeScore(weightedNormalizedTotal.dividedBy(configuredWeight));
 }

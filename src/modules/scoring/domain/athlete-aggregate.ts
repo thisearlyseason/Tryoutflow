@@ -28,6 +28,7 @@ export type ScoreSummary = Readonly<{
   aggregate: CanonicalScore | null;
   completedEvaluatorCount: number;
   scoreRange: readonly [CanonicalScore, CanonicalScore] | null;
+  priorityCategoryId: string | null;
   priorityCategoryAggregate: CanonicalScore | null;
 }>;
 
@@ -84,20 +85,21 @@ export function summarizeAthleteScores(
   );
   const totals: CanonicalScore[] = [];
   const priorityScores: Decimal[] = [];
-  let priorityCategoryId: string | null = null;
-  let priorityConfigurationObserved = false;
+  let configuredPriorityCategoryId: string | null | undefined;
 
   for (const evaluation of included) {
-    const total = calculateEvaluatorTotal(evaluation.categories);
-    if (total === null) continue;
     const priorities = evaluation.categories.filter((category) => category.isPriority === true);
     if (priorities.length > 1) throw new RangeError('only one priority category may be configured');
     const configuredPriorityId = priorities.length === 1 ? priorities[0]!.categoryId : null;
-    if (priorityConfigurationObserved && priorityCategoryId !== configuredPriorityId) {
+    if (
+      configuredPriorityCategoryId !== undefined &&
+      configuredPriorityCategoryId !== configuredPriorityId
+    ) {
       throw new RangeError('priority category must be consistent across evaluation snapshots');
     }
-    priorityCategoryId = configuredPriorityId;
-    priorityConfigurationObserved = true;
+    configuredPriorityCategoryId = configuredPriorityId;
+    const total = calculateEvaluatorTotal(evaluation.categories);
+    if (total === null) continue;
     if (priorities.length === 1) {
       const priority = priorities[0]!;
       if (priority.score === null)
@@ -125,10 +127,13 @@ export function summarizeAthleteScores(
             .reduce((sum, score) => sum.plus(score), new ScoreDecimal(0))
             .dividedBy(priorityScores.length),
         );
+  const priorityCategoryId =
+    priorityCategoryAggregate === null ? null : (configuredPriorityCategoryId ?? null);
   return {
     aggregate,
     completedEvaluatorCount: totals.length,
     scoreRange,
+    priorityCategoryId,
     priorityCategoryAggregate,
   };
 }

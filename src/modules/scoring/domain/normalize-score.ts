@@ -1,20 +1,19 @@
 import type Decimal from 'decimal.js';
 
-import { canonicalizeScore, MAX_SCALE_MAX, ScoreDecimal, type CanonicalScore } from './decimal';
+import { canonicalizeScore, ScoreDecimal, type CanonicalScore } from './decimal';
 
-export type NormalizeScoreInput = Readonly<{ score: number; scaleMax: number }>;
+export type SupportedScaleMaximum = 5 | 10;
+export type NormalizeScoreInput = Readonly<{ score: number; scaleMax: SupportedScaleMaximum }>;
 
 export function assertIntegerScaleScore({ score, scaleMax }: NormalizeScoreInput): void {
   if (
-    !Number.isSafeInteger(scaleMax) ||
-    scaleMax < 1 ||
-    scaleMax > MAX_SCALE_MAX ||
+    (scaleMax !== 5 && scaleMax !== 10) ||
     !Number.isSafeInteger(score) ||
     score < 1 ||
     score > scaleMax
   ) {
     throw new RangeError(
-      'score must be an inclusive positive integer within a bounded integer scale',
+      'score must be an inclusive positive integer on the supported 1–5 or 1–10 scale',
     );
   }
 }

@@ -9,9 +9,9 @@ import { normalizeScore } from '../../../src/modules/scoring/domain/normalize-sc
 import { rankAthletes } from '../../../src/modules/scoring/domain/rank-athletes';
 
 const threeCategoryScores = [
-  { categoryId: 'skating', score: 4, scaleMax: 5, weight: '40.0000', required: true },
-  { categoryId: 'skills', score: 9, scaleMax: 10, weight: '30.0000', required: true },
-  { categoryId: 'awareness', score: 8, scaleMax: 10, weight: '30.0000', required: true },
+  { categoryId: 'skating', score: 4, scaleMax: 5, weight: '40.00' },
+  { categoryId: 'skills', score: 9, scaleMax: 10, weight: '30.00' },
+  { categoryId: 'awareness', score: 8, scaleMax: 10, weight: '30.00' },
 ] as const;
 
 function completedEvaluation(overrides: Record<string, unknown> = {}) {
@@ -32,12 +32,10 @@ describe('score normalization', () => {
     [{ score: 4, scaleMax: 5 }, '80.0000'],
     [{ score: 8, scaleMax: 10 }, '80.0000'],
     [{ score: 1, scaleMax: 5 }, '20.0000'],
-    [{ score: 2, scaleMax: 3 }, '66.6667'],
-    [{ score: 999_999, scaleMax: 1_000_000 }, '99.9999'],
   ])(
     'normalizes inclusive positive integer scales without binary-float drift',
     (input, expected) => {
-      expect(normalizeScore(input)).toBe(expected);
+      expect(normalizeScore(input as { score: number; scaleMax: 5 | 10 })).toBe(expected);
     },
   );
 
@@ -51,8 +49,14 @@ describe('score normalization', () => {
     { score: 1, scaleMax: -5 },
     { score: 1, scaleMax: 1.5 },
     { score: 1, scaleMax: Number.MAX_SAFE_INTEGER + 1 },
+    { score: 1, scaleMax: 1 },
+    { score: 1, scaleMax: 3 },
+    { score: 1, scaleMax: 6 },
+    { score: 1, scaleMax: 1_000_000 },
+    { score: 1, scaleMax: '5' },
+    { score: '4', scaleMax: 5 },
   ])('rejects invalid score and scale bounds %#', (input) => {
-    expect(() => normalizeScore(input)).toThrow(RangeError);
+    expect(() => normalizeScore(input as never)).toThrow(RangeError);
   });
 });
 
@@ -61,17 +65,17 @@ describe('evaluator totals', () => {
     expect(calculateEvaluatorTotal(threeCategoryScores)).toBe('83.0000');
     expect(
       calculateEvaluatorTotal([
-        { categoryId: 'one', score: 2, scaleMax: 3, weight: '50', required: true },
-        { categoryId: 'two', score: 1, scaleMax: 3, weight: '50', required: true },
+        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50' },
+        { categoryId: 'two', score: 7, scaleMax: 10, weight: '50' },
       ]),
-    ).toBe('50.0000');
+    ).toBe('75.0000');
   });
 
   it('returns no total when required work is missing instead of treating it as zero', () => {
     expect(
       calculateEvaluatorTotal([
-        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50', required: true },
-        { categoryId: 'two', score: null, scaleMax: 5, weight: '50', required: true },
+        { categoryId: 'one', score: 4, scaleMax: 5, weight: '75' },
+        { categoryId: 'two', score: null, scaleMax: 5, weight: '25' },
       ]),
     ).toBeNull();
   });
@@ -79,8 +83,8 @@ describe('evaluator totals', () => {
   it('validates the complete immutable rubric before returning a missing-work result', () => {
     expect(() =>
       calculateEvaluatorTotal([
-        { categoryId: 'one', score: null, scaleMax: 5, weight: '50', required: true },
-        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50', required: true },
+        { categoryId: 'one', score: null, scaleMax: 5, weight: '50' },
+        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50' },
       ]),
     ).toThrow(/duplicate/i);
   });
@@ -88,9 +92,9 @@ describe('evaluator totals', () => {
   it('binds separate score rows to known immutable rubric categories', () => {
     const calculateSnapshotTotal = calculateEvaluatorTotal;
     const categories = [
-      { categoryId: 'skating', scaleMax: 5, weight: '50', required: true },
-      { categoryId: 'skills', scaleMax: 10, weight: '50', required: true },
-    ];
+      { categoryId: 'skating', scaleMax: 5, weight: '50' },
+      { categoryId: 'skills', scaleMax: 10, weight: '50' },
+    ] as const;
     expect(
       calculateSnapshotTotal({
         categories,
@@ -103,6 +107,9 @@ describe('evaluator totals', () => {
     expect(() =>
       calculateSnapshotTotal({ categories, scores: [{ categoryId: 'unknown', score: 4 }] }),
     ).toThrow(/unknown/i);
+    expect(
+      calculateSnapshotTotal({ categories, scores: [{ categoryId: 'skating', score: 4 }] }),
+    ).toBeNull();
     expect(() =>
       calculateSnapshotTotal({
         categories,
@@ -114,46 +121,55 @@ describe('evaluator totals', () => {
     ).toThrow(/duplicate/i);
   });
 
-  it('renormalizes explicitly optional missing categories over the completed weight only', () => {
+  it('requires every rubric category and never renormalizes missing work', () => {
     expect(
       calculateEvaluatorTotal([
-        { categoryId: 'required', score: 4, scaleMax: 5, weight: '75', required: true },
-        { categoryId: 'optional', score: null, scaleMax: 5, weight: '25', required: false },
+        { categoryId: 'skating', score: 4, scaleMax: 5, weight: '75' },
+        { categoryId: 'attitude', score: null, scaleMax: 5, weight: '25' },
       ]),
-    ).toBe('80.0000');
+    ).toBeNull();
+  });
+
+  it('rejects database-incompatible decimal weights before Decimal construction', () => {
+    for (const weight of ['01', '1.000', '100.01', '1234', '1e2', '-1', `1${'0'.repeat(10_000)}`]) {
+      expect(() =>
+        calculateEvaluatorTotal([{ categoryId: 'one', score: 4, scaleMax: 5, weight }]),
+      ).toThrow();
+    }
+    expect(() =>
+      calculateEvaluatorTotal([
+        { categoryId: 'one', score: 4, scaleMax: 5, weight: `1${'0'.repeat(1_000_000)}` },
+      ]),
+    ).toThrow();
   });
 
   it.each([
     { categories: [] },
     {
       categories: [
-        { categoryId: 'one', score: 4, scaleMax: 5, weight: '60', required: true },
-        { categoryId: 'two', score: 4, scaleMax: 5, weight: '30', required: true },
+        { categoryId: 'one', score: 4, scaleMax: 5, weight: '60' },
+        { categoryId: 'two', score: 4, scaleMax: 5, weight: '30' },
       ],
     },
     {
       categories: [
-        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50', required: true },
-        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50', required: true },
+        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50' },
+        { categoryId: 'one', score: 4, scaleMax: 5, weight: '50' },
       ],
     },
-    { categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: 'NaN', required: true }] },
-    { categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: '1e2', required: true }] },
+    { categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: 'NaN' }] },
+    { categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: '1e2' }] },
     {
-      categories: [
-        { categoryId: 'one', score: 4, scaleMax: 5, weight: '100.000000001', required: true },
-      ],
+      categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: '100.000000001' }],
     },
-    { categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: '-0', required: true }] },
+    { categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: '-0' }] },
     {
-      categories: [
-        { categoryId: 'one', score: 4, scaleMax: 5, weight: 'Infinity', required: true },
-      ],
+      categories: [{ categoryId: 'one', score: 4, scaleMax: 5, weight: 'Infinity' }],
     },
   ])(
     'rejects malformed, ambiguous, duplicate, or non-100 weighted rubrics %#',
     ({ categories }) => {
-      expect(() => calculateEvaluatorTotal(categories)).toThrow();
+      expect(() => calculateEvaluatorTotal(categories as never)).toThrow();
     },
   );
 
@@ -163,9 +179,8 @@ describe('evaluator totals', () => {
       score: 5,
       scaleMax: 5,
       weight: index === 0 ? '100' : '0',
-      required: true,
     }));
-    expect(() => calculateEvaluatorTotal(categories)).toThrow(RangeError);
+    expect(() => calculateEvaluatorTotal(categories as never)).toThrow(RangeError);
   });
 });
 
@@ -215,6 +230,7 @@ describe('athlete aggregation and scope', () => {
       aggregate: '83.0000',
       completedEvaluatorCount: 2,
       scoreRange: ['83.0000', '83.0000'],
+      priorityCategoryId: null,
       priorityCategoryAggregate: null,
     });
   });
@@ -226,13 +242,13 @@ describe('athlete aggregation and scope', () => {
         evaluationId: 'evaluation-2',
         evaluatorId: 'evaluator-2',
         sessionId: 'session-2',
-        categories: [{ categoryId: 'all', score: 5, scaleMax: 5, weight: '100', required: true }],
+        categories: [{ categoryId: 'all', score: 5, scaleMax: 5, weight: '100' }],
       }),
       completedEvaluation({
         evaluationId: 'evaluation-3',
         evaluatorId: 'evaluator-3',
         divisionId: 'division-u18',
-        categories: [{ categoryId: 'all', score: 1, scaleMax: 5, weight: '100', required: true }],
+        categories: [{ categoryId: 'all', score: 1, scaleMax: 5, weight: '100' }],
       }),
     ];
 
@@ -249,11 +265,10 @@ describe('athlete aggregation and scope', () => {
         score: 4,
         scaleMax: 5,
         weight: '50',
-        required: true,
         isPriority: true,
       },
-      { categoryId: 'skills', score: 5, scaleMax: 5, weight: '50', required: true },
-    ];
+      { categoryId: 'skills', score: 5, scaleMax: 5, weight: '50' },
+    ] as const;
     const summary = summarizeAthleteScores([
       completedEvaluation({ categories }),
       completedEvaluation({
@@ -264,7 +279,49 @@ describe('athlete aggregation and scope', () => {
         ),
       }),
     ]);
-    expect(summary).toMatchObject({ aggregate: '85.0000', priorityCategoryAggregate: '70.0000' });
+    expect(summary).toMatchObject({
+      aggregate: '85.0000',
+      priorityCategoryId: 'skating',
+      priorityCategoryAggregate: '70.0000',
+    });
+  });
+
+  it('rejects different priority category identities even when their values match', () => {
+    const priorityEvaluation = (evaluationId: string, categoryId: string) =>
+      completedEvaluation({
+        evaluationId,
+        evaluatorId: `evaluator-${evaluationId}`,
+        categories: [{ categoryId, score: 4, scaleMax: 5, weight: '100', isPriority: true }],
+      });
+    const skating = priorityEvaluation('skating-evaluation', 'skating');
+    const attitude = priorityEvaluation('attitude-evaluation', 'attitude');
+    expect(() => summarizeAthleteScores([skating, attitude])).toThrow(/priority/i);
+    expect(() => summarizeAthleteScores([attitude, skating])).toThrow(/priority/i);
+  });
+
+  it('validates priority identity on every included snapshot even when one is incomplete', () => {
+    const incomplete = completedEvaluation({
+      evaluationId: 'incomplete-evaluation',
+      evaluatorId: 'incomplete-evaluator',
+      categories: [
+        {
+          categoryId: 'attitude',
+          score: null,
+          scaleMax: 5,
+          weight: '100',
+          isPriority: true,
+        },
+      ],
+    });
+    const complete = completedEvaluation({
+      evaluationId: 'complete-evaluation',
+      evaluatorId: 'complete-evaluator',
+      categories: [
+        { categoryId: 'skating', score: 4, scaleMax: 5, weight: '100', isPriority: true },
+      ],
+    });
+    expect(() => summarizeAthleteScores([incomplete, complete])).toThrow(/priority/i);
+    expect(() => summarizeAthleteScores([complete, incomplete])).toThrow(/priority/i);
   });
 
   it.each([
@@ -291,7 +348,6 @@ describe('athlete aggregation and scope', () => {
               score: 4,
               scaleMax: 5,
               weight: '50',
-              required: true,
               isPriority: true,
             },
             {
@@ -299,7 +355,6 @@ describe('athlete aggregation and scope', () => {
               score: 4,
               scaleMax: 5,
               weight: '50',
-              required: true,
               isPriority: true,
             },
           ],
@@ -318,7 +373,6 @@ describe('athlete aggregation and scope', () => {
           score: 4,
           scaleMax: 5,
           weight: '100',
-          required: true,
           isPriority: true,
         },
       ],
@@ -326,7 +380,7 @@ describe('athlete aggregation and scope', () => {
     const withoutPriority = completedEvaluation({
       evaluationId: 'evaluation-no-priority',
       evaluatorId: 'evaluator-no-priority',
-      categories: [{ categoryId: 'skating', score: 4, scaleMax: 5, weight: '100', required: true }],
+      categories: [{ categoryId: 'skating', score: 4, scaleMax: 5, weight: '100' }],
     });
     expect(() => summarizeAthleteScores([withoutPriority, withPriority])).toThrow(/priority/i);
     expect(() => summarizeAthleteScores([withPriority, withoutPriority])).toThrow(/priority/i);
@@ -349,22 +403,38 @@ describe('deterministic ranking', () => {
       {
         athleteId: 'athlete-c',
         stableOrder: '003',
-        summary: { aggregate: '80.0000', priorityCategoryAggregate: '90.0000' },
+        summary: {
+          aggregate: '80.0000',
+          priorityCategoryId: 'skating',
+          priorityCategoryAggregate: '90.0000',
+        },
       },
       {
         athleteId: 'athlete-b',
         stableOrder: '002',
-        summary: { aggregate: '90.0000', priorityCategoryAggregate: '70.0000' },
+        summary: {
+          aggregate: '90.0000',
+          priorityCategoryId: 'skating',
+          priorityCategoryAggregate: '70.0000',
+        },
       },
       {
         athleteId: 'athlete-a',
         stableOrder: '001',
-        summary: { aggregate: '90.0000', priorityCategoryAggregate: '80.0000' },
+        summary: {
+          aggregate: '90.0000',
+          priorityCategoryId: 'skating',
+          priorityCategoryAggregate: '80.0000',
+        },
       },
       {
         athleteId: 'athlete-d',
         stableOrder: '004',
-        summary: { aggregate: null, priorityCategoryAggregate: null },
+        summary: {
+          aggregate: null,
+          priorityCategoryId: null,
+          priorityCategoryAggregate: null,
+        },
       },
     ]);
     expect(ranked.map(({ athleteId, rank }) => [athleteId, rank])).toEqual([
@@ -381,17 +451,29 @@ describe('deterministic ranking', () => {
       {
         athleteId: 'athlete-b',
         stableOrder: '002',
-        summary: { aggregate: '84.0000', priorityCategoryAggregate: '80.0000' },
+        summary: {
+          aggregate: '84.0000',
+          priorityCategoryId: 'skating',
+          priorityCategoryAggregate: '80.0000',
+        },
       },
       {
         athleteId: 'athlete-a',
         stableOrder: '001',
-        summary: { aggregate: '84.0000', priorityCategoryAggregate: '80.0000' },
+        summary: {
+          aggregate: '84.0000',
+          priorityCategoryId: 'skating',
+          priorityCategoryAggregate: '80.0000',
+        },
       },
       {
         athleteId: 'athlete-c',
         stableOrder: '003',
-        summary: { aggregate: '70.0000', priorityCategoryAggregate: '90.0000' },
+        summary: {
+          aggregate: '70.0000',
+          priorityCategoryId: 'skating',
+          priorityCategoryAggregate: '90.0000',
+        },
       },
     ]);
     expect(ranked.map(({ athleteId, rank, isTied }) => [athleteId, rank, isTied])).toEqual([
@@ -407,12 +489,60 @@ describe('deterministic ranking', () => {
         {
           athleteId: 'athlete-a',
           stableOrder: '001',
-          summary: { aggregate: '84.0000', priorityCategoryAggregate: '80.0000' },
+          summary: {
+            aggregate: '84.0000',
+            priorityCategoryId: 'skating',
+            priorityCategoryAggregate: '80.0000',
+          },
         },
         {
           athleteId: 'athlete-b',
           stableOrder: '002',
-          summary: { aggregate: '84.0000', priorityCategoryAggregate: null },
+          summary: {
+            aggregate: '84.0000',
+            priorityCategoryId: null,
+            priorityCategoryAggregate: null,
+          },
+        },
+      ]),
+    ).toThrow(/priority/i);
+  });
+
+  it('binds tie-break values to one exact priority category identity', () => {
+    const row = (
+      athleteId: string,
+      priorityCategoryId: string | null,
+      priorityCategoryAggregate: string | null,
+    ) => ({
+      athleteId,
+      stableOrder: athleteId,
+      summary: {
+        aggregate: '84.0000' as const,
+        priorityCategoryId,
+        priorityCategoryAggregate,
+      },
+    });
+    expect(() =>
+      rankAthletes([
+        row('athlete-a', 'skating', '80.0000'),
+        row('athlete-b', 'attitude', '80.0000'),
+      ]),
+    ).toThrow(/priority/i);
+    expect(() => rankAthletes([row('athlete-a', 'skating', null)])).toThrow(/priority/i);
+    expect(() => rankAthletes([row('athlete-a', null, '80.0000')])).toThrow(/priority/i);
+  });
+
+  it('requires unscored rows to carry no priority tie-break evidence', () => {
+    expect(() =>
+      rankAthletes([
+        {
+          athleteId: 'athlete-unscored',
+          stableOrder: '001',
+          summary: {
+            aggregate: null,
+            priorityCategoryId: 'skating',
+            priorityCategoryAggregate: '80.0000',
+          },
         },
       ]),
     ).toThrow(/priority/i);
@@ -426,6 +556,7 @@ describe('deterministic ranking', () => {
       decision: 'selected',
       summary: {
         aggregate: '84.0000',
+        priorityCategoryId: null,
         priorityCategoryAggregate: null,
         selected: true,
       },
@@ -434,7 +565,11 @@ describe('deterministic ranking', () => {
     expect(ranked).toEqual({
       athleteId: 'athlete-a',
       stableOrder: '001',
-      summary: { aggregate: '84.0000', priorityCategoryAggregate: null },
+      summary: {
+        aggregate: '84.0000',
+        priorityCategoryId: null,
+        priorityCategoryAggregate: null,
+      },
       rank: 1,
       isTied: false,
     });
@@ -446,6 +581,7 @@ describe('deterministic ranking', () => {
       stableOrder: String(index).padStart(3, '0'),
       summary: {
         aggregate: `${String(100 - (index % 11)).padStart(2, '0')}.0000`,
+        priorityCategoryId: null,
         priorityCategoryAggregate: null,
       },
     }));
@@ -479,12 +615,20 @@ describe('deterministic ranking', () => {
         {
           athleteId: 'same',
           stableOrder: '001',
-          summary: { aggregate: '80.0000', priorityCategoryAggregate: null },
+          summary: {
+            aggregate: '80.0000',
+            priorityCategoryId: null,
+            priorityCategoryAggregate: null,
+          },
         },
         {
           athleteId: 'same',
           stableOrder: '002',
-          summary: { aggregate: '70.0000', priorityCategoryAggregate: null },
+          summary: {
+            aggregate: '70.0000',
+            priorityCategoryId: null,
+            priorityCategoryAggregate: null,
+          },
         },
       ],
     },
@@ -493,12 +637,20 @@ describe('deterministic ranking', () => {
         {
           athleteId: 'one',
           stableOrder: 'same',
-          summary: { aggregate: '80.0000', priorityCategoryAggregate: null },
+          summary: {
+            aggregate: '80.0000',
+            priorityCategoryId: null,
+            priorityCategoryAggregate: null,
+          },
         },
         {
           athleteId: 'two',
           stableOrder: 'same',
-          summary: { aggregate: '70.0000', priorityCategoryAggregate: null },
+          summary: {
+            aggregate: '70.0000',
+            priorityCategoryId: null,
+            priorityCategoryAggregate: null,
+          },
         },
       ],
     },
