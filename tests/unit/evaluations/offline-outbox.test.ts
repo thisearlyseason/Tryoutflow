@@ -1826,16 +1826,20 @@ describe('evaluation offline outbox', () => {
     reopened.close();
   });
 
-  it('quarantines a physically scoped tombstone with tampered embedded identity during teardown', async () => {
-    const baseName = databaseBase('physical-tombstone-teardown');
+  it('replaces a corrupt tombstone with a permanent physical-key fence after receipt expiry', async () => {
+    const baseName = databaseBase('terminal-tombstone-teardown');
     const physicalName = trackUserDatabase(baseName);
     const target = createEvaluationOfflineRepository({
       authenticatedUserId: scope.userId,
       databaseName: baseName,
     });
     await prepare(target);
-    await target.enqueueEvaluationMutation(mutation());
-    const claim = await target.nextPendingMutation(scope);
+    const queued = await target.enqueueEvaluationMutation(mutation(), {
+      now: new Date('2026-06-01T09:59:00.000Z'),
+    });
+    const claim = await target.nextPendingMutation(scope, {
+      now: new Date('2026-06-01T09:59:30.000Z'),
+    });
     await target.acknowledgeMutation({
       scope,
       evaluationId: claim!.evaluationId,
@@ -1844,9 +1848,13 @@ describe('evaluation offline outbox', () => {
       expectedVersion: claim!.expectedVersion,
       payloadDigest: claim!.payloadDigest,
       serverVersion: 3,
-      acknowledgedAt: '2026-08-29T10:00:00.000Z',
+      acknowledgedAt: '2026-06-01T09:59:40.000Z',
+      now: new Date('2026-06-01T09:59:40.000Z'),
     });
     await target.clearAcknowledged(scope);
+    await expect(
+      target.cleanupExpired(scope, new Date('2026-08-29T10:00:00.000Z')),
+    ).resolves.toMatchObject({ receipts: 1 });
     target.close();
 
     const trustedScopeKey = Object.values(scope).join('|');
@@ -1856,15 +1864,13 @@ describe('evaluation offline outbox', () => {
     raw.version(5).stores(v5Stores);
     await raw.open();
     const tombstone = await raw.table('receiptTombstones').get(physicalKey);
-    const { tombstoneDigest: _oldDigest, ...tombstonePayload } = tombstone;
-    const tamperedPayload = {
-      ...tombstonePayload,
+    await expect(raw.table('receipts').get(physicalKey)).resolves.toBeUndefined();
+    await raw.table('receiptTombstones').put({
+      ...tombstone,
       scopeKey: Object.values(otherScope).join('|'),
       clientMutationId: tamperedClientMutationId,
-    };
-    await raw.table('receiptTombstones').put({
-      ...tamperedPayload,
-      tombstoneDigest: await digestValue(tamperedPayload),
+      tombstoneDigest: '0'.repeat(64),
+      guardianEmail: 'guardian@example.com',
     });
     await raw.table('sessionContexts').delete(trustedScopeKey);
     await raw.table('drafts').delete(trustedScopeKey);
@@ -1878,7 +1884,12 @@ describe('evaluation offline outbox', () => {
       cleared: false,
       retainedUnacknowledged: 1,
     });
-    await expect(reopened.listQuarantines(scope)).resolves.toEqual([
+    await expect(reopened.teardownScope(scope)).resolves.toEqual({
+      cleared: false,
+      retainedUnacknowledged: 1,
+    });
+    const quarantines = await reopened.listQuarantines(scope);
+    expect(quarantines).toEqual([
       expect.objectContaining({
         scopeKey: trustedScopeKey,
         sourceTable: 'receiptTombstones',
@@ -1890,24 +1901,48 @@ describe('evaluation offline outbox', () => {
         }),
       }),
     ]);
+    expect(JSON.stringify(quarantines)).not.toContain('guardian@example.com');
+    await expect(reopened.getSyncState(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    await expect(reopened.enqueueEvaluationMutation(mutation())).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
     reopened.close();
 
     const inspect = new Dexie(physicalName);
     inspect.version(5).stores(v5Stores);
     await inspect.open();
-    expect(await inspect.table('receiptTombstones').get(physicalKey)).toBeUndefined();
-    expect(await inspect.table('receiptTombstones').count()).toBe(0);
-    expect(await inspect.table('receipts').get(physicalKey)).toBeDefined();
+    expect(await inspect.table('receiptTombstones').get(physicalKey)).toMatchObject({
+      storageKey: physicalKey,
+      scopeKey: trustedScopeKey,
+      clientMutationId: mutation().clientMutationId,
+      reason: 'corrupt_receipt',
+    });
+    expect(await inspect.table('receiptTombstones').count()).toBe(1);
+    expect(await inspect.table('receipts').get(physicalKey)).toBeUndefined();
+    await inspect.table('quarantines').clear();
     inspect.close();
 
     const replayed = createEvaluationOfflineRepository({
       authenticatedUserId: scope.userId,
       databaseName: baseName,
     });
+    await expect(replayed.teardownScope(scope)).resolves.toEqual({
+      cleared: false,
+      retainedUnacknowledged: 1,
+    });
     await replayed.saveSessionContext(context());
-    await expect(replayed.enqueueEvaluationMutation(mutation())).resolves.toMatchObject({
-      status: 'acknowledged',
-      clientMutationId: mutation().clientMutationId,
+    await expect(replayed.enqueueEvaluationMutation(mutation())).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    const inject = new Dexie(physicalName);
+    inject.version(5).stores(v5Stores);
+    await inject.open();
+    await inject.table('mutations').put(queued);
+    inject.close();
+    await expect(replayed.nextPendingMutation(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
     });
     replayed.close();
   });

@@ -2540,24 +2540,27 @@ export class EvaluationOfflineRepository {
           }
         }
         const tombstoneKeys: string[] = [];
+        let terminalFencesRetained = 0;
         for (const { physicalKey, clientMutationId, raw } of rawTombstones) {
           try {
             const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
-            tombstoneKeys.push(physicalKey);
+            if (tombstone.reason === 'corrupt_receipt') terminalFencesRetained += 1;
+            else tombstoneKeys.push(physicalKey);
           } catch {
-            await this.moveToQuarantine(
-              transaction,
-              'receiptTombstones',
-              raw,
-              'digest_mismatch',
-              'Teardown retained an invalid terminal tombstone for review.',
-              new Date(),
-              {
-                physicalKey,
-                scope,
-                ...(uuid.safeParse(clientMutationId).success ? { clientMutationId } : {}),
-              },
-            );
+            if (uuid.safeParse(clientMutationId).success) {
+              await this.ensureReceiptTombstone(transaction, scope, clientMutationId, new Date());
+              terminalFencesRetained += 1;
+            } else {
+              await this.moveToQuarantine(
+                transaction,
+                'receiptTombstones',
+                raw,
+                'digest_mismatch',
+                'Teardown retained an invalid terminal tombstone for review.',
+                new Date(),
+                { physicalKey, scope },
+              );
+            }
             newlyQuarantined += 1;
           }
         }
@@ -2638,10 +2641,11 @@ export class EvaluationOfflineRepository {
             counterKeys.push(parsed.data.queueKey);
           }
         }
-        const retained =
+        const recoveriesRetained =
           mutations.filter((record) => record.status !== 'acknowledged').length +
           existingQuarantines.length +
           newlyQuarantined;
+        const retained = Math.max(recoveriesRetained, terminalFencesRetained);
         if (retained > 0) return { cleared: false, retainedUnacknowledged: retained };
         await this.database.mutations.bulkDelete(mutations.map((record) => record.storageKey));
         await this.database.drafts.delete(key);
