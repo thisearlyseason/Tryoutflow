@@ -54,6 +54,9 @@ select ok(has_function_privilege('authenticated','public.manage_director_evaluat
 select ok(not has_table_privilege('service_role','public.evaluations','update'),'service role cannot directly update evaluations');
 select ok(not has_table_privilege('service_role','public.athlete_flags','insert'),'service role cannot directly insert flags');
 select ok(not has_table_privilege('authenticated','private.evaluation_write_permits','select'),'authenticated cannot inspect trusted write permits');
+select ok(not has_table_privilege('authenticated','private.director_flag_write_permits','select'),'authenticated cannot inspect director flag write permits');
+select ok(not has_function_privilege('authenticated','private.permit_director_flag_write(uuid,text,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text)','execute'),'authenticated cannot mint director flag write permits');
+select ok(not has_function_privilege('service_role','private.permit_director_flag_write(uuid,text,uuid,uuid,uuid,uuid,uuid,uuid,uuid,text)','execute'),'service role cannot mint director flag write permits');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','f1333333-3333-4333-8333-333333333333',true);
@@ -84,6 +87,7 @@ select throws_ok($$update public.evaluation_scores set value=5 where evaluation_
 select throws_ok($$delete from public.evaluation_notes where evaluation_id=current_setting('app.test.hardened_evaluation')::uuid$$,'55000','completed evaluation children are immutable','completed note delete is rejected');
 select throws_ok($$insert into public.evaluation_note_tags(organization_id,evaluation_id,note_tag_id,evaluator_user_id) values('f1000000-0000-4000-8000-000000000001',current_setting('app.test.hardened_evaluation')::uuid,'f1000000-0000-4000-8000-000000000031','f1333333-3333-4333-8333-333333333333')$$,'55000','completed evaluation children are immutable','completed tag insert is rejected');
 select throws_ok($$delete from public.athlete_flags where evaluation_id=current_setting('app.test.hardened_evaluation')::uuid$$,'55000','completed evaluation children are immutable','completed evaluator flag delete is rejected');
+select throws_ok($$update public.athlete_flags set creator_kind='director',evaluation_id=null,evaluator_user_id=null where evaluation_id=current_setting('app.test.hardened_evaluation')::uuid$$,'P0001','director flag writes require trusted command','privileged DML cannot reshape a completed evaluator flag into a director flag');
 select throws_ok($$insert into public.organization_evaluation_note_tags(organization_id,label) values('f1000000-0000-4000-8000-000000000001','  padded  ')$$,'23514',null,'storage rejects non-canonical padded tag labels');
 
 set local role authenticated;
@@ -104,6 +108,16 @@ select set_config('app.test.director_flag',(select id::text from public.athlete_
 select is((select count(*) from public.evaluation_notes),0::bigint,'director flag authority does not reveal evaluator notes');
 select is((select count(*) from public.evaluation_scores),0::bigint,'director flag authority does not reveal evaluator scores');
 select is((select creator_kind from public.athlete_flags where id=current_setting('app.test.director_flag')::uuid),'director','director flag stores creator kind');
+reset role;
+select throws_ok($$update public.athlete_flags set flag_type='needs_another_look' where id=current_setting('app.test.director_flag')::uuid$$,'P0001','director flag writes require trusted command','privileged DML cannot update a director flag without the audited command');
+select throws_ok($$update public.athlete_flags set creator_user_id='f1111111-1111-4111-8111-111111111111' where id=current_setting('app.test.director_flag')::uuid$$,'55000','director flag identity is immutable','privileged DML cannot rewrite director attribution');
+select throws_ok($$update public.athlete_flags set tryout_registration_id='f1000000-0000-4000-8000-000000000099' where id=current_setting('app.test.director_flag')::uuid$$,'55000','director flag identity is immutable','privileged DML cannot rewrite director context');
+select throws_ok($$update public.athlete_flags set creator_kind='evaluator',creator_user_id='f1333333-3333-4333-8333-333333333333',evaluation_id=current_setting('app.test.hardened_evaluation')::uuid,evaluator_user_id='f1333333-3333-4333-8333-333333333333' where id=current_setting('app.test.director_flag')::uuid$$,'55000','director flag identity is immutable','privileged DML cannot reshape a director flag into an evaluator flag');
+select throws_ok($$delete from public.athlete_flags where id=current_setting('app.test.director_flag')::uuid$$,'P0001','director flag writes require trusted command','privileged DML cannot delete a director flag');
+select throws_ok($$insert into public.athlete_flags(organization_id,tryout_id,division_id,tryout_registration_id,tryout_session_id,group_id,creator_user_id,creator_kind,flag_type) values('f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771','f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991','f1111111-1111-4111-8111-111111111111','director','injury_concern')$$,'P0001','director flag writes require trusted command','privileged DML cannot insert an unaudited director flag');
+select is((select creator_user_id from public.athlete_flags where id=current_setting('app.test.director_flag')::uuid),'f1222222-2222-4222-8222-222222222222'::uuid,'failed privileged mutations roll back director attribution');
+select is((select flag_type from public.athlete_flags where id=current_setting('app.test.director_flag')::uuid),'eligibility_review','failed privileged mutations roll back director content');
+set local role authenticated;
 select set_config('request.jwt.claim.sub','f1111111-1111-4111-8111-111111111111',true);
 select is((select outcome from public.manage_director_evaluation_flag(
  'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
@@ -115,6 +129,7 @@ select is((select outcome from public.manage_director_evaluation_flag(
 reset role;
 select is((select count(*) from public.audit_logs where entity_id=current_setting('app.test.hardened_evaluation')::uuid and action in ('evaluation.locked','evaluation.reopened')),2::bigint,'lock and reopen transitions are audited');
 select is((select count(*) from public.audit_logs where entity_id=current_setting('app.test.director_flag')::uuid and action in ('evaluation.director_flag_saved','evaluation.director_flag_revoked')),3::bigint,'director flag changes by every manager are audited');
+select is((select count(*) from private.director_flag_write_permits),0::bigint,'authorized director commands consume their exact transaction permits');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','f1333333-3333-4333-8333-333333333333',true);

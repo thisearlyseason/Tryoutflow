@@ -2417,7 +2417,7 @@ export type Database = {
         };
         Returns: {
           outcome: string;
-          version: number;
+          version: number | null;
         }[];
       };
       configure_evaluation_note_tag: {
@@ -2428,7 +2428,7 @@ export type Database = {
           p_organization_id: string;
         };
         Returns: {
-          note_tag_id: string;
+          note_tag_id: string | null;
           outcome: string;
         }[];
       };
@@ -2657,7 +2657,7 @@ export type Database = {
         };
         Returns: {
           outcome: string;
-          version: number;
+          version: number | null;
         }[];
       };
       lock_evaluator_context: {
@@ -2795,7 +2795,7 @@ export type Database = {
         };
         Returns: {
           outcome: string;
-          version: number;
+          version: number | null;
         }[];
       };
       resolve_athlete_import_duplicate: {
@@ -2848,7 +2848,7 @@ export type Database = {
         Returns: {
           evaluation_id: string | null;
           outcome: string;
-          version: number;
+          version: number | null;
         }[];
       };
       save_tryout_setup_step: {

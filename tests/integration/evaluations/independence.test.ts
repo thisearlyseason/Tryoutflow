@@ -157,6 +157,39 @@ describe('evaluation independence and compare-and-swap serialization', () => {
           )
         ).stdout.trim(),
       ).toBe('reopened|5|1');
+
+      const directorFlagCall = (flagId: string | null, action: 'upsert' | 'revoke', name: string) =>
+        asAuthenticated(
+          director,
+          `select outcome||'|'||coalesce(athlete_flag_id::text,'') from public.manage_director_evaluation_flag('${organization}','${tryout}','${division}','${registration}','${session}',null,${flagId ? `'${flagId}'` : 'null'},'${action}','needs_another_look')`,
+          name,
+        );
+      const createFlagResults = await Promise.all([
+        directorFlagCall(null, 'upsert', `director-flag-create-a-${suffix}`),
+        directorFlagCall(null, 'upsert', `director-flag-create-b-${suffix}`),
+      ]);
+      expect(createFlagResults.map((result) => result.stdout).join('\n')).toContain('saved|');
+      expect(createFlagResults.map((result) => result.stdout).join('\n')).toContain('conflict|');
+      const directorFlagId = (
+        await psql(
+          `select id from public.athlete_flags where organization_id='${organization}' and creator_kind='director'`,
+        )
+      ).stdout.trim();
+      const revokeFlagResults = await Promise.all([
+        directorFlagCall(directorFlagId, 'revoke', `director-flag-revoke-a-${suffix}`),
+        directorFlagCall(directorFlagId, 'revoke', `director-flag-revoke-b-${suffix}`),
+      ]);
+      expect(revokeFlagResults.map((result) => result.stdout).join('\n')).toContain('revoked|');
+      expect(revokeFlagResults.map((result) => result.stdout).join('\n')).toContain(
+        'invalid_flag|',
+      );
+      expect(
+        (
+          await psql(
+            `select (revoked_at is not null)::text||'|'||(select count(*) from public.audit_logs where entity_id='${directorFlagId}' and action in ('evaluation.director_flag_saved','evaluation.director_flag_revoked')) from public.athlete_flags where id='${directorFlagId}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('true|2');
     } finally {
       await psql(`
         set session_replication_role=replica;

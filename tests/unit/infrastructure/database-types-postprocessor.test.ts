@@ -1,0 +1,87 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+describe('database type postprocessor', () => {
+  it('narrows exact Returns fields without matching masking Args names', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-database-types-'));
+    const databaseTypes = join(directory, 'database.types.ts');
+    const fixture = `export type Database = {
+  public: {
+    Functions: {
+      complete_evaluation: {
+        Args: {
+          p_group_id: string;
+          p_expected_version: number;
+          version: number;
+        };
+        Returns: {
+          outcome: string;
+          version: number;
+        }[];
+      };
+      configure_evaluation_note_tag: {
+        Args: {
+          note_tag_id: string;
+          p_note_tag_id: string;
+        };
+        Returns: {
+          note_tag_id: string;
+          outcome: string;
+        }[];
+      };
+      lock_evaluation: {
+        Args: { p_expected_version: number; p_group_id: string };
+        Returns: { outcome: string; version: number }[];
+      };
+      manage_director_evaluation_flag: {
+        Args: { athlete_flag_id: string; p_flag_id: string; p_group_id: string };
+        Returns: { athlete_flag_id: string; outcome: string }[];
+      };
+      reopen_evaluation: {
+        Args: { p_expected_version: number; p_group_id: string };
+        Returns: { outcome: string; version: number }[];
+      };
+      save_evaluation_draft: {
+        Args: { evaluation_id: string; p_expected_version: number; p_group_id: string; p_note: string };
+        Returns: { evaluation_id: string; outcome: string; version: number }[];
+      };
+      list_assigned_athletes: {
+        Args: never;
+        Returns: { group_id: string; group_name: string; session_id: string; session_name: string; tryout_number: number }[];
+      };
+      list_manageable_evaluator_assignments: {
+        Args: never;
+        Returns: { division_id: string; expires_at: string; group_id: string; session_id: string }[];
+      };
+    };
+  };
+};
+`;
+
+    try {
+      writeFileSync(databaseTypes, fixture);
+      execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes]);
+      const processed = readFileSync(databaseTypes, 'utf8');
+
+      expect(processed).toContain('version: number;\n        };\n        Returns:');
+      expect(processed).toContain('p_expected_version: number | null;');
+      expect(processed).toContain('version: number | null;\n        }[];');
+      expect(processed).toContain('note_tag_id: string;\n          p_note_tag_id: string | null;');
+      expect(processed).toContain('note_tag_id: string | null;\n          outcome: string;');
+      expect(processed).toContain('athlete_flag_id: string; p_flag_id: string | null;');
+      expect(processed).toContain(
+        'Returns: { athlete_flag_id: string | null; outcome: string }[];',
+      );
+      expect(processed).toContain('Args: { evaluation_id: string;');
+      expect(processed).toContain('Returns: { evaluation_id: string | null;');
+      expect(processed).toContain('tryout_number: number | null }[];');
+      expect(processed).toContain('expires_at: string | null;');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});

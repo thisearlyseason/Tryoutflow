@@ -1,44 +1,57 @@
 import { readFile, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const path = new URL('../src/infrastructure/supabase/database.types.ts', import.meta.url);
+const path = process.argv[2]
+  ? pathToFileURL(resolve(process.argv[2]))
+  : new URL('../src/infrastructure/supabase/database.types.ts', import.meta.url);
 let source = await readFile(path, 'utf8');
 
-function nullableFunctionFields(functionName, fields) {
+function escaped(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function functionSections(functionName) {
   const start = source.indexOf(`      ${functionName}: {`);
   const end = source.indexOf('\n      };', start);
   if (start < 0 || end < 0) throw new Error(`Could not find generated function ${functionName}`);
-  let block = source.slice(start, end);
+  const returns = source.indexOf('Returns:', start);
+  if (returns < 0 || returns >= end) {
+    throw new Error(`Could not find generated function returns ${functionName}`);
+  }
+  return { start, returns, end };
+}
+
+function makeNullable(section, functionName, fields, allowOptional = false) {
+  let result = section;
   for (const [field, type] of Object.entries(fields)) {
-    const pattern = new RegExp(`(${field}: )${type.replace('|', '\\|')};`);
-    if (!pattern.test(block) && !block.includes(`${field}: ${type} | null;`)) {
+    const optional = allowOptional ? '(\\??)' : '';
+    const prefix = new RegExp(
+      `(^|[\\s{;])(${escaped(field)}${optional}: )${escaped(type)}(?=;|[\\s}])`,
+      'm',
+    );
+    const nullable = new RegExp(
+      `(^|[\\s{;])${escaped(field)}${allowOptional ? '\\??' : ''}: ${escaped(type)} \\| null(?=;|[\\s}])`,
+      'm',
+    );
+    if (!prefix.test(result) && !nullable.test(result)) {
       throw new Error(`Could not find ${functionName}.${field}: ${type}`);
     }
-    block = block.replace(pattern, `$1${type} | null;`);
+    result = result.replace(prefix, `$1$2${type} | null`);
   }
-  source = source.slice(0, start) + block + source.slice(end);
+  return result;
+}
+
+function nullableFunctionFields(functionName, fields) {
+  const { returns, end } = functionSections(functionName);
+  const section = makeNullable(source.slice(returns, end), functionName, fields);
+  source = source.slice(0, returns) + section + source.slice(end);
 }
 
 function nullableFunctionArgs(functionName, fields) {
-  const start = source.indexOf(`      ${functionName}: {`);
-  const end = source.indexOf('\n      };', start);
-  if (start < 0 || end < 0) throw new Error(`Could not find generated function ${functionName}`);
-  let block = source.slice(start, end);
-  const argsEnd = block.indexOf('\n        Returns:');
-  if (argsEnd < 0) throw new Error(`Could not find generated function args ${functionName}`);
-  let args = block.slice(0, argsEnd);
-  for (const [field, type] of Object.entries(fields)) {
-    const pattern = new RegExp(`(${field}\\??: )${type.replace('|', '\\|')};`);
-    if (
-      !pattern.test(args) &&
-      !args.includes(`${field}: ${type} | null;`) &&
-      !args.includes(`${field}?: ${type} | null;`)
-    ) {
-      throw new Error(`Could not find ${functionName}.${field}: ${type}`);
-    }
-    args = args.replace(pattern, `$1${type} | null;`);
-  }
-  block = args + block.slice(argsEnd);
-  source = source.slice(0, start) + block + source.slice(end);
+  const { start, returns } = functionSections(functionName);
+  const section = makeNullable(source.slice(start, returns), functionName, fields, true);
+  source = source.slice(0, start) + section + source.slice(returns);
 }
 
 nullableFunctionFields('list_assigned_athletes', {
@@ -63,15 +76,25 @@ nullableFunctionFields('save_evaluation_draft', {
   evaluation_id: 'string',
   version: 'number',
 });
-nullableFunctionArgs('complete_evaluation', { p_group_id: 'string' });
+nullableFunctionArgs('complete_evaluation', {
+  p_expected_version: 'number',
+  p_group_id: 'string',
+});
 nullableFunctionArgs('configure_evaluation_note_tag', { p_note_tag_id: 'string' });
-nullableFunctionArgs('lock_evaluation', { p_group_id: 'string' });
+nullableFunctionArgs('lock_evaluation', {
+  p_expected_version: 'number',
+  p_group_id: 'string',
+});
 nullableFunctionArgs('manage_director_evaluation_flag', {
   p_flag_id: 'string',
   p_group_id: 'string',
 });
-nullableFunctionArgs('reopen_evaluation', { p_group_id: 'string' });
+nullableFunctionArgs('reopen_evaluation', {
+  p_expected_version: 'number',
+  p_group_id: 'string',
+});
 nullableFunctionArgs('save_evaluation_draft', {
+  p_expected_version: 'number',
   p_group_id: 'string',
   p_note: 'string',
 });
