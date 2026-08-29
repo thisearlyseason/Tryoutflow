@@ -1,38 +1,19 @@
-import { createHmac } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { createAdminSupabaseClient } from '../../../../infrastructure/supabase/admin';
 import type { Json } from '../../../../infrastructure/supabase/database.types';
-import { getServerEnvironment } from '../../../../lib/env';
 import { noRegistrationConfirmationNotifier } from '../../../../modules/registration/application/registration-confirmation-notifier';
 import { registerAthlete } from '../../../../modules/registration/application/register-athlete';
 import { RegistrationFormSchema } from '../../../../modules/registration/domain/form-schema';
-
-const MAX_BODY_BYTES = 32 * 1024;
+import { guardPublicJsonRequest } from './public-request-security';
 
 function genericError(status: number) {
   return NextResponse.json(
     { error: 'We could not process that registration. Please try again.' },
     { status },
   );
-}
-
-function sameOrigin(request: NextRequest) {
-  const origin = request.headers.get('origin');
-  return origin !== null && origin === request.nextUrl.origin;
-}
-
-function trustedRequestKey(request: NextRequest, slug: string) {
-  const forwarded = request.headers.get('x-vercel-forwarded-for');
-  const local =
-    process.env.NODE_ENV !== 'production' ? request.headers.get('x-forwarded-for') : null;
-  const address = forwarded?.trim() || local?.trim();
-  if (!address && process.env.NODE_ENV === 'production') return null;
-  const context = `${slug}|${address ?? 'local'}`;
-  return createHmac('sha256', getServerEnvironment().PUBLIC_REGISTRATION_RATE_LIMIT_SECRET)
-    .update(context)
-    .digest('hex');
 }
 
 export async function GET(request: NextRequest) {
@@ -58,34 +39,36 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (
-    !sameOrigin(request) ||
-    request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !==
-      'application/json'
-  ) {
-    return genericError(403);
-  }
-  const contentLength = Number(request.headers.get('content-length') ?? '0');
-  if (!Number.isFinite(contentLength) || contentLength > MAX_BODY_BYTES) return genericError(413);
-
-  let body: { tryoutSlug?: unknown; submission?: unknown; idempotencyKey?: unknown };
-  try {
-    const raw = await readBodyWithinLimit(request);
-    if (raw === null) return genericError(413);
-    body = JSON.parse(raw) as typeof body;
-  } catch {
-    return genericError(400);
-  }
-  if (
-    typeof body.tryoutSlug !== 'string' ||
-    typeof body.idempotencyKey !== 'string' ||
-    !body.submission ||
-    body.idempotencyKey.length < 24
-  ) {
-    return genericError(400);
-  }
-  const rateKey = trustedRequestKey(request, body.tryoutSlug);
-  if (!rateKey) return genericError(400);
+  const guarded = await guardPublicJsonRequest(request, {
+    bucket: 'registration',
+    parse(value) {
+      if (!value || typeof value !== 'object') return null;
+      const body = value as {
+        tryoutSlug?: unknown;
+        submission?: unknown;
+        idempotencyKey?: unknown;
+      };
+      if (
+        typeof body.tryoutSlug !== 'string' ||
+        !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(body.tryoutSlug) ||
+        typeof body.idempotencyKey !== 'string' ||
+        !/^[A-Za-z0-9_-]{24,200}$/u.test(body.idempotencyKey) ||
+        !body.submission ||
+        typeof body.submission !== 'object'
+      )
+        return null;
+      return {
+        body: {
+          tryoutSlug: body.tryoutSlug,
+          idempotencyKey: body.idempotencyKey,
+          submission: body.submission,
+        },
+        target: body.tryoutSlug,
+      };
+    },
+  });
+  if (!guarded.ok) return genericError(guarded.status);
+  const body = guarded.body;
 
   try {
     const client = createAdminSupabaseClient();
@@ -94,6 +77,15 @@ export async function POST(request: NextRequest) {
     });
     const row = configuration.data?.[0];
     if (configuration.error || !row) return genericError(400);
+    const limit = await client.rpc('consume_public_registration_rate_limit', {
+      p_rate_key_hash: guarded.rateKey,
+      p_limit: 10,
+    });
+    if (limit.error) return genericError(400);
+    if (limit.data?.[0]?.outcome === 'rate_limited') return genericError(429);
+    const transactionRateKey = createHash('sha256')
+      .update(`registration-transaction|${guarded.rateKey}`)
+      .digest('hex');
     const command = await registerAthlete(
       {
         tryoutSlug: body.tryoutSlug,
@@ -109,14 +101,19 @@ export async function POST(request: NextRequest) {
               p_tryout_slug: input.tryoutSlug,
               p_submission: input.submission as Json,
               p_idempotency_key: input.idempotencyKey,
-              p_rate_key_hash: rateKey,
+              p_rate_key_hash: transactionRateKey,
             });
             const outcome = result.data?.[0];
             if (result.error || !outcome || outcome.outcome === 'registration_closed')
               throw new Error('closed');
             if (outcome.outcome === 'rate_limited') throw new Error('rate_limited');
             if (outcome.outcome === 'idempotency_conflict') throw new Error('idempotency_conflict');
-            if (outcome.outcome === 'replayed') return { outcome: 'replayed' as const };
+            if (outcome.outcome === 'replayed')
+              return {
+                outcome: 'replayed' as const,
+                registrationId: outcome.registration_id,
+                confirmationToken: outcome.confirmation_token,
+              };
             return {
               outcome: 'submitted' as const,
               registrationId: outcome.registration_id,
@@ -131,25 +128,4 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message === 'rate_limited') return genericError(429);
     return genericError(400);
   }
-}
-
-async function readBodyWithinLimit(request: NextRequest): Promise<string | null> {
-  if (!request.body) return '';
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let bytes = 0;
-  for (;;) {
-    const next = await reader.read();
-    if (next.done) break;
-    bytes += next.value.byteLength;
-    if (bytes > MAX_BODY_BYTES) return null;
-    chunks.push(next.value);
-  }
-  const combined = new Uint8Array(bytes);
-  let offset = 0;
-  for (const chunk of chunks) {
-    combined.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder().decode(combined);
 }

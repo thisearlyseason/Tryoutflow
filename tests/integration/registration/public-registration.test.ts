@@ -29,6 +29,90 @@ describe('public registration validation', () => {
       ),
     ).toThrow(/unknown/i);
   });
+
+  const form = {
+    fields: [
+      {
+        key: 'short_text',
+        label: 'Short text',
+        kind: 'text' as const,
+        required: true,
+        sortOrder: 0,
+      },
+      { key: 'email', label: 'Email', kind: 'email' as const, required: true, sortOrder: 1 },
+      { key: 'phone', label: 'Phone', kind: 'phone' as const, required: true, sortOrder: 2 },
+      { key: 'date', label: 'Date', kind: 'date' as const, required: true, sortOrder: 3 },
+      {
+        key: 'position',
+        label: 'Position',
+        kind: 'select' as const,
+        required: true,
+        sortOrder: 4,
+        options: ['Goalie', 'Skater'],
+      },
+      {
+        key: 'checked',
+        label: 'Checked',
+        kind: 'checkbox' as const,
+        required: false,
+        sortOrder: 5,
+      },
+      { key: 'notes', label: 'Notes', kind: 'textarea' as const, required: false, sortOrder: 6 },
+    ],
+  };
+
+  const validSubmission = {
+    givenName: 'Ava',
+    familyName: 'Smith',
+    birthDate: '2013-05-01',
+    guardianName: 'Taylor Smith',
+    guardianEmail: 'guardian@example.com',
+    responses: {
+      short_text: 'Forward',
+      email: 'player@example.com',
+      phone: '+1 (403) 555-0100',
+      date: '2024-02-29',
+      position: 'Goalie',
+      checked: false,
+      notes: '🥅'.repeat(5_000),
+    },
+  };
+
+  it('accepts strict kind-specific values including a leap day and 5,000 Unicode code points', () => {
+    expect(() => validateRegistrationSubmission(validSubmission, form)).not.toThrow();
+  });
+
+  it.each([
+    ['email syntax', { email: 'not-an-email' }],
+    ['email length', { email: `${'a'.repeat(245)}@example.com` }],
+    ['phone characters', { phone: '+1 403 CALL-NOW' }],
+    ['phone digit length', { phone: '+1 (23) 45' }],
+    ['non-calendar date', { date: '2023-02-29' }],
+    ['non-padded date', { date: '2024-2-09' }],
+    ['unknown select option', { position: 'Coach' }],
+    ['non-boolean checkbox', { checked: 'false' }],
+    ['oversize short text', { short_text: '🥅'.repeat(501) }],
+    ['oversize textarea', { notes: '🥅'.repeat(5_001) }],
+  ])('rejects invalid dynamic %s values', (_caseName, responsePatch) => {
+    expect(() =>
+      validateRegistrationSubmission(
+        {
+          ...validSubmission,
+          responses: { ...validSubmission.responses, ...responsePatch },
+        },
+        form,
+      ),
+    ).toThrow(/invalid/i);
+  });
+
+  it('keeps guardian contact validation aligned with the SQL normalized phone limit', () => {
+    expect(() =>
+      validateRegistrationSubmission(
+        { ...validSubmission, guardianPhone: '+1234567890123456' },
+        form,
+      ),
+    ).toThrow();
+  });
 });
 
 describe('registration form boundary', () => {

@@ -1514,6 +1514,13 @@ export type Database = {
         };
         Returns: boolean;
       };
+      consume_public_registration_rate_limit: {
+        Args: { p_limit: number; p_rate_key_hash: string };
+        Returns: {
+          outcome: string;
+          retry_after_seconds: number;
+        }[];
+      };
       consume_registration_confirmation_token: {
         Args: { p_token: string };
         Returns: {
@@ -1626,6 +1633,12 @@ export type Database = {
         Returns: boolean;
       };
       is_valid_organization_slug: { Args: { value: string }; Returns: boolean };
+      is_valid_registration_calendar_date: {
+        Args: { value: string };
+        Returns: boolean;
+      };
+      is_valid_registration_email: { Args: { value: string }; Returns: boolean };
+      is_valid_registration_phone: { Args: { value: string }; Returns: boolean };
       normalize_registration_text: { Args: { value: string }; Returns: string };
       public_registration_tryout: {
         Args: { p_tryout_slug: string };
@@ -1669,6 +1682,17 @@ export type Database = {
           outcome: string;
           public_slug: string;
         }[];
+      };
+      reissue_registration_confirmation_token: {
+        Args: { p_guardian_email: string; p_token: string };
+        Returns: {
+          confirmation_token: string;
+          outcome: string;
+        }[];
+      };
+      rotate_registration_confirmation_token: {
+        Args: { p_registration_id: string };
+        Returns: string;
       };
       save_tryout_setup_step: {
         Args: { p_organization_id: string; p_step: string; p_tryout_id: string };

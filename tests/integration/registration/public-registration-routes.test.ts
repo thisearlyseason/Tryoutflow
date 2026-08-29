@@ -1,0 +1,383 @@
+// @vitest-environment node
+
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+
+import { NextRequest } from 'next/server';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+
+vi.mock('server-only', () => ({}));
+
+type Route = (request: NextRequest) => Promise<Response>;
+let submitRegistration: Route;
+let consumeConfirmation: Route;
+let reissueConfirmation: Route;
+
+const origin = 'http://localhost';
+const validSubmission = {
+  givenName: 'Ava',
+  familyName: 'Smith',
+  birthDate: '2013-05-01',
+  guardianName: 'Taylor Smith',
+  guardianEmail: 'guardian@example.com',
+  guardianPhone: '+1 (403) 555-0100',
+  divisionId: 'c1101010-1010-4010-8010-101010101010',
+  responses: {
+    email: 'player@example.com',
+    phone: '+1 (403) 555-0101',
+    date: '2024-02-29',
+    position: 'Goalie',
+    checked: false,
+    consent: true,
+  },
+};
+
+function localApiKeys() {
+  const config = execFileSync(
+    'docker',
+    ['exec', 'supabase_kong_tryoutflow', 'cat', '/home/kong/kong.yml'],
+    { encoding: 'utf8' },
+  );
+  const service = config.match(/sb_secret_[A-Za-z0-9_-]+/u)?.[0];
+  const publishable = config.match(/sb_publishable_[A-Za-z0-9_-]+/u)?.[0];
+  if (!service || !publishable) throw new Error('local Supabase API keys unavailable');
+  return { service, publishable };
+}
+
+function psql(sql: string) {
+  return execFileSync(
+    'psql',
+    [
+      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-Atc',
+      sql,
+    ],
+    { encoding: 'utf8' },
+  ).trim();
+}
+
+function jsonRequest(path: string, body: unknown, headers: Record<string, string> = {}) {
+  return new NextRequest(`${origin}${path}`, {
+    method: 'POST',
+    headers: {
+      origin,
+      'content-type': 'application/json',
+      'x-forwarded-for': '203.0.113.10',
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+beforeAll(async () => {
+  const keys = localApiKeys();
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
+  process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
+  process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = 'route-integration-secret-'.padEnd(64, 'r');
+  execFileSync(
+    'psql',
+    [
+      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-f',
+      resolve('tests/fixtures/registration/seed.sql'),
+    ],
+    { stdio: 'pipe' },
+  );
+  submitRegistration = (await import('../../../src/app/api/public/registrations/route')).POST;
+  consumeConfirmation = (
+    await import('../../../src/app/api/public/registrations/confirmation/route')
+  ).POST;
+  reissueConfirmation = (
+    await import('../../../src/app/api/public/registrations/confirmation/reissue/route')
+  ).POST;
+});
+
+describe('real public registration route with local Supabase', () => {
+  it('persists phone and returns a fresh usable token on an identical idempotent retry', async () => {
+    const idempotencyKey = 'http-route-idempotency-key-000001';
+    const first = await submitRegistration(
+      jsonRequest('/api/public/registrations', {
+        tryoutSlug: 'http-registration-camp',
+        idempotencyKey,
+        submission: validSubmission,
+      }),
+    );
+    expect(first.status).toBe(200);
+    const firstBody = (await first.json()) as { manualConfirmationToken?: string };
+    expect(firstBody.manualConfirmationToken).toMatch(/^[0-9a-f]{64}$/u);
+    expect(
+      psql(
+        "select phone from public.guardians where organization_id='a1101010-1010-4010-8010-101010101010' and normalized_email='guardian@example.com'",
+      ),
+    ).toBe('+1 (403) 555-0100');
+
+    const replay = await submitRegistration(
+      jsonRequest('/api/public/registrations', {
+        tryoutSlug: 'http-registration-camp',
+        idempotencyKey,
+        submission: validSubmission,
+      }),
+    );
+    expect(replay.status).toBe(200);
+    const replayBody = (await replay.json()) as { manualConfirmationToken?: string };
+    expect(replayBody.manualConfirmationToken).toMatch(/^[0-9a-f]{64}$/u);
+    expect(replayBody.manualConfirmationToken).not.toBe(firstBody.manualConfirmationToken);
+    expect(
+      psql(
+        "select count(*) from public.tryout_registrations where organization_id='a1101010-1010-4010-8010-101010101010'",
+      ),
+    ).toBe('1');
+    expect(
+      psql(
+        "select count(*) from public.registration_confirmation_tokens where organization_id='a1101010-1010-4010-8010-101010101010' and used_at is null and revoked_at is null",
+      ),
+    ).toBe('1');
+  });
+
+  it('returns truthful confirmation and replay states', async () => {
+    const registration = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        {
+          tryoutSlug: 'http-registration-camp',
+          idempotencyKey: 'http-route-idempotency-key-000002',
+          submission: { ...validSubmission, givenName: 'Bea' },
+        },
+        { 'x-forwarded-for': '203.0.113.11' },
+      ),
+    );
+    const token = ((await registration.json()) as { manualConfirmationToken: string })
+      .manualConfirmationToken;
+    const confirmed = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token },
+        { 'x-forwarded-for': '203.0.113.12' },
+      ),
+    );
+    expect(confirmed.status).toBe(200);
+    await expect(confirmed.json()).resolves.toEqual({ status: 'confirmed' });
+    const replay = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token },
+        { 'x-forwarded-for': '203.0.113.12' },
+      ),
+    );
+    await expect(replay.json()).resolves.toEqual({ status: 'already_confirmed' });
+  });
+
+  it('enforces origin, exact MIME, and streamed multibyte byte limits on confirmation', async () => {
+    const crossOrigin = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token: 'a'.repeat(64) },
+        { origin: 'https://attacker.example' },
+      ),
+    );
+    expect(crossOrigin.status).toBe(403);
+    const wrongMime = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token: 'a'.repeat(64) },
+        { 'content-type': 'application/ld+json' },
+      ),
+    );
+    expect(wrongMime.status).toBe(403);
+
+    const raw = JSON.stringify({ token: 'a'.repeat(64), padding: '🥅'.repeat(11_000) });
+    const bytes = new TextEncoder().encode(raw);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.subarray(0, 1_000));
+        controller.enqueue(bytes.subarray(1_000));
+        controller.close();
+      },
+    });
+    const oversized = new NextRequest(`${origin}/api/public/registrations/confirmation`, {
+      method: 'POST',
+      headers: {
+        origin,
+        'content-type': 'application/json',
+        'content-length': '10',
+        'x-forwarded-for': '203.0.113.13',
+      },
+      body: stream,
+      duplex: 'half',
+    } as unknown as ConstructorParameters<typeof NextRequest>[1]);
+    const response = await consumeConfirmation(oversized);
+    expect(response.status).toBe(413);
+  });
+
+  it('applies the same MIME and actual-byte defenses to registration', async () => {
+    const body = {
+      tryoutSlug: 'http-registration-camp',
+      idempotencyKey: 'registration-security-key-00001',
+      submission: validSubmission,
+    };
+    const wrongMime = await submitRegistration(
+      jsonRequest('/api/public/registrations', body, { 'content-type': 'text/plain' }),
+    );
+    expect(wrongMime.status).toBe(403);
+    const oversized = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        { ...body, padding: '🥅'.repeat(11_000) },
+        { 'content-length': '10' },
+      ),
+    );
+    expect(oversized.status).toBe(413);
+  });
+
+  it('returns a stable 429 from the confirmation limiter', async () => {
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      const response = await consumeConfirmation(
+        jsonRequest(
+          '/api/public/registrations/confirmation',
+          { token: 'c'.repeat(64) },
+          { 'x-forwarded-for': '203.0.113.50' },
+        ),
+      );
+      statuses.push(response.status);
+    }
+    expect(statuses).toEqual([...Array(10).fill(200), 429]);
+  });
+
+  it('durably rate-limits malformed submissions before the registration transaction rolls back', async () => {
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      const response = await submitRegistration(
+        jsonRequest(
+          '/api/public/registrations',
+          {
+            tryoutSlug: 'http-registration-camp',
+            idempotencyKey: `malformed-route-attempt-${String(attempt).padStart(8, '0')}`,
+            submission: {
+              ...validSubmission,
+              responses: { ...validSubmission.responses, email: 'bad' },
+            },
+          },
+          { 'x-forwarded-for': '203.0.113.99' },
+        ),
+      );
+      statuses.push(response.status);
+    }
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(400));
+    expect(statuses[10]).toBe(429);
+  });
+
+  it('reports expiry and reissues only with token possession plus guardian proof', async () => {
+    const registration = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        {
+          tryoutSlug: 'http-registration-camp',
+          idempotencyKey: 'http-route-idempotency-key-000003',
+          submission: { ...validSubmission, givenName: 'Cara' },
+        },
+        { 'x-forwarded-for': '203.0.113.30' },
+      ),
+    );
+    const oldToken = ((await registration.json()) as { manualConfirmationToken: string })
+      .manualConfirmationToken;
+    psql(
+      `update public.registration_confirmation_tokens set created_at=clock_timestamp()-interval '2 seconds',expires_at=clock_timestamp()-interval '1 second' where token_digest=encode(extensions.digest('${oldToken}','sha256'),'hex')`,
+    );
+    const expired = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token: oldToken },
+        { 'x-forwarded-for': '203.0.113.31' },
+      ),
+    );
+    await expect(expired.json()).resolves.toEqual({ status: 'expired' });
+
+    const wrongProof = await reissueConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation/reissue',
+        { token: oldToken, guardianEmail: 'wrong@example.com' },
+        { 'x-forwarded-for': '203.0.113.32' },
+      ),
+    );
+    await expect(wrongProof.json()).resolves.toEqual({ status: 'invalid' });
+    const unknownToken = await reissueConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation/reissue',
+        { token: 'f'.repeat(64), guardianEmail: 'guardian@example.com' },
+        { 'x-forwarded-for': '203.0.113.32' },
+      ),
+    );
+    await expect(unknownToken.json()).resolves.toEqual({ status: 'invalid' });
+
+    const reissued = await reissueConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation/reissue',
+        { token: oldToken, guardianEmail: ' GUARDIAN@example.com ' },
+        { 'x-forwarded-for': '203.0.113.33' },
+      ),
+    );
+    expect(reissued.status).toBe(200);
+    const reissuedBody = (await reissued.json()) as {
+      status: string;
+      manualConfirmationToken: string;
+    };
+    expect(reissuedBody.status).toBe('reissued');
+    expect(reissuedBody.manualConfirmationToken).toMatch(/^[0-9a-f]{64}$/u);
+    expect(reissuedBody.manualConfirmationToken).not.toBe(oldToken);
+    const oldResult = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token: oldToken },
+        { 'x-forwarded-for': '203.0.113.34' },
+      ),
+    );
+    await expect(oldResult.json()).resolves.toEqual({ status: 'invalid' });
+    const newResult = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token: reissuedBody.manualConfirmationToken },
+        { 'x-forwarded-for': '203.0.113.34' },
+      ),
+    );
+    await expect(newResult.json()).resolves.toEqual({ status: 'confirmed' });
+  });
+
+  it('applies the same MIME, byte-limit, and stable limiter defenses to reissue', async () => {
+    const wrongMime = await reissueConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation/reissue',
+        { token: 'e'.repeat(64), guardianEmail: 'guardian@example.com' },
+        { 'content-type': 'text/plain', 'x-forwarded-for': '203.0.113.40' },
+      ),
+    );
+    expect(wrongMime.status).toBe(403);
+
+    const oversized = await reissueConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation/reissue',
+        { token: 'e'.repeat(64), guardianEmail: 'a'.repeat(33 * 1024) },
+        { 'content-length': '10', 'x-forwarded-for': '203.0.113.40' },
+      ),
+    );
+    expect(oversized.status).toBe(413);
+
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const response = await reissueConfirmation(
+        jsonRequest(
+          '/api/public/registrations/confirmation/reissue',
+          { token: 'd'.repeat(64), guardianEmail: 'guardian@example.com' },
+          { 'x-forwarded-for': '203.0.113.41' },
+        ),
+      );
+      statuses.push(response.status);
+    }
+    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+  });
+});

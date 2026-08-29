@@ -80,7 +80,7 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
       if (result.manualConfirmationToken) {
         window.sessionStorage.setItem(
           'tryoutflow:registration:confirmation',
-          result.manualConfirmationToken,
+          JSON.stringify({ token: result.manualConfirmationToken, tryoutSlug }),
         );
       }
       window.sessionStorage.removeItem(`tryoutflow:registration:${tryoutSlug}:idempotency`);
