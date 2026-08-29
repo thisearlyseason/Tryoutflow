@@ -11,7 +11,6 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'publishable-browser-test-key',
       NEXT_PUBLIC_SUPABASE_URL: 'https://tryoutflow.test.supabase.co',
-      TRYOUTFLOW_E2E_HARNESS: '1',
     },
   },
   use: {

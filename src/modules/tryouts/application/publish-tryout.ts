@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
+import { getPublicAppOrigin } from '../../../lib/env';
 import type { OrganizationId } from '../../../lib/ids';
 import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
@@ -80,7 +81,11 @@ export function mapPublishTryoutResponse(data: unknown, error: RpcError): Publis
 }
 
 export function canonicalRegistrationUrl(origin: string, publicSlug: string): string {
-  const url = new URL(`/register/${encodeURIComponent(publicSlug)}`, origin);
+  const safeOrigin = getPublicAppOrigin({
+    NEXT_PUBLIC_APP_URL: origin,
+    NODE_ENV: process.env.NODE_ENV,
+  });
+  const url = new URL(`/register/${encodeURIComponent(publicSlug)}`, safeOrigin);
   return url.toString().replace(/\/$/, '');
 }
 
@@ -111,7 +116,7 @@ export async function publishTryout(
       return success({
         alreadyPublished: outcome.kind === 'already_published',
         registrationUrl: canonicalRegistrationUrl(
-          dependencies.publicOrigin ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000',
+          dependencies.publicOrigin ?? getPublicAppOrigin(),
           outcome.publicSlug,
         ),
       });

@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { RegistrationShare } from '@/modules/tryouts/ui/registration-share';
+import { getPublicAppOrigin } from '@/lib/env';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 
 export default async function TryoutOverviewPage({
@@ -23,10 +24,7 @@ export default async function TryoutOverviewPage({
       <h2 id="tryout-overview-heading">{tryout.name}</h2>
       {tryout.status === 'published' ? (
         <div className="mt-6">
-          <RegistrationShare
-            origin={process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}
-            publicSlug={tryout.slug}
-          />
+          <RegistrationShare origin={getPublicAppOrigin()} publicSlug={tryout.slug} />
         </div>
       ) : (
         <p className="mt-4 text-[var(--color-text-muted)]">

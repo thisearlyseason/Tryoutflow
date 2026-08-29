@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(13);
 
 select has_function('public', 'publish_tryout', array['uuid', 'uuid', 'integer'], 'publication is one database transaction');
 
@@ -30,7 +30,6 @@ select throws_ok(
   $$select * from public.publish_tryout('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 0)$$,
   '42501', null, 'an inactive non-member cannot publish');
 set local request.jwt.claim.sub = '10101010-1010-4010-8010-101010101010';
-select outcome from public.publish_rubric_version('20202020-2020-4020-8020-202020202020', '80808080-8080-4080-8080-808080808080', 1);
 insert into public.session_rubrics (organization_id, tryout_id, session_id, rubric_version_id)
 values ('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '50505050-5050-4050-8050-505050505050', '90909090-9090-4090-8090-909090909090');
 
@@ -38,6 +37,7 @@ set local request.jwt.claim.sub = '10101010-1010-4010-8010-101010101010';
 select is((select outcome from public.publish_tryout('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 0)), 'published', 'publishes a complete draft with CAS');
 select is((select status from public.tryouts where id = '30303030-3030-4030-8030-303030303030'), 'published', 'tryout state is published');
 select is((select status from public.registration_form_versions where id = '70707070-7070-4070-8070-707070707070'), 'published', 'required form draft is published in transaction');
+select is((select status from public.rubric_versions where id = '90909090-9090-4090-8090-909090909090'), 'published', 'bound draft rubric is published in the same transaction');
 select is((select count(*) from public.tryout_publications where tryout_id = '30303030-3030-4030-8030-303030303030'), 1::bigint, 'publication pins one exact form version');
 select is((select count(*) from public.audit_logs where organization_id = '20202020-2020-4020-8020-202020202020' and action = 'tryout.published' and entity_id = '30303030-3030-4030-8030-303030303030'), 1::bigint, 'publication appends an audit event');
 select is((select outcome from public.publish_tryout('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 0)), 'already_published', 'a double-click is idempotent');

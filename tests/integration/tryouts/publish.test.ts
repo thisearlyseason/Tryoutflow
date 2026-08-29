@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
 import {
+  canonicalRegistrationUrl,
   publishTryout,
   validateTryoutForPublish,
   type PublishBlocker,
@@ -114,5 +115,11 @@ describe('tryout publication', () => {
         },
       ),
     ).resolves.toEqual({ ok: true, value: { blockers: ['division_missing', 'rubric_invalid'] } });
+  });
+
+  it('fails closed for an insecure production registration origin', () => {
+    expect(() => canonicalRegistrationUrl('http://tryoutflow.example', 'fall-id-camp')).toThrow(
+      /secure/i,
+    );
   });
 });

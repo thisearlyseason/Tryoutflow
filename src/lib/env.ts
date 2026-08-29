@@ -12,6 +12,26 @@ const serverEnvironmentSchema = clientEnvironmentSchema.extend({
 export type ClientEnvironment = z.infer<typeof clientEnvironmentSchema>;
 export type ServerEnvironment = z.infer<typeof serverEnvironmentSchema>;
 
+/** Validates the single canonical origin used in externally shared links. */
+export function getPublicAppOrigin(
+  environment: Record<string, string | undefined> = process.env,
+): string {
+  const raw = z.string().url().parse(environment.NEXT_PUBLIC_APP_URL);
+  const url = new URL(raw);
+  const localHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  const production = environment.NODE_ENV === 'production';
+  if (url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('NEXT_PUBLIC_APP_URL must be an origin without a path, query, or fragment');
+  }
+  if (production && (url.protocol !== 'https:' || localHost)) {
+    throw new Error('Production public app origin must be a secure non-localhost HTTPS origin');
+  }
+  if (url.protocol !== 'https:' && !localHost) {
+    throw new Error('Public app origin must be secure unless it is explicit localhost');
+  }
+  return url.origin;
+}
+
 export function getClientEnvironment(
   environment: Record<string, string | undefined> = process.env,
 ): ClientEnvironment {
