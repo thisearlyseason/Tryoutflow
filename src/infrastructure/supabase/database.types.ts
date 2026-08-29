@@ -358,18 +358,18 @@ export type Database = {
             referencedColumns: ['organization_id', 'tryout_id', 'session_id', 'id'];
           },
           {
-            foreignKeyName: 'checkins_number_registration_fkey';
-            columns: ['organization_id', 'tryout_id', 'registration_id', 'tryout_number_id'];
-            isOneToOne: false;
-            referencedRelation: 'tryout_numbers';
-            referencedColumns: ['organization_id', 'tryout_id', 'registration_id', 'id'];
-          },
-          {
             foreignKeyName: 'checkins_number_fkey';
             columns: ['organization_id', 'tryout_number_id'];
             isOneToOne: false;
             referencedRelation: 'tryout_numbers';
             referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'checkins_number_registration_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_id', 'tryout_number_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_numbers';
+            referencedColumns: ['organization_id', 'tryout_id', 'registration_id', 'id'];
           },
           {
             foreignKeyName: 'checkins_registration_fkey';
@@ -1081,7 +1081,7 @@ export type Database = {
         Insert: {
           capacity?: number | null;
           created_at?: string;
-          division_id?: string;
+          division_id: string;
           id?: string;
           name: string;
           organization_id: string;
@@ -1261,6 +1261,20 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'tryout_divisions';
             referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_numbers_division_group_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'session_id', 'group_id'];
+            isOneToOne: false;
+            referencedRelation: 'session_groups';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'session_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_numbers_division_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
           },
           {
             foreignKeyName: 'tryout_numbers_group_fkey';
@@ -1766,6 +1780,22 @@ export type Database = {
           outcome: string;
         }[];
       };
+      assign_evaluator: {
+        Args: {
+          p_division_id?: string;
+          p_evaluator_user_id: string;
+          p_expires_at?: string;
+          p_group_id?: string;
+          p_organization_id: string;
+          p_scope_kind: string;
+          p_session_id?: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          assignment_id: string;
+          outcome: string;
+        }[];
+      };
       assign_tryout_number: {
         Args: {
           p_division_id: string;
@@ -1784,6 +1814,15 @@ export type Database = {
           outcome: string;
         }[];
       };
+      audit_checkin_number_release: {
+        Args: {
+          p_actor_user_id: string;
+          p_number_id: string;
+          p_reason: string;
+          p_released_at: string;
+        };
+        Returns: undefined;
+      };
       can_access_evaluation: {
         Args: {
           evaluator_user_id: string;
@@ -1792,6 +1831,17 @@ export type Database = {
           target_organization_id: string;
           target_session_id: string;
           target_tryout_id: string;
+        };
+        Returns: boolean;
+      };
+      can_manage_evaluator_scope: {
+        Args: {
+          p_division_id?: string;
+          p_group_id?: string;
+          p_organization_id: string;
+          p_scope_kind: string;
+          p_session_id?: string;
+          p_tryout_id: string;
         };
         Returns: boolean;
       };
@@ -1840,6 +1890,17 @@ export type Database = {
           p_division_id: string;
           p_group_id: string;
           p_organization_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: boolean;
+      };
+      can_operate_checkin_registration: {
+        Args: {
+          p_division_id: string;
+          p_group_id: string;
+          p_organization_id: string;
+          p_registration_id: string;
           p_session_id: string;
           p_tryout_id: string;
         };
@@ -1914,6 +1975,26 @@ export type Database = {
           next_available: number;
           outcome: string;
           receipt_id: string;
+        }[];
+      };
+      checkin_assign_number_internal: {
+        Args: {
+          p_authorization_group_id: string;
+          p_authorization_session_id: string;
+          p_division_id: string;
+          p_number_group_id: string;
+          p_number_session_id: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_requested: number;
+          p_scope_kind: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          assigned_number: number;
+          assignment_id: string;
+          next_available: number;
+          outcome: string;
         }[];
       };
       commit_athlete_import: {
@@ -2087,6 +2168,34 @@ export type Database = {
         };
         Returns: string;
       };
+      list_assigned_athletes: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          display_name: string;
+          division_name: string;
+          group_name: string;
+          identity_mode: string;
+          registration_id: string;
+          session_name: string;
+          tryout_number: number;
+        }[];
+      };
+      list_organization_evaluators: {
+        Args: { p_organization_id: string };
+        Returns: {
+          active_assignment_count: number;
+          display_name: string;
+          evaluator_user_id: string;
+        }[];
+      };
+      list_tryout_evaluator_candidates: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          active_assignment_count: number;
+          display_name: string;
+          evaluator_user_id: string;
+        }[];
+      };
       lock_canonical_athlete_identity: {
         Args: {
           p_birth_date: string;
@@ -2156,6 +2265,17 @@ export type Database = {
           outcome: string;
         }[];
       };
+      release_tryout_number: {
+        Args: {
+          p_group_id: string;
+          p_organization_id: string;
+          p_reason: string;
+          p_registration_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: string;
+      };
       resolve_athlete_import_duplicate: {
         Args: {
           p_decision: string;
@@ -2173,6 +2293,12 @@ export type Database = {
           p_decision: string;
           p_organization_id: string;
         };
+        Returns: {
+          outcome: string;
+        }[];
+      };
+      revoke_evaluator_assignment: {
+        Args: { p_assignment_id: string; p_organization_id: string };
         Returns: {
           outcome: string;
         }[];
@@ -2234,17 +2360,6 @@ export type Database = {
           registration_id: string;
           tryout_number: number;
         }[];
-      };
-      release_tryout_number: {
-        Args: {
-          p_group_id: string;
-          p_organization_id: string;
-          p_reason: string;
-          p_registration_id: string;
-          p_session_id: string;
-          p_tryout_id: string;
-        };
-        Returns: string;
       };
       select_tryout_registration_form_version: {
         Args: {
