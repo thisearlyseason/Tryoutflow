@@ -86,6 +86,22 @@ const publicKeepLocalAction: PublicConflictAction = 'keep_local';
 void publicUseServerAction;
 void publicKeepLocalAction;
 
+declare const publicRepository: ReturnType<typeof createEvaluationOfflineRepository>;
+declare const publicProof: Parameters<
+  ReturnType<typeof createEvaluationOfflineRepository>['registerAuthoritativeSnapshotProof']
+>[0];
+declare const publicConflictInput: Parameters<
+  ReturnType<typeof createEvaluationOfflineRepository>['resolveConflict']
+>[0];
+if (false) {
+  // @ts-expect-error Public proof registration cannot accept caller-controlled time.
+  void publicRepository.registerAuthoritativeSnapshotProof(publicProof, { now: new Date(0) });
+  // @ts-expect-error Public destructive conflict input cannot accept caller-controlled time.
+  void publicRepository.resolveConflict({ ...publicConflictInput, now: new Date(0) });
+  // @ts-expect-error The authenticated module wrapper cannot swap the repository clock.
+  bindEvaluationOfflineUser(scope.userId, { clock: { now: () => new Date(0) } });
+}
+
 const mutation = (
   overrides: Partial<EvaluationMutationInput> = {},
 ): EvaluationMutationInput & { clientMutationId: string } => ({
@@ -128,6 +144,19 @@ function repository(label: string, userId = scope.userId, extra = {}) {
   const databaseName = databaseBase(label);
   trackUserDatabase(databaseName, userId);
   return createEvaluationOfflineRepository({ authenticatedUserId: userId, databaseName, ...extra });
+}
+
+function fakeClock(initial: Date) {
+  let current = initial.getTime();
+  return {
+    clock: { now: () => new Date(current) },
+    set(value: Date) {
+      current = value.getTime();
+    },
+    advance(milliseconds: number) {
+      current += milliseconds;
+    },
+  };
 }
 
 async function prepare(target: ReturnType<typeof repository>, targetScope = scope) {
@@ -181,7 +210,15 @@ async function resolveVerified(
     draft: resolution.server.draft,
     now: issuedAt,
   });
-  await target.registerAuthoritativeSnapshotProof(proof, { now: issuedAt });
+  if (!durable && newest) {
+    await target.saveDraftLocally({
+      scope: resolution.scope,
+      evaluationId: newest.evaluationId,
+      expectedVersion: newest.expectedVersion,
+      draft: newest.draft,
+    });
+  }
+  await target.registerAuthoritativeSnapshotProof(proof);
   return target.resolveConflict({
     ...input,
     local: {
@@ -774,7 +811,16 @@ describe('evaluation offline outbox', () => {
   });
 
   it('requires an exact unexpired server-render proof instead of caller freshness booleans', async () => {
-    const target = await prepare(repository('use-server-provenance'));
+    const issuedAt = new Date('2026-08-29T12:00:00.000Z');
+    const time = fakeClock(issuedAt);
+    const baseName = databaseBase('use-server-provenance');
+    trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository(
+        { authenticatedUserId: scope.userId, databaseName: baseName },
+        time.clock,
+      ),
+    );
     const clientMutationId = '30000000-0000-4000-8000-000000000212';
     await target.enqueueEvaluationMutation(mutation({ clientMutationId }));
     const head = (await target.nextPendingMutation(scope))!;
@@ -787,6 +833,12 @@ describe('evaluation offline outbox', () => {
       message: 'server changed',
       conflictServerEvaluationId: head.evaluationId,
       conflictServerVersion: 3,
+    });
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: head.evaluationId,
+      expectedVersion: head.expectedVersion,
+      draft: head.draft,
     });
     const input = {
       scope,
@@ -806,8 +858,7 @@ describe('evaluation offline outbox', () => {
         ...input,
         ...({ verification: { online: true, fresh: true } } as object),
       }),
-    ).rejects.toMatchObject({ code: 'invalid_transition' });
-    const issuedAt = new Date('2026-08-29T12:00:00.000Z');
+    ).rejects.toMatchObject({ code: 'invalid_input' });
     const expiredProof = await issueTestSnapshotProof({
       scope,
       evaluationId: head.evaluationId,
@@ -816,20 +867,21 @@ describe('evaluation offline outbox', () => {
       now: issuedAt,
     });
     await expect(
-      target.registerAuthoritativeSnapshotProof(
-        { ...expiredProof, renderNonce: crypto.randomUUID() },
-        { now: issuedAt },
-      ),
+      target.registerAuthoritativeSnapshotProof({
+        ...expiredProof,
+        renderNonce: crypto.randomUUID(),
+      }),
     ).rejects.toMatchObject({ code: 'invalid_transition' });
-    await target.registerAuthoritativeSnapshotProof(expiredProof, { now: issuedAt });
+    await target.registerAuthoritativeSnapshotProof(expiredProof);
+    time.advance(120_001);
     await expect(
       target.resolveConflict({
         ...input,
         snapshotProofNonce: expiredProof.renderNonce,
-        now: new Date(issuedAt.getTime() + 120_001),
       }),
     ).rejects.toMatchObject({ code: 'invalid_transition' });
     const freshAt = new Date(issuedAt.getTime() + 180_000);
+    time.set(freshAt);
     const freshProof = await issueTestSnapshotProof({
       scope,
       evaluationId: head.evaluationId,
@@ -837,12 +889,11 @@ describe('evaluation offline outbox', () => {
       draft,
       now: freshAt,
     });
-    await target.registerAuthoritativeSnapshotProof(freshProof, { now: freshAt });
+    await target.registerAuthoritativeSnapshotProof(freshProof);
     await expect(
       target.resolveConflict({
         ...input,
         snapshotProofNonce: crypto.randomUUID(),
-        now: freshAt,
       }),
     ).rejects.toMatchObject({ code: 'invalid_transition' });
     await expect(
@@ -850,17 +901,360 @@ describe('evaluation offline outbox', () => {
         ...input,
         server: { ...input.server, draft: { ...draft, note: 'changed server body' } },
         snapshotProofNonce: freshProof.renderNonce,
-        now: freshAt,
       }),
     ).rejects.toMatchObject({ code: 'invalid_transition' });
     await expect(
       target.resolveConflict({
         ...input,
         snapshotProofNonce: freshProof.renderNonce,
-        now: freshAt,
       }),
     ).resolves.toMatchObject({ action: 'use_server' });
     target.close();
+  });
+
+  it('uses its construction-time clock and rejects caller time before proof storage or discard', async () => {
+    const issuedAt = new Date('2026-08-29T12:00:00.000Z');
+    const time = fakeClock(issuedAt);
+    const baseName = databaseBase('repository-owned-proof-clock');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository(
+      { authenticatedUserId: scope.userId, databaseName: baseName },
+      time.clock,
+    );
+    await prepare(target);
+    const clientMutationId = '30000000-0000-4000-8000-000000000225';
+    await target.saveDraftAndEnqueueMutation(mutation({ clientMutationId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'clock authority',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 7,
+    });
+    const serverDraft = { ...draft, note: 'clock-authoritative server' };
+    const proof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: head.evaluationId,
+      version: 7,
+      draft: serverDraft,
+      now: issuedAt,
+    });
+    await target.registerAuthoritativeSnapshotProof(proof);
+    time.advance(120_001);
+    time.clock.now = () => new Date(issuedAt);
+
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const before = await snapshotV5(raw, { includeProof: true });
+    raw.close();
+    const input = {
+      scope,
+      clientMutationId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: { evaluationId: head.evaluationId, expectedVersion: head.expectedVersion, draft },
+      server: { scope, evaluationId: head.evaluationId, version: 7, draft: serverDraft },
+      snapshotProofNonce: proof.renderNonce,
+    };
+    await expect(target.resolveConflict(input)).rejects.toMatchObject({
+      code: 'invalid_transition',
+    });
+    await expect(
+      target.resolveConflict({ ...input, now: issuedAt } as never),
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    const storedContext = await after.table('sessionContexts').get(Object.values(scope).join('|'));
+    expect(storedContext.authoritativeSnapshotProof).not.toHaveProperty('consumedAt');
+    after.close();
+
+    const lateProof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: head.evaluationId,
+      version: 8,
+      draft: serverDraft,
+      now: issuedAt,
+    });
+    await expect(target.registerAuthoritativeSnapshotProof(lateProof)).rejects.toMatchObject({
+      code: 'invalid_transition',
+    });
+    target.close();
+  });
+
+  it('accepts the exact future-skew boundary and rejects one millisecond beyond it', async () => {
+    const clockAt = new Date('2026-08-29T12:00:00.000Z');
+    const exactTime = fakeClock(clockAt);
+    const exact = await prepare(
+      createEvaluationOfflineRepository(
+        {
+          authenticatedUserId: scope.userId,
+          databaseName: databaseBase('proof-clock-skew-exact'),
+        },
+        exactTime.clock,
+      ),
+    );
+    databaseNames.push(exact.databaseName);
+    const exactProof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: mutation().evaluationId,
+      version: 3,
+      draft,
+      now: new Date(clockAt.getTime() + 5_000),
+    });
+    await expect(exact.registerAuthoritativeSnapshotProof(exactProof)).resolves.toBeUndefined();
+    exact.close();
+
+    const beyondTime = fakeClock(clockAt);
+    const beyond = await prepare(
+      createEvaluationOfflineRepository(
+        {
+          authenticatedUserId: scope.userId,
+          databaseName: databaseBase('proof-clock-skew-beyond'),
+        },
+        beyondTime.clock,
+      ),
+    );
+    databaseNames.push(beyond.databaseName);
+    const beyondProof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: mutation().evaluationId,
+      version: 3,
+      draft,
+      now: new Date(clockAt.getTime() + 5_001),
+    });
+    await expect(beyond.registerAuthoritativeSnapshotProof(beyondProof)).rejects.toMatchObject({
+      code: 'invalid_transition',
+    });
+    beyond.close();
+  });
+
+  it('rechecks proof expiry after verification and immediately before destructive writes', async () => {
+    const issuedAt = new Date('2026-08-29T12:00:00.000Z');
+    let phase: 'setup' | 'resolve' = 'setup';
+    let resolutionReads = 0;
+    const clock = {
+      now: () => {
+        if (phase === 'setup') return new Date(issuedAt);
+        resolutionReads += 1;
+        return new Date(issuedAt.getTime() + (resolutionReads === 1 ? 60_000 : 120_001));
+      },
+    };
+    const baseName = databaseBase('proof-expires-during-resolution');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository(
+      { authenticatedUserId: scope.userId, databaseName: baseName },
+      clock,
+    );
+    await prepare(target);
+    const clientMutationId = '30000000-0000-4000-8000-000000000228';
+    await target.saveDraftAndEnqueueMutation(mutation({ clientMutationId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'proof crosses expiry in transaction',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 7,
+    });
+    const serverDraft = { ...draft, note: 'server while proof expires' };
+    const proof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: head.evaluationId,
+      version: 7,
+      draft: serverDraft,
+      now: issuedAt,
+    });
+    await target.registerAuthoritativeSnapshotProof(proof);
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const before = await snapshotV5(raw, { includeProof: true });
+    raw.close();
+    phase = 'resolve';
+    await expect(
+      target.resolveConflict({
+        scope,
+        clientMutationId,
+        action: 'use_server',
+        original: {
+          evaluationId: head.evaluationId,
+          payloadDigest: head.payloadDigest,
+          queueSequence: head.queueSequence,
+        },
+        local: { evaluationId: head.evaluationId, expectedVersion: head.expectedVersion, draft },
+        server: { scope, evaluationId: head.evaluationId, version: 7, draft: serverDraft },
+        snapshotProofNonce: proof.renderNonce,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_transition' });
+    expect(resolutionReads).toBeGreaterThan(1);
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    after.close();
+    target.close();
+  });
+
+  it('requires the exact stored queue-tail draft before consuming a destructive proof', async () => {
+    const issuedAt = new Date('2026-08-29T12:00:00.000Z');
+    const time = fakeClock(issuedAt);
+    const baseName = databaseBase('use-server-required-draft');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository(
+      { authenticatedUserId: scope.userId, databaseName: baseName },
+      time.clock,
+    );
+    await prepare(target);
+    const clientMutationId = '30000000-0000-4000-8000-000000000226';
+    await target.saveDraftAndEnqueueMutation(mutation({ clientMutationId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'missing local authority',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 7,
+    });
+    const serverDraft = { ...draft, note: 'authoritative replacement' };
+    const proof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: head.evaluationId,
+      version: 7,
+      draft: serverDraft,
+      now: issuedAt,
+    });
+    await target.registerAuthoritativeSnapshotProof(proof);
+
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const exactDraft = await raw.table('drafts').get(Object.values(scope).join('|'));
+    await raw.table('drafts').delete(Object.values(scope).join('|'));
+    const before = await snapshotV5(raw, { includeProof: true });
+    raw.close();
+    const input = {
+      scope,
+      clientMutationId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: { evaluationId: head.evaluationId, expectedVersion: head.expectedVersion, draft },
+      server: { scope, evaluationId: head.evaluationId, version: 7, draft: serverDraft },
+      snapshotProofNonce: proof.renderNonce,
+    };
+    await expect(target.resolveConflict(input)).rejects.toMatchObject({ code: 'corrupt_record' });
+    const afterReject = new Dexie(physicalName);
+    afterReject.version(5).stores(v5Stores);
+    await afterReject.open();
+    expect(await snapshotV5(afterReject, { includeProof: true })).toEqual(before);
+    await afterReject.table('drafts').put(exactDraft);
+    afterReject.close();
+
+    await expect(target.resolveConflict(input)).resolves.toMatchObject({
+      action: 'use_server',
+      evaluationId: head.evaluationId,
+      expectedVersion: 7,
+    });
+    const resolvedRaw = new Dexie(physicalName);
+    resolvedRaw.version(5).stores(v5Stores);
+    await resolvedRaw.open();
+    const resolvedDraft = await resolvedRaw.table('drafts').get(Object.values(scope).join('|'));
+    await resolvedRaw.table('drafts').delete(Object.values(scope).join('|'));
+    const replayBefore = await snapshotV5(resolvedRaw, { includeProof: true });
+    resolvedRaw.close();
+    await expect(target.resolveConflict(input)).rejects.toMatchObject({ code: 'corrupt_record' });
+    const replayAfter = new Dexie(physicalName);
+    replayAfter.version(5).stores(v5Stores);
+    await replayAfter.open();
+    expect(await snapshotV5(replayAfter, { includeProof: true })).toEqual(replayBefore);
+    await replayAfter.table('drafts').put(resolvedDraft);
+    replayAfter.close();
+    await expect(target.resolveConflict(input)).resolves.toMatchObject({ action: 'use_server' });
+    target.close();
+  });
+
+  it('serializes scope teardown with destructive resolution without a missing-draft gap', async () => {
+    const baseName = databaseBase('use-server-teardown-serialization');
+    trackUserDatabase(baseName);
+    const first = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const second = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    const clientMutationId = '30000000-0000-4000-8000-000000000227';
+    await first.saveDraftAndEnqueueMutation(mutation({ clientMutationId }));
+    const head = (await first.nextPendingMutation(scope))!;
+    await first.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'teardown serialization',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 7,
+    });
+    const serverDraft = { ...draft, note: 'serialized server authority' };
+    const proof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: head.evaluationId,
+      version: 7,
+      draft: serverDraft,
+      now: new Date(),
+    });
+    await first.registerAuthoritativeSnapshotProof(proof);
+    const input = {
+      scope,
+      clientMutationId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: { evaluationId: head.evaluationId, expectedVersion: head.expectedVersion, draft },
+      server: { scope, evaluationId: head.evaluationId, version: 7, draft: serverDraft },
+      snapshotProofNonce: proof.renderNonce,
+    };
+    const [resolved, tornDown] = await Promise.all([
+      first.resolveConflict(input),
+      second.teardownScope(scope),
+    ]);
+    expect(resolved).toMatchObject({ action: 'use_server', expectedVersion: 7 });
+    expect(tornDown).toMatchObject({ cleared: false });
+    await expect(first.loadDraft(scope)).resolves.toMatchObject({
+      evaluationId: head.evaluationId,
+      expectedVersion: 7,
+      draft: { note: serverDraft.note },
+    });
+    first.close();
+    second.close();
   });
 
   it('rejects a stale use-server dialog after a sibling durably appends newer local work', async () => {
@@ -902,7 +1296,7 @@ describe('evaluation offline outbox', () => {
       draft: serverDraft,
       now,
     });
-    await target.registerAuthoritativeSnapshotProof(proof, { now });
+    await target.registerAuthoritativeSnapshotProof(proof);
     const raw = new Dexie(physicalName);
     raw.version(5).stores(v5Stores);
     await raw.open();
@@ -919,7 +1313,6 @@ describe('evaluation offline outbox', () => {
       },
       server: { scope, evaluationId, version: 7, draft: serverDraft },
       snapshotProofNonce: proof.renderNonce,
-      now,
     };
     await expect(
       target.resolveConflict({
@@ -979,7 +1372,7 @@ describe('evaluation offline outbox', () => {
       draft: serverDraft,
       now,
     });
-    await first.registerAuthoritativeSnapshotProof(proof, { now });
+    await first.registerAuthoritativeSnapshotProof(proof);
     const newerDraft = { ...draft, note: 'concurrent newer local append' };
     const [append, discard] = await Promise.allSettled([
       second.saveDraftAndEnqueueMutation(
@@ -1002,7 +1395,6 @@ describe('evaluation offline outbox', () => {
         local: { evaluationId, expectedVersion: 2, draft },
         server: { scope, evaluationId, version: 7, draft: serverDraft },
         snapshotProofNonce: proof.renderNonce,
-        now,
       }),
     ]);
     expect([append.status, discard.status]).toContain('fulfilled');
@@ -1253,6 +1645,12 @@ describe('evaluation offline outbox', () => {
         conflictServerEvaluationId: authoritativeId,
         conflictServerVersion: 7,
       });
+      await target.saveDraftLocally({
+        scope,
+        evaluationId: head!.evaluationId,
+        expectedVersion: head!.expectedVersion,
+        draft: head!.draft,
+      });
       const raw = new Dexie(physicalName);
       raw.version(5).stores(v5Stores);
       await raw.open();
@@ -1345,6 +1743,12 @@ describe('evaluation offline outbox', () => {
         message: 'strict physical union',
         conflictServerEvaluationId: authoritativeId,
         conflictServerVersion: 7,
+      });
+      await target.saveDraftLocally({
+        scope,
+        evaluationId: head.evaluationId,
+        expectedVersion: head.expectedVersion,
+        draft: head.draft,
       });
       const raw = new Dexie(physicalName);
       raw.version(5).stores(v5Stores);
@@ -1598,6 +2002,12 @@ describe('evaluation offline outbox', () => {
         expectedVersion: 7,
       }),
     );
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: authoritativeId,
+      expectedVersion: 7,
+      draft,
+    });
     const raw = new Dexie(physicalName);
     raw.version(5).stores(v5Stores);
     await raw.open();
@@ -1660,6 +2070,12 @@ describe('evaluation offline outbox', () => {
         expectedVersion: 7,
       }),
     );
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: authoritativeId,
+      expectedVersion: 7,
+      draft,
+    });
     const raw = new Dexie(physicalName);
     raw.version(5).stores(v5Stores);
     await raw.open();

@@ -330,6 +330,70 @@ git diff --check                                                  PASS
 - No migration or IndexedDB version rewrite was needed. Existing valid v5 records remain readable; newly written conflict-resolution tombstones use the strengthened complete-resolution schema.
 - `progress.md` and Task 18 were not changed.
 
+## Revised-scope fix round 2 — repository time and exact draft authority
+
+### Status
+
+DONE — destructive proof freshness is repository-clock authoritative and `use_server` requires one
+exact durable draft matching the validated newest queue tail. Task 18 was not started. The
+authenticated production-browser chain remains the documented release-environment gate.
+
+### RED evidence
+
+- Proof registration and conflict resolution publicly accepted caller-provided `now`; a caller could
+  backdate an expired signed proof. Exact +5,000 ms future skew also could not be tested through a
+  repository-owned clock.
+- A valid conflict queue with its scoped draft physically deleted still passed the conditional draft
+  comparison and could consume the proof while retiring local work.
+
+### Delivered
+
+- `registerAuthoritativeSnapshotProof` and `resolveConflict` expose no time input. The destructive
+  input uses a strict runtime schema, so an unknown `now` or legacy freshness object is rejected
+  before hashing or storage. Compile-time probes also reject both public time forms, and the bound
+  module wrapper cannot accept a clock.
+- Each repository captures its clock function once at construction. Production accepts only the
+  module-private system UTC clock; deterministic fake clocks are limited to the test runtime and
+  cannot be swapped through the auth wrapper or by replacing the injected object's method later.
+- Signature verification and current-time validation run inside the serialized all-store Dexie
+  transaction. The repository rereads time immediately after verification and again before proof
+  registration, server-draft replacement, conflict retirement, replay consumption, and final proof
+  consumption. Crossing expiry during transactional work rolls every store back.
+- A live destructive resolution now requires the exact physical scoped draft. Its scope,
+  evaluation identity, expected version, payload digest, canonical content digest, and rubric
+  validity must equal the newest fully validated queue tail and the explicitly confirmed local
+  input. Missing, duplicate/physically divergent, stale, or corrupt draft authority fails before
+  proof consumption or any draft/mutation/counter/tombstone change.
+- Exact terminal replay requires the stored server draft to remain byte/digest equivalent. Deleting
+  it fails byte-exactly; restoring the exact record permits the same durable replay. Concurrent
+  teardown and resolution serialize without a missing-draft crash gap.
+
+### Verification
+
+```text
+Focused caller-time and missing-draft probes                     RED, then GREEN
+Focused offline outbox                                           PASS (92/92)
+npm run verify                                                    PASS (format, lint, types, 354 unit tests, build)
+npm run test:integration, repeated                               PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                           PASS (47 migrations)
+npx supabase test db --local                                      PASS (29 files / 847 tests)
+npm run test:e2e:evaluation, repeated                             PASS twice (8/8; Mobile Chrome + Mobile Safari)
+npm audit --audit-level=high                                      PASS (0 vulnerabilities)
+git diff --check                                                  PASS
+```
+
+### Self-review
+
+- Clock/freshness checks are inside the same transaction as every destructive write; expiry or
+  invalid input produces byte-equivalent rollback and leaves an unconsumed proof reusable after
+  exact draft restoration.
+- The exact future-skew boundary accepts issued-at `clock + 5,000 ms` and rejects `+5,001 ms`.
+  Expiry is exclusive: `expiresAt <= clock` is invalid.
+- The new clock and strict input schema add no persistence fields, migration, raw evaluator content,
+  or PII-bearing recovery metadata. Existing proof crypto, terminal fences, stale cross-tab guard,
+  and `use_server`-only public contract are preserved.
+- `progress.md` and Task 18 were not changed.
+
 ## MVP scope-revision review fix round 1
 
 ### Status

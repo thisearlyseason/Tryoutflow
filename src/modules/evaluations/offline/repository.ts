@@ -56,6 +56,49 @@ const publicFailureCategorySchema = z.enum([
   'corrupt_record',
 ]);
 
+const conflictResolutionInputSchema = z.strictObject({
+  scope: evaluationScopeSchema,
+  clientMutationId: uuid,
+  action: z.literal('use_server'),
+  original: z.strictObject({
+    evaluationId: uuid,
+    payloadDigest: z.string().regex(/^[0-9a-f]{64}$/),
+    queueSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+  }),
+  local: z.strictObject({
+    evaluationId: uuid.nullable(),
+    expectedVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    draft: evaluationDraftSchema,
+  }),
+  server: z.strictObject({
+    scope: evaluationScopeSchema,
+    evaluationId: uuid,
+    version: z.number().int().min(1).max(2_147_483_646),
+    draft: evaluationDraftSchema,
+  }),
+  snapshotProofNonce: uuid,
+});
+
+type ConflictResolutionInput = {
+  scope: EvaluationStorageScope;
+  clientMutationId: string;
+  action: 'use_server';
+  original: { evaluationId: string; payloadDigest: string; queueSequence: number };
+  /** Exact newest durable local authority being explicitly discarded. */
+  local: {
+    evaluationId: string | null;
+    expectedVersion: number;
+    draft: EvaluationDraftPayload;
+  };
+  server: {
+    scope: EvaluationStorageScope;
+    evaluationId: string;
+    version: number;
+    draft: EvaluationDraftPayload;
+  };
+  snapshotProofNonce: string;
+};
+
 export type EvaluationMutationInput = {
   scope: EvaluationStorageScope;
   evaluationId: string;
@@ -185,6 +228,14 @@ export type RepositoryOptions = {
   keyRange?: typeof IDBKeyRange | null;
   quotas?: Partial<EvaluationOfflineQuotas>;
 };
+
+type EvaluationOfflineClock = {
+  now(): Date;
+};
+
+const systemUtcClock: EvaluationOfflineClock = Object.freeze({
+  now: () => new Date(),
+});
 
 type OperationTime = {
   now?: Date;
@@ -327,6 +378,7 @@ function digestUuid(hexDigest: string): string {
 export class EvaluationOfflineRepository {
   readonly databaseName: string;
   private readonly quotas: EvaluationOfflineQuotas;
+  private readonly readClock: () => Date;
 
   constructor(
     private readonly database: EvaluationOfflineDatabase,
@@ -334,9 +386,16 @@ export class EvaluationOfflineRepository {
     private readonly indexedDbFactory: IDBFactory,
     private readonly keyRangeFactory: typeof IDBKeyRange,
     quotas: Partial<EvaluationOfflineQuotas> = {},
+    clock: EvaluationOfflineClock = systemUtcClock,
   ) {
+    if (clock !== systemUtcClock && process.env.NODE_ENV !== 'test')
+      throw new EvaluationOfflineError(
+        'invalid_input',
+        'A custom evaluation clock is available only to the test runtime.',
+      );
     this.databaseName = database.name;
     this.quotas = { ...DEFAULT_QUOTAS, ...quotas };
+    this.readClock = clock.now.bind(clock);
   }
 
   close(): void {
@@ -362,6 +421,27 @@ export class EvaluationOfflineRepository {
       throw new EvaluationOfflineError('invalid_input', 'Invalid evaluation draft.');
     if (encodedBytes(parsed.data) > MAX_DRAFT_BYTES) throw quotaError('bytes');
     return structuredClone(parsed.data);
+  }
+
+  private clockNow(): Date {
+    return safeDate(this.readClock());
+  }
+
+  private assertCurrentSnapshotProof(
+    proof: Pick<AuthoritativeEvaluationSnapshotProof, 'issuedAt' | 'expiresAt'>,
+    now: Date,
+  ): void {
+    const issuedAt = Date.parse(proof.issuedAt);
+    const expiresAt = Date.parse(proof.expiresAt);
+    if (
+      issuedAt > now.getTime() + SNAPSHOT_PROOF_CLOCK_SKEW_MS ||
+      expiresAt <= now.getTime() ||
+      expiresAt - issuedAt > SNAPSHOT_PROOF_MAX_LIFETIME_MS
+    )
+      throw new EvaluationOfflineError(
+        'invalid_transition',
+        'The authoritative server snapshot proof is not current.',
+      );
   }
 
   private assertDraftMatchesContext(
@@ -1703,32 +1783,21 @@ export class EvaluationOfflineRepository {
 
   async registerAuthoritativeSnapshotProof(
     rawProof: AuthoritativeEvaluationSnapshotProof,
-    options: OperationTime = {},
   ): Promise<void> {
     const parsed = authoritativeEvaluationSnapshotProofSchema.safeParse(rawProof);
     if (!parsed.success)
       throw new EvaluationOfflineError('invalid_input', 'Invalid authoritative snapshot proof.');
     const proof = parsed.data;
-    if (!(await verifyAuthoritativeSnapshotProof(proof)))
-      throw new EvaluationOfflineError(
-        'invalid_transition',
-        'The authoritative snapshot proof was not issued by the server.',
-      );
     const scope = this.parseScope(proof.scope);
-    const now = safeDate(options.now ?? new Date());
     const issuedAt = Date.parse(proof.issuedAt);
-    const expiresAt = Date.parse(proof.expiresAt);
-    if (
-      issuedAt > now.getTime() + SNAPSHOT_PROOF_CLOCK_SKEW_MS ||
-      expiresAt <= now.getTime() ||
-      expiresAt - issuedAt > SNAPSHOT_PROOF_MAX_LIFETIME_MS
-    )
-      throw new EvaluationOfflineError(
-        'invalid_transition',
-        'The authoritative server snapshot proof is not current.',
-      );
     try {
       await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        if (!(await Dexie.waitFor(verifyAuthoritativeSnapshotProof(proof))))
+          throw new EvaluationOfflineError(
+            'invalid_transition',
+            'The authoritative snapshot proof was not issued by the server.',
+          );
+        this.assertCurrentSnapshotProof(proof, this.clockNow());
         const context = await this.requireContext(transaction, scope);
         const current = context.authoritativeSnapshotProof;
         if (current) {
@@ -1777,6 +1846,7 @@ export class EvaluationOfflineRepository {
                   : {}),
               },
             });
+            this.assertCurrentSnapshotProof(proof, this.clockNow());
             await this.assertByteQuota(transaction, next);
             await this.database.sessionContexts.put(next);
             return;
@@ -1791,6 +1861,7 @@ export class EvaluationOfflineRepository {
           ...context,
           authoritativeSnapshotProof: proof,
         });
+        this.assertCurrentSnapshotProof(proof, this.clockNow());
         await this.assertByteQuota(transaction, next);
         await this.database.sessionContexts.put(next);
       });
@@ -3130,30 +3201,7 @@ export class EvaluationOfflineRepository {
     }
   }
 
-  async resolveConflict(input: {
-    scope: EvaluationStorageScope;
-    clientMutationId: string;
-    action: 'use_server';
-    original: {
-      evaluationId: string;
-      payloadDigest: string;
-      queueSequence: number;
-    };
-    /** Exact newest durable local authority being explicitly discarded. */
-    local: {
-      evaluationId: string | null;
-      expectedVersion: number;
-      draft: EvaluationDraftPayload;
-    };
-    server: {
-      scope: EvaluationStorageScope;
-      evaluationId: string;
-      version: number;
-      draft: EvaluationDraftPayload;
-    };
-    snapshotProofNonce: string;
-    now?: Date;
-  }): Promise<{
+  async resolveConflict(rawInput: ConflictResolutionInput): Promise<{
     action: 'use_server';
     evaluationId: string;
     expectedVersion: number;
@@ -3165,16 +3213,19 @@ export class EvaluationOfflineRepository {
     // Automatic keep-local rebasing is intentionally deferred for the MVP. This gate runs before
     // parsing, hashing, opening IndexedDB, or reading replay state, so unsupported and offline or
     // stale destructive choices cannot mutate durable work through a JavaScript caller.
-    if ((input as { action: unknown }).action !== 'use_server')
+    if ((rawInput as { action: unknown }).action !== 'use_server')
       throw new EvaluationOfflineError(
         'invalid_transition',
         'Keeping local work requires export, server reconciliation, and a new ordinary save.',
       );
+    const parsedInput = conflictResolutionInputSchema.safeParse(rawInput);
+    if (!parsedInput.success)
+      throw new EvaluationOfflineError('invalid_input', 'Invalid conflict resolution context.');
+    const input = parsedInput.data;
     const scope = this.parseScope(input.scope);
     const requestedLocalDraft = this.parseDraft(input.local.draft);
     const serverScope = this.parseScope(input.server.scope);
     const serverDraft = this.parseDraft(input.server.draft);
-    const now = safeDate(input.now ?? new Date());
     if (
       scopeKey(serverScope) !== scopeKey(scope) ||
       !uuid.safeParse(input.original.evaluationId).success ||
@@ -3254,14 +3305,13 @@ export class EvaluationOfflineRepository {
           proof.evaluationId !== input.server.evaluationId ||
           proof.version !== input.server.version ||
           proof.draftDigest !== serverDraftDigest ||
-          Date.parse(boundRequestedProof.issuedAt) > now.getTime() + SNAPSHOT_PROOF_CLOCK_SKEW_MS ||
-          Date.parse(boundRequestedProof.expiresAt) <= now.getTime() ||
           !(await Dexie.waitFor(verifyAuthoritativeSnapshotProof(boundRequestedProof)))
         )
           throw new EvaluationOfflineError(
             'invalid_transition',
             'Using the server draft requires the current durable server-render proof.',
           );
+        this.assertCurrentSnapshotProof(boundRequestedProof, this.clockNow());
         const storageKey = `${scopeKey(scope)}|${input.clientMutationId}`;
         const rawHead = await this.database.mutations.get(storageKey);
         if (rawHead && proof.consumedResolutionId)
@@ -3323,7 +3373,7 @@ export class EvaluationOfflineRepository {
                   transaction,
                   scope,
                   successor.queueKey,
-                  now,
+                  this.clockNow(),
                 );
               }
             } else {
@@ -3364,7 +3414,7 @@ export class EvaluationOfflineRepository {
               transaction,
               scope,
               evaluationQueueKey(scope, tombstone.resolutionServerEvaluationId),
-              now,
+              this.clockNow(),
             );
           } else {
             const rawDraft = await this.database.drafts.get(scopeKey(scope));
@@ -3388,12 +3438,14 @@ export class EvaluationOfflineRepository {
               'The server-render proof was consumed by another resolution.',
             );
           if (!proof.consumedResolutionId) {
+            const consumptionTime = this.clockNow();
+            this.assertCurrentSnapshotProof(boundRequestedProof, consumptionTime);
             await this.database.sessionContexts.put(
               storedSessionContextSchema.parse({
                 ...context,
                 authoritativeSnapshotProof: {
                   ...proof,
-                  consumedAt: now.toISOString(),
+                  consumedAt: consumptionTime.toISOString(),
                   consumedResolutionId: tombstone.resolutionId,
                 },
               }),
@@ -3433,7 +3485,7 @@ export class EvaluationOfflineRepository {
         // Validate global terminal pairs plus every scoped queue/counter lineage before either
         // action can replace the draft or retire predecessors. The return value is intentionally
         // unused here; keep-local revalidates the authoritative target immediately before append.
-        await this.validateQueueForStrictAppend(transaction, scope, head.queueKey, now);
+        await this.validateQueueForStrictAppend(transaction, scope, head.queueKey, this.clockNow());
         this.assertDraftMatchesContext(requestedLocalDraft, context);
         this.assertDraftMatchesContext(serverDraft, context);
         const rawDraft = await this.database.drafts.get(scopeKey(scope));
@@ -3495,11 +3547,11 @@ export class EvaluationOfflineRepository {
           );
         const newestDraftDigest = await Dexie.waitFor(digestValue(newestQueueRow.draft));
         if (
-          storedDraft &&
-          (storedDraft.evaluationId !== newestQueueRow.evaluationId ||
-            storedDraft.expectedVersion !== newestQueueRow.expectedVersion ||
-            storedDraft.payloadDigest !== newestQueueRow.payloadDigest ||
-            (await Dexie.waitFor(digestValue(storedDraft.draft))) !== newestDraftDigest)
+          !storedDraft ||
+          storedDraft.evaluationId !== newestQueueRow.evaluationId ||
+          storedDraft.expectedVersion !== newestQueueRow.expectedVersion ||
+          storedDraft.payloadDigest !== newestQueueRow.payloadDigest ||
+          (await Dexie.waitFor(digestValue(storedDraft.draft))) !== newestDraftDigest
         )
           throw new EvaluationOfflineError(
             'corrupt_record',
@@ -3516,34 +3568,31 @@ export class EvaluationOfflineRepository {
             'The local draft changed after recovery opened; review and confirm it again.',
           );
 
-        // The recovery dialog can be newer than the last durable draft while an older request is
-        // awaiting the network. Persist and rebase that explicit choice in this transaction so
-        // there is no crash gap between protecting it and retiring the conflict lineage.
+        // The destructive choice is now exact-draft bound: the dialog, durable draft, and newest
+        // validated queue tail must all describe the same local authority before retirement.
         const localDraft = requestedLocalDraft;
         this.assertDraftMatchesContext(localDraft, context);
 
         const chosenDraft = serverDraft;
-        const timestamp = now.toISOString();
         const resultDraftDigest = await Dexie.waitFor(digestValue(chosenDraft));
+        const resultPayloadDigest = await Dexie.waitFor(
+          digestValue(
+            evaluationPayload(scope, input.server.evaluationId, input.server.version, chosenDraft),
+          ),
+        );
+        const writeTime = this.clockNow();
+        this.assertCurrentSnapshotProof(boundRequestedProof, writeTime);
+        const timestamp = writeTime.toISOString();
         const draftRecord: StoredEvaluationDraft = {
           scopeKey: scopeKey(scope),
           scope,
           evaluationId: input.server.evaluationId,
           expectedVersion: input.server.version,
           draft: chosenDraft,
-          payloadDigest: await Dexie.waitFor(
-            digestValue(
-              evaluationPayload(
-                scope,
-                input.server.evaluationId,
-                input.server.version,
-                chosenDraft,
-              ),
-            ),
-          ),
+          payloadDigest: resultPayloadDigest,
           syncState: 'synced',
           updatedAt: timestamp,
-          expiresAt: addMilliseconds(now, DRAFT_TTL_MS),
+          expiresAt: addMilliseconds(writeTime, DRAFT_TTL_MS),
         };
         await this.assertByteQuota(transaction, draftRecord);
         await this.database.drafts.put(draftRecord);
@@ -3584,6 +3633,8 @@ export class EvaluationOfflineRepository {
               ),
           }),
         );
+        const retirementTime = this.clockNow();
+        this.assertCurrentSnapshotProof(boundRequestedProof, retirementTime);
         for (const { row, retiredDraftDigest } of retiredRows) {
           await this.database.mutations.delete(row.storageKey);
           await this.ensureConflictResolutionTombstone(
@@ -3591,7 +3642,7 @@ export class EvaluationOfflineRepository {
             scope,
             row.clientMutationId,
             row.storageKey === head.storageKey ? 'conflict_use_server' : 'conflict_dependent',
-            now,
+            retirementTime,
             {
               resolutionId,
               resolutionAction: input.action,
@@ -3623,12 +3674,14 @@ export class EvaluationOfflineRepository {
             },
           );
         }
+        const consumptionTime = this.clockNow();
+        this.assertCurrentSnapshotProof(boundRequestedProof, consumptionTime);
         await this.database.sessionContexts.put(
           storedSessionContextSchema.parse({
             ...context,
             authoritativeSnapshotProof: {
               ...proof,
-              consumedAt: timestamp,
+              consumedAt: consumptionTime.toISOString(),
               consumedResolutionId: resolutionId,
             },
           }),
@@ -5213,6 +5266,7 @@ export class EvaluationOfflineRepository {
 
 export function createEvaluationOfflineRepository(
   options: RepositoryOptions,
+  clock: EvaluationOfflineClock = systemUtcClock,
 ): EvaluationOfflineRepository {
   const parsedUser = uuid.safeParse(options.authenticatedUserId);
   if (!parsedUser.success)
@@ -5237,6 +5291,7 @@ export function createEvaluationOfflineRepository(
     indexedDb,
     keyRange,
     options.quotas,
+    clock,
   );
 }
 
