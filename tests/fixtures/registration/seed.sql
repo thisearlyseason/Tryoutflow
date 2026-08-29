@@ -15,6 +15,12 @@ where not exists (select 1 from public.tryout_divisions where id = 'c1101010-101
 insert into public.tryout_sessions(id, organization_id, tryout_id, division_id, name, starts_at, ends_at)
 select 'd1101010-1010-4010-8010-101010101010', 'a1101010-1010-4010-8010-101010101010', 'b1101010-1010-4010-8010-101010101010', 'c1101010-1010-4010-8010-101010101010', 'Skills', clock_timestamp() + interval '2 days', clock_timestamp() + interval '2 days 1 hour'
 where not exists (select 1 from public.tryout_sessions where id = 'd1101010-1010-4010-8010-101010101010');
+insert into public.tryout_positions(id,organization_id,tryout_id,name,sort_order)
+select 'c2101010-1010-4010-8010-101010101010','a1101010-1010-4010-8010-101010101010','b1101010-1010-4010-8010-101010101010','Goalie',0
+where not exists(select 1 from public.tryout_positions where id='c2101010-1010-4010-8010-101010101010');
+insert into public.tryout_positions(id,organization_id,tryout_id,name,sort_order)
+select 'c3101010-1010-4010-8010-101010101010','a1101010-1010-4010-8010-101010101010','b1101010-1010-4010-8010-101010101010','Skater',1
+where not exists(select 1 from public.tryout_positions where id='c3101010-1010-4010-8010-101010101010');
 insert into public.registration_forms(id, organization_id, tryout_id, name)
 select 'e1101010-1010-4010-8010-101010101010', 'a1101010-1010-4010-8010-101010101010', 'b1101010-1010-4010-8010-101010101010', 'HTTP public form'
 where not exists (select 1 from public.registration_forms where id = 'e1101010-1010-4010-8010-101010101010');

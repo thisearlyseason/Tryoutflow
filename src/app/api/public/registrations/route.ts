@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get('tryoutSlug');
   if (!slug || slug.length > 63) return genericError(404);
   try {
-    const result = await createAdminSupabaseClient().rpc('public_registration_tryout', {
+    const result = await createAdminSupabaseClient().rpc('public_registration_tryout_v2', {
       p_tryout_slug: slug,
     });
     const row = result.data?.[0];
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         slug: row.slug,
         formSchema: row.form_schema,
         divisions: row.divisions,
+        positions: row.positions,
       },
     });
   } catch {
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
     });
     if (contextLimit.error) return genericError(400);
     if (contextLimit.data?.[0]?.outcome === 'rate_limited') return genericError(429);
-    const configuration = await client.rpc('public_registration_tryout', {
+    const configuration = await client.rpc('public_registration_tryout_v2', {
       p_tryout_slug: body.tryoutSlug,
     });
     const row = configuration.data?.[0];
@@ -103,11 +104,12 @@ export async function POST(request: NextRequest) {
         notifier: noRegistrationConfirmationNotifier,
         gateway: {
           async submit(input) {
-            const result = await client.rpc('submit_public_registration_with_phone', {
+            const result = await client.rpc('submit_public_registration_with_position', {
               p_tryout_slug: input.tryoutSlug,
               p_submission: input.submission as Json,
               p_idempotency_key: input.idempotencyKey,
               p_rate_key_hash: transactionRateKey,
+              p_position_id: input.submission.positionId,
             });
             const outcome = result.data?.[0];
             if (result.error || !outcome || outcome.outcome === 'registration_closed')

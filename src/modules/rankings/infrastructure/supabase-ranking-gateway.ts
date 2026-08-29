@@ -10,6 +10,7 @@ import type {
 
 const id = z.uuid();
 const namedId = z.strictObject({ id, name: z.string().trim().min(1).max(120) });
+const sessionOption = namedId.extend({ expectedEvaluators: z.number().int().min(0).max(1000) });
 const category = z.strictObject({
   categoryId: id,
   categoryName: z.string().trim().min(1).max(120),
@@ -48,11 +49,17 @@ const registration = z.strictObject({
       }),
     )
     .max(100),
-  sessions: z.array(namedId).max(100),
+  sessions: z.array(sessionOption).max(100),
   groups: z.array(namedId).max(500),
   flags: z.array(z.enum(['needs_another_look', 'injury_concern', 'eligibility_review'])).max(3),
 });
 const snapshotSchema = z.strictObject({
+  filterOptions: z.strictObject({
+    divisions: z.array(namedId).max(100),
+    positions: z.array(namedId).max(100),
+    sessions: z.array(namedId).max(100),
+    groups: z.array(namedId).max(500),
+  }),
   registrations: z.array(registration).max(10_000),
   generatedAt: z.iso.datetime({ offset: true }),
 });

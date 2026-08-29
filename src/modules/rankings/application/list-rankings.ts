@@ -46,7 +46,7 @@ export type RankingRow = Readonly<{
   completionPercent: number;
   scoreRange: readonly [string, string] | null;
   categories: readonly RankingCategory[];
-  sessions: readonly { id: string; name: string }[];
+  sessions: readonly { id: string; name: string; expectedEvaluators: number }[];
   groups: readonly { id: string; name: string }[];
   flags: readonly string[];
 }>;
@@ -71,14 +71,22 @@ export type RankingRegistrationSnapshot = Readonly<{
   expectedEvaluators: number;
   evaluations: readonly RankingEvaluation[];
   categoryNames: readonly { id: string; name: string; scaleMax: 5 | 10 }[];
-  sessions: readonly { id: string; name: string }[];
+  sessions: readonly { id: string; name: string; expectedEvaluators: number }[];
   groups: readonly { id: string; name: string }[];
   flags: readonly string[];
 }>;
 
 export type RankingSnapshot = Readonly<{
+  filterOptions: RankingFilterOptions;
   registrations: readonly RankingRegistrationSnapshot[];
   generatedAt: string;
+}>;
+
+export type RankingFilterOptions = Readonly<{
+  divisions: readonly { id: string; name: string }[];
+  positions: readonly { id: string; name: string }[];
+  sessions: readonly { id: string; name: string }[];
+  groups: readonly { id: string; name: string }[];
 }>;
 
 export type RankingGatewayResult =
@@ -97,6 +105,7 @@ export type RankingGateway = {
 };
 
 export type RankingPage = Readonly<{
+  filterOptions: RankingFilterOptions;
   rows: readonly RankingRow[];
   page: number;
   pageSize: number;
@@ -314,6 +323,7 @@ export async function listRankings(
     const total = rows.length;
     const start = (parsed.data.page - 1) * parsed.data.pageSize;
     return success({
+      filterOptions: loaded.snapshot.filterOptions,
       rows: rows.slice(start, start + parsed.data.pageSize),
       page: parsed.data.page,
       pageSize: parsed.data.pageSize,

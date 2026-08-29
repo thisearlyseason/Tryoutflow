@@ -9,6 +9,11 @@ test('filters, selects, and compares ranking evidence without private-data leaka
   await expect(page.getByText('Tied at rank 1')).toHaveCount(2);
   await expect(page.getByLabel('Division')).toBeVisible();
   await expect(page.getByLabel('Position')).toBeVisible();
+  await expect(page.getByRole('option', { name: 'Forward' })).toBeAttached();
+  await expect(page.getByRole('link', { name: 'Clear filters' })).toHaveAttribute(
+    'href',
+    '?pageSize=25',
+  );
   await expect(page.locator('body')).not.toContainText(
     /guardian|private peer note|registration answers/i,
   );
@@ -17,6 +22,9 @@ test('filters, selects, and compares ranking evidence without private-data leaka
   await page.getByRole('link', { name: /Compare selected/ }).click();
   await expect(page.getByRole('heading', { name: 'Athlete comparison' })).toBeVisible();
   await expect(page.getByRole('table')).toContainText('Skating');
+  await expect(page.getByRole('table')).toContainText('Director flags');
+  await expect(page.getByRole('table')).toContainText('Skills session');
+  await expect(page.getByRole('table')).toContainText('private evaluator notes');
   await expect(new AxeBuilder({ page }).analyze()).resolves.toMatchObject({ violations: [] });
 });
 

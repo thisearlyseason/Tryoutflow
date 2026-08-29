@@ -21,6 +21,16 @@ export default function Compare() {
             scoreRange: row.scoreRange,
             categories: row.categories,
             flags: row.flags,
+            sessions: row.sessions.map((session) => ({
+              sessionId: session.id,
+              sessionName: session.name,
+              overall: row.overall,
+              completedEvaluators: row.completedEvaluators,
+              expectedEvaluators: session.expectedEvaluators,
+              completionPercent: row.completionPercent,
+              scoreRange: row.scoreRange,
+              categories: row.categories,
+            })),
           })),
         }}
       />

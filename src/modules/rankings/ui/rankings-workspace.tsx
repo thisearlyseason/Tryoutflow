@@ -30,26 +30,10 @@ export function RankingsWorkspace({
     () => `${compareHref}?athletes=${selected.join(',')}`,
     [compareHref, selected],
   );
-  const divisions = [
-    ...new Map(initial.rows.map((row) => [row.divisionId, row.divisionName])).entries(),
-  ];
-  const positions = [
-    ...new Map(
-      initial.rows
-        .filter((row) => row.positionId)
-        .map((row) => [row.positionId!, row.positionName!]),
-    ).entries(),
-  ];
-  const sessions = [
-    ...new Map(
-      initial.rows.flatMap((row) => row.sessions.map((item) => [item.id, item.name] as const)),
-    ).entries(),
-  ];
-  const groups = [
-    ...new Map(
-      initial.rows.flatMap((row) => row.groups.map((item) => [item.id, item.name] as const)),
-    ).entries(),
-  ];
+  const divisions = initial.filterOptions.divisions.map(({ id, name }) => [id, name] as const);
+  const positions = initial.filterOptions.positions.map(({ id, name }) => [id, name] as const);
+  const sessions = initial.filterOptions.sessions.map(({ id, name }) => [id, name] as const);
+  const groups = initial.filterOptions.groups.map(({ id, name }) => [id, name] as const);
   const filterQuery = new URLSearchParams();
   if (filters.divisionId) filterQuery.set('division', filters.divisionId);
   if (filters.positionId) filterQuery.set('position', filters.positionId);
@@ -67,17 +51,10 @@ export function RankingsWorkspace({
     query.set('page', String(page));
     return `?${query.toString()}`;
   };
-  if (initial.rows.length === 0)
-    return (
-      <EmptyState
-        description="Adjust the filters or wait for completed evaluations. Incomplete work is never scored as zero."
-        title="No ranking evidence yet"
-      />
-    );
-
   return (
     <div className="min-w-0 space-y-5">
       <form className="grid gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <input name="pageSize" type="hidden" value={initial.pageSize} />
         <label className="grid gap-1 text-sm font-medium">
           Search athletes
           <input
@@ -144,116 +121,131 @@ export function RankingsWorkspace({
         <button className="min-h-11 self-end rounded-[var(--radius-control)] bg-[var(--color-primary)] px-4 font-bold text-white">
           Apply filters
         </button>
+        <Link
+          className="inline-flex min-h-11 items-center self-end font-bold"
+          href={`?pageSize=${initial.pageSize}`}
+        >
+          Clear filters
+        </Link>
       </form>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-[var(--color-text-muted)]" role="status">
-          {initial.total} athletes · snapshot {new Date(initial.generatedAt).toLocaleString()}
-        </p>
-        <Link
-          aria-disabled={selected.length < 2}
-          className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--color-primary)] px-4 font-bold aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          href={comparisonHref}
-        >
-          Compare selected ({selected.length}/4)
-        </Link>
-      </div>
+      {initial.rows.length === 0 ? (
+        <EmptyState
+          description="Adjust the filters or wait for completed evaluations. Incomplete work is never scored as zero."
+          title="No ranking evidence yet"
+        />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-[var(--color-text-muted)]" role="status">
+              {initial.total} athletes · snapshot {new Date(initial.generatedAt).toLocaleString()}
+            </p>
+            <Link
+              aria-disabled={selected.length < 2}
+              className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--color-primary)] px-4 font-bold aria-disabled:pointer-events-none aria-disabled:opacity-50"
+              href={comparisonHref}
+            >
+              Compare selected ({selected.length}/4)
+            </Link>
+          </div>
 
-      <ol className="grid gap-3">
-        {initial.rows.map((row) => {
-          const checked = selected.includes(row.athleteId);
-          return (
-            <li
-              className="min-w-0 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)]"
-              key={row.registrationId}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex min-w-0 gap-3">
-                  <span className="font-[var(--font-bib)] text-3xl tabular-nums">
-                    {row.rank ?? '—'}
-                  </span>
-                  <div className="min-w-0">
-                    <h2 className="truncate text-lg font-bold">{row.displayName}</h2>
-                    <p className="text-sm text-[var(--color-text-muted)]">
-                      {row.tryoutNumber ? `#${row.tryoutNumber} · ` : ''}
-                      {row.divisionName}
-                      {row.positionName ? ` · ${row.positionName}` : ''}
-                    </p>
-                    {row.isTied && row.rank ? (
-                      <p className="mt-1 text-sm font-bold text-[var(--color-primary)]">
-                        Tied at rank {row.rank}
+          <ol className="grid gap-3">
+            {initial.rows.map((row) => {
+              const checked = selected.includes(row.athleteId);
+              return (
+                <li
+                  className="min-w-0 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)]"
+                  key={row.registrationId}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex min-w-0 gap-3">
+                      <span className="font-[var(--font-bib)] text-3xl tabular-nums">
+                        {row.rank ?? '—'}
+                      </span>
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-bold">{row.displayName}</h2>
+                        <p className="text-sm text-[var(--color-text-muted)]">
+                          {row.tryoutNumber ? `#${row.tryoutNumber} · ` : ''}
+                          {row.divisionName}
+                          {row.positionName ? ` · ${row.positionName}` : ''}
+                        </p>
+                        {row.isTied && row.rank ? (
+                          <p className="mt-1 text-sm font-bold text-[var(--color-primary)]">
+                            Tied at rank {row.rank}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-[var(--font-bib)] text-3xl tabular-nums">
+                        {row.overall ?? 'Unranked'}
                       </p>
-                    ) : null}
+                      <p className="text-xs text-[var(--color-text-muted)]">overall / 100</p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-[var(--font-bib)] text-3xl tabular-nums">
-                    {row.overall ?? 'Unranked'}
-                  </p>
-                  <p className="text-xs text-[var(--color-text-muted)]">overall / 100</p>
-                </div>
-              </div>
-              <div className="mt-4 grid gap-2 border-t border-[var(--color-border)] pt-3 text-sm sm:grid-cols-3">
-                <p>
-                  <strong>
-                    {row.completedEvaluators} of {row.expectedEvaluators}
-                  </strong>{' '}
-                  evaluations complete
-                </p>
-                <p>
-                  Coverage <strong>{row.completionPercent}%</strong>
-                </p>
-                <p>
-                  Range{' '}
-                  <strong>{row.scoreRange ? row.scoreRange.join('–') : 'Not available'}</strong>
-                </p>
-              </div>
-              <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 font-medium">
-                <input
-                  checked={checked}
-                  disabled={!checked && selected.length === 4}
-                  onChange={() =>
-                    setSelected((current) =>
-                      checked
-                        ? current.filter((id) => id !== row.athleteId)
-                        : [...current, row.athleteId],
-                    )
-                  }
-                  type="checkbox"
-                />
-                Select {row.displayName} for comparison
-              </label>
-            </li>
-          );
-        })}
-      </ol>
-      {initial.totalPages > 1 ? (
-        <nav aria-label="Ranking pages" className="flex items-center justify-between gap-3">
-          {initial.page > 1 ? (
-            <Link
-              className="inline-flex min-h-11 items-center font-bold"
-              href={pageHref(initial.page - 1)}
-            >
-              Previous page
-            </Link>
-          ) : (
-            <span />
-          )}
-          <span className="text-sm text-[var(--color-text-muted)]">
-            Page {initial.page} of {initial.totalPages}
-          </span>
-          {initial.page < initial.totalPages ? (
-            <Link
-              className="inline-flex min-h-11 items-center font-bold"
-              href={pageHref(initial.page + 1)}
-            >
-              Next page
-            </Link>
-          ) : (
-            <span />
-          )}
-        </nav>
-      ) : null}
+                  <div className="mt-4 grid gap-2 border-t border-[var(--color-border)] pt-3 text-sm sm:grid-cols-3">
+                    <p>
+                      <strong>
+                        {row.completedEvaluators} of {row.expectedEvaluators}
+                      </strong>{' '}
+                      evaluations complete
+                    </p>
+                    <p>
+                      Coverage <strong>{row.completionPercent}%</strong>
+                    </p>
+                    <p>
+                      Range{' '}
+                      <strong>{row.scoreRange ? row.scoreRange.join('–') : 'Not available'}</strong>
+                    </p>
+                  </div>
+                  <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 font-medium">
+                    <input
+                      checked={checked}
+                      disabled={!checked && selected.length === 4}
+                      onChange={() =>
+                        setSelected((current) =>
+                          checked
+                            ? current.filter((id) => id !== row.athleteId)
+                            : [...current, row.athleteId],
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    Select {row.displayName} for comparison
+                  </label>
+                </li>
+              );
+            })}
+          </ol>
+          {initial.totalPages > 1 ? (
+            <nav aria-label="Ranking pages" className="flex items-center justify-between gap-3">
+              {initial.page > 1 ? (
+                <Link
+                  className="inline-flex min-h-11 items-center font-bold"
+                  href={pageHref(initial.page - 1)}
+                >
+                  Previous page
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span className="text-sm text-[var(--color-text-muted)]">
+                Page {initial.page} of {initial.totalPages}
+              </span>
+              {initial.page < initial.totalPages ? (
+                <Link
+                  className="inline-flex min-h-11 items-center font-bold"
+                  href={pageHref(initial.page + 1)}
+                >
+                  Next page
+                </Link>
+              ) : (
+                <span />
+              )}
+            </nav>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

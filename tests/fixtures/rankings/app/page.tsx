@@ -2,6 +2,12 @@ import { RankingsWorkspace } from '../../../../src/modules/rankings/ui/rankings-
 import type { RankingPage } from '../../../../src/modules/rankings/application/list-rankings';
 
 export const fixtureRows: RankingPage = {
+  filterOptions: {
+    divisions: [{ id: '33333333-3333-4333-8333-333333333333', name: 'U15' }],
+    positions: [{ id: '22222222-2222-4222-8222-222222222221', name: 'Forward' }],
+    sessions: [{ id: '44444444-4444-4444-8444-444444444444', name: 'Skills' }],
+    groups: [{ id: '66666666-6666-4666-8666-666666666666', name: 'Blue' }],
+  },
   page: 1,
   pageSize: 25,
   total: 2,
@@ -34,7 +40,9 @@ export const fixtureRows: RankingPage = {
           normalizedAverage: '90.0',
         },
       ],
-      sessions: [{ id: '44444444-4444-4444-8444-444444444444', name: 'Skills' }],
+      sessions: [
+        { id: '44444444-4444-4444-8444-444444444444', name: 'Skills', expectedEvaluators: 3 },
+      ],
       groups: [{ id: '66666666-6666-4666-8666-666666666666', name: 'Blue' }],
       flags: ['needs_another_look'],
     },
@@ -64,7 +72,9 @@ export const fixtureRows: RankingPage = {
           normalizedAverage: '90.0',
         },
       ],
-      sessions: [{ id: '44444444-4444-4444-8444-444444444444', name: 'Skills' }],
+      sessions: [
+        { id: '44444444-4444-4444-8444-444444444444', name: 'Skills', expectedEvaluators: 2 },
+      ],
       groups: [{ id: '66666666-6666-4666-8666-666666666666', name: 'Blue' }],
       flags: [],
     },

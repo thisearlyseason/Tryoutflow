@@ -11,7 +11,7 @@ export type LiveDashboard = Readonly<{
   activeEvaluators: number;
   completedEvaluations: number;
   expectedEvaluations: number;
-  syncNeedsAttention: number;
+  recordedSyncExceptions: number;
   generatedAt: string;
 }>;
 
@@ -28,7 +28,7 @@ const dashboardSchema = z.strictObject({
   activeEvaluators: z.number().int().min(0).max(100_000),
   completedEvaluations: z.number().int().min(0).max(10_000_000),
   expectedEvaluations: z.number().int().min(0).max(10_000_000),
-  syncNeedsAttention: z.number().int().min(0).max(10_000_000),
+  recordedSyncExceptions: z.number().int().min(0).max(10_000_000),
   generatedAt: z.iso.datetime({ offset: true }),
 });
 const responseSchema = z.strictObject({

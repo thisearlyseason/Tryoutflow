@@ -9,6 +9,12 @@ describe('rankings workspace', () => {
       <RankingsWorkspace
         filters={{ divisionId: 'd', search: 'Athlete' }}
         initial={{
+          filterOptions: {
+            divisions: [{ id: 'd', name: 'U15' }],
+            positions: [{ id: 'p', name: 'Goalie' }],
+            sessions: [{ id: 's', name: 'Skills' }],
+            groups: [{ id: 'g', name: 'Blue' }],
+          },
           rows: [
             {
               athleteId: 'a',
@@ -57,5 +63,34 @@ describe('rankings workspace', () => {
       'aria-disabled',
       'true',
     );
+  });
+
+  it('keeps independently authorized filters and reset action visible with zero rows', () => {
+    render(
+      <RankingsWorkspace
+        filters={{ positionId: 'p', search: 'missing' }}
+        initial={{
+          filterOptions: {
+            divisions: [{ id: 'd', name: 'U15' }],
+            positions: [{ id: 'p', name: 'Goalie' }],
+            sessions: [{ id: 's', name: 'Skills' }],
+            groups: [{ id: 'g', name: 'Blue' }],
+          },
+          rows: [],
+          page: 1,
+          pageSize: 25,
+          total: 0,
+          totalPages: 1,
+          generatedAt: '2026-08-29T12:00:00.000Z',
+        }}
+      />,
+    );
+    expect(screen.getByLabelText('Position')).toHaveValue('p');
+    expect(screen.getByRole('option', { name: 'Goalie' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Clear filters' })).toHaveAttribute(
+      'href',
+      '?pageSize=25',
+    );
+    expect(screen.getByText('No ranking evidence yet')).toBeInTheDocument();
   });
 });

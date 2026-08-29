@@ -34,6 +34,7 @@ const SubmissionSchema = AthleteIdentitySchema.extend({
   guardianEmail: z.string().transform(canonicalRegistrationText).refine(isValidRegistrationEmail),
   guardianPhone: PhoneSchema.optional(),
   divisionId: z.uuid().optional(),
+  positionId: z.uuid().optional(),
   responses: z.record(z.string(), z.unknown()),
 }).strict();
 

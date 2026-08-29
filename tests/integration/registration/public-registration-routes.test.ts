@@ -23,6 +23,7 @@ const validSubmission = {
   guardianEmail: 'guardian@example.com',
   guardianPhone: '+1 (403) 555-0100',
   divisionId: 'c1101010-1010-4010-8010-101010101010',
+  positionId: 'c2101010-1010-4010-8010-101010101010',
   responses: {
     email: 'player@example.com',
     phone: '+1 (403) 555-0101',
@@ -99,6 +100,68 @@ beforeAll(async () => {
 });
 
 describe('real public registration route with local Supabase', () => {
+  it('returns published positions and persists the selected normalized position', async () => {
+    const route = await import('../../../src/app/api/public/registrations/route');
+    const get = await route.GET(
+      new NextRequest(`${origin}/api/public/registrations?tryoutSlug=http-registration-camp`),
+    );
+    expect(get.status).toBe(200);
+    await expect(get.json()).resolves.toMatchObject({
+      tryout: {
+        positions: [
+          { id: validSubmission.positionId, name: 'Goalie' },
+          { id: 'c3101010-1010-4010-8010-101010101010', name: 'Skater' },
+        ],
+      },
+    });
+    const familyName = `Position${randomUUID().slice(0, 8)}`;
+    const idempotencyKey = `position-${randomUUID()}`;
+    const guardianEmail = `position-${randomUUID()}@example.com`;
+    const response = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        {
+          tryoutSlug: 'http-registration-camp',
+          idempotencyKey,
+          submission: {
+            ...validSubmission,
+            familyName,
+            guardianEmail,
+          },
+        },
+        { 'x-forwarded-for': '203.0.113.230' },
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(
+      psql(
+        `select registration.position_id from public.tryout_registrations registration join public.athletes athlete on athlete.id=registration.athlete_id where athlete.family_name='${familyName}'`,
+      ),
+    ).toBe(validSubmission.positionId);
+    const conflict = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        {
+          tryoutSlug: 'http-registration-camp',
+          idempotencyKey,
+          submission: {
+            ...validSubmission,
+            familyName,
+            guardianEmail,
+            positionId: 'c3101010-1010-4010-8010-101010101010',
+          },
+        },
+        { 'x-forwarded-for': '203.0.113.231' },
+      ),
+    );
+    expect(conflict.status).toBe(400);
+    expect(
+      psql(
+        `select count(*)||':'||min(registration.position_id::text) from public.tryout_registrations registration join public.athletes athlete on athlete.id=registration.athlete_id where athlete.family_name='${familyName}'`,
+      ),
+    ).toBe(`1:${validSubmission.positionId}`);
+  });
+
   it.each([
     {
       label: 'composed stored identity and decomposed request',

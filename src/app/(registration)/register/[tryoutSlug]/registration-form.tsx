@@ -13,6 +13,7 @@ type RegistrationTryout = {
   name: string;
   formSchema: FormSchema;
   divisions: { id: string; name: string }[];
+  positions: { id: string; name: string }[];
 };
 
 export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
@@ -78,6 +79,7 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
             familyName: fields.get('familyName'),
             birthDate: fields.get('birthDate'),
             divisionId: fields.get('divisionId') || undefined,
+            positionId: fields.get('positionId') || undefined,
             guardianName: fields.get('guardianName'),
             guardianEmail: fields.get('guardianEmail'),
             guardianPhone: fields.get('guardianPhone') || undefined,
@@ -171,6 +173,23 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
               {tryout.divisions.map((division) => (
                 <option key={division.id} value={division.id}>
                   {division.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {tryout.positions.length > 0 && (
+          <label>
+            Position (optional)
+            <select
+              className="min-h-[var(--target-mobile)] w-full rounded-[var(--radius-control)] border p-2"
+              name="positionId"
+              aria-label="Position"
+            >
+              <option value="">Unassigned</option>
+              {tryout.positions.map((position) => (
+                <option key={position.id} value={position.id}>
+                  {position.name}
                 </option>
               ))}
             </select>

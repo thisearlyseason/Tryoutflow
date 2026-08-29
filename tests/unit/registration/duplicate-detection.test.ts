@@ -83,6 +83,42 @@ describe('duplicate detection', () => {
 });
 
 describe('registration application command', () => {
+  it('passes an optional normalized position id to the registration gateway', async () => {
+    let captured: unknown;
+    await registerAthlete(
+      {
+        tryoutSlug: 'fall-id-camp',
+        idempotencyKey: 'b'.repeat(32),
+        submission: {
+          givenName: 'Ava',
+          familyName: 'Smith',
+          birthDate: '2013-05-01',
+          guardianName: 'Taylor Smith',
+          guardianEmail: 'guardian@example.com',
+          positionId: '22222222-2222-4222-8222-222222222222',
+          responses: {},
+        },
+      },
+      {
+        form: { fields: [] },
+        gateway: {
+          submit: async (input) => {
+            captured = input;
+            return {
+              outcome: 'submitted' as const,
+              registrationId: 'r1',
+              confirmationToken: 'secret',
+            };
+          },
+        },
+        notifier: noRegistrationConfirmationNotifier,
+      },
+    );
+    expect(captured).toMatchObject({
+      submission: { positionId: '22222222-2222-4222-8222-222222222222' },
+    });
+  });
+
   it('does not claim email delivery when the durable notifier is not configured', async () => {
     await expect(
       registerAthlete(

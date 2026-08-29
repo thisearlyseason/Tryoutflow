@@ -2805,6 +2805,17 @@ export type Database = {
           tryout_id: string;
         }[];
       };
+      public_registration_tryout_v2: {
+        Args: { p_tryout_slug: string };
+        Returns: {
+          divisions: Json;
+          form_schema: Json;
+          name: string;
+          positions: Json;
+          slug: string;
+          tryout_id: string;
+        }[];
+      };
       publish_registration_form_version: {
         Args: {
           p_expected_version: number;
@@ -3014,6 +3025,20 @@ export type Database = {
       submit_public_registration_with_phone: {
         Args: {
           p_idempotency_key: string;
+          p_rate_key_hash: string;
+          p_submission: Json;
+          p_tryout_slug: string;
+        };
+        Returns: {
+          confirmation_token: string;
+          outcome: string;
+          registration_id: string;
+        }[];
+      };
+      submit_public_registration_with_position: {
+        Args: {
+          p_idempotency_key: string;
+          p_position_id?: string;
           p_rate_key_hash: string;
           p_submission: Json;
           p_tryout_slug: string;

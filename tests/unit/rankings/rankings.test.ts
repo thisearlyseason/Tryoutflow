@@ -27,6 +27,12 @@ const actor: AuthorizationContext = {
 };
 
 const snapshot: RankingSnapshot = {
+  filterOptions: {
+    divisions: [{ id: divisionId, name: 'U15' }],
+    positions: [],
+    sessions: [{ id: sessionId, name: 'Skills' }],
+    groups: [],
+  },
   registrations: [
     {
       registrationId: '77777777-7777-4777-8777-777777777777',
@@ -77,7 +83,7 @@ const snapshot: RankingSnapshot = {
         },
       ],
       categoryNames: [{ id: categoryId, name: 'Skating', scaleMax: 5 }],
-      sessions: [{ id: sessionId, name: 'Skills' }],
+      sessions: [{ id: sessionId, name: 'Skills', expectedEvaluators: 2 }],
       groups: [],
       flags: ['needs_another_look'],
     },
@@ -130,7 +136,7 @@ const snapshot: RankingSnapshot = {
         },
       ],
       categoryNames: [{ id: categoryId, name: 'Skating', scaleMax: 5 }],
-      sessions: [{ id: sessionId, name: 'Skills' }],
+      sessions: [{ id: sessionId, name: 'Skills', expectedEvaluators: 2 }],
       groups: [],
       flags: [],
     },
@@ -315,7 +321,7 @@ describe('authorized rankings application', () => {
       activeEvaluators: 3,
       completedEvaluations: 12,
       expectedEvaluations: 20,
-      syncNeedsAttention: 1,
+      recordedSyncExceptions: 1,
       generatedAt: '2026-08-29T12:00:00.000Z',
     };
     const result = await getLiveDashboard({ organizationId, tryoutId }, actor, {
@@ -328,5 +334,43 @@ describe('authorized rankings application', () => {
         dashboard: { ...dashboard, overall: '90.0' },
       }),
     ).toThrow(/dashboard projection/i);
+  });
+
+  it('returns independent authorized filter options on every page', async () => {
+    const result = await listRankings(
+      { organizationId, tryoutId, search: 'nobody', page: 2, pageSize: 1 },
+      actor,
+      { load: async () => ({ outcome: 'ok', snapshot }) },
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        rows: [],
+        filterOptions: snapshot.filterOptions,
+      },
+    });
+  });
+
+  it('compares normalized position, director flags, and bounded per-session evidence', async () => {
+    const result = await compareAthletes(
+      { organizationId, tryoutId, athleteIds: snapshot.registrations.map((row) => row.athleteId) },
+      actor,
+      { load: async () => ({ outcome: 'ok', snapshot }) },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.athletes[0]).toMatchObject({
+      positionName: null,
+      flags: ['needs_another_look'],
+      sessions: [
+        {
+          sessionId,
+          sessionName: 'Skills',
+          overall: '90.0',
+          completedEvaluators: 2,
+          categories: [{ categoryId, normalizedAverage: '90.0' }],
+        },
+      ],
+    });
   });
 });

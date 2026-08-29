@@ -300,7 +300,7 @@ Successful submission:
 4. Enqueues confirmation email.
 5. Returns a token-bound confirmation page without exposing private identifiers.
 
-CSV import uses preview, column mapping, row validation, duplicate candidates, and explicit confirmation. Invalid rows are downloadable and do not silently disappear.
+CSV import uses preview, column mapping, row validation, duplicate candidates, and explicit confirmation. Invalid rows are downloadable and do not silently disappear. The MVP CSV flow imports organization athletes, not tryout registrations, so it does not accept or fabricate tryout position assignments; positions are persisted only by registration workflows that carry an exact tryout context.
 
 ### 8.3 Check-in
 
@@ -424,7 +424,7 @@ Evaluator A can never address Evaluator B's evaluation record. Sync requests loa
 
 The desktop rankings workspace supports division, position, session, group, evaluator-count, and completion filters; search; category comparison; flags; notes; and decision state. Visualizations are limited to useful distributions and comparisons.
 
-Athlete comparison shows overall score, category differences, position, session performance, evaluator count, range, private notes, and flags. It does not imply certainty when evaluation coverage is low.
+Athlete comparison shows overall score, category differences, normalized position, authorized session performance, evaluator count, range, and director-created operational flags. Private evaluator notes and evaluator identities remain excluded from peer comparison. It does not imply certainty when evaluation coverage is low.
 
 Roster workflow:
 

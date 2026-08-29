@@ -9,11 +9,18 @@ export function AthleteComparison({ comparison }: { comparison: AthleteCompariso
       comparison.athletes.flatMap((athlete) => athlete.categories.map((row) => row.categoryId)),
     ),
   ];
+  const sessionIds = [
+    ...new Set(
+      comparison.athletes.flatMap((athlete) => athlete.sessions.map((row) => row.sessionId)),
+    ),
+  ];
   return (
     <div className="max-w-full overflow-x-auto rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)]">
       <table className="w-full min-w-[40rem] border-collapse text-left">
         <caption className="p-4 text-left text-sm text-[var(--color-text-muted)]">
-          Category aggregates from completed evaluations. Lower coverage means lower confidence.
+          Aggregates from completed evaluations. Director operational flags are included; private
+          evaluator notes and evaluator identities are excluded. Lower coverage means lower
+          confidence.
         </caption>
         <thead>
           <tr>
@@ -35,6 +42,26 @@ export function AthleteComparison({ comparison }: { comparison: AthleteCompariso
             {comparison.athletes.map((athlete) => (
               <td className="p-4 text-2xl font-bold tabular-nums" key={athlete.athleteId}>
                 {athlete.overall ?? 'Unranked'}
+              </td>
+            ))}
+          </tr>
+          <tr className="border-t border-[var(--color-border)]">
+            <th className="p-4" scope="row">
+              Position
+            </th>
+            {comparison.athletes.map((athlete) => (
+              <td className="p-4" key={athlete.athleteId}>
+                {athlete.positionName ?? 'Unassigned'}
+              </td>
+            ))}
+          </tr>
+          <tr className="border-t border-[var(--color-border)]">
+            <th className="p-4" scope="row">
+              Director flags
+            </th>
+            {comparison.athletes.map((athlete) => (
+              <td className="p-4" key={athlete.athleteId}>
+                {athlete.flags.join(', ') || 'None'}
               </td>
             ))}
           </tr>
@@ -75,6 +102,42 @@ export function AthleteComparison({ comparison }: { comparison: AthleteCompariso
                       ?.normalizedAverage ?? '—'}
                   </td>
                 ))}
+              </tr>
+            );
+          })}
+          {sessionIds.map((sessionId) => {
+            const sessionName =
+              comparison.athletes
+                .flatMap((athlete) => athlete.sessions)
+                .find((item) => item.sessionId === sessionId)?.sessionName ?? 'Session';
+            return (
+              <tr className="border-t border-[var(--color-border)]" key={`session-${sessionId}`}>
+                <th className="p-4" scope="row">
+                  {sessionName} session
+                </th>
+                {comparison.athletes.map((athlete) => {
+                  const evidence = athlete.sessions.find((item) => item.sessionId === sessionId);
+                  return (
+                    <td className="p-4" key={athlete.athleteId}>
+                      {evidence ? (
+                        <>
+                          {evidence.overall ?? 'Unranked'} · {evidence.completedEvaluators}/
+                          {evidence.expectedEvaluators} complete · range{' '}
+                          {evidence.scoreRange?.join('–') ?? 'n/a'}
+                          {evidence.categories.length > 0 ? (
+                            <span className="mt-1 block text-sm text-[var(--color-text-muted)]">
+                              {evidence.categories
+                                .map((category) => `${category.name} ${category.normalizedAverage}`)
+                                .join(' · ')}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        'No authorized evidence'
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             );
           })}

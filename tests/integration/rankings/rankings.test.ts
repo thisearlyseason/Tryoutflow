@@ -25,6 +25,8 @@ const tryout = 'f1888888-8888-4888-8888-888888888888';
 const division = 'f1999999-9999-4999-8999-999999999999';
 const session = 'f1aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const group = 'f1bbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const hiddenSession = 'f1aaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab';
+const hiddenGroup = 'f1bbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbc';
 const position = 'f1cccccc-cccc-4ccc-8ccc-cccccccccccc';
 const form = 'f1dddddd-dddd-4ddd-8ddd-dddddddddddd';
 const formVersion = 'f1eeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
@@ -37,6 +39,7 @@ const registrationA = 'f2000000-0000-4000-8000-000000000005';
 const registrationB = 'f2000000-0000-4000-8000-000000000006';
 const evaluationA = 'f2000000-0000-4000-8000-000000000007';
 const evaluationB = 'f2000000-0000-4000-8000-000000000008';
+const hiddenEvaluation = 'f2000000-0000-4000-8000-000000000009';
 
 const asUser = (userId: string, sql: string) =>
   psql(
@@ -57,8 +60,12 @@ describe('real authorized ranking projection', () => {
         insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('${tryout}','${organization}','Ranking Camp','ranking-camp','Hockey','America/Edmonton');
         insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values('${division}','${organization}','${tryout}','U15',0);
         insert into public.tryout_positions(id,organization_id,tryout_id,name,sort_order) values('${position}','${organization}','${tryout}','Forward',0);
-        insert into public.tryout_sessions(id,organization_id,tryout_id,division_id,name,starts_at,ends_at,sort_order) values('${session}','${organization}','${tryout}','${division}','Skills',clock_timestamp()+interval '1 day',clock_timestamp()+interval '1 day 1 hour',0);
-        insert into public.session_groups(id,organization_id,tryout_id,session_id,name,sort_order) values('${group}','${organization}','${tryout}','${session}','Blue',0);
+        insert into public.tryout_sessions(id,organization_id,tryout_id,division_id,name,starts_at,ends_at,sort_order) values
+          ('${session}','${organization}','${tryout}','${division}','Skills',clock_timestamp()+interval '1 day',clock_timestamp()+interval '1 day 1 hour',0),
+          ('${hiddenSession}','${organization}','${tryout}','${division}','Hidden scrimmage',clock_timestamp()+interval '2 days',clock_timestamp()+interval '2 days 1 hour',1);
+        insert into public.session_groups(id,organization_id,tryout_id,session_id,name,sort_order) values
+          ('${group}','${organization}','${tryout}','${session}','Blue',0),
+          ('${hiddenGroup}','${organization}','${tryout}','${hiddenSession}','Secret',0);
         insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,session_id,group_id,granted_by_user_id) values
           ('${organization}','${director}','director','group','${tryout}','${session}','${group}','${owner}'),
           ('${organization}','${reviewer}','reviewer','group','${tryout}','${session}','${group}','${owner}');
@@ -75,19 +82,27 @@ describe('real authorized ranking projection', () => {
           ('${registrationA}','${organization}','${tryout}','${athleteA}','${division}','${position}','${formVersion}','{}',repeat('a',64),repeat('1',64)),
           ('${registrationB}','${organization}','${tryout}','${athleteB}','${division}','${position}','${formVersion}','{}',repeat('b',64),repeat('2',64));
         insert into public.session_enrollments(organization_id,tryout_id,registration_id,session_id,group_id) values
-          ('${organization}','${tryout}','${registrationA}','${session}','${group}'),('${organization}','${tryout}','${registrationB}','${session}','${group}');
+          ('${organization}','${tryout}','${registrationA}','${session}','${group}'),('${organization}','${tryout}','${registrationB}','${session}','${group}'),
+          ('${organization}','${tryout}','${registrationA}','${hiddenSession}','${hiddenGroup}');
         insert into public.rubrics(id,organization_id,tryout_id,name) values('${rubric}','${organization}','${tryout}','Skills');
         insert into public.rubric_versions(id,organization_id,tryout_id,rubric_id,version_number) values('${rubricVersion}','${organization}','${tryout}','${rubric}',1);
         insert into public.rubric_categories(id,organization_id,tryout_id,rubric_version_id,name,sort_order,weight,scale_min,scale_max,is_priority) values('${category}','${organization}','${tryout}','${rubricVersion}','Skating',0,100,1,5,true);
-        insert into public.session_rubrics(organization_id,tryout_id,session_id,rubric_version_id) values('${organization}','${tryout}','${session}','${rubricVersion}');
+        insert into public.session_rubrics(organization_id,tryout_id,session_id,rubric_version_id) values
+          ('${organization}','${tryout}','${session}','${rubricVersion}'),('${organization}','${tryout}','${hiddenSession}','${rubricVersion}');
         set session_replication_role=replica;
         update public.rubric_versions set status='published',published_at=clock_timestamp() where id='${rubricVersion}';
         update public.tryouts set status='published',published_at=clock_timestamp() where id='${tryout}';
         insert into public.evaluations(id,organization_id,tryout_id,division_id,tryout_registration_id,tryout_session_id,group_id,evaluator_user_id,rubric_version_id,state,version,completed_at) values
           ('${evaluationA}','${organization}','${tryout}','${division}','${registrationA}','${session}','${group}','${evaluatorA}','${rubricVersion}','completed',2,clock_timestamp()),
-          ('${evaluationB}','${organization}','${tryout}','${division}','${registrationB}','${session}','${group}','${evaluatorB}','${rubricVersion}','locked',3,clock_timestamp());
+          ('${evaluationB}','${organization}','${tryout}','${division}','${registrationB}','${session}','${group}','${evaluatorB}','${rubricVersion}','locked',3,clock_timestamp()),
+          ('${hiddenEvaluation}','${organization}','${tryout}','${division}','${registrationA}','${hiddenSession}','${hiddenGroup}','${evaluatorB}','${rubricVersion}','completed',2,clock_timestamp());
         insert into public.evaluation_scores(organization_id,tryout_id,evaluation_id,rubric_version_id,rubric_category_id,value) values
-          ('${organization}','${tryout}','${evaluationA}','${rubricVersion}','${category}',4),('${organization}','${tryout}','${evaluationB}','${rubricVersion}','${category}',4);
+          ('${organization}','${tryout}','${evaluationA}','${rubricVersion}','${category}',4),('${organization}','${tryout}','${evaluationB}','${rubricVersion}','${category}',4),
+          ('${organization}','${tryout}','${hiddenEvaluation}','${rubricVersion}','${category}',1);
+        insert into public.tryout_numbers(organization_id,tryout_id,registration_id,division_id,session_id,group_id,scope_kind,number,assigned_by_user_id) values
+          ('${organization}','${tryout}','${registrationA}','${division}','${hiddenSession}','${hiddenGroup}','group',99,'${owner}');
+        insert into public.athlete_flags(organization_id,tryout_id,division_id,tryout_registration_id,tryout_session_id,group_id,creator_user_id,creator_kind,flag_type) values
+          ('${organization}','${tryout}','${division}','${registrationA}','${hiddenSession}','${hiddenGroup}','${owner}','director','injury_concern');
         insert into public.evaluation_notes(organization_id,evaluation_id,evaluator_user_id,note) values('${organization}','${evaluationA}','${evaluatorA}','private peer note');
         set session_replication_role=origin;
       `);
@@ -107,9 +122,26 @@ describe('real authorized ranking projection', () => {
 
       const directorResult = await asUser(
         director,
-        `select result->>'outcome' from public.load_ranking_snapshot('${organization}','${tryout}',null,null,'${session}','${group}',null)`,
+        `select result from public.load_ranking_snapshot('${organization}','${tryout}',null,null,null,null,null)`,
       );
-      expect(directorResult.stdout.trim()).toBe('ok');
+      const directorSnapshot = parseRankingSnapshot(JSON.parse(directorResult.stdout.trim()));
+      expect(directorSnapshot.outcome).toBe('ok');
+      if (directorSnapshot.outcome !== 'ok') return;
+      expect(directorSnapshot.snapshot.registrations).toHaveLength(2);
+      expect(directorSnapshot.snapshot.registrations[0]).toMatchObject({
+        tryoutNumber: null,
+        sessions: [{ id: session, name: 'Skills', expectedEvaluators: 2 }],
+        groups: [{ id: group, name: 'Blue' }],
+        evaluations: [{ sessionId: session }],
+        flags: [],
+      });
+      expect(directorResult.stdout).not.toContain(hiddenSession);
+      expect(directorResult.stdout).not.toContain(hiddenGroup);
+      expect(directorResult.stdout).not.toContain('Hidden scrimmage');
+      expect(directorResult.stdout).not.toContain('injury_concern');
+      expect(directorSnapshot.snapshot.filterOptions.sessions).toEqual([
+        { id: session, name: 'Skills' },
+      ]);
       for (const denied of [evaluatorA, checkin, member]) {
         const result = await asUser(
           denied,

@@ -34,7 +34,7 @@ export default async function LivePage({
     ['Active evaluators', result.value.activeEvaluators],
     ['Completed evaluations', result.value.completedEvaluations],
     ['Expected evaluations', result.value.expectedEvaluations],
-    ['Sync needs attention', result.value.syncNeedsAttention],
+    ['Recorded sync exceptions', result.value.recordedSyncExceptions],
   ] as const;
   return (
     <section aria-labelledby="live-heading">
@@ -42,6 +42,8 @@ export default async function LivePage({
       <h2 id="live-heading">Live dashboard</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">
         Current assignment coverage is a live operational view and can change when staffing changes.
+        Recorded sync exceptions are historical non-synced receipts (including conflicts and
+        forbidden outcomes), not a count of currently unresolved work.
       </p>
       <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map(([label, value]) => (
