@@ -73,6 +73,56 @@ export type Database = {
           },
         ];
       };
+      athlete_import_previews: {
+        Row: {
+          actor_user_id: string;
+          column_mapping: Json;
+          committed_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          organization_id: string;
+          preview_rows: Json;
+          result_athlete_ids: string[] | null;
+          selection_digest: string | null;
+          source_digest: string;
+        };
+        Insert: {
+          actor_user_id: string;
+          column_mapping: Json;
+          committed_at?: string | null;
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          organization_id: string;
+          preview_rows: Json;
+          result_athlete_ids?: string[] | null;
+          selection_digest?: string | null;
+          source_digest: string;
+        };
+        Update: {
+          actor_user_id?: string;
+          column_mapping?: Json;
+          committed_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          organization_id?: string;
+          preview_rows?: Json;
+          result_athlete_ids?: string[] | null;
+          selection_digest?: string | null;
+          source_digest?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'athlete_import_previews_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       athletes: {
         Row: {
           birth_date: string;
@@ -1515,6 +1565,17 @@ export type Database = {
         Returns: boolean;
       };
       canonical_registration_text: { Args: { value: string }; Returns: string };
+      commit_athlete_import: {
+        Args: {
+          p_organization_id: string;
+          p_preview_id: string;
+          p_selected_rows: number[];
+        };
+        Returns: {
+          athlete_ids: string[];
+          outcome: string;
+        }[];
+      };
       consume_public_registration_rate_limit: {
         Args: { p_limit: number; p_rate_key_hash: string };
         Returns: {
@@ -1527,6 +1588,18 @@ export type Database = {
         Returns: {
           outcome: string;
           registration_id: string;
+        }[];
+      };
+      create_athlete_import_preview: {
+        Args: {
+          p_column_mapping: Json;
+          p_organization_id: string;
+          p_preview_rows: Json;
+          p_source_digest: string;
+        };
+        Returns: {
+          expires_at: string;
+          preview_id: string;
         }[];
       };
       create_organization_with_owner: {

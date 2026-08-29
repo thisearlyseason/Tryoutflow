@@ -22,6 +22,8 @@ export default async function OrganizationLayout({
         >
           <Link href={`/app/${organization.slug}/home`}>Home</Link>
           {' · '}
+          <Link href={`/app/${organization.slug}/athletes`}>Athletes</Link>
+          {' · '}
           <Link href={`/app/${organization.slug}/organization/members`}>Members</Link>
           {' · '}
           <Link href={`/app/${organization.slug}/organization/settings`}>Settings</Link>
