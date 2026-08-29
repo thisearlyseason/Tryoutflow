@@ -330,6 +330,89 @@ git diff --check                                                  PASS
 - No migration or IndexedDB version rewrite was needed. Existing valid v5 records remain readable; newly written conflict-resolution tombstones use the strengthened complete-resolution schema.
 - `progress.md` and Task 18 were not changed.
 
+## User-authorized MVP scope revision — final verification
+
+### Status
+
+DONE — automatic `keep_local` rebasing and chained successor creation are deferred for the MVP.
+Conflicts now fail closed while preserving the newest local draft for exact copy/download. The only
+destructive recovery is explicit `use_server`, gated by online state, a freshly verified server
+snapshot, and the exact current local input digest. Keeping local work is a deliberate manual flow:
+export it, accept server, then paste or re-enter it as a new ordinary save. Task 18 was not started.
+The authenticated production-cookie browser chain remains the release-environment gate.
+
+### Verification
+
+```text
+npm run verify                                                     PASS (format, lint, types, 346 unit tests, build)
+npm run test:integration && npm run test:integration               PASS twice (19 files / 137 tests each)
+npx supabase db reset --local --no-seed                            PASS (47 migrations)
+npx supabase test db --local                                       PASS (29 files / 847 tests)
+npm run test:e2e:evaluation                                        PASS (8/8; Mobile Chrome + Mobile Safari)
+Mobile Safari conflict/export flow --repeat-each=10                PASS (20/20)
+npm audit --audit-level=high                                       PASS (0 vulnerabilities)
+git diff --check                                                   PASS
+```
+
+### Self-review
+
+- Production attempts to request legacy `keep_local` are rejected before hashing or opening the
+  all-store transaction, so they cannot alter drafts, queues, counters, receipts, tombstones, or
+  recovery metadata.
+- Legacy keep-local resolution artifacts remain schema-readable and exportable, but reconciliation,
+  replay, and future append fail closed without sequence reuse.
+- `use_server` validates the full seven-store physical and natural lineage before mutation. Offline,
+  stale-provenance, changed-input, counter, terminal-prefix, and exact-replay failures preserve the
+  durable state byte-for-byte.
+- The UI exposes Copy Local Draft and Download Local Draft, no Keep Local action. Use Server requires
+  a fresh online comparison and a second confirmation; an intervening edit cancels the action and
+  requires reconfirmation.
+- Repeated use-server groups, sequence-1 heads with sequence-2/3 dependents, exact replay, compaction,
+  and a subsequent ordinary sequence-4 append are covered. The browser flow proves export, offline
+  blocking, online server acceptance, reload, and a deliberate new ordinary save.
+- `progress.md` and Task 18 were not changed.
+
+## User-authorized MVP scope revision — defer automatic keep-local recovery
+
+### Decision
+
+Automatic `keep_local` rebasing and chained conflict successor creation are deferred for the MVP.
+The supported conflict workflow is now fail-closed export plus a verified online `use_server`
+discard. An evaluator who wants the local work copies or downloads it, accepts the fresh server
+draft, then deliberately pastes or re-enters the work as a new ordinary online save.
+
+### RED evidence
+
+- A production repository call accepted `keep_local` and created a successor mutation.
+- A destructive `use_server` call accepted explicitly offline or stale provenance.
+- The UI exposed Keep Local and had no confirmation snapshot that could detect an edit made after
+  the destructive dialog opened.
+
+### Delivered
+
+- The public repository action documents `keep_local` as unsupported and rejects it before parsing,
+  hashing, opening IndexedDB, or reading replay state. The synchronized production path calls only
+  `use_server` with explicit `{ online: true, fresh: true }` provenance. Explicitly offline/stale
+  provenance is rejected before mutation.
+- `use_server` retains the complete seven-store physical/natural validation, exact newest-local
+  digest binding, atomic retirement of the conflict and dependents, permanent terminal fencing,
+  replay validation, and exact future counter continuation. It never creates a resolution successor.
+- Legacy keep-local tombstones remain schema-readable. Reconciliation returns their preserved draft
+  as `needs_attention` without resolution authority; append/replay fails closed so sequence cannot be
+  reused.
+- The recovery UI removes Keep Local, preserves exact Copy/Download actions, explains the manual
+  re-entry workflow, disables Use Server offline or without a fresh comparison, and requires a
+  second destructive confirmation. The confirmation binds the exact current draft snapshot; any
+  intervening edit cancels it without invoking the repository.
+- Cross-tab reconciliation continues to use bounded durable re-query signals. No keep-local
+  successor or own keep-local authority path remains in the synchronized form.
+- The design and implementation plan now record the narrowed MVP contract and authenticated
+  production-browser release gate. Task 18 remains untouched.
+
+### Verification
+
+Pending final canonical matrix; see the final entry below for exact commands and counts.
+
 ## User-authorized final exceptional remediation
 
 ### Status

@@ -1019,6 +1019,13 @@ Expected: FAIL because mutation receipts and endpoint do not exist.
 
 Authorize at execution, insert or return the mutation receipt by client ID, compare expected version, update evaluation and scores atomically, increment version, and return typed conflict details without overwriting newer server data.
 
+MVP scope decision (2026-08-29): automatic `keep_local` conflict rebasing/successor creation is
+deferred because chained recovery could not be proven safe within the Task 17 review ceiling.
+Conflicts preserve/export the newest local draft and permit only verified online **Use server**
+discard. Keeping local work requires export, server acceptance, and a deliberate new ordinary save.
+Legacy keep-local artifacts fail closed and block replay/append. The authenticated production-route
+browser traversal remains a release-environment gate.
+
 - [ ] **Step 4: Verify weak-network browser scenario**
 
 Run: `npm run test:integration -- tests/integration/evaluations/synchronization.test.ts && npx playwright test tests/e2e/evaluation-offline-sync.spec.ts --project='Mobile Chrome'`

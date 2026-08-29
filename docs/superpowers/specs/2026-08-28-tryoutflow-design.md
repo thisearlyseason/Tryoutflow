@@ -408,6 +408,16 @@ The UI never says “saved” without specifying device or server persistence wh
 6. A stale version never overwrites the server. The device retains its draft and presents a review/reload path.
 7. Successful receipts remove or compact completed outbox entries.
 
+For the MVP, a synchronization conflict fails closed. The newest local draft remains available in
+IndexedDB and the browser-session recovery view, completion stays disabled, and the evaluator can
+copy or download the exact local work. Automatic keep-local rebasing and chained conflict
+successors are deferred. The only destructive recovery is an explicit **Use server** confirmation
+after an online, fresh-server comparison bound to the exact local input. If the local draft changes
+after confirmation opens, confirmation must restart. To retain local work, the evaluator exports
+it, accepts the server draft, then deliberately pastes or re-enters it as a new ordinary online
+save. Existing keep-local terminal artifacts from earlier development builds remain readable and
+exportable but fail closed: they are never replayed, extended, or used to allocate queue sequence.
+
 Evaluator A can never address Evaluator B's evaluation record. Sync requests load only the minimal assigned dataset.
 
 ## 11. Rankings, comparison, and roster workflow

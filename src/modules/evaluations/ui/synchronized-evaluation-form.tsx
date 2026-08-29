@@ -498,7 +498,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
   }
 
   async function resolveRecovery(input: {
-    action: 'keep_local' | 'use_server';
+    action: 'use_server';
     local: {
       scores: { categoryId: string; value: number }[];
       note: string;
@@ -506,7 +506,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       flags: string[];
     };
   }) {
-    if (!repository || !synchronizer || !props.initialDraft.evaluationId)
+    if (!repository || !synchronizer || !props.initialDraft.evaluationId || !navigator.onLine)
       return { outcome: 'failed' as const };
     const blocking = blockingLineageRef.current;
     const head = (await repository.listMutations(storageScope)).find(
@@ -556,64 +556,15 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         version: props.initialDraft.version,
         draft: serverDraft,
       },
+      verification: { online: true, fresh: true },
     });
     synchronizer.signalDurableChange({
       scopeKey: scopeKey(storageScope),
       evaluationId: resolved.evaluationId,
       clientMutationId: head.clientMutationId,
-      state: input.action === 'keep_local' ? 'saved_device' : 'synced',
+      state: 'synced',
     });
     evaluationIdRef.current = resolved.evaluationId;
-    if (input.action === 'keep_local') {
-      const successor = resolved.clientMutationId
-        ? (await repository.listMutations(storageScope)).find(
-            (row) =>
-              row.clientMutationId === resolved.clientMutationId &&
-              row.evaluationId === resolved.evaluationId &&
-              row.expectedVersion === resolved.expectedVersion &&
-              row.queueSequence === resolved.queueSequence &&
-              row.payloadDigest === resolved.payloadDigest,
-          )
-        : null;
-      activeLineageRef.current = successor
-        ? {
-            clientMutationId: successor.clientMutationId,
-            evaluationId: successor.evaluationId,
-            expectedVersion: successor.expectedVersion,
-            payloadDigest: successor.payloadDigest,
-          }
-        : null;
-      blockingLineageRef.current = successor ?? null;
-      relevantMutationIdsRef.current = new Set(successor ? [successor.clientMutationId] : []);
-      await synchronizer.flush();
-      const receipt = resolved.clientMutationId
-        ? await repository.getReceipt(storageScope, resolved.clientMutationId)
-        : null;
-      if (
-        receipt &&
-        receipt.clientMutationId === resolved.clientMutationId &&
-        receipt.evaluationId === resolved.evaluationId &&
-        receipt.expectedVersion === resolved.expectedVersion &&
-        receipt.payloadDigest === resolved.payloadDigest
-      ) {
-        setServerConfirmation({
-          evaluationId: receipt.evaluationId,
-          version: receipt.serverVersion,
-          confirmationToken: receipt.clientMutationId,
-        });
-        return {
-          outcome: 'resolved' as const,
-          evaluationId: receipt.evaluationId,
-          version: receipt.serverVersion,
-        };
-      }
-      setServerConfirmation(null);
-      return {
-        outcome: 'pending' as const,
-        evaluationId: resolved.evaluationId,
-        version: resolved.expectedVersion + 1,
-      };
-    }
     activeLineageRef.current = null;
     blockingLineageRef.current = null;
     relevantMutationIdsRef.current.clear();

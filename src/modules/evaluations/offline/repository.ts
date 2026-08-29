@@ -99,6 +99,7 @@ export type EvaluationDraftLineage = {
     payloadDigest: string;
   };
   resolution?: {
+    /** `keep_local` is retained only as an explicit unsupported legacy request. */
     action: 'keep_local' | 'use_server';
     inputLocalDraftDigest: string;
     resolutionId: string;
@@ -1391,6 +1392,15 @@ export class EvaluationOfflineRepository {
     for (const tombstone of relatedTombstones) {
       if (!tombstone.reason.startsWith('conflict_')) continue;
       if (
+        tombstone.reason === 'conflict_keep_local' ||
+        tombstone.resolutionAction === 'keep_local' ||
+        tombstone.resolutionResultMarker === 'keep_local_rebased'
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Legacy keep-local conflict lineage is preserved but cannot be replayed or extended.',
+        );
+      if (
         !tombstone.resolutionId ||
         !tombstone.resolutionAction ||
         !tombstone.resolutionHeadMutationId ||
@@ -1821,6 +1831,30 @@ export class EvaluationOfflineRepository {
         if (!(await this.validateQueueLineage(transaction, scope, mutations, new Date()))) {
           throw new EvaluationOfflineError('corrupt_record', 'Draft queue lineage is invalid.');
         }
+        // Older builds could create automatic keep-local successor groups. Preserve their draft
+        // for export, but never validate them into replay/append authority in the narrowed MVP.
+        for (const terminal of await this.physicallyScopedTombstones(transaction, scope)) {
+          const tombstone = await this.validateReceiptTombstone(
+            terminal.raw,
+            scope,
+            terminal.clientMutationId,
+          );
+          if (
+            tombstone.reason === 'conflict_keep_local' ||
+            tombstone.resolutionAction === 'keep_local' ||
+            tombstone.resolutionResultMarker === 'keep_local_rebased'
+          ) {
+            if (storedDraft.syncState !== 'needs_attention') {
+              storedDraft = { ...storedDraft, syncState: 'needs_attention' };
+              await this.database.drafts.put(storedDraft);
+            }
+            return {
+              state: 'needs_attention',
+              repaired: false,
+              draft: structuredClone(storedDraft),
+            };
+          }
+        }
         await this.validateConflictNaturalLineage(transaction, scope, [
           ...(storedDraft.evaluationId ? [storedDraft.evaluationId] : []),
           ...mutations.map((mutation) => mutation.evaluationId),
@@ -1916,31 +1950,6 @@ export class EvaluationOfflineRepository {
               receipt.serverVersion === storedDraft.expectedVersion &&
               receipt.payloadDigest === draftDigestAtReceiptVersion
             ) {
-              let resolution: EvaluationDraftLineage['resolution'];
-              for (const terminal of await this.physicallyScopedTombstones(transaction, scope)) {
-                const tombstone = await this.validateReceiptTombstone(
-                  terminal.raw,
-                  scope,
-                  terminal.clientMutationId,
-                );
-                if (
-                  tombstone.reason === 'conflict_keep_local' &&
-                  tombstone.resolutionResultMarker === 'keep_local_rebased' &&
-                  tombstone.resolutionResultMutationId === receipt.clientMutationId &&
-                  tombstone.resolutionServerEvaluationId === receipt.evaluationId &&
-                  tombstone.resolutionServerVersion === receipt.expectedVersion &&
-                  tombstone.resolutionResultPayloadDigest === receipt.payloadDigest &&
-                  tombstone.resolutionInputLocalDraftDigest
-                ) {
-                  resolution = {
-                    action: 'keep_local',
-                    inputLocalDraftDigest: tombstone.resolutionInputLocalDraftDigest,
-                    resolutionId: tombstone.resolutionId ?? tombstone.clientMutationId,
-                    resultDraftDigest: tombstone.resolutionResultDraftDigest!,
-                  };
-                  break;
-                }
-              }
               if (storedDraft.syncState !== 'synced') {
                 storedDraft = { ...storedDraft, syncState: 'synced' };
                 await this.database.drafts.put(storedDraft);
@@ -1956,7 +1965,6 @@ export class EvaluationOfflineRepository {
                   serverVersion: receipt.serverVersion,
                   payloadDigest: receipt.payloadDigest,
                 },
-                ...(resolution ? { resolution } : {}),
               };
             }
           }
@@ -2912,6 +2920,34 @@ export class EvaluationOfflineRepository {
       payloadDigest: string;
       queueSequence: number;
     };
+    /** Exact newest browser-session draft being explicitly discarded. */
+    local: EvaluationDraftPayload;
+    server: {
+      scope: EvaluationStorageScope;
+      evaluationId: string;
+      version: number;
+      draft: EvaluationDraftPayload;
+    };
+    verification: { online: true; fresh: true };
+    now?: Date;
+  }): Promise<{
+    action: 'use_server';
+    evaluationId: string;
+    expectedVersion: number;
+    draftDigest: string;
+    payloadDigest?: string;
+    clientMutationId?: string;
+    queueSequence?: number;
+  }>;
+  async resolveConflict(input: {
+    scope: EvaluationStorageScope;
+    clientMutationId: string;
+    action: 'keep_local' | 'use_server';
+    original: {
+      evaluationId: string;
+      payloadDigest: string;
+      queueSequence: number;
+    };
     /** Exact newest browser-session draft chosen by the evaluator for this resolution. */
     local: EvaluationDraftPayload;
     server: {
@@ -2920,6 +2956,7 @@ export class EvaluationOfflineRepository {
       version: number;
       draft: EvaluationDraftPayload;
     };
+    verification?: { online: boolean; fresh: boolean };
     now?: Date;
   }): Promise<{
     action: 'keep_local' | 'use_server';
@@ -2930,6 +2967,19 @@ export class EvaluationOfflineRepository {
     clientMutationId?: string;
     queueSequence?: number;
   }> {
+    // Automatic keep-local rebasing is intentionally deferred for the MVP. This gate runs before
+    // parsing, hashing, opening IndexedDB, or reading replay state, so unsupported and offline or
+    // stale destructive choices cannot mutate durable work through a JavaScript caller.
+    if (input.action !== 'use_server')
+      throw new EvaluationOfflineError(
+        'invalid_transition',
+        'Keeping local work requires export, server reconciliation, and a new ordinary save.',
+      );
+    if (input.verification?.online !== true || input.verification.fresh !== true)
+      throw new EvaluationOfflineError(
+        'invalid_transition',
+        'Using the server draft requires an online fresh-server comparison.',
+      );
     const scope = this.parseScope(input.scope);
     const requestedLocalDraft = this.parseDraft(input.local);
     const serverScope = this.parseScope(input.server.scope);

@@ -391,7 +391,7 @@ describe('EvaluationForm', () => {
       screen.queryByRole('button', { name: 'Reload and compare safely' }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('exists on this page only');
-    expect(screen.getByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Keep my local draft' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
     await act(async () => vi.advanceTimersByTime(5_000));
     expect(onSave).toHaveBeenCalledTimes(1);
@@ -634,7 +634,7 @@ describe('EvaluationForm', () => {
       await screen.findByRole('heading', { name: 'Review local and server drafts' }),
     ).toBeVisible();
     expect(screen.getByRole('article', { name: 'Local draft' })).toHaveTextContent('Changed');
-    expect(screen.getByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Keep my local draft' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use server draft' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Copy local draft' })).toBeVisible();
   });
@@ -804,7 +804,7 @@ describe('EvaluationForm', () => {
     expect(screen.getByRole('button', { name: 'Copy local draft' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Download local draft' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save now' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Keep my local draft' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
 
     cleanup();
@@ -829,7 +829,11 @@ describe('EvaluationForm', () => {
       await screen.findByRole('article', { name: 'Server draft loaded after reload' }),
     ).toHaveTextContent('New server copy');
 
-    await user.click(screen.getByRole('button', { name: 'Keep my local draft' }));
+    await user.click(screen.getByRole('button', { name: 'Use server draft' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm use server draft' }));
+    const restoredNote = screen.getByLabelText('Private evaluator note');
+    await user.clear(restoredNote);
+    await user.type(restoredNote, 'Local sensitive note');
     await user.click(screen.getByRole('button', { name: 'Save now' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(onSave).toHaveBeenCalledWith(
@@ -950,10 +954,10 @@ describe('EvaluationForm', () => {
     vi.useRealTimers();
   });
 
-  it('freezes recovery editing while the exact keep-local draft is being durably resolved', async () => {
+  it('removes automatic keep-local recovery and requires reconfirmation after a local edit', async () => {
     const user = userEvent.setup();
-    const pending = deferred<{
-      outcome: 'pending';
+    const resolved = deferred<{
+      outcome: 'resolved';
       evaluationId: string;
       version: number;
     }>();
@@ -974,7 +978,7 @@ describe('EvaluationForm', () => {
         serverSnapshotToken: 'older-server-snapshot',
       }),
     );
-    const onResolveRecovery = vi.fn(() => pending.promise);
+    const onResolveRecovery = vi.fn(() => resolved.promise);
     render(
       <EvaluationForm
         athlete={athlete}
@@ -988,15 +992,27 @@ describe('EvaluationForm', () => {
       />,
     );
     const note = await screen.findByLabelText('Private evaluator note');
-    await user.click(screen.getByRole('button', { name: 'Keep my local draft' }));
+    expect(screen.queryByRole('button', { name: /keep my local draft/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/automatic keep-local recovery is deferred/i)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Use server draft' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(/permanently replaces/i);
+    await user.type(note, ' changed after opening');
+    await user.click(screen.getByRole('button', { name: 'Confirm use server draft' }));
+    expect(onResolveRecovery).not.toHaveBeenCalled();
+    expect(screen.getByText(/changed after confirmation opened/i)).toBeVisible();
+
+    await user.click(screen.getByRole('button', { name: 'Use server draft' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm use server draft' }));
     expect(note).toBeDisabled();
     expect(onResolveRecovery).toHaveBeenCalledWith({
-      action: 'keep_local',
-      local: expect.objectContaining({ note: 'exact newest recovery edit 🚀' }),
+      action: 'use_server',
+      local: expect.objectContaining({
+        note: 'exact newest recovery edit 🚀 changed after opening',
+      }),
     });
-    await act(async () => pending.resolve({ outcome: 'pending', evaluationId, version: 3 }));
-    expect(note).toBeEnabled();
-    expect(screen.getByRole('status')).toHaveTextContent('Saved on device');
+    await act(async () => resolved.resolve({ outcome: 'resolved', evaluationId, version: 2 }));
+    expect(screen.getByText(/server draft restored/i)).toBeVisible();
   });
 
   it('accepts only a receipt-bound sibling-tab resolution as the confirmed winner', async () => {
@@ -1264,7 +1280,7 @@ describe('EvaluationForm', () => {
         onSave={vi.fn()}
       />,
     );
-    expect(await screen.findByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Keep my local draft' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Copy local draft' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Download local draft' })).toBeEnabled();

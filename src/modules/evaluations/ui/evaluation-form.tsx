@@ -226,12 +226,10 @@ export function EvaluationForm({
       }
     | null;
   onResolveRecovery?: (input: {
-    action: 'keep_local' | 'use_server';
+    action: 'use_server';
     local: EditableDraft;
   }) => Promise<
-    | { outcome: 'resolved'; evaluationId: string; version: number }
-    | { outcome: 'pending'; evaluationId: string; version: number }
-    | { outcome: 'failed' }
+    { outcome: 'resolved'; evaluationId: string; version: number } | { outcome: 'failed' }
   >;
   recoveryServerDraft?: EvaluationDraftInput;
   allowVerifiedIdentityRemap?: boolean;
@@ -278,6 +276,10 @@ export function EvaluationForm({
   const [recoveryNotice, setRecoveryNotice] = useState('');
   const [completing, setCompleting] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [online, setOnline] = useState(false);
+  const [useServerConfirmation, setUseServerConfirmation] = useState<{
+    localDraftSnapshot: string;
+  } | null>(null);
   const versionRef = useRef(initialDraft.version);
   const evaluationIdRef = useRef(initialDraft.evaluationId);
   const revisionRef = useRef(0);
@@ -299,6 +301,17 @@ export function EvaluationForm({
   const localAuthorityRef = useRef<CachedDraft['localAuthority']>(undefined);
   const editable = completionState === 'draft' || completionState === 'reopened';
   const interactive = editable && hydrated && !restriction && !completing && !resolving;
+
+  useEffect(() => {
+    const refreshOnlineState = () => setOnline(navigator.onLine);
+    refreshOnlineState();
+    window.addEventListener('online', refreshOnlineState);
+    window.addEventListener('offline', refreshOnlineState);
+    return () => {
+      window.removeEventListener('online', refreshOnlineState);
+      window.removeEventListener('offline', refreshOnlineState);
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -779,43 +792,22 @@ export function EvaluationForm({
     return operation;
   }
 
-  async function keepLocalDraft() {
-    setResolving(true);
-    const resolution = onResolveRecovery
-      ? await onResolveRecovery({ action: 'keep_local', local: latestDraftRef.current }).catch(
-          () => ({ outcome: 'failed' as const }),
-        )
-      : null;
-    setResolving(false);
-    if (resolution?.outcome === 'failed') {
-      setRecoveryNotice('The local draft is still protected. Reload and try resolving again.');
+  async function useServerDraft() {
+    if (!online || !recovery?.serverFresh) {
+      setUseServerConfirmation(null);
+      setRecoveryNotice(
+        'Connect to the internet and reload the fresh server draft before replacing local work.',
+      );
       return;
     }
-    versionRef.current = resolution?.version ?? authoritativeServerDraft.version;
-    evaluationIdRef.current = resolution?.evaluationId ?? authoritativeServerDraft.evaluationId;
-    blockedRef.current = false;
-    recoveryKindRef.current = null;
-    localAuthorityRef.current = undefined;
-    lastRequestRef.current = undefined;
-    lastCompletionRef.current = undefined;
-    const confirmed = resolution?.outcome === 'resolved';
-    // A pending keep-local resolution is already durable in the exact rebased outbox successor.
-    // Mark the UI revision device-confirmed so reconnect does not enqueue a second payload; the
-    // exact successor receipt delivered through serverConfirmation is still required for server
-    // authority and completion.
-    confirmedRevisionRef.current = resolution ? revisionRef.current : 0;
-    serverConfirmedRef.current = confirmed;
-    drainGoalRef.current = 0;
-    setRecovery(null);
-    setRecoveryNotice('');
-    setSaveState(
-      confirmed ? 'saved' : resolution ? 'saved_device' : navigator.onLine ? 'editing' : 'offline',
-    );
-    if (confirmed) clearCachedDraft(draftCacheKey);
-    else persistDraft('dirty');
-  }
-
-  async function useServerDraft() {
+    const currentSnapshot = JSON.stringify(latestDraftRef.current);
+    if (useServerConfirmation?.localDraftSnapshot !== currentSnapshot) {
+      setUseServerConfirmation(null);
+      setRecoveryNotice(
+        'The local draft changed after confirmation opened. Review it and confirm again; nothing was replaced.',
+      );
+      return;
+    }
     setResolving(true);
     const resolution = onResolveRecovery
       ? await onResolveRecovery({ action: 'use_server', local: latestDraftRef.current }).catch(
@@ -828,6 +820,7 @@ export function EvaluationForm({
       return;
     }
     latestDraftRef.current = serverDraft;
+    setUseServerConfirmation(null);
     revisionRef.current = 0;
     confirmedRevisionRef.current = 0;
     drainGoalRef.current = 0;
@@ -863,7 +856,9 @@ export function EvaluationForm({
   async function copyLocalDraft() {
     try {
       await navigator.clipboard.writeText(localRecoveryText());
-      setRecoveryNotice('Local draft copied. Protect it because evaluator notes are sensitive.');
+      setRecoveryNotice(
+        'Local draft copied. To keep it, accept the fresh server draft, then deliberately paste or re-enter it as a new online save.',
+      );
     } catch {
       setRecoveryNotice(
         'Copy failed. Download the local draft before choosing the server version.',
@@ -878,7 +873,9 @@ export function EvaluationForm({
     link.download = 'evaluation-local-draft.json';
     link.click();
     URL.revokeObjectURL(url);
-    setRecoveryNotice('Local draft downloaded. Protect it because evaluator notes are sensitive.');
+    setRecoveryNotice(
+      'Local draft downloaded. To keep it, accept the fresh server draft, then deliberately paste or re-enter it as a new online save.',
+    );
   }
 
   return (
@@ -972,6 +969,11 @@ export function EvaluationForm({
             athlete name, and is cleared after a confirmed save, choosing the server draft, or the
             browser session ending. Use copy/download only on a trusted device.
           </p>
+          <p className="text-sm">
+            Automatic keep-local recovery is deferred for this release. To keep local work, copy or
+            download it first, use the fresh server draft, then deliberately paste or re-enter the
+            work and save it as a new ordinary online change.
+          </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {!recovery.serverFresh && recovery.durable ? (
               <button
@@ -997,22 +999,51 @@ export function EvaluationForm({
               Download local draft
             </button>
             <button
-              className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)]"
-              disabled={resolving || !editable || !recovery.serverFresh}
-              onClick={() => void keepLocalDraft()}
-              type="button"
-            >
-              Keep my local draft
-            </button>
-            <button
-              className="min-h-[44px] rounded-lg border border-[var(--color-destructive)] px-4 font-bold text-[var(--color-destructive)]"
-              disabled={resolving || !recovery.serverFresh}
-              onClick={() => void useServerDraft()}
+              className="min-h-[44px] rounded-lg border border-[var(--color-destructive)] px-4 font-bold text-[var(--color-destructive)] sm:col-span-2"
+              disabled={resolving || !recovery.serverFresh || !online}
+              onClick={() => {
+                setUseServerConfirmation({
+                  localDraftSnapshot: JSON.stringify(latestDraftRef.current),
+                });
+                setRecoveryNotice('');
+              }}
               type="button"
             >
               Use server draft
             </button>
           </div>
+          {useServerConfirmation ? (
+            <div
+              aria-labelledby="use-server-confirmation-heading"
+              aria-modal="true"
+              className="grid min-w-0 gap-3 rounded-lg border-2 border-[var(--color-destructive)] p-3"
+              role="alertdialog"
+            >
+              <h4 id="use-server-confirmation-heading">Replace this local draft?</h4>
+              <p className="break-words text-sm">
+                This permanently replaces the local draft with the fresh server version. Copy or
+                download local work first. This action requires an online connection, and any edit
+                made after this confirmation opened requires a new confirmation.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 font-bold"
+                  onClick={() => setUseServerConfirmation(null)}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="min-h-[44px] rounded-lg bg-[var(--color-destructive)] px-4 font-bold text-white"
+                  disabled={resolving || !online}
+                  onClick={() => void useServerDraft()}
+                  type="button"
+                >
+                  Confirm use server draft
+                </button>
+              </div>
+            </div>
+          ) : null}
           {recoveryNotice ? <p role="status">{recoveryNotice}</p> : null}
         </section>
       ) : recoveryNotice ? (
