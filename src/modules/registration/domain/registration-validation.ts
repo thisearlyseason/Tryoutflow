@@ -13,6 +13,11 @@ export function canonicalRegistrationText(value: string): string {
   return value.replace(REGISTRATION_WHITESPACE, ' ').replace(/^ +| +$/gu, '');
 }
 
+/** Import identity/header canonicalization adds Unicode NFC without changing Task 10 whitespace rules. */
+export function canonicalImportText(value: string): string {
+  return canonicalRegistrationText(value).normalize('NFC');
+}
+
 export function registrationCodePointLength(value: string): number {
   return Array.from(value).length;
 }

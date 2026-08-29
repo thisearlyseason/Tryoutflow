@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 
 import { describe, expect, it } from 'vitest';
 
@@ -10,6 +10,28 @@ function psql(sql: string) {
     ['postgresql://postgres:postgres@127.0.0.1:54322/postgres', '-v', 'ON_ERROR_STOP=1', '-At'],
     { encoding: 'utf8', input: sql },
   ).trim();
+}
+
+function psqlAsync(sql: string, onOutput?: (output: string) => void) {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(
+      'psql',
+      ['postgresql://postgres:postgres@127.0.0.1:54322/postgres', '-v', 'ON_ERROR_STOP=1', '-At'],
+      { stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+    let output = '';
+    let errors = '';
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => {
+      output += chunk;
+      onOutput?.(output);
+    });
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (errors += chunk));
+    child.on('error', reject);
+    child.on('close', (code) =>
+      code === 0 ? resolve(output.trim()) : reject(new Error(errors || `psql exited ${code}`)),
+    );
+    child.stdin.end(sql);
+  });
 }
 
 describe('athlete CSV import transaction against local Supabase', () => {
@@ -59,5 +81,61 @@ describe('athlete CSV import transaction against local Supabase', () => {
       'invalid_selection',
       '0',
     ]);
+  });
+
+  it('serializes separate preview commits on canonical tenant identity', async () => {
+    const setup = psql(`
+      insert into auth.users(id) values ('19191919-1919-4919-8919-191919191919');
+      insert into public.organizations(id,name,slug,timezone) values ('a1919191-1919-4919-8919-191919191919','Concurrent Import','concurrent-import','America/Edmonton');
+      insert into public.organization_members(organization_id,user_id,role,status) values ('a1919191-1919-4919-8919-191919191919','19191919-1919-4919-8919-191919191919','owner','active');
+      set role authenticated;
+      select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','19191919-1919-4919-8919-191919191919',false);
+      select preview_id from public.create_athlete_import_preview(
+        'a1919191-1919-4919-8919-191919191919',repeat('1',64),
+        '{"givenName":"First","familyName":"Last","birthDate":"DOB"}',
+        '[{"row":2,"status":"valid","errors":[],"athlete":{"givenName":"Jose\u0301","familyName":"Smith","birthDate":"2013-05-01"},"duplicateCandidateIds":[]}]');
+      select preview_id from public.create_athlete_import_preview(
+        'a1919191-1919-4919-8919-191919191919',repeat('2',64),
+        '{"givenName":"First","familyName":"Last","birthDate":"DOB"}',
+        '[{"row":2,"status":"valid","errors":[],"athlete":{"givenName":"Jos\u00e9","familyName":"Smith","birthDate":"2013-05-01"},"duplicateCandidateIds":[]}]');
+    `);
+    const previewIds = setup
+      .split('\n')
+      .filter((line) => /^[0-9a-f-]{36}$/u.test(line))
+      .slice(-2);
+    expect(previewIds).toHaveLength(2);
+    const identityKey = 'a1919191-1919-4919-8919-191919191919|josé|smith|2013-05-01';
+    let releaseFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => (releaseFirstStarted = resolve));
+    const session = (previewId: string, prefix = '') => `
+      begin;
+      set local role authenticated;
+      select set_config('request.jwt.claim.role','authenticated',true);
+      select set_config('request.jwt.claim.sub','19191919-1919-4919-8919-191919191919',true);
+      ${prefix}
+      select outcome from public.commit_athlete_import('a1919191-1919-4919-8919-191919191919','${previewId}',array[2]);
+      select pg_sleep(0.5);
+      commit;
+    `;
+    const first = psqlAsync(
+      session(
+        previewIds[0]!,
+        `select pg_advisory_xact_lock(hashtextextended('${identityKey}',0)); select 'first_ready';`,
+      ),
+      (output) => {
+        if (output.includes('first_ready')) releaseFirstStarted();
+      },
+    );
+    await firstStarted;
+    const second = psqlAsync(session(previewIds[1]!));
+    const [firstOutput, secondOutput] = await Promise.all([first, second]);
+    expect(firstOutput).toContain('committed');
+    expect(secondOutput).toContain('invalid_selection');
+    expect(
+      psql(
+        "select count(*) from public.athletes where organization_id='a1919191-1919-4919-8919-191919191919'",
+      ),
+    ).toBe('1');
   });
 });

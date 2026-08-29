@@ -79,6 +79,7 @@ export type Database = {
           column_mapping: Json;
           committed_at: string | null;
           created_at: string;
+          duplicate_decisions: Json;
           expires_at: string;
           id: string;
           organization_id: string;
@@ -92,6 +93,7 @@ export type Database = {
           column_mapping: Json;
           committed_at?: string | null;
           created_at?: string;
+          duplicate_decisions?: Json;
           expires_at: string;
           id?: string;
           organization_id: string;
@@ -105,6 +107,7 @@ export type Database = {
           column_mapping?: Json;
           committed_at?: string | null;
           created_at?: string;
+          duplicate_decisions?: Json;
           expires_at?: string;
           id?: string;
           organization_id?: string;
@@ -500,6 +503,9 @@ export type Database = {
           organization_id: string;
           reason: string;
           registration_id: string;
+          resolution: string | null;
+          resolved_at: string | null;
+          resolved_by_user_id: string | null;
         };
         Insert: {
           candidate_athlete_id: string;
@@ -508,6 +514,9 @@ export type Database = {
           organization_id: string;
           reason: string;
           registration_id: string;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by_user_id?: string | null;
         };
         Update: {
           candidate_athlete_id?: string;
@@ -516,6 +525,9 @@ export type Database = {
           organization_id?: string;
           reason?: string;
           registration_id?: string;
+          resolution?: string | null;
+          resolved_at?: string | null;
+          resolved_by_user_id?: string | null;
         };
         Relationships: [
           {
@@ -1565,6 +1577,7 @@ export type Database = {
         Returns: boolean;
       };
       canonical_registration_text: { Args: { value: string }; Returns: string };
+      canonical_import_text: { Args: { value: string }; Returns: string };
       commit_athlete_import: {
         Args: {
           p_organization_id: string;
@@ -1601,6 +1614,23 @@ export type Database = {
           expires_at: string;
           preview_id: string;
         }[];
+      };
+      purge_expired_athlete_import_previews: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
+      resolve_athlete_import_duplicate: {
+        Args: {
+          p_decision: string;
+          p_organization_id: string;
+          p_preview_id: string;
+          p_row: number;
+        };
+        Returns: { outcome: string }[];
+      };
+      resolve_registration_duplicate: {
+        Args: { p_candidate_id: string; p_decision: string; p_organization_id: string };
+        Returns: { outcome: string }[];
       };
       create_organization_with_owner: {
         Args: {

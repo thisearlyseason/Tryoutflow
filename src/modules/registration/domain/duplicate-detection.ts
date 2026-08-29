@@ -1,6 +1,6 @@
-import { canonicalRegistrationText } from './registration-validation';
+import { canonicalImportText } from './registration-validation';
 
-export type DuplicateReason = 'name_birthdate_guardian_email';
+export type DuplicateReason = 'name_birthdate' | 'name_birthdate_guardian_email';
 
 export type DuplicateCandidate = {
   athleteId: string;
@@ -12,13 +12,13 @@ export type DuplicateAthlete = {
   givenName: string;
   familyName: string;
   birthDate: string;
-  guardianEmail: string;
+  guardianEmail?: string;
 };
 
 export type DuplicateInput = Omit<DuplicateAthlete, 'athleteId'>;
 
 function normaliseText(value: string) {
-  return canonicalRegistrationText(value).toLocaleLowerCase('en-CA');
+  return canonicalImportText(value).toLocaleLowerCase('en-CA');
 }
 
 export function findDuplicateCandidates(
@@ -27,18 +27,20 @@ export function findDuplicateCandidates(
 ): DuplicateCandidate[] {
   const givenName = normaliseText(incoming.givenName);
   const familyName = normaliseText(incoming.familyName);
-  const guardianEmail = normaliseText(incoming.guardianEmail);
-
   return existing
     .filter(
       (candidate) =>
         normaliseText(candidate.givenName) === givenName &&
         normaliseText(candidate.familyName) === familyName &&
-        candidate.birthDate === incoming.birthDate &&
-        normaliseText(candidate.guardianEmail) === guardianEmail,
+        candidate.birthDate === incoming.birthDate,
     )
     .map((candidate) => ({
       athleteId: candidate.athleteId,
-      reason: 'name_birthdate_guardian_email' as const,
+      reason:
+        candidate.guardianEmail &&
+        incoming.guardianEmail &&
+        normaliseText(candidate.guardianEmail) === normaliseText(incoming.guardianEmail)
+          ? ('name_birthdate_guardian_email' as const)
+          : ('name_birthdate' as const),
     }));
 }

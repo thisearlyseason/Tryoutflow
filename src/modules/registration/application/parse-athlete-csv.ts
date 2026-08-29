@@ -1,12 +1,12 @@
 import Papa from 'papaparse';
 
 import {
-  canonicalRegistrationText,
+  canonicalImportText,
   registrationCodePointLength,
 } from '../domain/registration-validation';
 
 export const MAX_CSV_BYTES = 1_048_576;
-export const MAX_CSV_ROWS = 1_000;
+export const MAX_CSV_ROWS = 500;
 export const MAX_CSV_COLUMNS = 30;
 export const MAX_CSV_CELL_CODE_POINTS = 500;
 
@@ -47,7 +47,7 @@ export class CsvImportError extends Error {
 }
 
 function normalizedHeader(value: string) {
-  return canonicalRegistrationText(value).toLocaleLowerCase('en-CA');
+  return canonicalImportText(value).toLocaleLowerCase('en-CA');
 }
 
 /** Safe when a value is later included in a downloadable CSV/spreadsheet. */
@@ -94,9 +94,7 @@ export function parseAthleteCsv(content: string, mapping: CsvColumnMapping): Par
   if (headerCells.length === 0 || headerCells.length > MAX_CSV_COLUMNS) {
     throw new CsvImportError('too_many_columns', `CSV must have 1-${MAX_CSV_COLUMNS} columns.`);
   }
-  const headers = headerCells.map((value) =>
-    canonicalRegistrationText(value.replace(/^\ufeff/u, '')),
-  );
+  const headers = headerCells.map((value) => canonicalImportText(value.replace(/^\ufeff/u, '')));
   if (headers.some((header) => header === '')) {
     throw new CsvImportError('invalid_csv', 'CSV headers cannot be blank.');
   }

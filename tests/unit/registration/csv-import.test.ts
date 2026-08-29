@@ -64,6 +64,27 @@ describe('athlete CSV parsing', () => {
       }),
     ).toThrow(/cell/i);
     expect(() => parseAthleteCsv('x'.repeat(1_048_577), mapping)).toThrow(CsvImportError);
+    const tooManyRows = [
+      'First,Last,DOB',
+      ...Array.from({ length: 501 }, (_, index) => `A${index},Smith,2013-05-01`),
+    ].join('\n');
+    expect(() =>
+      parseAthleteCsv(tooManyRows, {
+        givenName: 'First',
+        familyName: 'Last',
+        birthDate: 'DOB',
+      }),
+    ).toThrow(/500-row limit/i);
+  });
+
+  it('normalizes canonically equivalent Unicode headers and rejects their collision', () => {
+    expect(() =>
+      parseAthleteCsv('Cafe\u0301,Caf\u00e9,DOB\nAva,Smith,2013-05-01', {
+        givenName: 'Caf\u00e9',
+        familyName: 'Cafe\u0301',
+        birthDate: 'DOB',
+      }),
+    ).toThrow(/duplicate header/i);
   });
 
   it('neutralizes spreadsheet formulas without interpreting them', () => {
@@ -92,6 +113,29 @@ describe('two-stage athlete import', () => {
     ]);
     expect(preview.contentHash).toMatch(/^[0-9a-f]{64}$/u);
     expect(savePreview).toHaveBeenCalledOnce();
+  });
+
+  it('surfaces identical rows without guardian data as duplicate candidates', async () => {
+    const preview = await previewAthleteImport(
+      {
+        organizationId,
+        content: 'First,Last,DOB\nJose\u0301,Smith,2013-05-01\nJos\u00e9,Smith,2013-05-01',
+        mapping: { givenName: 'First', familyName: 'Last', birthDate: 'DOB' },
+        actor,
+      },
+      {
+        findExistingAthletes: async () => [],
+        savePreview: async (candidate) => ({ ...candidate, id: 'preview-nfc' }),
+      },
+    );
+    expect(preview.rows).toMatchObject([
+      { row: 2, status: 'valid', athlete: { givenName: 'Jos\u00e9' } },
+      {
+        row: 3,
+        status: 'duplicate_candidate',
+        duplicateCandidateIds: ['preview-row:2'],
+      },
+    ]);
   });
 
   it('does not expose parsed PII when authorization fails', async () => {

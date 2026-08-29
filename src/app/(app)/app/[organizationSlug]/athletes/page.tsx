@@ -6,10 +6,15 @@ import { requireCurrentOrganization } from '@/modules/organizations/application/
 
 export default async function AthletesPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationSlug: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { organizationSlug } = await params;
+  const requestedPage = Number((await searchParams).page ?? '1');
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const pageSize = 50;
   const current = await requireCurrentOrganization(organizationSlug);
   if (
     !requireCapability(current.authorization, 'athlete:read', {
@@ -17,13 +22,18 @@ export default async function AthletesPage({
     }).ok
   )
     notFound();
-  const { data: athletes } = await current.client
+  const {
+    data: athletes,
+    error,
+    count,
+  } = await current.client
     .from('athletes')
-    .select('id,given_name,family_name,birth_date,created_at')
+    .select('id,given_name,family_name,birth_date,created_at', { count: 'exact' })
     .eq('organization_id', current.organization.id)
     .order('family_name')
     .order('given_name')
-    .limit(200);
+    .order('id')
+    .range((page - 1) * pageSize, page * pageSize - 1);
   const administrative = ['owner', 'administrator'].includes(
     current.authorization.organizationRole,
   );
@@ -51,6 +61,11 @@ export default async function AthletesPage({
           </div>
         ) : null}
       </div>
+      {error ? (
+        <div className="mt-6 rounded-lg border border-[var(--color-danger)] p-4" role="alert">
+          The athlete directory could not be loaded. Refresh to try again.
+        </div>
+      ) : null}
       <ul className="mt-6 grid gap-3 sm:grid-cols-2">
         {athletes?.map((athlete) => (
           <li
@@ -71,6 +86,34 @@ export default async function AthletesPage({
         <p className="mt-6 text-[var(--color-text-muted)]">
           No athletes yet. Import a reviewed CSV or publish registration.
         </p>
+      ) : null}
+      {!error && (count ?? 0) > 0 ? (
+        <nav
+          aria-label="Athlete pages"
+          className="mt-6 flex flex-wrap items-center justify-between gap-3"
+        >
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, count ?? 0)} of {count}
+          </p>
+          <div className="flex gap-2">
+            {page > 1 ? (
+              <Link
+                className="rounded border border-[var(--color-border)] px-4 py-2 font-bold"
+                href={`?page=${page - 1}`}
+              >
+                Previous
+              </Link>
+            ) : null}
+            {page * pageSize < (count ?? 0) ? (
+              <Link
+                className="rounded border border-[var(--color-border)] px-4 py-2 font-bold"
+                href={`?page=${page + 1}`}
+              >
+                Next
+              </Link>
+            ) : null}
+          </div>
+        </nav>
       ) : null}
     </section>
   );

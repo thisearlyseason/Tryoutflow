@@ -5,7 +5,7 @@ import { requireCapability } from '../../organizations/application/require-capab
 import { AthleteIdentitySchema } from '../../athletes/domain/athlete';
 import { findDuplicateCandidates, type DuplicateAthlete } from '../domain/duplicate-detection';
 import {
-  canonicalRegistrationText,
+  canonicalImportText,
   isValidRegistrationEmail,
   isValidRegistrationPhone,
   registrationCodePointLength,
@@ -62,7 +62,7 @@ function identityErrors(input: ImportPreviewRow['athlete']): ImportPreviewError[
     }
   }
   if (input.guardianName !== undefined) {
-    const name = canonicalRegistrationText(input.guardianName);
+    const name = canonicalImportText(input.guardianName);
     if (registrationCodePointLength(name) < 1 || registrationCodePointLength(name) > 160)
       errors.push('guardian_name_invalid');
   }
@@ -80,20 +80,20 @@ function identityErrors(input: ImportPreviewRow['athlete']): ImportPreviewError[
 
 function normalizedAthlete(input: ImportPreviewRow['athlete']): ImportPreviewRow['athlete'] {
   return {
-    givenName: canonicalRegistrationText(input.givenName),
-    familyName: canonicalRegistrationText(input.familyName),
-    birthDate: canonicalRegistrationText(input.birthDate),
+    givenName: canonicalImportText(input.givenName),
+    familyName: canonicalImportText(input.familyName),
+    birthDate: canonicalImportText(input.birthDate),
     ...(input.guardianName === undefined
       ? {}
-      : { guardianName: canonicalRegistrationText(input.guardianName) }),
+      : { guardianName: canonicalImportText(input.guardianName) }),
     ...(input.guardianEmail === undefined
       ? {}
       : {
-          guardianEmail: canonicalRegistrationText(input.guardianEmail).toLocaleLowerCase('en-CA'),
+          guardianEmail: canonicalImportText(input.guardianEmail).toLocaleLowerCase('en-CA'),
         }),
     ...(input.guardianPhone === undefined
       ? {}
-      : { guardianPhone: canonicalRegistrationText(input.guardianPhone) }),
+      : { guardianPhone: canonicalImportText(input.guardianPhone) }),
   };
 }
 
@@ -132,22 +132,22 @@ export async function previewAthleteImport(
         : {}),
     });
     const errors = identityErrors(athlete);
-    const canDetect = errors.length === 0 && athlete.guardianEmail !== undefined;
+    const canDetect = errors.length === 0;
     const duplicates = canDetect
       ? findDuplicateCandidates([...existing, ...acceptedInFile], {
           givenName: athlete.givenName,
           familyName: athlete.familyName,
           birthDate: athlete.birthDate,
-          guardianEmail: athlete.guardianEmail ?? '',
+          guardianEmail: athlete.guardianEmail,
         })
       : [];
-    if (errors.length === 0 && duplicates.length === 0 && athlete.guardianEmail !== undefined) {
+    if (errors.length === 0 && duplicates.length === 0) {
       acceptedInFile.push({
         athleteId: `preview-row:${row.row}`,
         givenName: athlete.givenName,
         familyName: athlete.familyName,
         birthDate: athlete.birthDate,
-        guardianEmail: athlete.guardianEmail,
+        ...(athlete.guardianEmail === undefined ? {} : { guardianEmail: athlete.guardianEmail }),
       });
     }
     return {

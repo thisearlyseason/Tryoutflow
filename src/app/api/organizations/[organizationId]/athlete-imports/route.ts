@@ -85,6 +85,18 @@ function mappingFrom(value: unknown): CsvColumnMapping | null {
   };
 }
 
+function decodeCsvBase64(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 1_400_000) return null;
+  if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(value)) return null;
+  const bytes = Buffer.from(value, 'base64');
+  if (bytes.byteLength > 1_048_576 || bytes.toString('base64') !== value) return null;
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ organizationId: string }> },
@@ -115,10 +127,10 @@ export async function POST(
 
     if (payload.action === 'preview') {
       const mapping = mappingFrom(payload.mapping);
-      if (typeof payload.content !== 'string' || !mapping)
-        return responseError(400, 'invalid_request');
+      const content = decodeCsvBase64(payload.contentBase64);
+      if (content === null || !mapping) return responseError(400, 'invalid_request');
       const preview = await previewAthleteImport(
-        { organizationId, content: payload.content, mapping, actor: authorization },
+        { organizationId, content, mapping, actor: authorization },
         {
           async findExistingAthletes(targetOrganizationId) {
             const [athletesResult, linksResult] = await Promise.all([
@@ -140,20 +152,15 @@ export async function POST(
                   : [],
               ),
             );
-            return (athletesResult.data ?? []).flatMap((athlete) => {
-              const guardianEmail = emailByAthlete.get(athlete.id);
-              return guardianEmail
-                ? [
-                    {
-                      athleteId: athlete.id,
-                      givenName: athlete.given_name,
-                      familyName: athlete.family_name,
-                      birthDate: athlete.birth_date,
-                      guardianEmail,
-                    },
-                  ]
-                : [];
-            });
+            return (athletesResult.data ?? []).map((athlete) => ({
+              athleteId: athlete.id,
+              givenName: athlete.given_name,
+              familyName: athlete.family_name,
+              birthDate: athlete.birth_date,
+              ...(emailByAthlete.has(athlete.id)
+                ? { guardianEmail: emailByAthlete.get(athlete.id) }
+                : {}),
+            }));
           },
           async savePreview(candidate) {
             const result = await client.rpc('create_athlete_import_preview', {
@@ -216,6 +223,40 @@ export async function POST(
         { result },
         { status: result.outcome === 'committed' || result.outcome === 'replayed' ? 200 : 409 },
       );
+    }
+    if (payload.action === 'resolve_import_duplicate') {
+      if (
+        typeof payload.previewId !== 'string' ||
+        typeof payload.row !== 'number' ||
+        !Number.isSafeInteger(payload.row)
+      )
+        return responseError(400, 'invalid_request');
+      const resolved = await client.rpc('resolve_athlete_import_duplicate', {
+        p_organization_id: organizationId,
+        p_preview_id: payload.previewId,
+        p_row: payload.row,
+        p_decision: 'keep_separate',
+      });
+      const outcome = resolved.data?.[0]?.outcome;
+      if (resolved.error || outcome !== 'resolved')
+        return responseError(409, 'resolution_conflict');
+      return NextResponse.json({ outcome });
+    }
+    if (payload.action === 'resolve_registration_duplicate') {
+      if (
+        typeof payload.candidateId !== 'string' ||
+        (payload.decision !== 'keep_separate' && payload.decision !== 'dismiss_candidate')
+      )
+        return responseError(400, 'invalid_request');
+      const resolved = await client.rpc('resolve_registration_duplicate', {
+        p_organization_id: organizationId,
+        p_candidate_id: payload.candidateId,
+        p_decision: payload.decision,
+      });
+      const outcome = resolved.data?.[0]?.outcome;
+      if (resolved.error || outcome !== 'resolved')
+        return responseError(409, 'resolution_conflict');
+      return NextResponse.json({ outcome });
     }
     return responseError(400, 'invalid_request');
   } catch (error) {

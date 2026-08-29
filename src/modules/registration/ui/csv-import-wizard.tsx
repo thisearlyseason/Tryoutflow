@@ -16,7 +16,7 @@ const fields = [
 ] as const;
 
 export function CsvImportWizard({ organizationId }: { organizationId: string }) {
-  const [content, setContent] = useState('');
+  const [contentBase64, setContentBase64] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Partial<CsvColumnMapping>>({});
   const [preview, setPreview] = useState<AthleteImportPreview | null>(null);
@@ -37,14 +37,24 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
       setMessage('That file exceeds the 1 MiB limit.');
       return;
     }
-    const text = await file.text();
+    let text: string;
+    let bytes: Uint8Array;
+    try {
+      bytes = new Uint8Array(await file.arrayBuffer());
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      setMessage('The CSV must be valid UTF-8 text.');
+      return;
+    }
     const parsed = Papa.parse<string[]>(text, { delimiter: ',', preview: 1 });
     const nextHeaders = parsed.data[0]?.map((header) => header.trim()).filter(Boolean) ?? [];
     if (parsed.errors.length > 0 || nextHeaders.length === 0) {
       setMessage('We could not read a clear comma-separated header row.');
       return;
     }
-    setContent(text);
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    setContentBase64(btoa(binary));
     setHeaders(nextHeaders);
     setMapping({});
     setMessage('Map each required field, then generate a review preview.');
@@ -65,7 +75,7 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
     }
     setBusy(true);
     try {
-      const response = await request({ action: 'preview', content, mapping });
+      const response = await request({ action: 'preview', contentBase64, mapping });
       if (!response.ok) throw new Error('preview');
       const result = (await response.json()) as { preview: AthleteImportPreview };
       setPreview(result.preview);
@@ -110,7 +120,17 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
     const unsafeRows = preview.rows.filter((row) => row.status !== 'valid');
     const quote = (value: string) => `"${escapeSpreadsheetFormula(value).replaceAll('"', '""')}"`;
     const csv = [
-      ['Source row', 'Status', 'Errors', 'Given name', 'Family name', 'Birth date'],
+      [
+        'Source row',
+        'Status',
+        'Errors',
+        'Given name',
+        'Family name',
+        'Birth date',
+        'Guardian name',
+        'Guardian email',
+        'Guardian phone',
+      ],
       ...unsafeRows.map((row) => [
         String(row.row),
         row.status,
@@ -118,6 +138,9 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
         row.athlete.givenName,
         row.athlete.familyName,
         row.athlete.birthDate,
+        row.athlete.guardianName ?? '',
+        row.athlete.guardianEmail ?? '',
+        row.athlete.guardianPhone ?? '',
       ]),
     ]
       .map((row) => row.map(quote).join(','))
@@ -144,7 +167,7 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
           className="mt-2 min-h-[var(--target-mobile)] w-full"
         />
         <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-          Comma-separated, maximum 1 MiB and 1,000 data rows. The file itself is not stored.
+          Comma-separated, maximum 1 MiB and 500 data rows. The file itself is not stored.
         </p>
       </div>
 
@@ -166,7 +189,13 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
               >
                 <option value="">Not mapped</option>
                 {headers.map((header) => (
-                  <option key={header} value={header}>
+                  <option
+                    key={header}
+                    value={header}
+                    disabled={Object.entries(mapping).some(
+                      ([mappedKey, mappedHeader]) => mappedKey !== key && mappedHeader === header,
+                    )}
+                  >
                     {header}
                   </option>
                 ))}
