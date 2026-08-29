@@ -15,6 +15,8 @@ const ids = {
   tryout: '10000000-0000-4000-8000-000000000002',
   registration: '10000000-0000-4000-8000-000000000003',
   session: '10000000-0000-4000-8000-000000000004',
+  division: '10000000-0000-4000-8000-000000000010',
+  group: '10000000-0000-4000-8000-000000000011',
   evaluatorA: '10000000-0000-4000-8000-000000000005',
   evaluatorB: '10000000-0000-4000-8000-000000000006',
   category: '10000000-0000-4000-8000-000000000007',
@@ -38,7 +40,12 @@ function evaluator(userId: string): AuthorizationContext {
     assignments: [
       {
         role: 'evaluator',
-        scope: { kind: 'session', tryoutId: ids.tryout, sessionId: ids.session },
+        scope: {
+          kind: 'group',
+          tryoutId: ids.tryout,
+          sessionId: ids.session,
+          groupId: ids.group,
+        },
       },
     ],
   };
@@ -105,7 +112,9 @@ describe('evaluation lifecycle', () => {
         organizationId: ids.organization,
         tryoutId: ids.tryout,
         registrationId: ids.registration,
+        divisionId: ids.division,
         sessionId: ids.session,
+        groupId: ids.group,
         evaluatorUserId: ids.evaluatorA,
         rubricVersionId: ids.rubricVersion,
         scores: [{ categoryId: ids.category, value: 4 }],
@@ -113,10 +122,12 @@ describe('evaluation lifecycle', () => {
       evaluator(ids.evaluatorB),
       1,
       {
-        save: async () => (
-          (called = true),
-          { outcome: 'saved', evaluationId: incompleteDraft.id, version: 2 }
-        ),
+        gateway: {
+          save: async () => (
+            (called = true),
+            { outcome: 'saved', evaluationId: incompleteDraft.id, version: 2 }
+          ),
+        },
       },
     );
     expect(result).toEqual({ ok: false, error: { code: 'forbidden' } });
@@ -130,12 +141,15 @@ describe('evaluation lifecycle', () => {
         {
           organizationId: ids.organization,
           tryoutId: ids.tryout,
+          divisionId: ids.division,
+          sessionId: ids.session,
+          groupId: ids.group,
           evaluationId: incompleteDraft.id,
           reason: 'short',
         },
         evaluator(ids.evaluatorA),
         2,
-        gateway,
+        { gateway },
       ),
     ).resolves.toEqual({ ok: false, error: { code: 'invalid_reason' } });
   });

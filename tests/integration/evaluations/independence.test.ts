@@ -78,7 +78,7 @@ describe('evaluation independence and compare-and-swap serialization', () => {
       const draftCall = (expectedVersion: number, value: number, name: string) =>
         asAuthenticated(
           evaluator,
-          `select outcome||'|'||coalesce(version::text,'') from public.save_evaluation_draft('${organization}','${tryout}','${registration}','${session}','${rubricVersion}',${expectedVersion},'[{"categoryId":"${category}","value":${value}}]',null,array[]::uuid[],array[]::text[])`,
+          `select outcome||'|'||coalesce(version::text,'') from public.save_evaluation_draft('${organization}','${tryout}','${division}','${registration}','${session}',null,'${rubricVersion}',${expectedVersion},'[{"categoryId":"${category}","value":${value}}]',null,array[]::uuid[],array[]::text[])`,
           name,
         );
 
@@ -109,39 +109,54 @@ describe('evaluation independence and compare-and-swap serialization', () => {
       const completeResults = await Promise.all([
         asAuthenticated(
           evaluator,
-          `select outcome||'|'||version from public.complete_evaluation('${organization}','${evaluationId}',2)`,
+          `select outcome||'|'||version from public.complete_evaluation('${organization}','${tryout}','${division}','${session}',null,'${evaluationId}',2)`,
           `evaluation-complete-a-${suffix}`,
         ),
         asAuthenticated(
           evaluator,
-          `select outcome||'|'||version from public.complete_evaluation('${organization}','${evaluationId}',2)`,
+          `select outcome||'|'||version from public.complete_evaluation('${organization}','${tryout}','${division}','${session}',null,'${evaluationId}',2)`,
           `evaluation-complete-b-${suffix}`,
         ),
       ]);
       expect(completeResults.map((result) => result.stdout).join('\n')).toContain('completed|3');
       expect(completeResults.map((result) => result.stdout).join('\n')).toContain('conflict|3');
 
+      const lockResults = await Promise.all([
+        asAuthenticated(
+          director,
+          `select outcome||'|'||version from public.lock_evaluation('${organization}','${tryout}','${division}','${session}',null,'${evaluationId}',3)`,
+          `evaluation-lock-a-${suffix}`,
+        ),
+        asAuthenticated(
+          director,
+          `select outcome||'|'||version from public.lock_evaluation('${organization}','${tryout}','${division}','${session}',null,'${evaluationId}',3)`,
+          `evaluation-lock-b-${suffix}`,
+        ),
+      ]);
+      expect(lockResults.map((result) => result.stdout).join('\n')).toContain('locked|4');
+      expect(lockResults.map((result) => result.stdout).join('\n')).toContain('conflict|4');
+
       const reopenResults = await Promise.all([
         asAuthenticated(
           director,
-          `select outcome||'|'||version from public.reopen_evaluation('${organization}','${evaluationId}',3,'Concurrent director review A')`,
+          `select outcome||'|'||version from public.reopen_evaluation('${organization}','${tryout}','${division}','${session}',null,'${evaluationId}',4,'Concurrent director review A')`,
           `evaluation-reopen-a-${suffix}`,
         ),
         asAuthenticated(
           director,
-          `select outcome||'|'||version from public.reopen_evaluation('${organization}','${evaluationId}',3,'Concurrent director review B')`,
+          `select outcome||'|'||version from public.reopen_evaluation('${organization}','${tryout}','${division}','${session}',null,'${evaluationId}',4,'Concurrent director review B')`,
           `evaluation-reopen-b-${suffix}`,
         ),
       ]);
-      expect(reopenResults.map((result) => result.stdout).join('\n')).toContain('reopened|4');
-      expect(reopenResults.map((result) => result.stdout).join('\n')).toContain('conflict|4');
+      expect(reopenResults.map((result) => result.stdout).join('\n')).toContain('reopened|5');
+      expect(reopenResults.map((result) => result.stdout).join('\n')).toContain('conflict|5');
       expect(
         (
           await psql(
             `select state||'|'||version||'|'||(select count(*) from public.audit_logs where action='evaluation.reopened' and entity_id='${evaluationId}') from public.evaluations where id='${evaluationId}'`,
           )
         ).stdout.trim(),
-      ).toBe('reopened|4|1');
+      ).toBe('reopened|5|1');
     } finally {
       await psql(`
         set session_replication_role=replica;

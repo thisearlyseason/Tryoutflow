@@ -73,6 +73,7 @@ beforeAll(() => {
       '--schema-only',
       '--no-owner',
       '--schema=public',
+      '--schema=private',
     ],
     { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 },
   )

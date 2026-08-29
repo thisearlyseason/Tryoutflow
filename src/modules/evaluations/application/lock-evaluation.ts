@@ -3,31 +3,29 @@ import { z } from 'zod';
 import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import { requireCapability } from '../../organizations/application/require-capability';
-import type { ReopenEvaluationGateway } from './contracts';
+import type { LockEvaluationGateway } from './contracts';
 import { defaultEvaluationGateway } from './evaluation-dependencies';
 
-const inputSchema = z.strictObject({
+const schema = z.strictObject({
   organizationId: z.uuid(),
   tryoutId: z.uuid(),
   divisionId: z.uuid(),
   sessionId: z.uuid(),
   groupId: z.uuid().nullable(),
   evaluationId: z.uuid(),
-  reason: z.string().trim().min(10).max(500),
 });
 
-export async function reopenEvaluation(
+export async function lockEvaluation(
   input: unknown,
   actor: AuthorizationContext,
   expectedVersion: number,
-  dependencies: { gateway?: ReopenEvaluationGateway } = {},
+  dependencies: { gateway?: LockEvaluationGateway } = {},
 ): Promise<AppResult<{ version: number }, { code: string }>> {
-  const parsed = inputSchema.safeParse(input);
-  if (!parsed.success) return failure({ code: 'invalid_reason' });
+  const parsed = schema.safeParse(input);
+  if (!parsed.success || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1)
+    return failure({ code: 'invalid_input' });
   const data = parsed.data;
   if (
-    !Number.isSafeInteger(expectedVersion) ||
-    expectedVersion < 1 ||
     !requireCapability(actor, 'tryout:write', {
       organizationId: data.organizationId as AuthorizationContext['organizationId'],
       tryoutId: data.tryoutId,
@@ -38,11 +36,11 @@ export async function reopenEvaluation(
   )
     return failure({ code: 'forbidden' });
   try {
-    const result = await (dependencies.gateway ?? (await defaultEvaluationGateway())).reopen({
+    const result = await (dependencies.gateway ?? (await defaultEvaluationGateway())).lock({
       ...data,
       expectedVersion,
     });
-    return result.outcome === 'reopened'
+    return result.outcome === 'locked'
       ? success({ version: result.version })
       : failure({ code: result.outcome });
   } catch {
@@ -50,4 +48,4 @@ export async function reopenEvaluation(
   }
 }
 
-export type { ReopenEvaluationGateway } from './contracts';
+export type { LockEvaluationGateway } from './contracts';

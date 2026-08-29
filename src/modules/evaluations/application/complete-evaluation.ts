@@ -1,46 +1,71 @@
+import { z } from 'zod';
+
 import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import { requireCapability } from '../../organizations/application/require-capability';
+import type { CompleteEvaluationGateway } from './contracts';
+import { defaultEvaluationGateway } from './evaluation-dependencies';
 
-export type CompleteEvaluationGateway = {
-  complete(input: {
-    organizationId: string;
-    evaluationId: string;
-    expectedVersion: number;
-  }): Promise<
-    | { outcome: 'completed'; version: number }
-    | { outcome: 'required_scores_missing' | 'invalid_score' | 'locked' | 'conflict' | 'forbidden' }
-  >;
+const schema = z.strictObject({
+  organizationId: z.uuid(),
+  tryoutId: z.uuid(),
+  divisionId: z.uuid(),
+  sessionId: z.uuid(),
+  groupId: z.uuid().nullable(),
+  evaluationId: z.uuid(),
+});
+
+type CompleteError = {
+  code:
+    | 'invalid_input'
+    | 'forbidden'
+    | 'required_scores_missing'
+    | 'locked'
+    | 'conflict'
+    | 'unexpected';
 };
 
 export async function completeEvaluationRecord(
-  input: {
-    organizationId: AuthorizationContext['organizationId'];
-    tryoutId: string;
-    sessionId: string;
-    evaluationId: string;
-  },
+  input: unknown,
   evaluator: AuthorizationContext,
   expectedVersion: number,
-  gateway: CompleteEvaluationGateway,
-): Promise<AppResult<{ version: number }, { code: string }>> {
+  dependencies: { gateway?: CompleteEvaluationGateway } = {},
+): Promise<AppResult<{ version: number }, CompleteError>> {
+  const parsed = schema.safeParse(input);
+  if (!parsed.success || !Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+    return failure({ code: 'invalid_input' });
+  }
+  const data = parsed.data;
   if (
-    !Number.isSafeInteger(expectedVersion) ||
-    expectedVersion < 1 ||
     !requireCapability(evaluator, 'evaluation:update-own', {
-      organizationId: input.organizationId,
-      tryoutId: input.tryoutId,
-      sessionId: input.sessionId,
+      organizationId: data.organizationId as AuthorizationContext['organizationId'],
+      tryoutId: data.tryoutId,
+      divisionId: data.divisionId,
+      sessionId: data.sessionId,
+      groupId: data.groupId ?? undefined,
       evaluatorUserId: evaluator.userId,
     }).ok
-  )
+  ) {
     return failure({ code: 'forbidden' });
-  const result = await gateway.complete({
-    organizationId: input.organizationId,
-    evaluationId: input.evaluationId,
-    expectedVersion,
-  });
-  return result.outcome === 'completed'
-    ? success({ version: result.version })
-    : failure({ code: result.outcome });
+  }
+  try {
+    const result = await (dependencies.gateway ?? (await defaultEvaluationGateway())).complete({
+      ...data,
+      expectedVersion,
+    });
+    if (result.outcome === 'completed') return success({ version: result.version });
+    if (
+      result.outcome === 'forbidden' ||
+      result.outcome === 'required_scores_missing' ||
+      result.outcome === 'locked' ||
+      result.outcome === 'conflict' ||
+      result.outcome === 'unexpected'
+    )
+      return failure({ code: result.outcome });
+    return failure({ code: 'unexpected' });
+  } catch {
+    return failure({ code: 'unexpected' });
+  }
 }
+
+export type { CompleteEvaluationGateway } from './contracts';

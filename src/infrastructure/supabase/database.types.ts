@@ -31,35 +31,101 @@ export type Database = {
       athlete_flags: {
         Row: {
           created_at: string;
-          evaluation_id: string;
-          evaluator_user_id: string;
+          creator_kind: string;
+          creator_user_id: string;
+          division_id: string;
+          evaluation_id: string | null;
+          evaluator_user_id: string | null;
           flag_type: string;
+          group_id: string | null;
           id: string;
           organization_id: string;
+          revoked_at: string | null;
+          tryout_id: string;
+          tryout_registration_id: string;
+          tryout_session_id: string;
+          updated_at: string;
         };
         Insert: {
           created_at?: string;
-          evaluation_id: string;
-          evaluator_user_id: string;
+          creator_kind: string;
+          creator_user_id: string;
+          division_id: string;
+          evaluation_id?: string | null;
+          evaluator_user_id?: string | null;
           flag_type: string;
+          group_id?: string | null;
           id?: string;
           organization_id: string;
+          revoked_at?: string | null;
+          tryout_id: string;
+          tryout_registration_id: string;
+          tryout_session_id: string;
+          updated_at?: string;
         };
         Update: {
           created_at?: string;
-          evaluation_id?: string;
-          evaluator_user_id?: string;
+          creator_kind?: string;
+          creator_user_id?: string;
+          division_id?: string;
+          evaluation_id?: string | null;
+          evaluator_user_id?: string | null;
           flag_type?: string;
+          group_id?: string | null;
           id?: string;
           organization_id?: string;
+          revoked_at?: string | null;
+          tryout_id?: string;
+          tryout_registration_id?: string;
+          tryout_session_id?: string;
+          updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'athlete_flags_division_context_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
           {
             foreignKeyName: 'athlete_flags_evaluation_fkey';
             columns: ['organization_id', 'evaluator_user_id', 'evaluation_id'];
             isOneToOne: false;
             referencedRelation: 'evaluations';
             referencedColumns: ['organization_id', 'evaluator_user_id', 'id'];
+          },
+          {
+            foreignKeyName: 'athlete_flags_group_context_fkey';
+            columns: [
+              'organization_id',
+              'tryout_id',
+              'division_id',
+              'tryout_session_id',
+              'group_id',
+            ];
+            isOneToOne: false;
+            referencedRelation: 'session_groups';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'session_id', 'id'];
+          },
+          {
+            foreignKeyName: 'athlete_flags_registration_context_fkey';
+            columns: ['organization_id', 'tryout_id', 'tryout_registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'athlete_flags_session_context_fkey';
+            columns: [
+              'organization_id',
+              'tryout_id',
+              'tryout_registration_id',
+              'tryout_session_id',
+            ];
+            isOneToOne: false;
+            referencedRelation: 'session_enrollments';
+            referencedColumns: ['organization_id', 'tryout_id', 'registration_id', 'session_id'];
           },
         ];
       };
@@ -554,7 +620,9 @@ export type Database = {
         Row: {
           completed_at: string | null;
           created_at: string;
+          division_id: string;
           evaluator_user_id: string;
+          group_id: string | null;
           id: string;
           organization_id: string;
           reopen_reason: string | null;
@@ -571,7 +639,9 @@ export type Database = {
         Insert: {
           completed_at?: string | null;
           created_at?: string;
+          division_id: string;
           evaluator_user_id: string;
+          group_id?: string | null;
           id?: string;
           organization_id: string;
           reopen_reason?: string | null;
@@ -588,7 +658,9 @@ export type Database = {
         Update: {
           completed_at?: string | null;
           created_at?: string;
+          division_id?: string;
           evaluator_user_id?: string;
+          group_id?: string | null;
           id?: string;
           organization_id?: string;
           reopen_reason?: string | null;
@@ -604,6 +676,13 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'evaluations_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
             foreignKeyName: 'evaluations_enrollment_fkey';
             columns: [
               'organization_id',
@@ -614,6 +693,19 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'session_enrollments';
             referencedColumns: ['organization_id', 'tryout_id', 'registration_id', 'session_id'];
+          },
+          {
+            foreignKeyName: 'evaluations_group_context_fkey';
+            columns: [
+              'organization_id',
+              'tryout_id',
+              'division_id',
+              'tryout_session_id',
+              'group_id',
+            ];
+            isOneToOne: false;
+            referencedRelation: 'session_groups';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'session_id', 'id'];
           },
           {
             foreignKeyName: 'evaluations_registration_fkey';
@@ -628,6 +720,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'rubric_versions';
             referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'evaluations_session_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'tryout_session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
           },
         ];
       };
@@ -2207,6 +2306,10 @@ export type Database = {
         };
         Returns: boolean;
       };
+      can_select_director_flag: {
+        Args: { p_flag_id: string };
+        Returns: boolean;
+      };
       can_select_own_evaluation: {
         Args: { p_evaluation_id: string };
         Returns: boolean;
@@ -2304,9 +2407,13 @@ export type Database = {
       };
       complete_evaluation: {
         Args: {
+          p_division_id: string;
           p_evaluation_id: string;
-          p_expected_version: number;
+          p_expected_version: number | null;
+          p_group_id: string | null;
           p_organization_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
         };
         Returns: {
           outcome: string;
@@ -2317,7 +2424,7 @@ export type Database = {
         Args: {
           p_active: boolean;
           p_label: string;
-          p_note_tag_id: string;
+          p_note_tag_id: string | null;
           p_organization_id: string;
         };
         Returns: {
@@ -2538,9 +2645,26 @@ export type Database = {
         };
         Returns: undefined;
       };
+      lock_evaluation: {
+        Args: {
+          p_division_id: string;
+          p_evaluation_id: string;
+          p_expected_version: number | null;
+          p_group_id: string | null;
+          p_organization_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version: number;
+        }[];
+      };
       lock_evaluator_context: {
         Args: {
+          p_division_id: string;
           p_evaluator_user_id: string;
+          p_group_id: string;
           p_organization_id: string;
           p_registration_id: string;
           p_session_id: string;
@@ -2548,8 +2672,10 @@ export type Database = {
         };
         Returns: boolean;
       };
-      lock_manager_reopen_context: {
+      lock_manager_evaluation_context: {
         Args: {
+          p_division_id: string;
+          p_group_id: string;
           p_organization_id: string;
           p_registration_id: string;
           p_session_id: string;
@@ -2557,8 +2683,27 @@ export type Database = {
         };
         Returns: boolean;
       };
-      manager_can_reopen_evaluation: {
+      manage_director_evaluation_flag: {
         Args: {
+          p_action: string;
+          p_division_id: string;
+          p_flag_id: string | null;
+          p_flag_type: string;
+          p_group_id: string | null;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          athlete_flag_id: string | null;
+          outcome: string;
+        }[];
+      };
+      manager_has_evaluation_context: {
+        Args: {
+          p_division_id: string;
+          p_group_id: string;
           p_organization_id: string;
           p_registration_id: string;
           p_session_id: string;
@@ -2639,10 +2784,14 @@ export type Database = {
       };
       reopen_evaluation: {
         Args: {
+          p_division_id: string;
           p_evaluation_id: string;
-          p_expected_version: number;
+          p_expected_version: number | null;
+          p_group_id: string | null;
           p_organization_id: string;
           p_reason: string;
+          p_session_id: string;
+          p_tryout_id: string;
         };
         Returns: {
           outcome: string;
@@ -2683,9 +2832,11 @@ export type Database = {
       };
       save_evaluation_draft: {
         Args: {
-          p_expected_version: number;
+          p_division_id: string;
+          p_expected_version: number | null;
           p_flags?: string[];
-          p_note?: string;
+          p_group_id: string | null;
+          p_note?: string | null;
           p_note_tag_ids?: string[];
           p_organization_id: string;
           p_registration_id: string;
@@ -2695,7 +2846,7 @@ export type Database = {
           p_tryout_id: string;
         };
         Returns: {
-          evaluation_id: string;
+          evaluation_id: string | null;
           outcome: string;
           version: number;
         }[];
