@@ -55,6 +55,39 @@ export function shouldPreferAuthoritativeServerSnapshot(input: {
   );
 }
 
+export function createCoalescedPulseRunner(task: () => Promise<void>): {
+  signal(): void;
+  close(): void;
+} {
+  let running = false;
+  let pending = false;
+  let closed = false;
+  const drain = async () => {
+    if (running || closed) return;
+    running = true;
+    try {
+      while (pending && !closed) {
+        pending = false;
+        await task();
+      }
+    } finally {
+      running = false;
+      if (pending && !closed) void drain();
+    }
+  };
+  return {
+    signal() {
+      if (closed) return;
+      pending = true;
+      void drain();
+    },
+    close() {
+      closed = true;
+      pending = false;
+    },
+  };
+}
+
 export function SynchronizedEvaluationForm({ storageScope, ...props }: SynchronizedProps) {
   const evaluationIdRef = useRef(props.initialDraft.evaluationId ?? crypto.randomUUID());
   const activeLineageRef = useRef<{
@@ -118,7 +151,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     const activeRepository = repository;
     const activeSynchronizer = synchronizer;
     let cancelled = false;
-    let reconciliation = Promise.resolve();
+    let siblingRequeryPulse = false;
     function rememberLineage(
       active: StoredEvaluationMutation | undefined,
       blocking: StoredEvaluationMutation | undefined,
@@ -179,78 +212,77 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         });
       }
     }
+    const reconciliation = createCoalescedPulseRunner(async () => {
+      const mayDisplaySiblingResolution = siblingRequeryPulse;
+      siblingRequeryPulse = false;
+      try {
+        const lineage = await activeRepository.reconcileDraftLineage(storageScope);
+        if (cancelled) return;
+        rememberLineage(lineage.mutation, lineage.blockingMutation);
+        const blocker = lineage.blockingMutation;
+        if (blocker?.status === 'needs_attention') {
+          setServerConfirmation(null);
+          const category = blocker.errorCategory;
+          setBackgroundSaveResult({
+            token: Date.now(),
+            outcome:
+              category === 'forbidden'
+                ? 'forbidden'
+                : category === 'invalid_input'
+                  ? 'invalid_input'
+                  : category === 'invalid_rubric'
+                    ? 'invalid_context'
+                    : category === 'conflict'
+                      ? 'conflict'
+                      : 'unexpected',
+            ...(category === 'conflict' &&
+            blocker.conflictServerEvaluationId === props.initialDraft.evaluationId &&
+            blocker.conflictServerVersion === props.initialDraft.version
+              ? { serverFresh: true }
+              : {}),
+          });
+          return;
+        }
+        // Resolution and confirmation authority comes only from the current durable snapshot.
+        // A remembered blocker or an event payload may never infer that another tab won.
+        if (
+          mayDisplaySiblingResolution &&
+          lineage.resolution &&
+          lineage.confirmation &&
+          lineage.draft
+        ) {
+          evaluationIdRef.current = lineage.confirmation.evaluationId;
+          setServerConfirmation({
+            evaluationId: lineage.confirmation.evaluationId,
+            version: lineage.confirmation.serverVersion,
+          });
+          setBackgroundSaveResult({
+            token: Date.now(),
+            outcome: 'resolved_elsewhere',
+            draft: {
+              scores: lineage.draft.draft.scores,
+              note: lineage.draft.draft.note ?? '',
+              noteTagIds: lineage.draft.draft.noteTagIds,
+              flags: lineage.draft.draft.flags,
+            },
+            evaluationId: lineage.confirmation.evaluationId,
+            version: lineage.confirmation.serverVersion,
+          });
+          return;
+        }
+        if (lineage.confirmation) await refreshConfirmation();
+      } catch {
+        if (!cancelled) {
+          setServerConfirmation(null);
+          setBackgroundSaveResult({ token: Date.now(), outcome: 'unexpected' });
+        }
+      }
+    });
     const unsubscribe = activeSynchronizer.subscribe((event) => {
       if (cancelled || event.scopeKey !== scopeKey(storageScope)) return;
-      // A sibling tab can discover an earlier blocker unknown when this form mounted. Every
-      // same-scope signal therefore re-queries the durable natural lineage instead of filtering
-      // by the mutation IDs this instance happened to know already.
-      reconciliation = reconciliation.then(async () => {
-        try {
-          const lineage = await activeRepository.reconcileDraftLineage(storageScope);
-          if (cancelled) return;
-          const priorBlocker = blockingLineageRef.current;
-          rememberLineage(lineage.mutation, lineage.blockingMutation);
-          const blocker = lineage.blockingMutation;
-          if (blocker?.status === 'needs_attention') {
-            setServerConfirmation(null);
-            const category = blocker.errorCategory;
-            setBackgroundSaveResult({
-              token: Date.now(),
-              outcome:
-                category === 'forbidden'
-                  ? 'forbidden'
-                  : category === 'invalid_input'
-                    ? 'invalid_input'
-                    : category === 'invalid_rubric'
-                      ? 'invalid_context'
-                      : category === 'conflict'
-                        ? 'conflict'
-                        : 'unexpected',
-              ...(category === 'conflict' &&
-              blocker.conflictServerEvaluationId === props.initialDraft.evaluationId &&
-              blocker.conflictServerVersion === props.initialDraft.version
-                ? { serverFresh: true }
-                : {}),
-            });
-            return;
-          }
-          if (
-            event.origin === 'remote' &&
-            ((priorBlocker?.status === 'needs_attention' &&
-              priorBlocker.errorCategory === 'conflict') ||
-              lineage.resolution) &&
-            lineage.confirmation &&
-            lineage.draft
-          ) {
-            evaluationIdRef.current = lineage.confirmation.evaluationId;
-            setServerConfirmation({
-              evaluationId: lineage.confirmation.evaluationId,
-              version: lineage.confirmation.serverVersion,
-            });
-            setBackgroundSaveResult({
-              token: Date.now(),
-              outcome: 'resolved_elsewhere',
-              draft: {
-                scores: lineage.draft.draft.scores,
-                note: lineage.draft.draft.note ?? '',
-                noteTagIds: lineage.draft.draft.noteTagIds,
-                flags: lineage.draft.draft.flags,
-              },
-              evaluationId: lineage.confirmation.evaluationId,
-              version: lineage.confirmation.serverVersion,
-            });
-            return;
-          }
-          // The event is only a bounded re-query pulse. Durable lineage above is the sole UI
-          // authority, so stale or reordered payload state can never recreate recovery.
-          if (lineage.confirmation) await refreshConfirmation();
-        } catch {
-          if (!cancelled) {
-            setServerConfirmation(null);
-            setBackgroundSaveResult({ token: Date.now(), outcome: 'unexpected' });
-          }
-        }
-      });
+      // The bounded event is only a re-query pulse; one pending pulse coalesces any storm.
+      siblingRequeryPulse ||= event.origin === 'remote' || event.origin === 'poll';
+      reconciliation.signal();
     });
     const online = () => void refreshConfirmation();
     async function initialize() {
@@ -360,6 +392,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     void initialize();
     return () => {
       cancelled = true;
+      reconciliation.close();
       window.removeEventListener('online', online);
       unsubscribe();
       activeSynchronizer.stop();

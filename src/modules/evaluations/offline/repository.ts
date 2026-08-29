@@ -1201,6 +1201,221 @@ export class EvaluationOfflineRepository {
     }
   }
 
+  /**
+   * Validate every queue and terminal record connected to a conflict's natural evaluation
+   * lineage. Schema/physical-key validation alone is insufficient: a valid record in a second
+   * provisional or authoritative queue can still contradict its counter or terminal peer.
+   */
+  private async validateConflictNaturalLineage(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    seedEvaluationIds: readonly string[],
+  ): Promise<void> {
+    const targetScopeKey = scopeKey(scope);
+    const mutations: StoredEvaluationMutation[] = [];
+    for (const raw of await transaction
+      .table<unknown, IndexableType>('mutations')
+      .toCollection()
+      .toArray()) {
+      const parsed = await this.validateMutationRecord(raw);
+      if (parsed.scopeKey === targetScopeKey) mutations.push(parsed);
+    }
+    const receipts: StoredEvaluationReceipt[] = [];
+    for (const raw of await transaction
+      .table<unknown, IndexableType>('receipts')
+      .toCollection()
+      .toArray()) {
+      const parsed = storedReceiptSchema.safeParse(raw);
+      if (!parsed.success || parsed.data.scopeKey !== targetScopeKey) continue;
+      receipts.push(
+        await this.validateReceiptRecord(raw, {
+          scope,
+          clientMutationId: parsed.data.clientMutationId,
+        }),
+      );
+    }
+    const tombstones: StoredEvaluationReceiptTombstone[] = [];
+    for (const { clientMutationId, raw } of await this.physicallyScopedTombstones(
+      transaction,
+      scope,
+    ))
+      tombstones.push(await this.validateReceiptTombstone(raw, scope, clientMutationId));
+
+    const relatedIds = new Set(seedEvaluationIds);
+    let expanded = true;
+    while (expanded) {
+      expanded = false;
+      for (const mutation of mutations) {
+        const linked = [mutation.evaluationId, mutation.conflictServerEvaluationId].filter(
+          (value): value is string => value !== undefined,
+        );
+        if (!linked.some((value) => relatedIds.has(value))) continue;
+        for (const value of linked)
+          if (!relatedIds.has(value)) {
+            relatedIds.add(value);
+            expanded = true;
+          }
+      }
+      for (const tombstone of tombstones) {
+        const linked = [
+          tombstone.evaluationId,
+          tombstone.resolutionOriginalEvaluationId,
+          tombstone.resolutionServerEvaluationId,
+        ].filter((value): value is string => value !== undefined);
+        if (!linked.some((value) => relatedIds.has(value))) continue;
+        for (const value of linked)
+          if (!relatedIds.has(value)) {
+            relatedIds.add(value);
+            expanded = true;
+          }
+      }
+    }
+
+    const relatedMutations = mutations.filter((record) => relatedIds.has(record.evaluationId));
+    const relatedReceipts = receipts.filter((record) => relatedIds.has(record.evaluationId));
+    const relatedTombstones = tombstones.filter((record) =>
+      [
+        record.evaluationId,
+        record.resolutionOriginalEvaluationId,
+        record.resolutionServerEvaluationId,
+      ].some((value) => value !== undefined && relatedIds.has(value)),
+    );
+
+    const mutationsByClient = new Map(
+      relatedMutations.map((record) => [record.clientMutationId, record]),
+    );
+    const tombstonesByClient = new Map(
+      relatedTombstones.map((record) => [record.clientMutationId, record]),
+    );
+    const relatedClientIds = new Set([
+      ...mutationsByClient.keys(),
+      ...relatedReceipts.map((record) => record.clientMutationId),
+      ...tombstonesByClient.keys(),
+    ]);
+    for (const raw of await transaction
+      .table<unknown, IndexableType>('quarantines')
+      .toCollection()
+      .toArray()) {
+      const parsed = storedQuarantineSchema.safeParse(raw);
+      if (!parsed.success || parsed.data.scopeKey !== targetScopeKey) continue;
+      const envelope = parsed.data.recoveryEnvelope;
+      const sourceClientId = parsed.data.sourceKey.slice(`${targetScopeKey}|`.length);
+      if (
+        (envelope.evaluationId && relatedIds.has(envelope.evaluationId)) ||
+        (envelope.clientMutationId && relatedClientIds.has(envelope.clientMutationId)) ||
+        relatedClientIds.has(sourceClientId) ||
+        [...relatedIds].some(
+          (evaluationId) => parsed.data.sourceKey === evaluationQueueKey(scope, evaluationId),
+        )
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Target natural lineage has unresolved quarantine recovery metadata.',
+        );
+    }
+    for (const receipt of relatedReceipts) {
+      const mutation = mutationsByClient.get(receipt.clientMutationId);
+      if (
+        mutation &&
+        (mutation.storageKey !== receipt.storageKey ||
+          mutation.evaluationId !== receipt.evaluationId ||
+          mutation.expectedVersion !== receipt.expectedVersion ||
+          mutation.payloadDigest !== receipt.payloadDigest)
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Target mutation and receipt lineage diverge.',
+        );
+      const tombstone = tombstonesByClient.get(receipt.clientMutationId);
+      if (
+        tombstone &&
+        (tombstone.reason !== 'receipt_authority' ||
+          !this.tombstoneMatchesMutation(tombstone, receipt) ||
+          tombstone.serverVersion !== receipt.serverVersion ||
+          tombstone.acknowledgedAt !== receipt.acknowledgedAt)
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Target receipt and terminal fence lineage diverge.',
+        );
+      if (!mutation && !tombstone)
+        throw new EvaluationOfflineError('corrupt_record', 'Target receipt is orphaned.');
+    }
+    for (const tombstone of relatedTombstones) {
+      const mutation = mutationsByClient.get(tombstone.clientMutationId);
+      if (mutation && tombstone.reason !== 'receipt_authority')
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Resolved target mutation still has live queue lineage.',
+        );
+    }
+
+    for (const evaluationId of relatedIds) {
+      const queueKey = evaluationQueueKey(scope, evaluationId);
+      const queue = relatedMutations
+        .filter((record) => record.queueKey === queueKey)
+        .sort((left, right) => left.queueSequence - right.queueSequence);
+      const sequences = new Set<number>();
+      // Legacy receipt-authority fences predate persisted queueSequence metadata. They are still
+      // immutable one-for-one terminal queue members, so their bounded cardinality proves the
+      // compacted prefix (new records continue with the exact counter after that prefix).
+      const compactedTerminalCount = relatedTombstones.filter(
+        (record) =>
+          record.reason === 'receipt_authority' &&
+          record.evaluationId === evaluationId &&
+          !mutationsByClient.has(record.clientMutationId),
+      ).length;
+      for (let sequence = 1; sequence <= compactedTerminalCount; sequence += 1)
+        sequences.add(sequence);
+      for (const mutation of queue) {
+        if (sequences.has(mutation.queueSequence))
+          throw new EvaluationOfflineError(
+            'corrupt_record',
+            'Target queue contains a duplicate sequence.',
+          );
+        sequences.add(mutation.queueSequence);
+      }
+      for (const tombstone of relatedTombstones) {
+        if (
+          tombstone.resolutionOriginalEvaluationId === evaluationId &&
+          tombstone.resolutionOriginalQueueSequence
+        )
+          sequences.add(tombstone.resolutionOriginalQueueSequence);
+        if (
+          tombstone.resolutionServerEvaluationId === evaluationId &&
+          tombstone.resolutionResultQueueSequence
+        )
+          sequences.add(tombstone.resolutionResultQueueSequence);
+      }
+      const rawCounter = await transaction.table('queueCounters').get(queueKey);
+      if (!rawCounter) {
+        if (sequences.size > 0)
+          throw new EvaluationOfflineError('corrupt_record', 'Target queue counter is missing.');
+        continue;
+      }
+      const counter = storedQueueCounterSchema.safeParse(rawCounter);
+      if (
+        !counter.success ||
+        counter.data.queueKey !== queueKey ||
+        counter.data.scopeKey !== targetScopeKey
+      )
+        throw new EvaluationOfflineError('corrupt_record', 'Target queue counter is invalid.');
+      const maximum = sequences.size > 0 ? Math.max(...sequences) : 0;
+      if (counter.data.nextSequence !== maximum + 1)
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Target queue counter does not exactly continue proven lineage.',
+        );
+      const sorted = [...sequences].sort((left, right) => left - right);
+      for (let index = 1; index < sorted.length; index += 1)
+        if (sorted[index]! !== sorted[index - 1]! + 1)
+          throw new EvaluationOfflineError(
+            'corrupt_record',
+            'Target queue contains an unproven sequence gap.',
+          );
+    }
+  }
+
   private async appendFreshMutation(
     transaction: AllTablesTransaction,
     scope: EvaluationStorageScope,
@@ -2576,6 +2791,15 @@ export class EvaluationOfflineRepository {
         // Both destructive choices share the same physical+embedded seven-store trust boundary.
         // This must run before reading a replay tombstone or changing any conflict lineage.
         await this.validateStrictTargetStorageUnion(transaction, scope);
+        const rawTargetDraft = await transaction.table('drafts').get(scopeKey(scope));
+        const targetDraft = rawTargetDraft
+          ? await this.validateDraftRecord(rawTargetDraft, scope)
+          : null;
+        await this.validateConflictNaturalLineage(transaction, scope, [
+          input.original.evaluationId,
+          input.server.evaluationId,
+          ...(targetDraft?.evaluationId ? [targetDraft.evaluationId] : []),
+        ]);
         const storageKey = `${scopeKey(scope)}|${input.clientMutationId}`;
         const rawHead = await this.database.mutations.get(storageKey);
         if (!rawHead) {

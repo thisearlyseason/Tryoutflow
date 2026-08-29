@@ -608,9 +608,10 @@ describe('EvaluationSynchronizer', () => {
     secondRepository.close();
   });
 
-  it('validates channel scope, tolerates duplicates, and closes propagation on stop', async () => {
+  it('requires an exact per-source sequence and uses polling to recover dropped channel pulses', async () => {
     const repository = await queuedRepository();
     let listener: ((event: { data: unknown }) => void) | null = null;
+    let pollPulse: (() => void) | null = null;
     const close = vi.fn();
     const synchronizer = new EvaluationSynchronizer({
       repository,
@@ -620,6 +621,10 @@ describe('EvaluationSynchronizer', () => {
         throw new Error('offline');
       },
       sourceInstanceId: '72000000-0000-4000-8000-000000000090',
+      poll(callback) {
+        pollPulse = callback;
+        return 'poll-token';
+      },
       channelFactory: () => ({
         postMessage: vi.fn(),
         addEventListener(_type, next) {
@@ -638,7 +643,7 @@ describe('EvaluationSynchronizer', () => {
       protocol: 'tryoutflow-evaluation-change-v2',
       userBinding: scope.userId,
       sourceInstanceId: '72000000-0000-4000-8000-000000000091',
-      sequence: 2,
+      sequence: 1,
       scopeKey: Object.values(scope).join('|'),
       evaluationId,
       clientMutationId: crypto.randomUUID(),
@@ -654,7 +659,9 @@ describe('EvaluationSynchronizer', () => {
     });
     deliver({ data: message });
     deliver({ data: message });
-    deliver({ data: { ...message, sequence: 1 } });
+    deliver({ data: { ...message, sequence: 3, state: 'synced' } });
+    deliver({ data: { ...message, sequence: 2, state: 'synced' } });
+    deliver({ data: { ...message, sequence: 4, state: 'saved_device' } });
     deliver({ data: { ...message, sourceInstanceId: '72000000-0000-4000-8000-000000000090' } });
     deliver({ data: { ...message, userBinding: crypto.randomUUID(), sequence: 3 } });
     deliver({
@@ -665,10 +672,11 @@ describe('EvaluationSynchronizer', () => {
         state: 'synced',
       },
     });
-    expect(events).toEqual(['needs_attention', 'synced']);
+    pollPulse!();
+    expect(events).toEqual(['needs_attention', 'synced', 'synced', 'saved_device']);
     synchronizer.stop();
     deliver({ data: message });
-    expect(events).toEqual(['needs_attention', 'synced']);
+    expect(events).toEqual(['needs_attention', 'synced', 'synced', 'saved_device']);
     expect(close).toHaveBeenCalledOnce();
     repository.close();
   });

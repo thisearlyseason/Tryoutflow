@@ -5,7 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AthletePager } from '../../../src/modules/evaluations/ui/athlete-pager';
 import { EvaluationForm } from '../../../src/modules/evaluations/ui/evaluation-form';
-import { shouldPreferAuthoritativeServerSnapshot } from '../../../src/modules/evaluations/ui/synchronized-evaluation-form';
+import {
+  createCoalescedPulseRunner,
+  shouldPreferAuthoritativeServerSnapshot,
+} from '../../../src/modules/evaluations/ui/synchronized-evaluation-form';
 import { EvaluationSaveState } from '../../../src/modules/evaluations/ui/save-state';
 import { ScoreControl } from '../../../src/modules/evaluations/ui/score-control';
 
@@ -42,6 +45,27 @@ const categories = [
     required: true,
   },
 ];
+
+it('coalesces a 10k reconciliation storm to one in-flight and one pending durable read', async () => {
+  let releaseFirst!: () => void;
+  const first = new Promise<void>((resolve) => {
+    releaseFirst = resolve;
+  });
+  let calls = 0;
+  const runner = createCoalescedPulseRunner(async () => {
+    calls += 1;
+    if (calls === 1) await first;
+  });
+  runner.signal();
+  for (let pulse = 0; pulse < 10_000; pulse += 1) runner.signal();
+  expect(calls).toBe(1);
+  releaseFirst();
+  await waitFor(() => expect(calls).toBe(2));
+  runner.close();
+  runner.signal();
+  await Promise.resolve();
+  expect(calls).toBe(2);
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

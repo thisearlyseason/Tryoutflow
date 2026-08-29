@@ -329,3 +329,50 @@ git diff --check                                                  PASS
 - Broadcast and resolution records contain only bounded opaque identifiers, state, counters, protocol metadata, and digests. Raw evaluator content never enters them.
 - No migration or IndexedDB version rewrite was needed. Existing valid v5 records remain readable; newly written conflict-resolution tombstones use the strengthened complete-resolution schema.
 - `progress.md` and Task 18 were not changed.
+
+## User-authorized final exceptional remediation
+
+### Status
+
+DONE — complete natural-lineage validation and bounded durable-only cross-tab reconciliation are implemented. Task 18 was not started. The authenticated production-browser traversal remains the documented release-environment gate.
+
+### RED evidence
+
+- A live `use_server` resolution accepted a valid-schema authoritative queue whose counter jumped from sequence 1 to 9, then destructively replaced the draft and retired the blocker.
+- An exact successful `use_server` replay accepted a newly introduced counter-only divergence in the authoritative target queue.
+- Protocol v2 accepted a new source beginning at sequence 2 and did not run its durable polling fallback while BroadcastChannel was available.
+- A 10,000-pulse UI storm had no bounded single-flight abstraction; the prior promise chain allocated one continuation per pulse.
+- The first durable-only UI implementation treated the resolving tab's own successor receipt as a sibling resolution. The canonical Chrome and Safari test exposed duplicate status regions before the display trigger was isolated from durable authority.
+
+### Delivered
+
+- Before either conflict action or an exact replay, one all-store transaction validates the physical/embedded scope union and the complete connected natural lineage seeded by the provisional, authoritative, and current durable draft identities. It follows mutation conflict remaps and resolution tombstones across every related queue.
+- Related live queues, compacted terminal prefixes, counter-only queues, receipts, tombstones, mutations, and quarantine recovery metadata must form exact queue/counter and cross-store relationships. Counters exactly continue proven sequences; duplicate/gapped sequences, missing/ahead/behind counters, orphan receipts, divergent receipt/tombstone peers, live/resolved collisions, and related quarantine records fail closed. Valid unrelated evaluations in the same user/scope do not block.
+- The same validation runs before replay success. Focused tests prove live and replay corruption leave drafts, blockers, dependents, counters, receipts, tombstones, and resolution records byte-equivalent.
+- Cross-tab sources must start at sequence 1 and then deliver exactly `last + 1`; gaps, duplicates, reordering, self messages, invalid scope/user/source, and unknown fields are rejected. A bounded scoped poll now runs even when BroadcastChannel exists, so dropped channel messages cause a durable re-query without accepting their payload sequence.
+- UI reconciliation uses a constant-memory runner with at most one in-flight durable read and one pending pulse. A 10,000-pulse test produces exactly two reads. Subscriber failures remain isolated and cleanup closes pending work.
+- Recovery, clearing, confirmation, and `resolved_elsewhere` authority come only from the current `reconcileDraftLineage` result. Event origin is retained only as a bounded display trigger for a sibling/poll re-query; no remembered blocker or event state can authorize a transition.
+
+### Verification
+
+```text
+Focused relational/use-server/replay protocol probes             RED (3 failures), then GREEN
+Focused outbox/synchronizer/form suites                           PASS (356 total unit tests)
+npm run verify                                                     PASS (format, lint, types, 356 unit tests, build)
+npm run test:integration, repeated                                 PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                            PASS (47 migrations)
+npx supabase test db --local                                       PASS (29 files / 847 tests)
+npm run test:e2e:evaluation                                        PASS (8/8; Mobile Chrome + Mobile Safari)
+Mobile Safari offline/conflict + durable-resolution --repeat=10    PASS (20/20)
+npm audit --audit-level=high                                       PASS (0 vulnerabilities)
+git diff --check                                                   PASS
+```
+
+### Self-review
+
+- All destructive validation precedes draft replacement, queue deletion, counter changes, tombstone writes, or replay return inside the same Dexie transaction.
+- The relational scan is limited by the connected natural evaluation graph; a valid unrelated evaluation counter can remain independently recoverable without blocking this resolution.
+- Cross-tab messages remain bounded and PII-free: protocol, opaque user/source/scope/evaluation/mutation IDs, sequence, and coarse state only. Durable reconciliation—not the message—decides UI state.
+- Polling, source tracking, and UI work are bounded; no sequence gap is accepted to regain liveness.
+- Existing local-digest binding, permanent terminal fences, generation fencing, and Mobile Safari fixture isolation remain intact. No migration or IndexedDB version rewrite was introduced.
+- `progress.md` and Task 18 were not changed.

@@ -110,7 +110,9 @@ export class EvaluationSynchronizer {
     )
       return;
     const previous = this.receivedSequences.get(parsed.data.sourceInstanceId) ?? 0;
-    if (parsed.data.sequence <= previous) return;
+    // A channel pulse is only accepted in exact order. Gaps are never trusted; the durable poll
+    // below repairs genuinely dropped messages by causing a storage re-query.
+    if (parsed.data.sequence !== previous + 1) return;
     if (
       !this.receivedSequences.has(parsed.data.sourceInstanceId) &&
       this.receivedSequences.size >= 64
@@ -420,7 +422,6 @@ export class EvaluationSynchronizer {
       }
       this.changeChannel = null;
     }
-    if (this.changeChannel) return;
     const poll =
       this.options.poll ??
       ((callback: () => void, delayMs: number) => globalThis.setInterval(callback, delayMs));

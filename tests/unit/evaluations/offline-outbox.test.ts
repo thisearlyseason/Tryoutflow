@@ -1286,6 +1286,253 @@ describe('evaluation offline outbox', () => {
     target.close();
   });
 
+  it('rejects use-server when any related authoritative queue counter diverges and rolls back byte-exactly', async () => {
+    const baseName = databaseBase('conflict-use-server-all-target-queues');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const originalId = '30000000-0000-4000-8000-000000000181';
+    const targetMutationId = '30000000-0000-4000-8000-000000000182';
+    const authoritativeId = '30000000-0000-4000-8000-000000000183';
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'authoritative queue relationship',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
+    });
+    await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: targetMutationId,
+        evaluationId: authoritativeId,
+        expectedVersion: 7,
+      }),
+    );
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('queueCounters').update(evaluationQueueKey(scope, authoritativeId), {
+      nextSequence: 9,
+    });
+    const before = JSON.stringify({
+      draft: await raw.table('drafts').toArray(),
+      mutations: await raw.table('mutations').toArray(),
+      tombstones: await raw.table('receiptTombstones').toArray(),
+      counters: await raw.table('queueCounters').toArray(),
+    });
+    raw.close();
+
+    await expect(
+      target.resolveConflict({
+        scope,
+        clientMutationId: originalId,
+        action: 'use_server',
+        original: {
+          evaluationId: head.evaluationId,
+          payloadDigest: head.payloadDigest,
+          queueSequence: head.queueSequence,
+        },
+        local: draft,
+        server: { scope, evaluationId: authoritativeId, version: 7, draft },
+      }),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+    const reopenedRaw = new Dexie(physicalName);
+    reopenedRaw.version(5).stores(v5Stores);
+    await reopenedRaw.open();
+    const after = JSON.stringify({
+      draft: await reopenedRaw.table('drafts').toArray(),
+      mutations: await reopenedRaw.table('mutations').toArray(),
+      tombstones: await reopenedRaw.table('receiptTombstones').toArray(),
+      counters: await reopenedRaw.table('queueCounters').toArray(),
+    });
+    expect(after).toBe(before);
+    reopenedRaw.close();
+    target.close();
+  });
+
+  it('rejects use-server replay when a related terminal-only queue counter becomes divergent', async () => {
+    const baseName = databaseBase('conflict-use-server-replay-target-counter');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const originalId = '30000000-0000-4000-8000-000000000184';
+    const authoritativeId = '30000000-0000-4000-8000-000000000185';
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'replay target counter',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
+    });
+    const input = {
+      scope,
+      clientMutationId: originalId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: draft,
+      server: { scope, evaluationId: authoritativeId, version: 7, draft },
+    };
+    await expect(target.resolveConflict(input)).resolves.toMatchObject({ action: 'use_server' });
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('queueCounters').put({
+      queueKey: evaluationQueueKey(scope, authoritativeId),
+      scopeKey: Object.values(scope).join('|'),
+      nextSequence: 9,
+    });
+    raw.close();
+    await expect(target.resolveConflict(input)).rejects.toMatchObject({ code: 'corrupt_record' });
+    target.close();
+  });
+
+  it('rejects use-server replay on an orphan related receipt while preserving the resolution snapshot', async () => {
+    const baseName = databaseBase('conflict-use-server-replay-orphan-receipt');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const originalId = '30000000-0000-4000-8000-000000000186';
+    const priorTargetId = '30000000-0000-4000-8000-000000000187';
+    const authoritativeId = '30000000-0000-4000-8000-000000000188';
+    await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: priorTargetId,
+        evaluationId: authoritativeId,
+        expectedVersion: 7,
+      }),
+    );
+    const prior = (await target.nextPendingMutation(scope))!;
+    const acknowledgedAt = new Date(Date.parse(prior.updatedAt) + 1_000).toISOString();
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: authoritativeId,
+      clientMutationId: priorTargetId,
+      claimToken: prior.claimToken!,
+      expectedVersion: 7,
+      payloadDigest: prior.payloadDigest,
+      serverVersion: 8,
+      acknowledgedAt,
+      now: new Date(acknowledgedAt),
+    });
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'orphan receipt replay',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 8,
+    });
+    const input = {
+      scope,
+      clientMutationId: originalId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: draft,
+      server: { scope, evaluationId: authoritativeId, version: 8, draft },
+    };
+    await target.resolveConflict(input);
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('mutations').delete(`${Object.values(scope).join('|')}|${priorTargetId}`);
+    await raw
+      .table('receiptTombstones')
+      .delete(`${Object.values(scope).join('|')}|${priorTargetId}`);
+    const before = await snapshotV5(raw);
+    raw.close();
+    await expect(target.resolveConflict(input)).rejects.toMatchObject({ code: 'corrupt_record' });
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after)).toEqual(before);
+    after.close();
+    target.close();
+  });
+
+  it('does not let an unrelated evaluation counter relationship block conflict resolution', async () => {
+    const baseName = databaseBase('conflict-unrelated-evaluation-counter');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const originalId = '30000000-0000-4000-8000-000000000189';
+    const authoritativeId = '30000000-0000-4000-8000-000000000190';
+    const unrelatedEvaluationId = '30000000-0000-4000-8000-000000000191';
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'unrelated evaluation counter',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
+    });
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('queueCounters').put({
+      queueKey: evaluationQueueKey(scope, unrelatedEvaluationId),
+      scopeKey: Object.values(scope).join('|'),
+      nextSequence: 99,
+    });
+    raw.close();
+    await expect(
+      target.resolveConflict({
+        scope,
+        clientMutationId: originalId,
+        action: 'use_server',
+        original: {
+          evaluationId: head.evaluationId,
+          payloadDigest: head.payloadDigest,
+          queueSequence: head.queueSequence,
+        },
+        local: draft,
+        server: { scope, evaluationId: authoritativeId, version: 7, draft },
+      }),
+    ).resolves.toMatchObject({ action: 'use_server' });
+    target.close();
+  });
+
   it('uses the fresh server draft atomically and cannot resurrect discarded local work after reopen', async () => {
     const baseName = databaseBase('conflict-use-server');
     trackUserDatabase(baseName);
