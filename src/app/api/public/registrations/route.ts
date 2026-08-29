@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
         idempotencyKey?: unknown;
       };
       if (
+        Object.keys(body).some(
+          (key) => !['tryoutSlug', 'submission', 'idempotencyKey'].includes(key),
+        ) ||
         typeof body.tryoutSlug !== 'string' ||
         !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(body.tryoutSlug) ||
         typeof body.idempotencyKey !== 'string' ||
@@ -104,12 +107,11 @@ export async function POST(request: NextRequest) {
         notifier: noRegistrationConfirmationNotifier,
         gateway: {
           async submit(input) {
-            const result = await client.rpc('submit_public_registration_with_position', {
+            const result = await client.rpc('submit_public_registration_v2', {
               p_tryout_slug: input.tryoutSlug,
               p_submission: input.submission as Json,
               p_idempotency_key: input.idempotencyKey,
               p_rate_key_hash: transactionRateKey,
-              p_position_id: input.submission.positionId,
             });
             const outcome = result.data?.[0];
             if (result.error || !outcome || outcome.outcome === 'registration_closed')

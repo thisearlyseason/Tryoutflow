@@ -34,8 +34,8 @@ select function_privs_are(
 );
 select function_privs_are(
   'public','submit_public_registration_with_phone',array['text','jsonb','text','text'],
-  'service_role',array['EXECUTE'],
-  'the strict public-registration wrapper remains the service-only entry point'
+  'service_role',array[]::text[],
+  'the superseded NFC wrapper is owner-only after the canonical boundary upgrade'
 );
 
 insert into public.organizations(id,name,slug,timezone)

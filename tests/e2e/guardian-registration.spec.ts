@@ -42,6 +42,7 @@ test('guardian can complete the accessible public registration form on mobile', 
               ],
             },
             divisions: [{ id: '11111111-1111-4111-8111-111111111111', name: 'U13' }],
+            positions: [],
           },
         }),
       }),
@@ -62,7 +63,8 @@ test('guardian can complete the accessible public registration form on mobile', 
     await page.getByLabel('Player email').fill('player@example.com');
     await page.getByLabel('Player phone').fill('+1 (403) 555-0101');
     await page.getByLabel('Medical date').fill('2024-02-29');
-    await page.getByLabel('Position').selectOption('Goalie');
+    await page.locator('select[name="positionId"]').selectOption({ label: 'Goalie' });
+    await page.locator('select[name="position"]').selectOption('Goalie');
     await page.getByLabel('Consent').check();
   } else {
     await page.getByLabel('I consent').check();

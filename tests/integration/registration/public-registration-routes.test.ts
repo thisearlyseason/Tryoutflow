@@ -13,6 +13,7 @@ type Route = (request: NextRequest) => Promise<Response>;
 let submitRegistration: Route;
 let consumeConfirmation: Route;
 let reissueConfirmation: Route;
+let apiKeys: ReturnType<typeof localApiKeys>;
 
 const origin = 'http://localhost';
 const validSubmission = {
@@ -75,6 +76,7 @@ function jsonRequest(path: string, body: unknown, headers: Record<string, string
 
 beforeAll(async () => {
   const keys = localApiKeys();
+  apiKeys = keys;
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
@@ -100,6 +102,88 @@ beforeAll(async () => {
 });
 
 describe('real public registration route with local Supabase', () => {
+  it('exposes only the canonical submission RPC through real PostgREST', async () => {
+    const headers = {
+      apikey: apiKeys.service,
+      authorization: `Bearer ${apiKeys.service}`,
+      'content-type': 'application/json',
+    };
+    const legacy = await fetch(
+      'http://127.0.0.1:54321/rest/v1/rpc/submit_public_registration_with_phone',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          p_tryout_slug: 'http-registration-camp',
+          p_submission: validSubmission,
+          p_idempotency_key: `legacy-denied-${randomUUID()}`,
+          p_rate_key_hash: 'b'.repeat(64),
+        }),
+      },
+    );
+    expect(legacy.ok).toBe(false);
+    expect([401, 403, 404]).toContain(legacy.status);
+
+    const canonical = await fetch(
+      'http://127.0.0.1:54321/rest/v1/rpc/submit_public_registration_v2',
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          p_tryout_slug: 'http-registration-camp',
+          p_submission: {
+            ...validSubmission,
+            givenName: 'PostgREST',
+            guardianEmail: `postgrest-${randomUUID()}@example.com`,
+          },
+          p_idempotency_key: `canonical-${randomUUID()}`,
+          p_rate_key_hash: 'c'.repeat(64),
+        }),
+      },
+    );
+    expect(canonical.status).toBe(200);
+    await expect(canonical.json()).resolves.toEqual([
+      expect.objectContaining({ outcome: 'submitted' }),
+    ]);
+  });
+
+  it('uses submission.positionId as the only source and canonicalizes null to omitted', async () => {
+    const duplicated = await submitRegistration(
+      jsonRequest('/api/public/registrations', {
+        tryoutSlug: 'http-registration-camp',
+        idempotencyKey: `duplicate-position-${randomUUID()}`,
+        positionId: 'c3101010-1010-4010-8010-101010101010',
+        submission: validSubmission,
+      }),
+    );
+    expect(duplicated.status).toBe(400);
+
+    const idempotencyKey = `null-position-${randomUUID()}`;
+    const guardianEmail = `null-position-${randomUUID()}@example.com`;
+    const givenName = `Null${randomUUID().slice(0, 8)}`;
+    const first = await submitRegistration(
+      jsonRequest('/api/public/registrations', {
+        tryoutSlug: 'http-registration-camp',
+        idempotencyKey,
+        submission: { ...validSubmission, givenName, guardianEmail, positionId: null },
+      }),
+    );
+    expect(first.status).toBe(200);
+    const replay = await submitRegistration(
+      jsonRequest('/api/public/registrations', {
+        tryoutSlug: 'http-registration-camp',
+        idempotencyKey,
+        submission: { ...validSubmission, givenName, guardianEmail, positionId: undefined },
+      }),
+    );
+    expect(replay.status).toBe(200);
+    expect(
+      psql(
+        `select count(*)||':'||coalesce(min(registration.position_id::text),'NULL') from public.tryout_registrations registration join public.guardians guardian on guardian.organization_id=registration.organization_id join public.athlete_guardians link on link.organization_id=guardian.organization_id and link.guardian_id=guardian.id and link.athlete_id=registration.athlete_id where guardian.normalized_email='${guardianEmail}'`,
+      ),
+    ).toBe('1:NULL');
+  });
+
   it('returns published positions and persists the selected normalized position', async () => {
     const route = await import('../../../src/app/api/public/registrations/route');
     const get = await route.GET(
@@ -160,6 +244,39 @@ describe('real public registration route with local Supabase', () => {
         `select count(*)||':'||min(registration.position_id::text) from public.tryout_registrations registration join public.athletes athlete on athlete.id=registration.athlete_id where athlete.family_name='${familyName}'`,
       ),
     ).toBe(`1:${validSubmission.positionId}`);
+  });
+
+  it('serializes concurrent same-key submissions with different positions', async () => {
+    const idempotencyKey = `position-race-${randomUUID()}`;
+    const familyName = `PositionRace${randomUUID().slice(0, 8)}`;
+    const guardianEmail = `position-race-${randomUUID()}@example.com`;
+    const requestFor = (positionId: string, address: string) =>
+      submitRegistration(
+        jsonRequest(
+          '/api/public/registrations',
+          {
+            tryoutSlug: 'http-registration-camp',
+            idempotencyKey,
+            submission: { ...validSubmission, familyName, guardianEmail, positionId },
+          },
+          { 'x-forwarded-for': address },
+        ),
+      );
+    const responses = await Promise.all([
+      requestFor('c2101010-1010-4010-8010-101010101010', '203.0.113.232'),
+      requestFor('c3101010-1010-4010-8010-101010101010', '203.0.113.233'),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 400]);
+    expect(
+      psql(
+        `select count(*)||':'||count(distinct registration.position_id) from public.tryout_registrations registration join public.athletes athlete on athlete.id=registration.athlete_id where athlete.family_name='${familyName}'`,
+      ),
+    ).toBe('1:1');
+    expect(
+      psql(
+        `select count(*) from public.registration_confirmation_tokens token join public.tryout_registrations registration on registration.id=token.registration_id join public.athletes athlete on athlete.id=registration.athlete_id where athlete.family_name='${familyName}' and token.used_at is null and token.revoked_at is null`,
+      ),
+    ).toBe('1');
   });
 
   it.each([

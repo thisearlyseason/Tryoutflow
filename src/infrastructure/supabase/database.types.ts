@@ -1856,6 +1856,7 @@ export type Database = {
           source: string;
           status: string;
           submission_digest: string;
+          submission_digest_version: number;
           submission_key_digest: string;
           tryout_id: string;
           updated_at: string;
@@ -1872,6 +1873,7 @@ export type Database = {
           source?: string;
           status?: string;
           submission_digest?: string;
+          submission_digest_version?: number;
           submission_key_digest: string;
           tryout_id: string;
           updated_at?: string;
@@ -1888,6 +1890,7 @@ export type Database = {
           source?: string;
           status?: string;
           submission_digest?: string;
+          submission_digest_version?: number;
           submission_key_digest?: string;
           tryout_id?: string;
           updated_at?: string;
@@ -3010,6 +3013,19 @@ export type Database = {
         }[];
       };
       submit_public_registration: {
+        Args: {
+          p_idempotency_key: string;
+          p_rate_key_hash: string;
+          p_submission: Json;
+          p_tryout_slug: string;
+        };
+        Returns: {
+          confirmation_token: string;
+          outcome: string;
+          registration_id: string;
+        }[];
+      };
+      submit_public_registration_v2: {
         Args: {
           p_idempotency_key: string;
           p_rate_key_hash: string;

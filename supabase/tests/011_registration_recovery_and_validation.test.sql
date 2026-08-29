@@ -53,7 +53,7 @@ select function_privs_are('public', 'submit_public_registration', array['text', 
 select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'service_role', array[]::text[], 'base transaction remains internal to the trusted wrapper');
 select function_privs_are('public', 'submit_public_registration_with_phone', array['text', 'jsonb', 'text', 'text'], 'anon', array[]::text[], 'anonymous cannot invoke the phone-preserving public write');
 select function_privs_are('public', 'submit_public_registration_with_phone', array['text', 'jsonb', 'text', 'text'], 'authenticated', array[]::text[], 'authenticated clients cannot invoke the phone-preserving public write');
-select function_privs_are('public', 'submit_public_registration_with_phone', array['text', 'jsonb', 'text', 'text'], 'service_role', array['EXECUTE'], 'server role alone invokes the phone-preserving public write');
+select function_privs_are('public', 'submit_public_registration_with_phone', array['text', 'jsonb', 'text', 'text'], 'service_role', array[]::text[], 'the superseded phone-preserving wrapper is owner-only');
 select function_privs_are('public', 'rotate_registration_confirmation_token', array['uuid'], 'anon', array[]::text[], 'anonymous cannot rotate tokens');
 select function_privs_are('public', 'rotate_registration_confirmation_token', array['uuid'], 'authenticated', array[]::text[], 'authenticated clients cannot rotate tokens');
 select function_privs_are('public', 'rotate_registration_confirmation_token', array['uuid'], 'service_role', array[]::text[], 'token rotation remains internal to the trusted wrapper');
