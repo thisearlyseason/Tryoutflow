@@ -2172,12 +2172,29 @@ export type Database = {
         Args: { p_organization_id: string; p_tryout_id: string };
         Returns: {
           display_name: string;
+          division_id: string;
           division_name: string;
+          group_id: string;
           group_name: string;
           identity_mode: string;
           registration_id: string;
+          session_id: string;
           session_name: string;
           tryout_number: number;
+        }[];
+      };
+      list_manageable_evaluator_assignments: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          assignment_id: string;
+          division_id: string;
+          evaluator_name: string;
+          evaluator_user_id: string;
+          expires_at: string;
+          group_id: string;
+          scope_kind: string;
+          scope_label: string;
+          session_id: string;
         }[];
       };
       list_organization_evaluators: {
@@ -2303,6 +2320,7 @@ export type Database = {
           outcome: string;
         }[];
       };
+      revoke_orphaned_staff_assignments: { Args: never; Returns: number };
       rotate_registration_confirmation_token: {
         Args: { p_registration_id: string };
         Returns: string;

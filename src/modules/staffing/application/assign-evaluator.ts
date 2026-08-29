@@ -10,25 +10,15 @@ import { requireCapability } from '../../organizations/application/require-capab
 import type { EvaluationScope } from '../domain/assignment';
 
 const scopeSchema = z.discriminatedUnion('kind', [
-  z.strictObject({ kind: z.literal('tryout'), tryoutId: z.uuid() }),
-  z.strictObject({ kind: z.literal('division'), tryoutId: z.uuid(), divisionId: z.uuid() }),
-  z.strictObject({
-    kind: z.literal('session'),
-    tryoutId: z.uuid(),
-    sessionId: z.uuid(),
-    divisionId: z.uuid().optional(),
-  }),
-  z.strictObject({
-    kind: z.literal('group'),
-    tryoutId: z.uuid(),
-    sessionId: z.uuid(),
-    groupId: z.uuid(),
-    divisionId: z.uuid().optional(),
-  }),
+  z.strictObject({ kind: z.literal('tryout') }),
+  z.strictObject({ kind: z.literal('division'), divisionId: z.uuid() }),
+  z.strictObject({ kind: z.literal('session'), sessionId: z.uuid() }),
+  z.strictObject({ kind: z.literal('group'), groupId: z.uuid() }),
 ]);
 const inputSchema = z.strictObject({
   organizationId: z.uuid(),
   evaluatorUserId: z.uuid(),
+  tryoutId: z.uuid(),
   scope: scopeSchema,
   expiresAt: z.iso.datetime().optional(),
 });
@@ -37,6 +27,7 @@ export type AssignEvaluatorGateway = {
   assign(input: {
     organizationId: string;
     evaluatorUserId: string;
+    tryoutId: string;
     scope: EvaluationScope;
     expiresAt?: string;
   }): Promise<
@@ -51,11 +42,12 @@ type AssignmentError = {
 
 function scopeResource(
   organizationId: OrganizationId,
+  tryoutId: string,
   scope: EvaluationScope,
 ): AuthorizationResource {
   return {
     organizationId,
-    tryoutId: scope.tryoutId,
+    tryoutId,
     divisionId: 'divisionId' in scope ? scope.divisionId : undefined,
     sessionId: 'sessionId' in scope ? scope.sessionId : undefined,
     groupId: 'groupId' in scope ? scope.groupId : undefined,
@@ -71,7 +63,11 @@ export async function assignEvaluator(
   if (!parsed.success) return failure({ code: 'invalid_input' });
   const organizationId = parsed.data.organizationId as OrganizationId;
   if (
-    !requireCapability(actor, 'tryout:write', scopeResource(organizationId, parsed.data.scope)).ok
+    !requireCapability(
+      actor,
+      'tryout:write',
+      scopeResource(organizationId, parsed.data.tryoutId, parsed.data.scope),
+    ).ok
   )
     return failure({ code: 'forbidden' });
 
@@ -79,6 +75,7 @@ export async function assignEvaluator(
     const result = await gateway.assign({
       organizationId,
       evaluatorUserId: parsed.data.evaluatorUserId as UserId,
+      tryoutId: parsed.data.tryoutId,
       scope: parsed.data.scope,
       expiresAt: parsed.data.expiresAt,
     });

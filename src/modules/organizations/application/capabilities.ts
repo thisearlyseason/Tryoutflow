@@ -100,7 +100,7 @@ function assignmentMatchesResource(
       return resource.sessionId === assignment.scope.sessionId;
     case 'group':
       return (
-        resource.sessionId === assignment.scope.sessionId &&
+        (resource.sessionId === undefined || resource.sessionId === assignment.scope.sessionId) &&
         resource.groupId === assignment.scope.groupId
       );
     case 'athlete':

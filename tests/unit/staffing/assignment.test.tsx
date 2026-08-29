@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
@@ -29,14 +30,64 @@ const owner: AuthorizationContext = {
 
 describe('evaluator assignment scopes', () => {
   it('resolves only registrations in the exact group assignment', () => {
-    const scope: EvaluationScope = { kind: 'group', tryoutId, sessionId, groupId };
+    const scope: EvaluationScope = { kind: 'group', groupId };
     const registrations = [
       { registrationId: 'a', tryoutId, divisionId, sessionId, groupId },
       { registrationId: 'b', tryoutId, divisionId, sessionId, groupId: 'other' },
-      { registrationId: 'c', tryoutId, divisionId, sessionId: 'other', groupId },
+      { registrationId: 'c', tryoutId, divisionId, sessionId: 'other', groupId: 'other' },
     ];
 
-    expect(resolveAssignedRegistrations(scope, registrations)).toEqual(['a']);
+    expect(resolveAssignedRegistrations({ tryoutId, scope }, registrations)).toEqual(['a']);
+  });
+
+  it('accepts only the IDs represented by the database scope discriminator', async () => {
+    const gateway = { assign: async () => ({ outcome: 'assigned' as const }) };
+
+    await expect(
+      assignEvaluator(
+        {
+          organizationId,
+          evaluatorUserId: evaluatorId,
+          tryoutId,
+          scope: { kind: 'session', sessionId },
+        },
+        owner,
+        gateway,
+      ),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      assignEvaluator(
+        {
+          organizationId,
+          evaluatorUserId: evaluatorId,
+          tryoutId,
+          scope: { kind: 'session', sessionId, divisionId },
+        },
+        owner,
+        gateway,
+      ),
+    ).resolves.toEqual({ ok: false, error: { code: 'invalid_input' } });
+  });
+
+  it('authorizes a group director from the group-only evaluator scope discriminator', async () => {
+    const groupDirector: AuthorizationContext = {
+      ...owner,
+      organizationRole: 'member',
+      assignments: [{ role: 'director', scope: { kind: 'group', tryoutId, sessionId, groupId } }],
+    };
+
+    await expect(
+      assignEvaluator(
+        {
+          organizationId,
+          evaluatorUserId: evaluatorId,
+          tryoutId,
+          scope: { kind: 'group', groupId },
+        },
+        groupDirector,
+        { assign: async () => ({ outcome: 'assigned' }) },
+      ),
+    ).resolves.toMatchObject({ ok: true });
   });
 
   it('rejects a scope with mismatched tenant relationships at the gateway boundary', async () => {
@@ -44,7 +95,8 @@ describe('evaluator assignment scopes', () => {
       {
         organizationId,
         evaluatorUserId: evaluatorId,
-        scope: { kind: 'session', tryoutId, sessionId },
+        tryoutId,
+        scope: { kind: 'session', sessionId },
       },
       owner,
       { assign: async () => ({ outcome: 'invalid_scope' }) },
@@ -60,7 +112,8 @@ describe('evaluator assignment scopes', () => {
     const input = {
       organizationId,
       evaluatorUserId: evaluatorId,
-      scope: { kind: 'division' as const, tryoutId, divisionId },
+      tryoutId,
+      scope: { kind: 'division' as const, divisionId },
     };
 
     await expect(assignEvaluator(input, owner, gateway)).resolves.toEqual({
@@ -106,6 +159,9 @@ describe('assigned athlete projection', () => {
         return [
           {
             registrationId: '77777777-7777-4777-8777-777777777777',
+            divisionId,
+            sessionId,
+            groupId: null,
             displayName: 'Athlete 0042',
             divisionName: 'U13',
             sessionName: 'Skills',
@@ -129,15 +185,128 @@ describe('assignment workspace', () => {
       <AssignmentWorkspace
         evaluators={[{ userId: evaluatorId, displayName: 'Evan Evaluator' }]}
         onAssign={async () => ({ outcome: 'assigned' })}
-        onInvite={async () => ({ outcome: 'invited' })}
+        onInvite={async () => ({ outcome: 'manual_share', shareUrl: '/invite/secret' })}
+        onRevoke={async () => ({ outcome: 'revoked' })}
+        assignments={[]}
         scopes={[{ value: `division:${divisionId}`, label: 'U13 division' }]}
       />,
     );
 
     expect(screen.getByLabelText('Evaluator email')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Send evaluator invitation' })).toHaveClass(
-      'min-h-11',
-    );
+    expect(screen.getByRole('button', { name: 'Create invitation link' })).toHaveClass('min-h-11');
     expect(screen.getByRole('button', { name: 'Assign evaluator' })).toHaveClass('min-h-11');
+  });
+
+  it('keeps a manual invitation link visible when copying fails and offers an open action', async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: async () => Promise.reject(new Error('denied')) },
+    });
+    render(
+      <AssignmentWorkspace
+        assignments={[]}
+        evaluators={[]}
+        onAssign={async () => ({ outcome: 'assigned' })}
+        onInvite={async () => ({ outcome: 'manual_share', shareUrl: '/invite/one-time-token' })}
+        onRevoke={async () => ({ outcome: 'revoked' })}
+        scopes={[]}
+      />,
+    );
+
+    await user.type(screen.getByLabelText('Evaluator email'), 'coach@example.test');
+    await user.click(screen.getByRole('button', { name: 'Create invitation link' }));
+
+    expect(await screen.findByLabelText('One-time invitation link')).toHaveValue(
+      '/invite/one-time-token',
+    );
+    expect(screen.getAllByText(/email was not sent/i)).toHaveLength(2);
+    expect(screen.getByText(/expir/i)).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Open invitation link' })).toHaveAttribute(
+      'href',
+      '/invite/one-time-token',
+    );
+    await user.click(screen.getByRole('button', { name: 'Copy invitation link' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/copy failed/i);
+    expect(screen.getByLabelText('One-time invitation link')).toHaveValue('/invite/one-time-token');
+  });
+
+  it('shows manageable active grants and reports a truthful audited revoke outcome', async () => {
+    const user = userEvent.setup();
+    render(
+      <AssignmentWorkspace
+        assignments={[
+          {
+            assignmentId: '77777777-7777-4777-8777-777777777777',
+            evaluatorUserId: evaluatorId,
+            evaluatorName: 'Evan Evaluator',
+            scopeLabel: 'Skills — Blue',
+            scopeKind: 'group',
+            expiresAt: null,
+          },
+        ]}
+        evaluators={[]}
+        onAssign={async () => ({ outcome: 'assigned' })}
+        onInvite={async () => ({ outcome: 'manual_share', shareUrl: '/invite/secret' })}
+        onRevoke={async () => ({ outcome: 'revoked' })}
+        scopes={[]}
+      />,
+    );
+
+    expect(screen.getByText('Evan Evaluator')).toBeVisible();
+    expect(screen.getByText('Skills — Blue')).toBeVisible();
+    await user.click(
+      screen.getByRole('button', { name: 'Revoke Evan Evaluator from Skills — Blue' }),
+    );
+    expect(await screen.findByText(/revoked and recorded in the audit log/i)).toBeVisible();
+    expect(screen.queryByText('Evan Evaluator')).not.toBeInTheDocument();
+  });
+
+  it('does not claim email was unsent when notifier delivery was queued', async () => {
+    const user = userEvent.setup();
+    render(
+      <AssignmentWorkspace
+        assignments={[]}
+        evaluators={[]}
+        onAssign={async () => ({ outcome: 'assigned' })}
+        onInvite={async () => ({
+          outcome: 'notifier_enqueued',
+          shareUrl: '/invite/recovery-token',
+        })}
+        onRevoke={async () => ({ outcome: 'revoked' })}
+        scopes={[]}
+      />,
+    );
+
+    await user.type(screen.getByLabelText('Evaluator email'), 'coach@example.test');
+    await user.click(screen.getByRole('button', { name: 'Create invitation link' }));
+    expect(await screen.findAllByText(/delivery was queued/i)).toHaveLength(2);
+    expect(screen.queryByText(/email was not sent/i)).not.toBeInTheDocument();
+  });
+
+  it('preserves the last valid manual link when a later creation attempt fails', async () => {
+    const user = userEvent.setup();
+    let attempt = 0;
+    render(
+      <AssignmentWorkspace
+        assignments={[]}
+        evaluators={[]}
+        onAssign={async () => ({ outcome: 'assigned' })}
+        onInvite={async () =>
+          attempt++ === 0
+            ? { outcome: 'manual_share', shareUrl: '/invite/still-valid' }
+            : { outcome: 'unexpected' }
+        }
+        onRevoke={async () => ({ outcome: 'revoked' })}
+        scopes={[]}
+      />,
+    );
+
+    await user.type(screen.getByLabelText('Evaluator email'), 'coach@example.test');
+    await user.click(screen.getByRole('button', { name: 'Create invitation link' }));
+    await user.click(screen.getByRole('button', { name: 'Create invitation link' }));
+    expect(screen.getByLabelText('One-time invitation link')).toHaveValue('/invite/still-valid');
+    expect(screen.getAllByText(/email was not sent/i)).toHaveLength(1);
+    expect(screen.getByText(/could not be created/i)).toBeVisible();
   });
 });

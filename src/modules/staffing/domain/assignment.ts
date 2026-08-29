@@ -1,14 +1,10 @@
 export type EvaluationScope =
-  | { kind: 'tryout'; tryoutId: string }
-  | { kind: 'division'; tryoutId: string; divisionId: string }
-  | { kind: 'session'; tryoutId: string; sessionId: string; divisionId?: string }
-  | {
-      kind: 'group';
-      tryoutId: string;
-      sessionId: string;
-      groupId: string;
-      divisionId?: string;
-    };
+  | { kind: 'tryout' }
+  | { kind: 'division'; divisionId: string }
+  | { kind: 'session'; sessionId: string }
+  | { kind: 'group'; groupId: string };
+
+export type EvaluationAssignment = { tryoutId: string; scope: EvaluationScope };
 
 export type RegistrationPlacement = {
   registrationId: string;
@@ -20,6 +16,9 @@ export type RegistrationPlacement = {
 
 export type AssignedAthleteSummary = {
   registrationId: string;
+  divisionId: string;
+  sessionId: string | null;
+  groupId: string | null;
   displayName: string;
   divisionName: string;
   sessionName: string | null;
@@ -29,27 +28,27 @@ export type AssignedAthleteSummary = {
 };
 
 export function scopeMatchesRegistration(
-  scope: EvaluationScope,
+  assignment: EvaluationAssignment,
   registration: RegistrationPlacement,
 ): boolean {
-  if (scope.tryoutId !== registration.tryoutId) return false;
-  switch (scope.kind) {
+  if (assignment.tryoutId !== registration.tryoutId) return false;
+  switch (assignment.scope.kind) {
     case 'tryout':
       return true;
     case 'division':
-      return scope.divisionId === registration.divisionId;
+      return assignment.scope.divisionId === registration.divisionId;
     case 'session':
-      return scope.sessionId === registration.sessionId;
+      return assignment.scope.sessionId === registration.sessionId;
     case 'group':
-      return scope.sessionId === registration.sessionId && scope.groupId === registration.groupId;
+      return assignment.scope.groupId === registration.groupId;
   }
 }
 
 export function resolveAssignedRegistrations(
-  scope: EvaluationScope,
+  assignment: EvaluationAssignment,
   registrations: readonly RegistrationPlacement[],
 ): string[] {
   return registrations
-    .filter((registration) => scopeMatchesRegistration(scope, registration))
+    .filter((registration) => scopeMatchesRegistration(assignment, registration))
     .map(({ registrationId }) => registrationId);
 }

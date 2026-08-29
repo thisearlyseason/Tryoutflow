@@ -27,56 +27,87 @@ export default async function TryoutStaffPage({
   );
   if (!managesTryout && !managesChildScope) notFound();
 
-  const [{ data: tryout }, { data: divisions }, { data: sessions }, { data: groups }, directory] =
-    await Promise.all([
-      current.client
-        .from('tryouts')
-        .select('id,name')
-        .eq('organization_id', current.organization.id)
-        .eq('id', tryoutId)
-        .maybeSingle(),
-      current.client
-        .from('tryout_divisions')
-        .select('id,name')
-        .eq('organization_id', current.organization.id)
-        .eq('tryout_id', tryoutId)
-        .order('sort_order'),
-      current.client
-        .from('tryout_sessions')
-        .select('id,name,division_id')
-        .eq('organization_id', current.organization.id)
-        .eq('tryout_id', tryoutId)
-        .order('starts_at'),
-      current.client
-        .from('session_groups')
-        .select('id,name,session_id')
-        .eq('organization_id', current.organization.id)
-        .eq('tryout_id', tryoutId)
-        .order('sort_order'),
-      current.client.rpc('list_tryout_evaluator_candidates', {
-        p_organization_id: current.organization.id,
-        p_tryout_id: tryoutId,
-      }),
-    ]);
+  const [
+    { data: tryout },
+    { data: divisions },
+    { data: sessions },
+    { data: groups },
+    directory,
+    manageableAssignments,
+  ] = await Promise.all([
+    current.client
+      .from('tryouts')
+      .select('id,name')
+      .eq('organization_id', current.organization.id)
+      .eq('id', tryoutId)
+      .maybeSingle(),
+    current.client
+      .from('tryout_divisions')
+      .select('id,name')
+      .eq('organization_id', current.organization.id)
+      .eq('tryout_id', tryoutId)
+      .order('sort_order'),
+    current.client
+      .from('tryout_sessions')
+      .select('id,name,division_id')
+      .eq('organization_id', current.organization.id)
+      .eq('tryout_id', tryoutId)
+      .order('starts_at'),
+    current.client
+      .from('session_groups')
+      .select('id,name,session_id')
+      .eq('organization_id', current.organization.id)
+      .eq('tryout_id', tryoutId)
+      .order('sort_order'),
+    current.client.rpc('list_tryout_evaluator_candidates', {
+      p_organization_id: current.organization.id,
+      p_tryout_id: tryoutId,
+    }),
+    current.client.rpc('list_manageable_evaluator_assignments', {
+      p_organization_id: current.organization.id,
+      p_tryout_id: tryoutId,
+    }),
+  ]);
   if (!tryout) notFound();
   const divisionById = new Map(divisions?.map((division) => [division.id, division.name]));
   const sessionById = new Map(sessions?.map((session) => [session.id, session.name]));
+  const sessionDivisionById = new Map(
+    sessions?.map((session) => [session.id, session.division_id]),
+  );
+  const canManage = (resource: { divisionId?: string; sessionId?: string; groupId?: string }) =>
+    requireCapability(current.authorization, 'tryout:write', {
+      organizationId: current.organization.id,
+      tryoutId,
+      ...resource,
+    }).ok;
   const scopes = [
     ...(managesTryout
       ? [{ value: `tryout:${tryoutId}`, label: `${tryout.name} — all divisions` }]
       : []),
-    ...(divisions?.map((division) => ({
-      value: `division:${division.id}`,
-      label: `${division.name} division`,
-    })) ?? []),
-    ...(sessions?.map((session) => ({
-      value: `session:${session.id}`,
-      label: `${divisionById.get(session.division_id) ?? 'Division'} — ${session.name}`,
-    })) ?? []),
-    ...(groups?.map((group) => ({
-      value: `group:${group.session_id}:${group.id}`,
-      label: `${sessionById.get(group.session_id) ?? 'Session'} — ${group.name}`,
-    })) ?? []),
+    ...(divisions
+      ?.filter((division) => canManage({ divisionId: division.id }))
+      .map((division) => ({
+        value: `division:${division.id}`,
+        label: `${division.name} division`,
+      })) ?? []),
+    ...(sessions
+      ?.filter((session) => canManage({ divisionId: session.division_id, sessionId: session.id }))
+      .map((session) => ({
+        value: `session:${session.id}`,
+        label: `${divisionById.get(session.division_id) ?? 'Division'} — ${session.name}`,
+      })) ?? []),
+    ...(groups
+      ?.filter((group) =>
+        canManage({
+          divisionId: sessionDivisionById.get(group.session_id),
+          sessionId: group.session_id,
+          groupId: group.id,
+        }),
+      )
+      .map((group) => ({
+        value: `group:${group.session_id}:${group.id}`,
+        label: `${sessionById.get(group.session_id) ?? 'Session'} — ${group.name}`,
+      })) ?? []),
   ];
 
   async function onInvite(email: string) {
@@ -87,8 +118,20 @@ export default async function TryoutStaffPage({
       { userId: scoped.userId, authorization: scoped.authorization },
     );
     return result.ok
-      ? { outcome: 'invited', shareUrl: result.value.shareUrl }
+      ? { outcome: result.value.delivery, shareUrl: result.value.shareUrl }
       : { outcome: result.error.code };
+  }
+
+  async function onRevoke(assignmentId: string) {
+    'use server';
+    const parsed = z.uuid().safeParse(assignmentId);
+    if (!parsed.success) return { outcome: 'not_found' };
+    const scoped = await requireCurrentOrganization(organizationSlug);
+    const { data, error } = await scoped.client.rpc('revoke_evaluator_assignment', {
+      p_organization_id: scoped.organization.id,
+      p_assignment_id: parsed.data,
+    });
+    return { outcome: error ? 'unexpected' : (data[0]?.outcome ?? 'unexpected') };
   }
 
   async function onAssign(input: { evaluatorUserId: string; scope: string }) {
@@ -147,6 +190,14 @@ export default async function TryoutStaffPage({
       </p>
       <div className="mt-6">
         <AssignmentWorkspace
+          assignments={(manageableAssignments.data ?? []).map((assignment) => ({
+            assignmentId: assignment.assignment_id,
+            evaluatorUserId: assignment.evaluator_user_id,
+            evaluatorName: assignment.evaluator_name,
+            scopeKind: assignment.scope_kind as 'tryout' | 'division' | 'session' | 'group',
+            scopeLabel: assignment.scope_label,
+            expiresAt: assignment.expires_at,
+          }))}
           canInvite={
             requireCapability(current.authorization, 'membership:manage', {
               organizationId: current.organization.id,
@@ -158,6 +209,7 @@ export default async function TryoutStaffPage({
           }))}
           onAssign={onAssign}
           onInvite={onInvite}
+          onRevoke={onRevoke}
           scopes={scopes}
         />
       </div>

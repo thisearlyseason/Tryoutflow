@@ -40,7 +40,8 @@ describe('staffing authorization boundary', () => {
         {
           organizationId,
           evaluatorUserId: evaluatorId,
-          scope: { kind: 'division', tryoutId, divisionId },
+          tryoutId,
+          scope: { kind: 'division', divisionId },
         },
         director,
         gateway,
@@ -51,7 +52,8 @@ describe('staffing authorization boundary', () => {
         {
           organizationId,
           evaluatorUserId: evaluatorId,
-          scope: { kind: 'division', tryoutId, divisionId: '55555555-5555-4555-8555-555555555555' },
+          tryoutId,
+          scope: { kind: 'division', divisionId: '55555555-5555-4555-8555-555555555555' },
         },
         director,
         gateway,
@@ -165,6 +167,18 @@ describe('staffing authorization boundary', () => {
       await psql(`
         set session_replication_role=replica;
         delete from public.audit_logs where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.session_enrollments where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.tryout_registrations where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.athletes where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.registration_form_versions where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.registration_forms where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.session_groups where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.tryout_sessions where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.tryout_divisions where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.tryout_staff_assignments where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.tryouts where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.organization_members where organization_id in ('${organization}','${otherOrganization}');
+        delete from public.profiles where id in ('${owner}','${evaluator}','${otherOwner}');
         delete from public.organizations where id in ('${organization}','${otherOrganization}');
         delete from auth.users where id in ('${owner}','${evaluator}','${otherOwner}');
         set session_replication_role=origin;
