@@ -1,0 +1,54 @@
+import Link from 'next/link';
+
+import type { AuthorizationContext } from '../application/capabilities';
+
+export function OrganizationNavigation({
+  authorization,
+  organizationSlug,
+}: {
+  authorization: AuthorizationContext;
+  organizationSlug: string;
+}) {
+  const managesOrganization =
+    authorization.organizationRole === 'owner' ||
+    authorization.organizationRole === 'administrator';
+  const staffedTryouts = [
+    ...new Set(
+      authorization.assignments
+        .filter((assignment) => assignment.role === 'director')
+        .map((assignment) => assignment.scope.tryoutId),
+    ),
+  ];
+  const links = managesOrganization
+    ? [
+        ['Home', `/app/${organizationSlug}/home`],
+        ['Tryouts', `/app/${organizationSlug}/tryouts`],
+        ['Athletes', `/app/${organizationSlug}/athletes`],
+        ['Evaluators', `/app/${organizationSlug}/evaluators`],
+        ['Members', `/app/${organizationSlug}/organization/members`],
+        ['Settings', `/app/${organizationSlug}/organization/settings`],
+      ]
+    : staffedTryouts.map((tryoutId, index) => [
+        staffedTryouts.length === 1 ? 'Staff' : `Staff ${index + 1}`,
+        `/app/${organizationSlug}/tryouts/${tryoutId}/staff`,
+        `Staff for tryout ${tryoutId}`,
+      ]);
+
+  return (
+    <nav
+      aria-label="Organization navigation"
+      className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+    >
+      {links.map(([label, href, accessibleLabel]) => (
+        <Link
+          aria-label={accessibleLabel}
+          className="inline-flex min-h-11 items-center"
+          href={href!}
+          key={href}
+        >
+          {label}
+        </Link>
+      ))}
+    </nav>
+  );
+}

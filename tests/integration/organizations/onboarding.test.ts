@@ -94,7 +94,12 @@ describe('organization onboarding', () => {
     const result = await inviteMember(
       { organizationId, email: ' Coach@Example.com ', role: 'member' },
       { userId: ownerId, authorization: ownerContext },
-      { gateway: repository, tokenGenerator: () => 'high-entropy-token' },
+      {
+        gateway: repository,
+        tokenGenerator: () => 'high-entropy-token',
+        applicationOrigin: 'https://tryoutflow.example',
+        clock: { now: () => new Date('2026-08-29T12:00:00.000Z') },
+      },
     );
 
     expect(result).toEqual({
@@ -102,7 +107,8 @@ describe('organization onboarding', () => {
       value: {
         invitationId: 'invite-1',
         delivery: 'manual_share',
-        shareUrl: '/invite/high-entropy-token',
+        shareUrl: 'https://tryoutflow.example/invite/high-entropy-token',
+        expiresAt: '2026-09-05T12:00:00.000Z',
       },
     });
     expect(repository.createInvitation).toHaveBeenCalledWith(
@@ -119,17 +125,39 @@ describe('organization onboarding', () => {
     const result = await inviteMember(
       { organizationId, email: 'coach@example.com', role: 'member' },
       { userId: ownerId, authorization: ownerContext },
-      { gateway: gateway(), notifier, tokenGenerator: () => 'high-entropy-token' },
+      {
+        gateway: gateway(),
+        notifier,
+        tokenGenerator: () => 'high-entropy-token',
+        applicationOrigin: 'https://tryoutflow.example',
+      },
     );
 
     expect(result).toEqual({
       ok: true,
       value: expect.objectContaining({
         delivery: 'manual_share',
-        shareUrl: '/invite/high-entropy-token',
+        shareUrl: 'https://tryoutflow.example/invite/high-entropy-token',
+        expiresAt: expect.any(String),
       }),
     });
     expect(notifier.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an unsafe canonical invitation origin before persisting a token', async () => {
+    const repository = gateway();
+    const result = await inviteMember(
+      { organizationId, email: 'coach@example.com', role: 'member' },
+      { userId: ownerId, authorization: ownerContext },
+      {
+        gateway: repository,
+        tokenGenerator: () => 'high-entropy-token',
+        applicationOrigin: 'http://public.example',
+      },
+    );
+
+    expect(result).toEqual({ ok: false, error: { code: 'unexpected' } });
+    expect(repository.createInvitation).not.toHaveBeenCalled();
   });
 
   it('rejects unauthorized owner role assignment before issuing an invitation', async () => {

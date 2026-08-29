@@ -185,7 +185,11 @@ describe('assignment workspace', () => {
       <AssignmentWorkspace
         evaluators={[{ userId: evaluatorId, displayName: 'Evan Evaluator' }]}
         onAssign={async () => ({ outcome: 'assigned' })}
-        onInvite={async () => ({ outcome: 'manual_share', shareUrl: '/invite/secret' })}
+        onInvite={async () => ({
+          outcome: 'manual_share',
+          shareUrl: 'https://tryoutflow.example/invite/secret',
+          expiresAt: '2026-09-05T12:00:00.000Z',
+        })}
         onRevoke={async () => ({ outcome: 'revoked' })}
         assignments={[]}
         scopes={[{ value: `division:${divisionId}`, label: 'U13 division' }]}
@@ -208,7 +212,11 @@ describe('assignment workspace', () => {
         assignments={[]}
         evaluators={[]}
         onAssign={async () => ({ outcome: 'assigned' })}
-        onInvite={async () => ({ outcome: 'manual_share', shareUrl: '/invite/one-time-token' })}
+        onInvite={async () => ({
+          outcome: 'manual_share',
+          shareUrl: 'https://tryoutflow.example/invite/one-time-token',
+          expiresAt: '2026-09-05T12:00:00.000Z',
+        })}
         onRevoke={async () => ({ outcome: 'revoked' })}
         scopes={[]}
       />,
@@ -218,17 +226,20 @@ describe('assignment workspace', () => {
     await user.click(screen.getByRole('button', { name: 'Create invitation link' }));
 
     expect(await screen.findByLabelText('One-time invitation link')).toHaveValue(
-      '/invite/one-time-token',
+      'https://tryoutflow.example/invite/one-time-token',
     );
     expect(screen.getAllByText(/email was not sent/i)).toHaveLength(2);
-    expect(screen.getByText(/expir/i)).toBeVisible();
+    expect(screen.getAllByText(/expir/i)).toHaveLength(2);
     expect(screen.getByRole('link', { name: 'Open invitation link' })).toHaveAttribute(
       'href',
-      '/invite/one-time-token',
+      'https://tryoutflow.example/invite/one-time-token',
     );
+    expect(screen.getByText(/September 5, 2026/i)).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Copy invitation link' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/copy failed/i);
-    expect(screen.getByLabelText('One-time invitation link')).toHaveValue('/invite/one-time-token');
+    expect(screen.getByLabelText('One-time invitation link')).toHaveValue(
+      'https://tryoutflow.example/invite/one-time-token',
+    );
   });
 
   it('shows manageable active grants and reports a truthful audited revoke outcome', async () => {

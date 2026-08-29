@@ -20,10 +20,11 @@ export function inviteEvaluator(
     notifier?: InvitationNotifier;
     clock?: Clock;
     tokenGenerator?: () => string;
+    applicationOrigin?: string;
   } = {},
 ): Promise<
   AppResult<
-    { invitationId: string; delivery: InvitationDelivery; shareUrl: string },
+    { invitationId: string; delivery: InvitationDelivery; shareUrl: string; expiresAt: string },
     InviteMemberError
   >
 > {

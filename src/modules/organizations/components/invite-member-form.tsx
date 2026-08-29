@@ -5,7 +5,7 @@ import { useActionState } from 'react';
 export type InvitationFormState =
   | { status: 'idle' }
   | { status: 'error'; message: string }
-  | { status: 'manual_share' | 'notifier_enqueued'; shareUrl: string };
+  | { status: 'manual_share' | 'notifier_enqueued'; shareUrl: string; expiresAt: string };
 
 type InviteMemberFormProps = {
   action: (previousState: InvitationFormState, formData: FormData) => Promise<InvitationFormState>;
@@ -39,6 +39,17 @@ export function InviteMemberForm({ action }: InviteMemberFormProps) {
           </p>
           <label htmlFor="invitation-link">One-time invitation link</label>
           <input id="invitation-link" readOnly value={state.shareUrl} />
+          <p>
+            Expires{' '}
+            <time dateTime={state.expiresAt}>
+              {new Intl.DateTimeFormat('en-US', {
+                dateStyle: 'long',
+                timeStyle: 'short',
+                timeZone: 'UTC',
+              }).format(new Date(state.expiresAt))}{' '}
+              UTC
+            </time>
+          </p>
         </section>
       ) : null}
     </form>

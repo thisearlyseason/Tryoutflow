@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from 'react';
 
-type ActionOutcome = { outcome: string; shareUrl?: string; assignmentId?: string };
+type ActionOutcome = {
+  outcome: string;
+  shareUrl?: string;
+  expiresAt?: string;
+  assignmentId?: string;
+};
 type ManageableAssignment = {
   assignmentId: string;
   evaluatorUserId: string;
@@ -31,6 +36,7 @@ export function AssignmentWorkspace({
 }) {
   const [message, setMessage] = useState('');
   const [shareUrl, setShareUrl] = useState('');
+  const [invitationExpiresAt, setInvitationExpiresAt] = useState('');
   const [invitationDelivery, setInvitationDelivery] = useState<
     'manual_share' | 'notifier_enqueued' | null
   >(null);
@@ -54,6 +60,7 @@ export function AssignmentWorkspace({
                 result.shareUrl
               ) {
                 setShareUrl(result.shareUrl);
+                setInvitationExpiresAt(result.expiresAt ?? '');
                 setInvitationDelivery(result.outcome);
                 setMessage(
                   result.outcome === 'manual_share'
@@ -106,6 +113,19 @@ export function AssignmentWorkspace({
                   value={shareUrl}
                 />
               </label>
+              {invitationExpiresAt ? (
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Expires{' '}
+                  <time dateTime={invitationExpiresAt}>
+                    {new Intl.DateTimeFormat('en-US', {
+                      dateStyle: 'long',
+                      timeStyle: 'short',
+                      timeZone: 'UTC',
+                    }).format(new Date(invitationExpiresAt))}{' '}
+                    UTC
+                  </time>
+                </p>
+              ) : null}
               <div className="flex flex-wrap gap-2">
                 <button
                   className="button-secondary min-h-11"

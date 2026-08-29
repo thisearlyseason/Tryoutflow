@@ -30,7 +30,11 @@ export default async function MembersPage({
       { userId: current.userId, authorization: current.authorization },
     );
     if (!result.ok) return { status: 'error', message: 'We could not create that invitation.' };
-    return { status: result.value.delivery, shareUrl: result.value.shareUrl };
+    return {
+      status: result.value.delivery,
+      shareUrl: result.value.shareUrl,
+      expiresAt: result.value.expiresAt,
+    };
   }
   return (
     <section aria-labelledby="members-heading">

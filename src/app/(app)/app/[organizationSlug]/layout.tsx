@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import Link from 'next/link';
-
 import { AppShell } from '@/components/layout/app-shell';
-import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
+import { OrganizationNavigation } from '@/modules/organizations/components/organization-navigation';
 
 export default async function OrganizationLayout({
   children,
@@ -12,22 +11,14 @@ export default async function OrganizationLayout({
   params: Promise<{ organizationSlug: string }>;
 }) {
   const { organizationSlug } = await params;
-  const { organization } = await requireCurrentOrganization(organizationSlug);
+  const { organization, authorization } = await requireOrganizationRouteContext(organizationSlug);
   return (
     <AppShell
       navigation={
-        <nav
-          aria-label="Organization navigation"
-          className="border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-        >
-          <Link href={`/app/${organization.slug}/home`}>Home</Link>
-          {' · '}
-          <Link href={`/app/${organization.slug}/athletes`}>Athletes</Link>
-          {' · '}
-          <Link href={`/app/${organization.slug}/organization/members`}>Members</Link>
-          {' · '}
-          <Link href={`/app/${organization.slug}/organization/settings`}>Settings</Link>
-        </nav>
+        <OrganizationNavigation
+          authorization={authorization}
+          organizationSlug={organization.slug}
+        />
       }
     >
       <header className="mb-6">

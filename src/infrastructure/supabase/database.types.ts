@@ -2174,27 +2174,27 @@ export type Database = {
           display_name: string;
           division_id: string;
           division_name: string;
-          group_id: string;
-          group_name: string;
+          group_id: string | null;
+          group_name: string | null;
           identity_mode: string;
           registration_id: string;
-          session_id: string;
-          session_name: string;
-          tryout_number: number;
+          session_id: string | null;
+          session_name: string | null;
+          tryout_number: number | null;
         }[];
       };
       list_manageable_evaluator_assignments: {
         Args: { p_organization_id: string; p_tryout_id: string };
         Returns: {
           assignment_id: string;
-          division_id: string;
+          division_id: string | null;
           evaluator_name: string;
           evaluator_user_id: string;
-          expires_at: string;
-          group_id: string;
+          expires_at: string | null;
+          group_id: string | null;
           scope_kind: string;
           scope_label: string;
-          session_id: string;
+          session_id: string | null;
         }[];
       };
       list_organization_evaluators: {

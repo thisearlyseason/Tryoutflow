@@ -20,6 +20,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts tests/integration",
     "test:contract": "vitest run --config vitest.integration.config.ts tests/contract",
     "test:db": "supabase test db",
+    "db:types": "supabase gen types typescript --local > src/infrastructure/supabase/database.types.ts && prettier --write src/infrastructure/supabase/database.types.ts && node scripts/postprocess-database-types.mjs && prettier --write src/infrastructure/supabase/database.types.ts",
     "supabase:start": "supabase start",
     "supabase:reset": "supabase db reset",
     "test:e2e": "playwright test",

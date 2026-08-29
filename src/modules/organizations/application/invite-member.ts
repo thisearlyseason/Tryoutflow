@@ -8,6 +8,7 @@ import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from './capabilities';
 import { requireCapability } from './require-capability';
 import { defaultOrganizationGateway } from './organization-dependencies';
+import { getPublicAppOrigin } from '../../../lib/env';
 import type { InvitationNotifier, OrganizationGateway } from '../domain/organization';
 
 const schema = z.object({
@@ -30,10 +31,11 @@ export async function inviteMember(
     notifier?: InvitationNotifier;
     clock?: Clock;
     tokenGenerator?: () => string;
+    applicationOrigin?: string;
   } = {},
 ): Promise<
   AppResult<
-    { invitationId: string; delivery: InvitationDelivery; shareUrl: string },
+    { invitationId: string; delivery: InvitationDelivery; shareUrl: string; expiresAt: string },
     InviteMemberError
   >
 > {
@@ -56,6 +58,11 @@ export async function inviteMember(
   const clock = dependencies.clock ?? new SystemClock();
   const expiresAt = new Date(clock.now().getTime() + 7 * 24 * 60 * 60 * 1000);
   try {
+    const origin = getPublicAppOrigin(
+      dependencies.applicationOrigin
+        ? { ...process.env, NEXT_PUBLIC_APP_URL: dependencies.applicationOrigin }
+        : process.env,
+    );
     const invitation = await (
       dependencies.gateway ?? (await defaultOrganizationGateway())
     ).createInvitation({
@@ -82,7 +89,12 @@ export async function inviteMember(
         // The caller receives the ephemeral one-time URL instead of a false delivery claim.
       }
     }
-    return success({ invitationId: invitation.id, delivery, shareUrl: `/invite/${token}` });
+    return success({
+      invitationId: invitation.id,
+      delivery,
+      shareUrl: new URL(`/invite/${token}`, origin).toString(),
+      expiresAt: expiresAt.toISOString(),
+    });
   } catch (error) {
     return failure({
       code: (error as { code?: string }).code === '23505' ? 'conflict' : 'unexpected',

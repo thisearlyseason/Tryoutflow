@@ -2,8 +2,12 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { requireCapability } from '@/modules/organizations/application/require-capability';
-import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import {
+  canManageTryoutStaffing,
+  requireOrganizationRouteContext,
+} from '@/modules/organizations/application/organization-route-context';
 import { inviteEvaluator } from '@/modules/staffing/application/invite-evaluator';
+import { parseManageableAssignment } from '@/modules/staffing/infrastructure/rpc-projections';
 import { AssignmentWorkspace } from '@/modules/staffing/ui/assignment-workspace';
 
 const actionSchema = z.strictObject({
@@ -17,15 +21,12 @@ export default async function TryoutStaffPage({
   params: Promise<{ organizationSlug: string; tryoutId: string }>;
 }) {
   const { organizationSlug, tryoutId } = await params;
-  const current = await requireCurrentOrganization(organizationSlug);
+  const current = await requireOrganizationRouteContext(organizationSlug);
   const managesTryout = requireCapability(current.authorization, 'tryout:write', {
     organizationId: current.organization.id,
     tryoutId,
   }).ok;
-  const managesChildScope = current.authorization.assignments.some(
-    (assignment) => assignment.role === 'director' && assignment.scope.tryoutId === tryoutId,
-  );
-  if (!managesTryout && !managesChildScope) notFound();
+  if (!canManageTryoutStaffing(current.authorization, tryoutId)) notFound();
 
   const [
     { data: tryout },
@@ -112,13 +113,17 @@ export default async function TryoutStaffPage({
 
   async function onInvite(email: string) {
     'use server';
-    const scoped = await requireCurrentOrganization(organizationSlug);
+    const scoped = await requireOrganizationRouteContext(organizationSlug);
     const result = await inviteEvaluator(
       { organizationId: scoped.organization.id, email },
       { userId: scoped.userId, authorization: scoped.authorization },
     );
     return result.ok
-      ? { outcome: result.value.delivery, shareUrl: result.value.shareUrl }
+      ? {
+          outcome: result.value.delivery,
+          shareUrl: result.value.shareUrl,
+          expiresAt: result.value.expiresAt,
+        }
       : { outcome: result.error.code };
   }
 
@@ -126,7 +131,7 @@ export default async function TryoutStaffPage({
     'use server';
     const parsed = z.uuid().safeParse(assignmentId);
     if (!parsed.success) return { outcome: 'not_found' };
-    const scoped = await requireCurrentOrganization(organizationSlug);
+    const scoped = await requireOrganizationRouteContext(organizationSlug);
     const { data, error } = await scoped.client.rpc('revoke_evaluator_assignment', {
       p_organization_id: scoped.organization.id,
       p_assignment_id: parsed.data,
@@ -170,7 +175,7 @@ export default async function TryoutStaffPage({
                 }
               : null;
     if (!scopeArgs) return { outcome: 'invalid_scope' };
-    const scoped = await requireCurrentOrganization(organizationSlug);
+    const scoped = await requireOrganizationRouteContext(organizationSlug);
     const { data, error } = await scoped.client.rpc('assign_evaluator', {
       p_organization_id: scoped.organization.id,
       p_evaluator_user_id: parsed.data.evaluatorUserId,
@@ -193,14 +198,7 @@ export default async function TryoutStaffPage({
       </p>
       <div className="mt-6">
         <AssignmentWorkspace
-          assignments={(manageableAssignments.data ?? []).map((assignment) => ({
-            assignmentId: assignment.assignment_id,
-            evaluatorUserId: assignment.evaluator_user_id,
-            evaluatorName: assignment.evaluator_name,
-            scopeKind: assignment.scope_kind as 'tryout' | 'division' | 'session' | 'group',
-            scopeLabel: assignment.scope_label,
-            expiresAt: assignment.expires_at,
-          }))}
+          assignments={(manageableAssignments.data ?? []).map(parseManageableAssignment)}
           canInvite={
             requireCapability(current.authorization, 'membership:manage', {
               organizationId: current.organization.id,
