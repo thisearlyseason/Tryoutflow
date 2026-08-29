@@ -244,3 +244,43 @@ git diff --check                                               PASS
 ### Release gate
 
 The authenticated production-browser traversal remains a release-environment gate. The browser fixture imports the real synchronized form, repository, synchronizer, and conflict recovery path; PostgreSQL and the production route remain covered at their real security boundaries separately.
+
+## Fix round 5
+
+### Status
+
+DONE — the newest recovery input is transactionally authoritative, strict append validates the physical/embedded IndexedDB union, and already-mounted tabs reconcile predecessor conflicts and permanent winners without reload.
+
+### RED evidence
+
+- The newest-recovery probe first rebased the older IndexedDB digest instead of the explicit in-memory Unicode edit.
+- Seven fake-IndexedDB probes first resolved successfully despite target-attributable malformed records hidden in session contexts, drafts, mutations, receipts, tombstones, counters, and quarantine under string, number, Date, and Array keys.
+- The already-mounted sibling synchronizer first received zero events when the other tab discovered the predecessor conflict.
+- Browser design exposed that a non-resolving tab could remain in recovery after the sibling's exact successor receipt; receipt-bound sibling resolution coverage now closes that state only after durable confirmation.
+
+### Delivered
+
+- `resolveConflict` requires the exact newest local recovery draft, strictly validates its schema, PostgreSQL-compatible Unicode, rubric categories and values, computes its canonical digest, and persists/rebases it in the same all-store transaction that validates the authoritative server snapshot and retires the blocker. Exact replay is bound to that result digest. `use_server` discards the supplied local draft only through the explicit action.
+- Keep-local resolution disables editing during the transaction. A pending result marks only the exact UI revision device-durable, preventing a duplicate reconnect enqueue; server authority, cache clearing, completion, and `Saved on server` still require the matching successor receipt.
+- Strict append scans primary-key/value pairs across all seven relevant stores and takes the union of trusted physical prefixes and embedded scope/recovery metadata. Typed key comparison covers legal IndexedDB string/number/Date/Array/binary shapes. Physical/embedded divergence, malformed counters, duplicate/colliding lineage, and corrupt terminal records fail before retirement and roll the whole transaction back. Valid unrelated scope records remain accepted.
+- Per-physical-user-database BroadcastChannel propagation carries only protocol plus scope/client/evaluation IDs and state. Messages are strict-schema and exact-scope validated; malformed, foreign, duplicate, out-of-order, throwing-subscriber, start/stop/StrictMode, and close paths are isolated. Unsupported/failed channels use a deterministic scoped polling pulse.
+- Every mounted synchronized form re-queries durable natural lineage for every same-scope signal rather than filtering pre-known mutation IDs. Both tabs surface an unknown predecessor conflict; the exact receipt-backed winner clears the sibling recovery and replaces its local display/cache only after durable confirmation.
+- Mobile Chrome and Mobile Safari assert the authoritative successor POST body contains the delayed newest edit, immediate reload after server confirmation preserves it, offline successor remains device-only, and a two-tab sequence-1 conflict/sequence-2 draft is visible in both tabs and resolved once for both.
+
+### Verification
+
+```text
+Focused RED newest-draft / physical-union / cross-tab probes       FAIL, then GREEN
+Focused outbox/synchronizer/form unit suites                       PASS (157 tests)
+npx supabase db reset --local --no-seed                            PASS (47 migrations)
+npx supabase test db --local                                       PASS (29 files / 847 tests)
+npm run test:integration, repeated                                 PASS twice (19 files / 137 tests)
+npm run verify                                                     PASS (format, lint, types, 342 unit tests, build)
+npm run test:e2e:evaluation                                        PASS (8 tests; Mobile Chrome + Mobile Safari, including multi-tab)
+npm audit --audit-level=high                                       PASS (0 vulnerabilities)
+git diff --check                                                   PASS
+```
+
+### Release gate
+
+Authenticated production cookies, live membership lookup, the production Next route, PostgREST, and PostgreSQL in one browser traversal still require the documented staging/local authenticated release run. The fixture imports the real production client components and persistence/synchronization paths; no stronger end-to-end authentication claim is made.

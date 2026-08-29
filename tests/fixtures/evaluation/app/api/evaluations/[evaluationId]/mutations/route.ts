@@ -40,6 +40,7 @@ export async function POST(
       'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd',
       'edededed-eded-4ede-8ede-edededededed',
       'dcdcdcdc-dcdc-4dcd-8dcd-dcdcdcdcdcdc',
+      'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc',
     ].includes(mutation.data.evaluationId)
       ? 1
       : 0);

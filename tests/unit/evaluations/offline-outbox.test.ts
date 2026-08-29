@@ -604,7 +604,7 @@ describe('evaluation offline outbox', () => {
     target.close();
   });
 
-  it('atomically rebases the newest durable local draft and permanently retires conflicted lineage', async () => {
+  it('atomically rebases the exact newest recovery input even when IndexedDB has an older draft', async () => {
     const target = await prepare(repository('conflict-keep-local'));
     const firstId = '30000000-0000-4000-8000-000000000091';
     const secondId = '30000000-0000-4000-8000-000000000092';
@@ -644,6 +644,7 @@ describe('evaluation offline outbox', () => {
         errorCategory: 'conflict',
       },
     });
+    const newestRecoveryDraft = { ...draft, note: 'newest in-memory recovery edit 🚀' };
     const resolved = await target.resolveConflict({
       scope,
       clientMutationId: firstId,
@@ -653,6 +654,7 @@ describe('evaluation offline outbox', () => {
         payloadDigest: head!.payloadDigest,
         queueSequence: head!.queueSequence,
       },
+      local: newestRecoveryDraft,
       server: {
         scope,
         evaluationId: authoritativeId,
@@ -664,6 +666,7 @@ describe('evaluation offline outbox', () => {
       action: 'keep_local',
       expectedVersion: 7,
       evaluationId: authoritativeId,
+      draftDigest: await digestValue(newestRecoveryDraft),
     });
     const rows = await target.listMutations(scope);
     expect(rows).toHaveLength(1);
@@ -671,7 +674,7 @@ describe('evaluation offline outbox', () => {
       status: 'pending',
       expectedVersion: 7,
       evaluationId: authoritativeId,
-      draft: { note: 'newest durable local edit' },
+      draft: { note: 'newest in-memory recovery edit 🚀' },
     });
     expect(rows[0]!.clientMutationId).not.toBe(firstId);
     expect(rows[0]!.clientMutationId).not.toBe(secondId);
@@ -731,6 +734,7 @@ describe('evaluation offline outbox', () => {
         payloadDigest: head!.payloadDigest,
         queueSequence: head!.queueSequence,
       },
+      local: dependentDraft,
       server: { scope, evaluationId: authoritativeId, version: 7, draft },
     });
     expect(await target.listMutations(scope)).toMatchObject([
@@ -790,6 +794,7 @@ describe('evaluation offline outbox', () => {
             payloadDigest: head!.payloadDigest,
             queueSequence: head!.queueSequence,
           },
+          local: draft,
           server: { scope, evaluationId: authoritativeId, version: 7, draft },
         }),
       ).rejects.toMatchObject({ code: 'corrupt_record' });
@@ -799,6 +804,121 @@ describe('evaluation offline outbox', () => {
       target.close();
     },
   );
+
+  it.each([
+    ['sessionContexts', 'shadow-context', (key: unknown) => ({ scopeKey: key, scope })],
+    ['drafts', 'shadow-draft', (key: unknown) => ({ scopeKey: key, scope })],
+    [
+      'mutations',
+      new Date('2026-08-29T01:02:03.000Z'),
+      (key: unknown) => ({ storageKey: key, scopeKey: 99, scope }),
+    ],
+    ['receipts', [scope.userId, 17], (key: unknown) => ({ storageKey: key, scopeKey: 99, scope })],
+    ['receiptTombstones', 42, (key: unknown) => ({ storageKey: key, scopeKey: 99, scope })],
+    [
+      'queueCounters',
+      [scope.userId, new Date('2026-08-29T01:02:03.000Z')],
+      (key: unknown) => ({ queueKey: key, scopeKey: Object.values(scope).join('|') }),
+    ],
+    [
+      'quarantines',
+      new Date('2026-08-29T03:02:01.000Z'),
+      (key: unknown) => ({
+        quarantineKey: key,
+        scopeKey: 99,
+        recoveryEnvelope: { scopeKey: Object.values(scope).join('|') },
+      }),
+    ],
+  ] as const)(
+    'fails closed on a target-attributable %s record hidden behind typed physical key %s',
+    async (tableName, physicalKey, rawRecord) => {
+      const baseName = databaseBase(`strict-union-${tableName}`);
+      const physicalName = trackUserDatabase(baseName);
+      const target = await prepare(
+        createEvaluationOfflineRepository({
+          authenticatedUserId: scope.userId,
+          databaseName: baseName,
+        }),
+      );
+      const originalId = crypto.randomUUID();
+      const authoritativeId = crypto.randomUUID();
+      await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+      const head = (await target.nextPendingMutation(scope))!;
+      await target.markNeedsAttention({
+        scope,
+        evaluationId: head.evaluationId,
+        clientMutationId: originalId,
+        claimToken: head.claimToken!,
+        category: 'conflict',
+        message: 'strict physical union',
+        conflictServerEvaluationId: authoritativeId,
+        conflictServerVersion: 7,
+      });
+      const raw = new Dexie(physicalName);
+      raw.version(5).stores(v5Stores);
+      await raw.open();
+      await raw.table(tableName).put(rawRecord(physicalKey));
+      raw.close();
+
+      await expect(
+        target.resolveConflict({
+          scope,
+          clientMutationId: originalId,
+          action: 'keep_local',
+          original: {
+            evaluationId: head.evaluationId,
+            payloadDigest: head.payloadDigest,
+            queueSequence: head.queueSequence,
+          },
+          local: draft,
+          server: { scope, evaluationId: authoritativeId, version: 7, draft },
+        }),
+      ).rejects.toMatchObject({ code: 'corrupt_record' });
+      expect(await target.listMutations(scope)).toEqual([
+        expect.objectContaining({ clientMutationId: originalId, status: 'needs_attention' }),
+      ]);
+      target.close();
+    },
+  );
+
+  it('does not let valid unrelated physical records block strict conflict append', async () => {
+    const target = await prepare(repository('strict-union-unrelated'));
+    const unrelatedScope = {
+      ...scope,
+      sessionId: crypto.randomUUID(),
+      registrationId: crypto.randomUUID(),
+    };
+    await target.saveSessionContext(context(unrelatedScope));
+    const originalId = crypto.randomUUID();
+    const authoritativeId = crypto.randomUUID();
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'unrelated physical scope',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
+    });
+    await expect(
+      target.resolveConflict({
+        scope,
+        clientMutationId: originalId,
+        action: 'keep_local',
+        original: {
+          evaluationId: head.evaluationId,
+          payloadDigest: head.payloadDigest,
+          queueSequence: head.queueSequence,
+        },
+        local: draft,
+        server: { scope, evaluationId: authoritativeId, version: 7, draft },
+      }),
+    ).resolves.toMatchObject({ evaluationId: authoritativeId });
+    target.close();
+  });
 
   it('accepts a valid compacted receipt-only authoritative target and continues its counter', async () => {
     const target = await prepare(repository('conflict-valid-compacted-target'));
@@ -848,6 +968,7 @@ describe('evaluation offline outbox', () => {
         payloadDigest: head!.payloadDigest,
         queueSequence: head!.queueSequence,
       },
+      local: draft,
       server: { scope, evaluationId: authoritativeId, version: 8, draft },
     });
     expect(resolved).toMatchObject({ evaluationId: authoritativeId, queueSequence: 2 });
@@ -898,6 +1019,7 @@ describe('evaluation offline outbox', () => {
           payloadDigest: head!.payloadDigest,
           queueSequence: head!.queueSequence,
         },
+        local: draft,
         server: { scope, evaluationId: authoritativeId, version: 7, draft },
       }),
     ).rejects.toMatchObject({ code: 'corrupt_record' });
@@ -946,6 +1068,7 @@ describe('evaluation offline outbox', () => {
           payloadDigest: head!.payloadDigest,
           queueSequence: head!.queueSequence,
         },
+        local: draft,
         server: { scope, evaluationId: head!.evaluationId, version: 3, draft },
       };
       const resolved = await target.resolveConflict(input);
@@ -995,6 +1118,7 @@ describe('evaluation offline outbox', () => {
         payloadDigest: head!.payloadDigest,
         queueSequence: head!.queueSequence,
       },
+      local: draft,
       server: { scope, evaluationId: head!.evaluationId, version: 3, draft },
     };
     const resolved = await target.resolveConflict(input);
@@ -1076,6 +1200,7 @@ describe('evaluation offline outbox', () => {
           payloadDigest: head!.payloadDigest,
           queueSequence: head!.queueSequence,
         },
+        local: draft,
         server: { scope, evaluationId: authoritativeId, version: 7, draft },
       }),
     ).rejects.toMatchObject({ code: 'corrupt_record' });
@@ -1126,6 +1251,7 @@ describe('evaluation offline outbox', () => {
         payloadDigest: head!.payloadDigest,
         queueSequence: head!.queueSequence,
       },
+      local: draft,
       server: { scope, evaluationId: authoritativeId, version: 8, draft: serverDraft },
     });
     target.close();
@@ -1172,6 +1298,7 @@ describe('evaluation offline outbox', () => {
           payloadDigest: head!.payloadDigest,
           queueSequence: head!.queueSequence,
         },
+        local: draft,
         server: { scope, evaluationId: targetEvaluationId, version: 3, draft },
       }),
     ).rejects.toMatchObject({ code: 'invalid_input' });
@@ -1184,6 +1311,7 @@ describe('evaluation offline outbox', () => {
         payloadDigest: head!.payloadDigest,
         queueSequence: head!.queueSequence,
       },
+      local: draft,
       server: { scope, evaluationId: targetEvaluationId, version: 3, draft },
     };
     const first = await target.resolveConflict(input);
@@ -1235,6 +1363,7 @@ describe('evaluation offline outbox', () => {
         payloadDigest: head.payloadDigest,
         queueSequence: head.queueSequence,
       },
+      local: draft,
       server: { scope, evaluationId: head.evaluationId, version: 3, draft },
     };
     const outcomes = await Promise.allSettled([
@@ -1302,6 +1431,7 @@ describe('evaluation offline outbox', () => {
           payloadDigest: head!.payloadDigest,
           queueSequence: head!.queueSequence,
         },
+        local: draft,
         server: { scope, evaluationId: authoritativeId, version: 7, draft },
       }),
     ]);

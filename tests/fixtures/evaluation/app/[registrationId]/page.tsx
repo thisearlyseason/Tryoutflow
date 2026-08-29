@@ -32,6 +32,11 @@ const athletes = [
     displayName: 'Athlete N4P5Q6',
     tryoutNumber: 46,
   },
+  {
+    registrationId: 'adadadad-adad-4dad-8dad-adadadadadad',
+    displayName: 'Athlete R7S8T9',
+    tryoutNumber: 47,
+  },
 ];
 
 const categories = [
@@ -71,7 +76,9 @@ export default async function EvaluationFixturePage({
       ? 'ffffffff-ffff-4fff-8fff-ffffffffffff'
       : index === 3
         ? 'fefefefe-fefe-4efe-8efe-fefefefefefe'
-        : 'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd';
+        : index === 5
+          ? 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc'
+          : 'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd';
   const authoritativeEvaluationId =
     readAuthoritativeEvaluationId(registrationId, engine) ?? provisionalEvaluationId;
 

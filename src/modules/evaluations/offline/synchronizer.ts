@@ -14,7 +14,11 @@ import type { EvaluationOfflineRepository } from './repository';
 
 type SynchronizerRepository = Pick<
   EvaluationOfflineRepository,
-  'nextPendingMutation' | 'acknowledgeMutation' | 'markNeedsAttention' | 'recordMutationFailure'
+  | 'databaseName'
+  | 'nextPendingMutation'
+  | 'acknowledgeMutation'
+  | 'markNeedsAttention'
+  | 'recordMutationFailure'
 >;
 export type EvaluationMutationSender = (
   entry: StoredEvaluationMutation,
@@ -35,6 +39,16 @@ export type EvaluationSynchronizerOptions = {
   now?: () => Date;
   schedule?: (callback: () => void, delayMs: number) => unknown;
   cancel?: (timer: unknown) => void;
+  channelFactory?: (name: string) => EvaluationChangeChannel | null;
+  poll?: (callback: () => void, delayMs: number) => unknown;
+  cancelPoll?: (timer: unknown) => void;
+  pollIntervalMs?: number;
+};
+export type EvaluationChangeChannel = {
+  postMessage(message: unknown): void;
+  addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
+  removeEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
+  close(): void;
 };
 export type EvaluationMutationSendErrorCategory =
   'forbidden' | 'conflict' | 'invalid_input' | 'rate_limited' | 'transient';
@@ -59,14 +73,30 @@ const attentionCategory = {
   locked: 'conflict',
 } as const;
 
+const synchronizerEventSchema = z.strictObject({
+  protocol: z.literal('tryoutflow-evaluation-change-v1'),
+  scopeKey: z.string().min(1).max(512),
+  evaluationId: z.uuid(),
+  clientMutationId: z.uuid(),
+  state: z.enum(['saved_device', 'synced', 'needs_attention']),
+});
+
 export class EvaluationSynchronizer {
   private running = false;
   private hasStarted = false;
   private generation = 0;
   private flushing: Promise<void> | null = null;
   private retryTimer: unknown = null;
+  private changeChannel: EvaluationChangeChannel | null = null;
+  private pollTimer: unknown = null;
   private readonly subscribers = new Set<(event: EvaluationSynchronizerEvent) => void>();
   private readonly onlineListener = () => void this.flush();
+  private readonly channelListener = (event: { data: unknown }) => {
+    const parsed = synchronizerEventSchema.safeParse(event.data);
+    if (!parsed.success || parsed.data.scopeKey !== scopeKey(this.options.scope)) return;
+    const { protocol: _protocol, ...change } = parsed.data;
+    this.emitLocal(change);
+  };
 
   constructor(private readonly options: EvaluationSynchronizerOptions) {}
 
@@ -81,6 +111,7 @@ export class EvaluationSynchronizer {
     this.hasStarted = true;
     this.generation += 1;
     const generation = this.generation;
+    this.openChangePropagation();
     this.options.eventTarget?.addEventListener('online', this.onlineListener);
     if (this.flushing) {
       this.scheduleRetry(new Date(this.now().getTime() + 30_000).toISOString(), generation);
@@ -96,6 +127,7 @@ export class EvaluationSynchronizer {
     this.generation += 1;
     this.options.eventTarget?.removeEventListener('online', this.onlineListener);
     this.clearRetryTimer();
+    this.closeChangePropagation();
     this.subscribers.clear();
   }
 
@@ -298,12 +330,83 @@ export class EvaluationSynchronizer {
     });
   }
   private emit(event: EvaluationSynchronizerEvent): void {
+    this.emitLocal(event);
+    if (!this.changeChannel) return;
+    try {
+      this.changeChannel.postMessage({
+        protocol: 'tryoutflow-evaluation-change-v1',
+        scopeKey: event.scopeKey,
+        evaluationId: event.evaluationId,
+        clientMutationId: event.clientMutationId,
+        state: event.state,
+      });
+    } catch {
+      // Cross-tab observability cannot redefine the already-committed durable state.
+    }
+  }
+  private emitLocal(event: EvaluationSynchronizerEvent): void {
     for (const subscriber of [...this.subscribers]) {
       try {
         subscriber(event);
       } catch {
         /* subscribers cannot affect durable state */
       }
+    }
+  }
+
+  private openChangePropagation(): void {
+    this.closeChangePropagation();
+    const factory =
+      this.options.channelFactory ??
+      (typeof globalThis.BroadcastChannel === 'undefined'
+        ? null
+        : (name: string) => new globalThis.BroadcastChannel(name));
+    try {
+      this.changeChannel =
+        factory?.(`tryoutflow-evaluation-sync-v1:${this.options.repository.databaseName}`) ?? null;
+      this.changeChannel?.addEventListener('message', this.channelListener);
+    } catch {
+      try {
+        this.changeChannel?.close();
+      } catch {
+        // Fall through to deterministic polling when a partial channel cannot be closed.
+      }
+      this.changeChannel = null;
+    }
+    if (this.changeChannel) return;
+    const poll =
+      this.options.poll ??
+      ((callback: () => void, delayMs: number) => globalThis.setInterval(callback, delayMs));
+    this.pollTimer = poll(() => {
+      if (!this.running) return;
+      this.emitLocal({
+        scopeKey: scopeKey(this.options.scope),
+        evaluationId: '00000000-0000-4000-8000-000000000000',
+        clientMutationId: '00000000-0000-4000-8000-000000000000',
+        state: 'saved_device',
+      });
+    }, this.options.pollIntervalMs ?? 1_000);
+  }
+
+  private closeChangePropagation(): void {
+    if (this.changeChannel) {
+      try {
+        this.changeChannel.removeEventListener('message', this.channelListener);
+      } catch {
+        // Listener removal is best-effort; closing below still fences future delivery.
+      }
+      try {
+        this.changeChannel.close();
+      } catch {
+        // Closing a browser primitive is best-effort and contains no durable transition.
+      }
+      this.changeChannel = null;
+    }
+    if (this.pollTimer !== null) {
+      const cancel =
+        this.options.cancelPoll ?? ((timer: unknown) => globalThis.clearInterval(timer as number));
+      cancel(this.pollTimer);
+      this.pollTimer = null;
     }
   }
 }

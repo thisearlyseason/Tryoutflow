@@ -191,11 +191,20 @@ export function EvaluationForm({
   }) => Promise<EvaluationSaveResult>;
   durableDeviceSave?: boolean;
   serverConfirmation?: { evaluationId: string; version: number } | null;
-  backgroundSaveResult?: {
-    token: number;
-    outcome: Exclude<EvaluationSaveResult['outcome'], 'saved' | 'saved_device'>;
-    serverFresh?: boolean;
-  } | null;
+  backgroundSaveResult?:
+    | {
+        token: number;
+        outcome: Exclude<EvaluationSaveResult['outcome'], 'saved' | 'saved_device'>;
+        serverFresh?: boolean;
+      }
+    | {
+        token: number;
+        outcome: 'resolved_elsewhere';
+        draft: EditableDraft;
+        evaluationId: string;
+        version: number;
+      }
+    | null;
   onResolveRecovery?: (input: {
     action: 'keep_local' | 'use_server';
     local: EditableDraft;
@@ -267,7 +276,7 @@ export function EvaluationForm({
   const lastCompletionRef = useRef<CachedDraft['lastCompletion']>(undefined);
   const storageAvailableRef = useRef(Boolean(draftCacheKey));
   const editable = completionState === 'draft' || completionState === 'reopened';
-  const interactive = editable && hydrated && !restriction && !completing;
+  const interactive = editable && hydrated && !restriction && !completing && !resolving;
 
   useEffect(() => {
     if (
@@ -287,6 +296,25 @@ export function EvaluationForm({
 
   useEffect(() => {
     if (!backgroundSaveResult || !hydrated) return;
+    if (backgroundSaveResult.outcome === 'resolved_elsewhere') {
+      latestDraftRef.current = backgroundSaveResult.draft;
+      revisionRef.current = 0;
+      confirmedRevisionRef.current = 0;
+      drainGoalRef.current = 0;
+      evaluationIdRef.current = backgroundSaveResult.evaluationId;
+      versionRef.current = backgroundSaveResult.version;
+      serverConfirmedRef.current = true;
+      blockedRef.current = false;
+      recoveryKindRef.current = null;
+      lastRequestRef.current = undefined;
+      lastCompletionRef.current = undefined;
+      setDraft(backgroundSaveResult.draft);
+      setRecovery(null);
+      setRecoveryNotice('This evaluation was resolved and saved in another tab.');
+      setSaveState('saved');
+      clearCachedDraft(draftCacheKey);
+      return;
+    }
     const request = lastRequestRef.current;
     if (backgroundSaveResult.outcome === 'conflict')
       requireRecovery('conflict', request, backgroundSaveResult.serverFresh);
@@ -683,7 +711,11 @@ export function EvaluationForm({
     lastRequestRef.current = undefined;
     lastCompletionRef.current = undefined;
     const confirmed = resolution?.outcome === 'resolved';
-    confirmedRevisionRef.current = confirmed ? revisionRef.current : 0;
+    // A pending keep-local resolution is already durable in the exact rebased outbox successor.
+    // Mark the UI revision device-confirmed so reconnect does not enqueue a second payload; the
+    // exact successor receipt delivered through serverConfirmation is still required for server
+    // authority and completion.
+    confirmedRevisionRef.current = resolution ? revisionRef.current : 0;
     serverConfirmedRef.current = confirmed;
     drainGoalRef.current = 0;
     setRecovery(null);

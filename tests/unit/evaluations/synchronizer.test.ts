@@ -518,4 +518,173 @@ describe('EvaluationSynchronizer', () => {
     firstRepository.close();
     secondRepository.close();
   });
+
+  it('propagates a predecessor conflict to an already-mounted sibling tab without PII', async () => {
+    type Listener = (event: { data: unknown }) => void;
+    const listeners = new Map<string, Set<Listener>>();
+    const posted: unknown[] = [];
+    const channelFactory = (name: string) => {
+      const own = new Set<Listener>();
+      listeners.set(name, new Set([...(listeners.get(name) ?? []), ...own]));
+      return {
+        postMessage(message: unknown) {
+          posted.push(message);
+          for (const listener of listeners.get(name) ?? []) listener({ data: message });
+        },
+        addEventListener(_type: 'message', listener: Listener) {
+          own.add(listener);
+          listeners.set(name, new Set([...(listeners.get(name) ?? []), listener]));
+        },
+        removeEventListener(_type: 'message', listener: Listener) {
+          own.delete(listener);
+          listeners.get(name)?.delete(listener);
+        },
+        close() {
+          for (const listener of own) listeners.get(name)?.delete(listener);
+          own.clear();
+        },
+      };
+    };
+    const databaseName = `sync-conflict-tabs-${crypto.randomUUID()}`;
+    const firstRepository = await queuedRepository(databaseName);
+    await firstRepository.saveDraftAndEnqueueMutation({
+      scope,
+      evaluationId,
+      expectedVersion: 1,
+      draft: {
+        scores: [{ categoryId, value: 5 }],
+        note: 'newest private edit',
+        noteTagIds: [],
+        flags: [],
+      },
+    });
+    const secondRepository = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName,
+    });
+    const tabA = new EvaluationSynchronizer({
+      repository: firstRepository,
+      scope,
+      online: () => false,
+      send: async () => {
+        throw new Error('offline tab must not send');
+      },
+      channelFactory,
+    });
+    const tabB = new EvaluationSynchronizer({
+      repository: secondRepository,
+      scope,
+      send: async (entry) => ({
+        outcome: 'conflict',
+        clientMutationId: entry.clientMutationId,
+        evaluationId: entry.evaluationId,
+        serverEvaluationId: entry.evaluationId,
+        expectedVersion: entry.expectedVersion,
+        payloadDigest: entry.payloadDigest,
+        serverVersion: 3,
+        acknowledgedAt: '2026-08-29T12:00:00.000Z',
+      }),
+      channelFactory,
+    });
+    const tabAEvents: { state: string; clientMutationId: string }[] = [];
+    tabA.subscribe((event) =>
+      tabAEvents.push({ state: event.state, clientMutationId: event.clientMutationId }),
+    );
+    tabA.start();
+    tabB.start();
+    await tabB.flush();
+    await vi.waitFor(() => expect(tabAEvents).toHaveLength(1));
+    expect(tabAEvents[0]).toMatchObject({ state: 'needs_attention' });
+    const newest = await firstRepository.reconcileDraftLineage(scope);
+    expect(newest).toMatchObject({
+      state: 'needs_attention',
+      draft: { draft: { note: 'newest private edit' } },
+      blockingMutation: { clientMutationId: tabAEvents[0]!.clientMutationId },
+    });
+    expect(JSON.stringify(posted)).not.toContain('newest private edit');
+    tabA.stop();
+    tabB.stop();
+    firstRepository.close();
+    secondRepository.close();
+  });
+
+  it('validates channel scope, tolerates duplicates, and closes propagation on stop', async () => {
+    const repository = await queuedRepository();
+    let listener: ((event: { data: unknown }) => void) | null = null;
+    const close = vi.fn();
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      online: () => false,
+      send: async () => {
+        throw new Error('offline');
+      },
+      channelFactory: () => ({
+        postMessage: vi.fn(),
+        addEventListener(_type, next) {
+          listener = next;
+        },
+        removeEventListener(_type, next) {
+          if (listener === next) listener = null;
+        },
+        close,
+      }),
+    });
+    const events: string[] = [];
+    synchronizer.subscribe((event) => events.push(event.state));
+    synchronizer.start();
+    const message = {
+      protocol: 'tryoutflow-evaluation-change-v1',
+      scopeKey: Object.values(scope).join('|'),
+      evaluationId,
+      clientMutationId: crypto.randomUUID(),
+      state: 'needs_attention',
+    };
+    const deliver = listener!;
+    deliver({ data: { ...message, privateNote: 'must reject unknown fields' } });
+    deliver({
+      data: {
+        ...message,
+        scopeKey: Object.values({ ...scope, userId: crypto.randomUUID() }).join('|'),
+      },
+    });
+    deliver({ data: message });
+    deliver({ data: message });
+    expect(events).toEqual(['needs_attention', 'needs_attention']);
+    synchronizer.stop();
+    deliver({ data: message });
+    expect(events).toEqual(['needs_attention', 'needs_attention']);
+    expect(close).toHaveBeenCalledOnce();
+    repository.close();
+  });
+
+  it('falls back to a deterministic scoped re-query pulse when BroadcastChannel is unavailable', async () => {
+    const repository = await queuedRepository();
+    let pulse: (() => void) | null = null;
+    const cancelPoll = vi.fn();
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      online: () => false,
+      send: async () => {
+        throw new Error('offline');
+      },
+      channelFactory: () => null,
+      poll(callback) {
+        pulse = callback;
+        return 'poll-token';
+      },
+      cancelPoll,
+    });
+    const events: { scopeKey: string; state: string }[] = [];
+    synchronizer.subscribe((event) =>
+      events.push({ scopeKey: event.scopeKey, state: event.state }),
+    );
+    synchronizer.start();
+    pulse!();
+    expect(events).toEqual([{ scopeKey: Object.values(scope).join('|'), state: 'saved_device' }]);
+    synchronizer.stop();
+    expect(cancelPoll).toHaveBeenCalledWith('poll-token');
+    repository.close();
+  });
 });

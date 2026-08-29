@@ -926,6 +926,113 @@ describe('EvaluationForm', () => {
     vi.useRealTimers();
   });
 
+  it('freezes recovery editing while the exact keep-local draft is being durably resolved', async () => {
+    const user = userEvent.setup();
+    const pending = deferred<{
+      outcome: 'pending';
+      evaluationId: string;
+      version: number;
+    }>();
+    const evaluationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    window.sessionStorage.setItem(
+      'tryoutflow:evaluation-draft:v1:resolve-exact-local',
+      JSON.stringify({
+        draft: {
+          scores: [{ categoryId: skatingId, value: 4 }],
+          note: 'exact newest recovery edit 🚀',
+          noteTagIds: [],
+          flags: [],
+        },
+        baseVersion: 1,
+        evaluationId,
+        revision: 2,
+        recovery: 'conflict',
+        serverSnapshotToken: 'older-server-snapshot',
+      }),
+    );
+    const onResolveRecovery = vi.fn(() => pending.promise);
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="resolve-exact-local"
+        serverSnapshotToken="fresh-server-snapshot"
+        initialDraft={{ evaluationId, version: 2, state: 'draft', scores: [] }}
+        onComplete={vi.fn()}
+        onResolveRecovery={onResolveRecovery}
+        onSave={vi.fn()}
+      />,
+    );
+    const note = await screen.findByLabelText('Private evaluator note');
+    await user.click(screen.getByRole('button', { name: 'Keep my local draft' }));
+    expect(note).toBeDisabled();
+    expect(onResolveRecovery).toHaveBeenCalledWith({
+      action: 'keep_local',
+      local: expect.objectContaining({ note: 'exact newest recovery edit 🚀' }),
+    });
+    await act(async () => pending.resolve({ outcome: 'pending', evaluationId, version: 3 }));
+    expect(note).toBeEnabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Saved on device');
+  });
+
+  it('accepts only a receipt-bound sibling-tab resolution as the confirmed winner', async () => {
+    const evaluationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    window.sessionStorage.setItem(
+      'tryoutflow:evaluation-draft:v1:sibling-resolution',
+      JSON.stringify({
+        draft: { scores: [], note: 'older tab-local conflict', noteTagIds: [], flags: [] },
+        baseVersion: 1,
+        evaluationId,
+        revision: 1,
+        recovery: 'conflict',
+        serverSnapshotToken: 'older-snapshot',
+      }),
+    );
+    const shared = {
+      athlete,
+      categories,
+      draftCacheKey: 'sibling-resolution',
+      serverSnapshotToken: 'fresh-snapshot',
+      initialDraft: { evaluationId, version: 2, state: 'draft' as const, scores: [] },
+      onComplete: vi.fn(),
+      onSave: vi.fn(),
+    };
+    const view = render(<EvaluationForm {...shared} />);
+    expect(
+      await screen.findByRole('heading', { name: 'Review local and server drafts' }),
+    ).toBeVisible();
+    view.rerender(
+      <EvaluationForm
+        {...shared}
+        backgroundSaveResult={{
+          token: 1,
+          outcome: 'resolved_elsewhere',
+          draft: {
+            scores: [{ categoryId: skatingId, value: 5 }],
+            note: 'newest durable sibling winner',
+            noteTagIds: [],
+            flags: [],
+          },
+          evaluationId,
+          version: 3,
+        }}
+        serverConfirmation={{ evaluationId, version: 3 }}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Review local and server drafts' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText('Private evaluator note')).toHaveValue(
+      'newest durable sibling winner',
+    );
+    expect(screen.getByText('Saved on server')).toBeVisible();
+    expect(
+      window.sessionStorage.getItem('tryoutflow:evaluation-draft:v1:sibling-resolution'),
+    ).toBeNull();
+  });
+
   it('does not trust a changed snapshot token when the server version went backwards', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

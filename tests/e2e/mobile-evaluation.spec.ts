@@ -159,9 +159,12 @@ test('durably resolves synchronized conflicts without resurrecting discarded wor
     await route.continue();
   });
   const mutationUrls: string[] = [];
+  const mutationBodies: { draft?: { note?: string } }[] = [];
   page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url().includes('/api/evaluations/'))
+    if (request.method() === 'POST' && request.url().includes('/api/evaluations/')) {
       mutationUrls.push(request.url());
+      mutationBodies.push(request.postDataJSON() as { draft?: { note?: string } });
+    }
   });
   await page.goto('/abababab-abab-4bab-8bab-abababababab');
   const note = page.getByLabel('Private evaluator note');
@@ -186,9 +189,15 @@ test('durably resolves synchronized conflicts without resurrecting discarded wor
   await context.setOffline(false);
   await expect(page.getByRole('status')).toContainText('Saved on server');
   await expect(note).toHaveValue('newest edit behind durable conflict');
+  expect(
+    mutationBodies.some((body) => body.draft?.note === 'newest edit behind durable conflict'),
+  ).toBe(true);
   expect(mutationUrls.some((url) => url.includes('edededed-eded-4ede-8ede-edededededed'))).toBe(
     true,
   );
+  await page.reload();
+  await expect(note).toHaveValue('newest edit behind durable conflict');
+  await expect(page.getByRole('status')).toContainText('Saved on server');
   await note.fill('edited after durable keep-local resolution');
   await page.getByRole('button', { name: 'Save now' }).click();
   await expect(page.getByRole('status')).toContainText('Saved on server');
@@ -207,4 +216,65 @@ test('durably resolves synchronized conflicts without resurrecting discarded wor
   await page.reload();
   await expect(discarded).toHaveValue('');
   await expect(page.getByText('force durable conflict discard this')).toHaveCount(0);
+});
+
+test('surfaces and resolves a predecessor conflict across two already-mounted tabs', async ({
+  context,
+  page,
+}) => {
+  const sibling = await context.newPage();
+  let releaseConflict!: () => void;
+  const held = new Promise<void>((resolve) => (releaseConflict = resolve));
+  let reportConflict!: () => void;
+  const conflictRequested = new Promise<void>((resolve) => (reportConflict = resolve));
+  let intercepted = false;
+  const successorBodies: { draft?: { note?: string } }[] = [];
+  await context.route('**/api/evaluations/**', async (route) => {
+    const body = route.request().postDataJSON() as { draft?: { note?: string } };
+    if (!intercepted && body.draft?.note === 'force durable conflict across tabs') {
+      intercepted = true;
+      const response = await route.fetch();
+      reportConflict();
+      await held;
+      await route.fulfill({ response });
+      return;
+    }
+    successorBodies.push(body);
+    await route.continue();
+  });
+  await Promise.all([
+    page.goto('/adadadad-adad-4dad-8dad-adadadadadad'),
+    sibling.goto('/adadadad-adad-4dad-8dad-adadadadadad'),
+  ]);
+  const firstNote = page.getByLabel('Private evaluator note');
+  const siblingNote = sibling.getByLabel('Private evaluator note');
+  await firstNote.fill('force durable conflict across tabs');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await conflictRequested;
+  await siblingNote.fill('newest durable edit from sibling tab');
+  await sibling.getByRole('button', { name: 'Save now' }).click();
+  await expect(sibling.getByRole('status')).toContainText('Saved on device');
+  releaseConflict();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(
+    sibling.getByRole('heading', { name: 'Review local and server drafts' }),
+  ).toBeVisible();
+  await expect(sibling.getByRole('article', { name: 'Local draft' })).toContainText(
+    'newest durable edit from sibling tab',
+  );
+  await sibling.getByRole('button', { name: 'Keep my local draft' }).click();
+  await expect(sibling.getByRole('status')).toContainText('Saved on server');
+  await expect(
+    page.getByText('This evaluation was resolved and saved in another tab.'),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toHaveCount(
+    0,
+  );
+  await expect(firstNote).toHaveValue('newest durable edit from sibling tab');
+  expect(
+    successorBodies.some((body) => body.draft?.note === 'newest durable edit from sibling tab'),
+  ).toBe(true);
+  await Promise.all([page.reload(), sibling.reload()]);
+  await expect(firstNote).toHaveValue('newest durable edit from sibling tab');
+  await expect(siblingNote).toHaveValue('newest durable edit from sibling tab');
 });

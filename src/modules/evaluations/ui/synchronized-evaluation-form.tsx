@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { createEvaluationOfflineRepository } from '../offline/repository';
 import { createEvaluationMutationSender, EvaluationSynchronizer } from '../offline/synchronizer';
-import type { EvaluationStorageScope, StoredEvaluationMutation } from '../offline/database';
+import {
+  scopeKey,
+  type EvaluationStorageScope,
+  type StoredEvaluationMutation,
+} from '../offline/database';
 import {
   EvaluationForm,
   type EvaluationDraftInput,
@@ -67,11 +71,26 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     evaluationId: string;
     version: number;
   } | null>(null);
-  const [backgroundSaveResult, setBackgroundSaveResult] = useState<{
-    token: number;
-    outcome: 'forbidden' | 'invalid_input' | 'invalid_context' | 'conflict' | 'unexpected';
-    serverFresh?: boolean;
-  } | null>(null);
+  const [backgroundSaveResult, setBackgroundSaveResult] = useState<
+    | {
+        token: number;
+        outcome: 'forbidden' | 'invalid_input' | 'invalid_context' | 'conflict' | 'unexpected';
+        serverFresh?: boolean;
+      }
+    | {
+        token: number;
+        outcome: 'resolved_elsewhere';
+        draft: {
+          scores: { categoryId: string; value: number }[];
+          note: string;
+          noteTagIds: string[];
+          flags: string[];
+        };
+        evaluationId: string;
+        version: number;
+      }
+    | null
+  >(null);
   const repository = useMemo(
     () =>
       typeof globalThis.indexedDB === 'undefined' || typeof globalThis.IDBKeyRange === 'undefined'
@@ -160,21 +179,86 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       }
     }
     const unsubscribe = activeSynchronizer.subscribe((event) => {
-      if (cancelled || !relevantMutationIdsRef.current.has(event.clientMutationId)) return;
-      if (event.state === 'synced') void refreshConfirmation();
-      else if (event.state === 'needs_attention') {
-        const outcome =
-          event.category === 'forbidden'
-            ? 'forbidden'
-            : event.category === 'invalid_input'
-              ? 'invalid_input'
-              : event.category === 'invalid_rubric'
-                ? 'invalid_context'
-                : event.category === 'conflict'
-                  ? 'conflict'
-                  : 'unexpected';
-        setBackgroundSaveResult({ token: Date.now(), outcome });
-      }
+      if (cancelled || event.scopeKey !== scopeKey(storageScope)) return;
+      // A sibling tab can discover an earlier blocker unknown when this form mounted. Every
+      // same-scope signal therefore re-queries the durable natural lineage instead of filtering
+      // by the mutation IDs this instance happened to know already.
+      void (async () => {
+        try {
+          const lineage = await activeRepository.reconcileDraftLineage(storageScope);
+          if (cancelled) return;
+          const priorBlocker = blockingLineageRef.current;
+          rememberLineage(lineage.mutation, lineage.blockingMutation);
+          const blocker = lineage.blockingMutation;
+          if (blocker?.status === 'needs_attention') {
+            setServerConfirmation(null);
+            const category = blocker.errorCategory;
+            setBackgroundSaveResult({
+              token: Date.now(),
+              outcome:
+                category === 'forbidden'
+                  ? 'forbidden'
+                  : category === 'invalid_input'
+                    ? 'invalid_input'
+                    : category === 'invalid_rubric'
+                      ? 'invalid_context'
+                      : category === 'conflict'
+                        ? 'conflict'
+                        : 'unexpected',
+              ...(category === 'conflict' &&
+              blocker.conflictServerEvaluationId === props.initialDraft.evaluationId &&
+              blocker.conflictServerVersion === props.initialDraft.version
+                ? { serverFresh: true }
+                : {}),
+            });
+            return;
+          }
+          if (
+            priorBlocker?.status === 'needs_attention' &&
+            priorBlocker.errorCategory === 'conflict' &&
+            lineage.confirmation &&
+            lineage.draft
+          ) {
+            evaluationIdRef.current = lineage.confirmation.evaluationId;
+            setServerConfirmation({
+              evaluationId: lineage.confirmation.evaluationId,
+              version: lineage.confirmation.serverVersion,
+            });
+            setBackgroundSaveResult({
+              token: Date.now(),
+              outcome: 'resolved_elsewhere',
+              draft: {
+                scores: lineage.draft.draft.scores,
+                note: lineage.draft.draft.note ?? '',
+                noteTagIds: lineage.draft.draft.noteTagIds,
+                flags: lineage.draft.draft.flags,
+              },
+              evaluationId: lineage.confirmation.evaluationId,
+              version: lineage.confirmation.serverVersion,
+            });
+            return;
+          }
+          if (event.state === 'synced') await refreshConfirmation();
+          else if (event.state === 'needs_attention') {
+            const outcome =
+              event.category === 'forbidden'
+                ? 'forbidden'
+                : event.category === 'invalid_input'
+                  ? 'invalid_input'
+                  : event.category === 'invalid_rubric'
+                    ? 'invalid_context'
+                    : event.category === 'conflict'
+                      ? 'conflict'
+                      : 'unexpected';
+            setBackgroundSaveResult({ token: Date.now(), outcome });
+          }
+        } catch {
+          if (!cancelled) {
+            setServerConfirmation(null);
+            setBackgroundSaveResult({ token: Date.now(), outcome: 'unexpected' });
+          }
+        }
+      })();
     });
     const online = () => void refreshConfirmation();
     async function initialize() {
@@ -410,6 +494,14 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       noteTagIds: props.initialDraft.noteTagIds ?? [],
       flags: props.initialDraft.flags ?? [],
     };
+    const localDraft = {
+      scores: input.local.scores,
+      ...(input.local.note ? { note: input.local.note } : {}),
+      noteTagIds: input.local.noteTagIds,
+      flags: input.local.flags as (
+        'needs_another_look' | 'injury_concern' | 'eligibility_review'
+      )[],
+    };
     const resolved = await repository.resolveConflict({
       scope: storageScope,
       clientMutationId: head.clientMutationId,
@@ -419,6 +511,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         payloadDigest: head.payloadDigest,
         queueSequence: head.queueSequence,
       },
+      local: localDraft,
       server: {
         scope: storageScope,
         evaluationId: props.initialDraft.evaluationId,

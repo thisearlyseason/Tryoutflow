@@ -304,6 +304,10 @@ function indexableKeyPayload(value: unknown): unknown {
   return ['unsupported'];
 }
 
+function sameIndexableKey(left: unknown, right: unknown): boolean {
+  return JSON.stringify(indexableKeyPayload(left)) === JSON.stringify(indexableKeyPayload(right));
+}
+
 function digestUuid(hexDigest: string): string {
   return `${hexDigest.slice(0, 8)}-${hexDigest.slice(8, 12)}-5${hexDigest.slice(13, 16)}-8${hexDigest.slice(17, 20)}-${hexDigest.slice(20, 32)}`;
 }
@@ -961,6 +965,7 @@ export class EvaluationOfflineRepository {
     queueKey: string,
     now: Date,
   ): Promise<number> {
+    await this.validateStrictTargetStorageUnion(transaction, scope);
     const rawRows = await this.database.mutations
       .where('scopeKey')
       .equals(scopeKey(scope))
@@ -1056,6 +1061,139 @@ export class EvaluationOfflineRepository {
     }
 
     return parsedCounter.data.nextSequence;
+  }
+
+  /**
+   * Strict conflict resolution must not trust only secondary indexes: a corrupt row can diverge
+   * from its index or use any legal IndexedDB key type. Scan the union of records attributable to
+   * the exact caller scope by trusted physical key and by embedded scope metadata, then require
+   * both representations to agree before any predecessor is retired.
+   */
+  private async validateStrictTargetStorageUnion(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+  ): Promise<void> {
+    const targetScopeKey = scopeKey(scope);
+    const scopedPrefix = `${targetScopeKey}|`;
+    const queuePrefix = `${targetScopeKey}|evaluation:`;
+    const tables = [
+      'sessionContexts',
+      'drafts',
+      'mutations',
+      'receipts',
+      'receiptTombstones',
+      'queueCounters',
+      'quarantines',
+    ] as const;
+
+    const embeddedTargetsScope = (raw: unknown): boolean => {
+      if (!raw || typeof raw !== 'object') return false;
+      const value = raw as Record<string, unknown>;
+      const embeddedScope = evaluationScopeSchema.safeParse(value.scope);
+      const recovery =
+        value.recoveryEnvelope && typeof value.recoveryEnvelope === 'object'
+          ? (value.recoveryEnvelope as Record<string, unknown>)
+          : null;
+      return (
+        (embeddedScope.success && scopeKey(embeddedScope.data) === targetScopeKey) ||
+        value.scopeKey === targetScopeKey ||
+        (typeof value.storageKey === 'string' && value.storageKey.startsWith(scopedPrefix)) ||
+        (typeof value.queueKey === 'string' && value.queueKey.startsWith(queuePrefix)) ||
+        (typeof value.sourceKey === 'string' && value.sourceKey.startsWith(scopedPrefix)) ||
+        recovery?.scopeKey === targetScopeKey
+      );
+    };
+
+    const physicalTargetsScope = (tableName: (typeof tables)[number], key: IndexableType) => {
+      if (typeof key !== 'string') return false;
+      if (tableName === 'sessionContexts' || tableName === 'drafts') return key === targetScopeKey;
+      if (
+        tableName === 'mutations' ||
+        tableName === 'receipts' ||
+        tableName === 'receiptTombstones'
+      )
+        return key.startsWith(scopedPrefix);
+      if (tableName === 'queueCounters') return key.startsWith(queuePrefix);
+      return false;
+    };
+
+    for (const tableName of tables) {
+      const table = transaction.table<unknown, IndexableType>(tableName);
+      const keys = await table.toCollection().primaryKeys();
+      const values = await table.bulkGet(keys);
+      for (let index = 0; index < keys.length; index += 1) {
+        const physicalKey = keys[index]!;
+        const raw = values[index];
+        if (raw === undefined) continue;
+        const physical = physicalTargetsScope(tableName, physicalKey);
+        const embedded = embeddedTargetsScope(raw);
+        if (!physical && !embedded) continue;
+        try {
+          if (tableName === 'sessionContexts') {
+            const record = await this.validateContext(raw, scope);
+            if (
+              !sameIndexableKey(physicalKey, record.scopeKey) ||
+              scopeKey(record.scope) !== targetScopeKey
+            )
+              throw new Error('context physical scope divergence');
+          } else if (tableName === 'drafts') {
+            const record = await this.validateDraftRecord(raw, scope);
+            if (
+              !sameIndexableKey(physicalKey, record.scopeKey) ||
+              scopeKey(record.scope) !== targetScopeKey
+            )
+              throw new Error('draft physical scope divergence');
+          } else if (tableName === 'mutations') {
+            const record = await this.validateMutationRecord(raw);
+            if (
+              !sameIndexableKey(physicalKey, record.storageKey) ||
+              record.scopeKey !== targetScopeKey
+            )
+              throw new Error('mutation physical scope divergence');
+          } else if (tableName === 'receipts') {
+            const parsed = storedReceiptSchema.safeParse(raw);
+            if (!parsed.success) throw new Error('receipt schema divergence');
+            const record = await this.validateReceiptRecord(raw, {
+              scope,
+              clientMutationId: parsed.data.clientMutationId,
+            });
+            if (!sameIndexableKey(physicalKey, record.storageKey))
+              throw new Error('receipt physical scope divergence');
+          } else if (tableName === 'receiptTombstones') {
+            const parsed = storedReceiptTombstoneSchema.safeParse(raw);
+            if (!parsed.success) throw new Error('tombstone schema divergence');
+            const record = await this.validateReceiptTombstone(
+              raw,
+              scope,
+              parsed.data.clientMutationId,
+            );
+            if (!sameIndexableKey(physicalKey, record.storageKey))
+              throw new Error('tombstone physical scope divergence');
+          } else if (tableName === 'queueCounters') {
+            const parsed = storedQueueCounterSchema.safeParse(raw);
+            if (
+              !parsed.success ||
+              parsed.data.scopeKey !== targetScopeKey ||
+              !sameIndexableKey(physicalKey, parsed.data.queueKey)
+            )
+              throw new Error('counter physical scope divergence');
+          } else {
+            const parsed = storedQuarantineSchema.safeParse(raw);
+            if (
+              !parsed.success ||
+              parsed.data.scopeKey !== targetScopeKey ||
+              !sameIndexableKey(physicalKey, parsed.data.quarantineKey)
+            )
+              throw new Error('quarantine physical scope divergence');
+          }
+        } catch {
+          throw new EvaluationOfflineError(
+            'corrupt_record',
+            'Target conflict storage contains divergent physical or embedded lineage.',
+          );
+        }
+      }
+    }
   }
 
   private async appendFreshMutation(
@@ -2328,6 +2466,8 @@ export class EvaluationOfflineRepository {
       payloadDigest: string;
       queueSequence: number;
     };
+    /** Exact newest browser-session draft chosen by the evaluator for this resolution. */
+    local: EvaluationDraftPayload;
     server: {
       scope: EvaluationStorageScope;
       evaluationId: string;
@@ -2345,6 +2485,7 @@ export class EvaluationOfflineRepository {
     queueSequence?: number;
   }> {
     const scope = this.parseScope(input.scope);
+    const requestedLocalDraft = this.parseDraft(input.local);
     const serverScope = this.parseScope(input.server.scope);
     const serverDraft = this.parseDraft(input.server.draft);
     const now = safeDate(input.now ?? new Date());
@@ -2369,6 +2510,7 @@ export class EvaluationOfflineRepository {
       version: input.server.version,
       draft: serverDraft,
     });
+    const requestedLocalDraftDigest = await digestValue(requestedLocalDraft);
 
     try {
       return await this.database.transaction('rw', this.allTables(), async (transaction) => {
@@ -2400,6 +2542,8 @@ export class EvaluationOfflineRepository {
             tombstone.resolutionServerEvaluationId !== input.server.evaluationId ||
             tombstone.resolutionServerVersion !== input.server.version ||
             tombstone.resolutionServerSnapshotDigest !== serverSnapshotDigest ||
+            (input.action === 'keep_local' &&
+              tombstone.resolutionResultDraftDigest !== requestedLocalDraftDigest) ||
             !tombstone.resolutionResultDraftDigest ||
             !tombstone.resolutionResultPayloadDigest ||
             !tombstone.resolutionResultMarker
@@ -2521,6 +2665,7 @@ export class EvaluationOfflineRepository {
             'Only the exact conflicted queue head can be reconciled.',
           );
         const context = await this.requireContext(transaction, scope);
+        this.assertDraftMatchesContext(requestedLocalDraft, context);
         this.assertDraftMatchesContext(serverDraft, context);
         const rawDraft = await this.database.drafts.get(scopeKey(scope));
         const storedDraft = rawDraft ? await this.validateDraftRecord(rawDraft, scope) : null;
@@ -2569,19 +2714,10 @@ export class EvaluationOfflineRepository {
             'Conflict resolution lost the durable FIFO head.',
           );
 
-        const latestMutation =
-          [...queueRows]
-            .sort(
-              (left, right) =>
-                left.createdAt.localeCompare(right.createdAt) ||
-                left.queueSequence - right.queueSequence ||
-                left.storageKey.localeCompare(right.storageKey),
-            )
-            .at(-1) ?? head;
-        const localDraft =
-          storedDraft?.evaluationId && relatedEvaluationIds.has(storedDraft.evaluationId)
-            ? storedDraft.draft
-            : latestMutation.draft;
+        // The recovery dialog can be newer than the last durable draft while an older request is
+        // awaiting the network. Persist and rebase that explicit choice in this transaction so
+        // there is no crash gap between protecting it and retiring the conflict lineage.
+        const localDraft = requestedLocalDraft;
         this.assertDraftMatchesContext(localDraft, context);
 
         const chosenDraft = input.action === 'keep_local' ? localDraft : serverDraft;
