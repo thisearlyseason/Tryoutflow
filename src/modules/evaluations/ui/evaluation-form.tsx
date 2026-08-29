@@ -229,7 +229,9 @@ export function EvaluationForm({
     action: 'use_server';
     local: EditableDraft;
   }) => Promise<
-    { outcome: 'resolved'; evaluationId: string; version: number } | { outcome: 'failed' }
+    | { outcome: 'resolved'; evaluationId: string; version: number }
+    | { outcome: 'failed' }
+    | { outcome: 'stale_local_draft'; local: EditableDraft }
   >;
   recoveryServerDraft?: EvaluationDraftInput;
   allowVerifiedIdentityRemap?: boolean;
@@ -815,6 +817,20 @@ export function EvaluationForm({
         )
       : null;
     setResolving(false);
+    if (resolution?.outcome === 'stale_local_draft') {
+      latestDraftRef.current = resolution.local;
+      revisionRef.current += 1;
+      setDraft(resolution.local);
+      setRecovery((current) =>
+        current ? { ...current, local: resolution.local, durable: true } : current,
+      );
+      if (recovery) persistDraft(recovery.kind);
+      setUseServerConfirmation(null);
+      setRecoveryNotice(
+        'A newer local draft was saved in another tab. Review it and confirm the server draft again; nothing was replaced.',
+      );
+      return;
+    }
     if (resolution?.outcome === 'failed') {
       setRecoveryNotice('The local draft is still protected. Reload and try resolving again.');
       return;

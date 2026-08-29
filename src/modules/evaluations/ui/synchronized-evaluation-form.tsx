@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { createEvaluationOfflineRepository } from '../offline/repository';
+import { createEvaluationOfflineRepository, EvaluationOfflineError } from '../offline/repository';
 import { createEvaluationMutationSender, EvaluationSynchronizer } from '../offline/synchronizer';
 import {
   scopeKey,
+  type AuthoritativeEvaluationSnapshotProof,
   type EvaluationStorageScope,
   type StoredEvaluationMutation,
 } from '../offline/database';
@@ -20,9 +21,11 @@ type FormProps = Parameters<typeof EvaluationForm>[0];
 type SynchronizedProps =
   | (Omit<Extract<FormProps, { draftCacheKey: string }>, 'onSave' | 'durableDeviceSave'> & {
       storageScope: EvaluationStorageScope;
+      serverSnapshotProof?: AuthoritativeEvaluationSnapshotProof;
     })
   | (Omit<Extract<FormProps, { draftCacheKey?: undefined }>, 'onSave' | 'durableDeviceSave'> & {
       storageScope: EvaluationStorageScope;
+      serverSnapshotProof?: AuthoritativeEvaluationSnapshotProof;
     });
 
 function sameDraft(left: EvaluationDraftInput, right: EvaluationDraftInput): boolean {
@@ -88,7 +91,11 @@ export function createCoalescedPulseRunner(task: () => Promise<void>): {
   };
 }
 
-export function SynchronizedEvaluationForm({ storageScope, ...props }: SynchronizedProps) {
+export function SynchronizedEvaluationForm({
+  storageScope,
+  serverSnapshotProof,
+  ...props
+}: SynchronizedProps) {
   const evaluationIdRef = useRef(props.initialDraft.evaluationId ?? crypto.randomUUID());
   const activeLineageRef = useRef<{
     clientMutationId: string;
@@ -295,6 +302,26 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     const online = () => void refreshConfirmation();
     async function initialize() {
       try {
+        await activeRepository.saveSessionContext({
+          scope: storageScope,
+          tryoutNumber: props.athlete.tryoutNumber,
+          categories: props.categories.map((category: EvaluatorCategory) => ({
+            id: category.id,
+            scaleMin: category.scaleMin,
+            scaleMax: category.scaleMax,
+            required: category.required,
+          })),
+        });
+        if (serverSnapshotProof) {
+          try {
+            await activeRepository.registerAuthoritativeSnapshotProof(serverSnapshotProof);
+          } catch (error) {
+            // A concurrently mounted newer server render owns destructive freshness. The stale
+            // tab may still save normally and will re-query durable conflict state.
+            if (!(error instanceof EvaluationOfflineError && error.code === 'invalid_transition'))
+              throw error;
+          }
+        }
         const lineage = await activeRepository.reconcileDraftLineage(storageScope);
         const local = lineage.draft;
         if (local) {
@@ -405,7 +432,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       unsubscribe();
       activeSynchronizer.stop();
     };
-  }, [repository, storageScope, synchronizer]);
+  }, [repository, serverSnapshotProof, storageScope, synchronizer]);
 
   async function saveOnDevice(input: {
     scores: { categoryId: string; value: number }[];
@@ -506,7 +533,13 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       flags: string[];
     };
   }) {
-    if (!repository || !synchronizer || !props.initialDraft.evaluationId || !navigator.onLine)
+    if (
+      !repository ||
+      !synchronizer ||
+      !props.initialDraft.evaluationId ||
+      !serverSnapshotProof ||
+      !navigator.onLine
+    )
       return { outcome: 'failed' as const };
     const blocking = blockingLineageRef.current;
     const head = (await repository.listMutations(storageScope)).find(
@@ -540,24 +573,87 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         'needs_another_look' | 'injury_concern' | 'eligibility_review'
       )[],
     };
-    const resolved = await repository.resolveConflict({
-      scope: storageScope,
-      clientMutationId: head.clientMutationId,
-      action: input.action,
-      original: {
-        evaluationId: head.evaluationId,
-        payloadDigest: head.payloadDigest,
-        queueSequence: head.queueSequence,
-      },
-      local: localDraft,
-      server: {
+    const durableDraft = await repository.loadDraft(storageScope);
+    if (!durableDraft) return { outcome: 'failed' as const };
+    if (JSON.stringify(durableDraft.draft) !== JSON.stringify(localDraft)) {
+      try {
+        await repository.persistConflictRecoveryDraft({
+          scope: storageScope,
+          conflictMutationId: head.clientMutationId,
+          conflictPayloadDigest: head.payloadDigest,
+          conflictQueueSequence: head.queueSequence,
+          draft: localDraft,
+        });
+        return {
+          outcome: 'stale_local_draft' as const,
+          local: input.local,
+        };
+      } catch {
+        const latest = await repository.reconcileDraftLineage(storageScope);
+        if (latest.draft) {
+          return {
+            outcome: 'stale_local_draft' as const,
+            local: {
+              scores: latest.draft.draft.scores,
+              note: latest.draft.draft.note ?? '',
+              noteTagIds: latest.draft.draft.noteTagIds,
+              flags: latest.draft.draft.flags,
+            },
+          };
+        }
+        return { outcome: 'failed' as const };
+      }
+    }
+    let resolved;
+    try {
+      resolved = await repository.resolveConflict({
         scope: storageScope,
-        evaluationId: props.initialDraft.evaluationId,
-        version: props.initialDraft.version,
-        draft: serverDraft,
-      },
-      verification: { online: true, fresh: true },
-    });
+        clientMutationId: head.clientMutationId,
+        action: input.action,
+        original: {
+          evaluationId: head.evaluationId,
+          payloadDigest: head.payloadDigest,
+          queueSequence: head.queueSequence,
+        },
+        local: {
+          evaluationId: durableDraft.evaluationId,
+          expectedVersion: durableDraft.expectedVersion,
+          draft: localDraft,
+        },
+        server: {
+          scope: storageScope,
+          evaluationId: props.initialDraft.evaluationId,
+          version: props.initialDraft.version,
+          draft: serverDraft,
+        },
+        snapshotProofNonce: serverSnapshotProof.renderNonce,
+      });
+    } catch (error) {
+      if (error instanceof EvaluationOfflineError && error.code === 'invalid_input') {
+        const latest = await repository.reconcileDraftLineage(storageScope);
+        if (latest.draft) {
+          activeLineageRef.current = latest.mutation
+            ? {
+                clientMutationId: latest.mutation.clientMutationId,
+                evaluationId: latest.mutation.evaluationId,
+                expectedVersion: latest.mutation.expectedVersion,
+                payloadDigest: latest.mutation.payloadDigest,
+              }
+            : null;
+          blockingLineageRef.current = latest.blockingMutation ?? null;
+          return {
+            outcome: 'stale_local_draft' as const,
+            local: {
+              scores: latest.draft.draft.scores,
+              note: latest.draft.draft.note ?? '',
+              noteTagIds: latest.draft.draft.noteTagIds,
+              flags: latest.draft.draft.flags,
+            },
+          };
+        }
+      }
+      return { outcome: 'failed' as const };
+    }
     synchronizer.signalDurableChange({
       scopeKey: scopeKey(storageScope),
       evaluationId: resolved.evaluationId,

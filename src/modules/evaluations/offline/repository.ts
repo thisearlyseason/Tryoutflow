@@ -1,9 +1,12 @@
 import Dexie, { type IndexableType, type Transaction } from 'dexie';
 import { z } from 'zod';
 
+import { verifyAuthoritativeSnapshotProof } from './authoritative-snapshot-proof';
+
 import {
   DEFAULT_EVALUATION_OFFLINE_DATABASE,
   EvaluationOfflineDatabase,
+  authoritativeEvaluationSnapshotProofSchema,
   digestValue,
   evaluationDatabaseName,
   evaluationDraftSchema,
@@ -22,6 +25,7 @@ import {
   storedSessionContextSchema,
   type EvaluationDraftPayload,
   type EvaluationStorageScope,
+  type AuthoritativeEvaluationSnapshotProof,
   type QuarantineReason,
   type QuarantineSource,
   type StoredEvaluationDraft,
@@ -38,6 +42,8 @@ const RECEIPT_TTL_MS = 30 * 24 * 60 * 60 * 1_000;
 const LEASE_MS = 30_000;
 const MAX_DRAFT_BYTES = 64 * 1_024;
 const MAX_RETRY_ATTEMPTS = 5;
+const SNAPSHOT_PROOF_MAX_LIFETIME_MS = 5 * 60 * 1_000;
+const SNAPSHOT_PROOF_CLOCK_SKEW_MS = 5_000;
 const uuid = z.uuid();
 const publicFailureCategorySchema = z.enum([
   'network',
@@ -99,8 +105,7 @@ export type EvaluationDraftLineage = {
     payloadDigest: string;
   };
   resolution?: {
-    /** `keep_local` is retained only as an explicit unsupported legacy request. */
-    action: 'keep_local' | 'use_server';
+    action: 'use_server';
     inputLocalDraftDigest: string;
     resolutionId: string;
     resultDraftDigest: string;
@@ -1643,7 +1648,7 @@ export class EvaluationOfflineRepository {
   }
 
   async saveSessionContext(
-    input: Omit<StoredSessionContext, 'scopeKey' | 'expiresAt'>,
+    input: Omit<StoredSessionContext, 'scopeKey' | 'expiresAt' | 'authoritativeSnapshotProof'>,
     options: OperationTime = {},
   ): Promise<StoredSessionContext> {
     const scope = this.parseScope(input.scope);
@@ -1662,9 +1667,10 @@ export class EvaluationOfflineRepository {
         this.allTables(),
         async (transaction) => {
           const exists = await this.database.sessionContexts.get(candidate.data.scopeKey);
+          let existingContext: StoredSessionContext | null = null;
           if (exists) {
             try {
-              await this.validateContext(exists, scope);
+              existingContext = await this.validateContext(exists, scope);
             } catch {
               await this.moveToQuarantine(
                 transaction,
@@ -1678,12 +1684,116 @@ export class EvaluationOfflineRepository {
           }
           if (!exists && (await this.database.sessionContexts.count()) >= this.quotas.maxContexts)
             throw quotaError('contexts');
-          await this.assertByteQuota(transaction, candidate.data);
-          await this.database.sessionContexts.put(candidate.data);
-          return structuredClone(candidate.data);
+          const next = storedSessionContextSchema.parse({
+            ...candidate.data,
+            ...(existingContext?.authoritativeSnapshotProof
+              ? { authoritativeSnapshotProof: existingContext.authoritativeSnapshotProof }
+              : {}),
+          });
+          await this.assertByteQuota(transaction, next);
+          await this.database.sessionContexts.put(next);
+          return structuredClone(next);
         },
       );
       return result;
+    } catch (error) {
+      throw mapStorageError(error, 'write');
+    }
+  }
+
+  async registerAuthoritativeSnapshotProof(
+    rawProof: AuthoritativeEvaluationSnapshotProof,
+    options: OperationTime = {},
+  ): Promise<void> {
+    const parsed = authoritativeEvaluationSnapshotProofSchema.safeParse(rawProof);
+    if (!parsed.success)
+      throw new EvaluationOfflineError('invalid_input', 'Invalid authoritative snapshot proof.');
+    const proof = parsed.data;
+    if (!(await verifyAuthoritativeSnapshotProof(proof)))
+      throw new EvaluationOfflineError(
+        'invalid_transition',
+        'The authoritative snapshot proof was not issued by the server.',
+      );
+    const scope = this.parseScope(proof.scope);
+    const now = safeDate(options.now ?? new Date());
+    const issuedAt = Date.parse(proof.issuedAt);
+    const expiresAt = Date.parse(proof.expiresAt);
+    if (
+      issuedAt > now.getTime() + SNAPSHOT_PROOF_CLOCK_SKEW_MS ||
+      expiresAt <= now.getTime() ||
+      expiresAt - issuedAt > SNAPSHOT_PROOF_MAX_LIFETIME_MS
+    )
+      throw new EvaluationOfflineError(
+        'invalid_transition',
+        'The authoritative server snapshot proof is not current.',
+      );
+    try {
+      await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        const context = await this.requireContext(transaction, scope);
+        const current = context.authoritativeSnapshotProof;
+        if (current) {
+          const sameSnapshot =
+            current.evaluationId === proof.evaluationId &&
+            current.version === proof.version &&
+            current.draftDigest === proof.draftDigest;
+          if (current.renderNonce === proof.renderNonce) {
+            if (
+              !sameSnapshot ||
+              current.issuedAt !== proof.issuedAt ||
+              current.expiresAt !== proof.expiresAt
+            )
+              throw new EvaluationOfflineError(
+                'invalid_transition',
+                'The render nonce is already bound to another server snapshot.',
+              );
+            return;
+          }
+          if (sameSnapshot) {
+            // Multiple already-mounted tabs can have distinct server-render nonces for the same
+            // authoritative bytes. Keep a small bounded set so registration order cannot make one
+            // tab spuriously stale; any changed snapshot still replaces this entire set below.
+            const newest = Date.parse(current.issuedAt) >= issuedAt ? current : proof;
+            const acceptedProofs = [newest, current, proof, ...(current.acceptedProofs ?? [])]
+              .filter(
+                (candidate, index, candidates) =>
+                  candidates.findIndex((item) => item.renderNonce === candidate.renderNonce) ===
+                  index,
+              )
+              .map(({ renderNonce, issuedAt, expiresAt, signature }) => ({
+                renderNonce,
+                issuedAt,
+                expiresAt,
+                signature,
+              }))
+              .slice(0, 5);
+            const next = storedSessionContextSchema.parse({
+              ...context,
+              authoritativeSnapshotProof: {
+                ...newest,
+                acceptedProofs,
+                ...(current.consumedAt ? { consumedAt: current.consumedAt } : {}),
+                ...(current.consumedResolutionId
+                  ? { consumedResolutionId: current.consumedResolutionId }
+                  : {}),
+              },
+            });
+            await this.assertByteQuota(transaction, next);
+            await this.database.sessionContexts.put(next);
+            return;
+          }
+          if (Date.parse(current.issuedAt) > issuedAt)
+            throw new EvaluationOfflineError(
+              'invalid_transition',
+              'A newer authoritative server render is already registered.',
+            );
+        }
+        const next = storedSessionContextSchema.parse({
+          ...context,
+          authoritativeSnapshotProof: proof,
+        });
+        await this.assertByteQuota(transaction, next);
+        await this.database.sessionContexts.put(next);
+      });
     } catch (error) {
       throw mapStorageError(error, 'write');
     }
@@ -2911,55 +3021,140 @@ export class EvaluationOfflineRepository {
     }
   }
 
+  async persistConflictRecoveryDraft(input: {
+    scope: EvaluationStorageScope;
+    conflictMutationId: string;
+    conflictPayloadDigest: string;
+    conflictQueueSequence: number;
+    draft: EvaluationDraftPayload;
+    now?: Date;
+  }): Promise<StoredEvaluationDraft> {
+    const scope = this.parseScope(input.scope);
+    const draftPayload = this.parseDraft(input.draft);
+    const now = safeDate(input.now ?? new Date());
+    if (
+      !uuid.safeParse(input.conflictMutationId).success ||
+      !/^[0-9a-f]{64}$/.test(input.conflictPayloadDigest) ||
+      !Number.isSafeInteger(input.conflictQueueSequence) ||
+      input.conflictQueueSequence < 1
+    )
+      throw new EvaluationOfflineError('invalid_input', 'Invalid conflict recovery lineage.');
+    try {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        await this.validateStrictTargetStorageUnion(transaction, scope);
+        const storageKey = `${scopeKey(scope)}|${input.conflictMutationId}`;
+        const rawHead = await this.database.mutations.get(storageKey);
+        if (!rawHead)
+          throw new EvaluationOfflineError('invalid_input', 'The conflict head changed.');
+        const head = await this.validateMutationRecord(rawHead);
+        if (
+          head.status !== 'needs_attention' ||
+          head.errorCategory !== 'conflict' ||
+          head.payloadDigest !== input.conflictPayloadDigest ||
+          head.queueSequence !== input.conflictQueueSequence
+        )
+          throw new EvaluationOfflineError('invalid_input', 'The conflict head changed.');
+        await this.validateConflictNaturalLineage(transaction, scope, [
+          head.evaluationId,
+          ...(head.conflictServerEvaluationId ? [head.conflictServerEvaluationId] : []),
+        ]);
+        const rawDraft = await this.database.drafts.get(scopeKey(scope));
+        const current = rawDraft ? await this.validateDraftRecord(rawDraft, scope) : null;
+        const queue: StoredEvaluationMutation[] = [];
+        for (const row of await this.database.mutations
+          .where('queueKey')
+          .equals(head.queueKey)
+          .toArray())
+          queue.push(await this.validateMutationRecord(row));
+        queue.sort((left, right) => left.queueSequence - right.queueSequence);
+        const tail = queue.at(-1);
+        if (
+          !current ||
+          !tail ||
+          tail.storageKey !== head.storageKey ||
+          current.evaluationId !== head.evaluationId ||
+          current.expectedVersion !== head.expectedVersion ||
+          current.payloadDigest !== head.payloadDigest
+        )
+          throw new EvaluationOfflineError(
+            'invalid_input',
+            'A newer durable local draft must be reviewed first.',
+          );
+        const context = await this.requireContext(transaction, scope);
+        this.assertDraftMatchesContext(draftPayload, context);
+        const expectedVersion = head.expectedVersion + 1;
+        const timestamp = now.toISOString();
+        const payloadDigest = await Dexie.waitFor(
+          digestValue(evaluationPayload(scope, head.evaluationId, expectedVersion, draftPayload)),
+        );
+        const nextDraft: StoredEvaluationDraft = {
+          scopeKey: scopeKey(scope),
+          scope,
+          evaluationId: head.evaluationId,
+          expectedVersion,
+          draft: draftPayload,
+          payloadDigest,
+          syncState: 'saved_device',
+          updatedAt: timestamp,
+          expiresAt: addMilliseconds(now, DRAFT_TTL_MS),
+        };
+        await this.assertByteQuota(transaction, nextDraft);
+        const clientMutationId = crypto.randomUUID();
+        await this.appendFreshMutation(
+          transaction,
+          scope,
+          {
+            storageKey: `${scopeKey(scope)}|${clientMutationId}`,
+            clientMutationId,
+            scopeKey: scopeKey(scope),
+            queueKey: head.queueKey,
+            scope,
+            evaluationId: head.evaluationId,
+            expectedVersion,
+            draft: draftPayload,
+            payloadDigest,
+            status: 'pending',
+            syncState: 'saved_device',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            nextAttemptAt: timestamp,
+            attemptCount: 0,
+          },
+          now,
+        );
+        await this.database.drafts.put(nextDraft);
+        return structuredClone(nextDraft);
+      });
+    } catch (error) {
+      throw mapStorageError(error, 'write');
+    }
+  }
+
   async resolveConflict(input: {
     scope: EvaluationStorageScope;
     clientMutationId: string;
-    action: 'keep_local' | 'use_server';
+    action: 'use_server';
     original: {
       evaluationId: string;
       payloadDigest: string;
       queueSequence: number;
     };
-    /** Exact newest browser-session draft being explicitly discarded. */
-    local: EvaluationDraftPayload;
+    /** Exact newest durable local authority being explicitly discarded. */
+    local: {
+      evaluationId: string | null;
+      expectedVersion: number;
+      draft: EvaluationDraftPayload;
+    };
     server: {
       scope: EvaluationStorageScope;
       evaluationId: string;
       version: number;
       draft: EvaluationDraftPayload;
     };
-    verification: { online: true; fresh: true };
+    snapshotProofNonce: string;
     now?: Date;
   }): Promise<{
     action: 'use_server';
-    evaluationId: string;
-    expectedVersion: number;
-    draftDigest: string;
-    payloadDigest?: string;
-    clientMutationId?: string;
-    queueSequence?: number;
-  }>;
-  async resolveConflict(input: {
-    scope: EvaluationStorageScope;
-    clientMutationId: string;
-    action: 'keep_local' | 'use_server';
-    original: {
-      evaluationId: string;
-      payloadDigest: string;
-      queueSequence: number;
-    };
-    /** Exact newest browser-session draft chosen by the evaluator for this resolution. */
-    local: EvaluationDraftPayload;
-    server: {
-      scope: EvaluationStorageScope;
-      evaluationId: string;
-      version: number;
-      draft: EvaluationDraftPayload;
-    };
-    verification?: { online: boolean; fresh: boolean };
-    now?: Date;
-  }): Promise<{
-    action: 'keep_local' | 'use_server';
     evaluationId: string;
     expectedVersion: number;
     draftDigest: string;
@@ -2970,18 +3165,13 @@ export class EvaluationOfflineRepository {
     // Automatic keep-local rebasing is intentionally deferred for the MVP. This gate runs before
     // parsing, hashing, opening IndexedDB, or reading replay state, so unsupported and offline or
     // stale destructive choices cannot mutate durable work through a JavaScript caller.
-    if (input.action !== 'use_server')
+    if ((input as { action: unknown }).action !== 'use_server')
       throw new EvaluationOfflineError(
         'invalid_transition',
         'Keeping local work requires export, server reconciliation, and a new ordinary save.',
       );
-    if (input.verification?.online !== true || input.verification.fresh !== true)
-      throw new EvaluationOfflineError(
-        'invalid_transition',
-        'Using the server draft requires an online fresh-server comparison.',
-      );
     const scope = this.parseScope(input.scope);
-    const requestedLocalDraft = this.parseDraft(input.local);
+    const requestedLocalDraft = this.parseDraft(input.local.draft);
     const serverScope = this.parseScope(input.server.scope);
     const serverDraft = this.parseDraft(input.server.draft);
     const now = safeDate(input.now ?? new Date());
@@ -2993,10 +3183,13 @@ export class EvaluationOfflineRepository {
       input.original.queueSequence < 1 ||
       !uuid.safeParse(input.clientMutationId).success ||
       !uuid.safeParse(input.server.evaluationId).success ||
+      !uuid.safeParse(input.snapshotProofNonce).success ||
+      !(input.local.evaluationId === null || uuid.safeParse(input.local.evaluationId).success) ||
+      !Number.isSafeInteger(input.local.expectedVersion) ||
+      input.local.expectedVersion < 0 ||
       !Number.isSafeInteger(input.server.version) ||
       input.server.version < 1 ||
-      input.server.version >= 2_147_483_647 ||
-      !['keep_local', 'use_server'].includes(input.action)
+      input.server.version >= 2_147_483_647
     )
       throw new EvaluationOfflineError('invalid_input', 'Invalid conflict resolution context.');
 
@@ -3006,7 +3199,19 @@ export class EvaluationOfflineRepository {
       version: input.server.version,
       draft: serverDraft,
     });
-    const requestedLocalDraftDigest = await digestValue(requestedLocalDraft);
+    const serverDraftDigest = await digestValue(serverDraft);
+    const requestedLocalContentDigest = await digestValue(requestedLocalDraft);
+    const requestedLocalPayloadDigest = await digestValue(
+      evaluationPayload(
+        scope,
+        input.local.evaluationId,
+        input.local.expectedVersion,
+        requestedLocalDraft,
+      ),
+    );
+    // Despite the legacy field name, new conflict fences bind the complete local authority
+    // (scope/evaluation/version/content), not only the draft body.
+    const requestedLocalDraftDigest = requestedLocalPayloadDigest;
 
     try {
       return await this.database.transaction('rw', this.allTables(), async (transaction) => {
@@ -3022,8 +3227,48 @@ export class EvaluationOfflineRepository {
           input.server.evaluationId,
           ...(targetDraft?.evaluationId ? [targetDraft.evaluationId] : []),
         ]);
+        const context = await this.requireContext(transaction, scope);
+        const proof = context.authoritativeSnapshotProof;
+        const requestedProof = proof
+          ? [proof, ...(proof.acceptedProofs ?? [])].find(
+              (candidate) => candidate.renderNonce === input.snapshotProofNonce,
+            )
+          : undefined;
+        const boundRequestedProof =
+          proof && requestedProof
+            ? {
+                renderNonce: requestedProof.renderNonce,
+                scope: proof.scope,
+                evaluationId: proof.evaluationId,
+                version: proof.version,
+                draftDigest: proof.draftDigest,
+                issuedAt: requestedProof.issuedAt,
+                expiresAt: requestedProof.expiresAt,
+                signature: requestedProof.signature,
+              }
+            : null;
+        if (
+          !proof ||
+          !boundRequestedProof ||
+          scopeKey(proof.scope) !== scopeKey(scope) ||
+          proof.evaluationId !== input.server.evaluationId ||
+          proof.version !== input.server.version ||
+          proof.draftDigest !== serverDraftDigest ||
+          Date.parse(boundRequestedProof.issuedAt) > now.getTime() + SNAPSHOT_PROOF_CLOCK_SKEW_MS ||
+          Date.parse(boundRequestedProof.expiresAt) <= now.getTime() ||
+          !(await Dexie.waitFor(verifyAuthoritativeSnapshotProof(boundRequestedProof)))
+        )
+          throw new EvaluationOfflineError(
+            'invalid_transition',
+            'Using the server draft requires the current durable server-render proof.',
+          );
         const storageKey = `${scopeKey(scope)}|${input.clientMutationId}`;
         const rawHead = await this.database.mutations.get(storageKey);
+        if (rawHead && proof.consumedResolutionId)
+          throw new EvaluationOfflineError(
+            'invalid_transition',
+            'The server-render proof was already consumed.',
+          );
         if (!rawHead) {
           const rawTombstone = await this.database.receiptTombstones.get(storageKey);
           if (!rawTombstone)
@@ -3036,9 +3281,7 @@ export class EvaluationOfflineRepository {
             scope,
             input.clientMutationId,
           );
-          const expectedReason =
-            input.action === 'keep_local' ? 'conflict_keep_local' : 'conflict_use_server';
-          if (tombstone.reason !== expectedReason)
+          if (tombstone.reason !== 'conflict_use_server')
             throw new EvaluationOfflineError(
               'invalid_transition',
               'Conflict resolution action does not match its durable terminal record.',
@@ -3059,7 +3302,6 @@ export class EvaluationOfflineRepository {
               'invalid_transition',
               'Conflict resolution does not match its durable server snapshot and lineage.',
             );
-          const context = await this.requireContext(transaction, scope);
           this.assertDraftMatchesContext(serverDraft, context);
           if (tombstone.resolutionResultMarker === 'keep_local_rebased') {
             const successorMutationId = tombstone.resolutionResultMutationId!;
@@ -3140,6 +3382,23 @@ export class EvaluationOfflineRepository {
                 'Conflict resolution server draft lineage is missing or divergent.',
               );
           }
+          if (proof.consumedResolutionId && proof.consumedResolutionId !== tombstone.resolutionId)
+            throw new EvaluationOfflineError(
+              'invalid_transition',
+              'The server-render proof was consumed by another resolution.',
+            );
+          if (!proof.consumedResolutionId) {
+            await this.database.sessionContexts.put(
+              storedSessionContextSchema.parse({
+                ...context,
+                authoritativeSnapshotProof: {
+                  ...proof,
+                  consumedAt: now.toISOString(),
+                  consumedResolutionId: tombstone.resolutionId,
+                },
+              }),
+            );
+          }
           return {
             action: input.action,
             evaluationId: tombstone.resolutionServerEvaluationId,
@@ -3175,7 +3434,6 @@ export class EvaluationOfflineRepository {
         // action can replace the draft or retire predecessors. The return value is intentionally
         // unused here; keep-local revalidates the authoritative target immediately before append.
         await this.validateQueueForStrictAppend(transaction, scope, head.queueKey, now);
-        const context = await this.requireContext(transaction, scope);
         this.assertDraftMatchesContext(requestedLocalDraft, context);
         this.assertDraftMatchesContext(serverDraft, context);
         const rawDraft = await this.database.drafts.get(scopeKey(scope));
@@ -3225,13 +3483,46 @@ export class EvaluationOfflineRepository {
             'Conflict resolution lost the durable FIFO head.',
           );
 
+        // Destructive recovery is bound to the exact newest durable local authority, not merely
+        // to the queue head that opened the dialog. A sibling append updates the draft and queue
+        // atomically, so a stale tab can never retire it using an older local snapshot.
+        const relatedQueueKeys = new Set(queueRows.map((row) => row.queueKey));
+        const newestQueueRow = originalQueueRows.at(-1);
+        if (!newestQueueRow || relatedQueueKeys.size !== 1)
+          throw new EvaluationOfflineError(
+            'corrupt_record',
+            'The newest durable local authority is missing or ambiguous.',
+          );
+        const newestDraftDigest = await Dexie.waitFor(digestValue(newestQueueRow.draft));
+        if (
+          storedDraft &&
+          (storedDraft.evaluationId !== newestQueueRow.evaluationId ||
+            storedDraft.expectedVersion !== newestQueueRow.expectedVersion ||
+            storedDraft.payloadDigest !== newestQueueRow.payloadDigest ||
+            (await Dexie.waitFor(digestValue(storedDraft.draft))) !== newestDraftDigest)
+        )
+          throw new EvaluationOfflineError(
+            'corrupt_record',
+            'The stored draft diverges from the newest validated queue lineage.',
+          );
+        if (
+          input.local.evaluationId !== newestQueueRow.evaluationId ||
+          input.local.expectedVersion !== newestQueueRow.expectedVersion ||
+          requestedLocalPayloadDigest !== newestQueueRow.payloadDigest ||
+          requestedLocalContentDigest !== newestDraftDigest
+        )
+          throw new EvaluationOfflineError(
+            'invalid_input',
+            'The local draft changed after recovery opened; review and confirm it again.',
+          );
+
         // The recovery dialog can be newer than the last durable draft while an older request is
         // awaiting the network. Persist and rebase that explicit choice in this transaction so
         // there is no crash gap between protecting it and retiring the conflict lineage.
         const localDraft = requestedLocalDraft;
         this.assertDraftMatchesContext(localDraft, context);
 
-        const chosenDraft = input.action === 'keep_local' ? localDraft : serverDraft;
+        const chosenDraft = serverDraft;
         const timestamp = now.toISOString();
         const resultDraftDigest = await Dexie.waitFor(digestValue(chosenDraft));
         const draftRecord: StoredEvaluationDraft = {
@@ -3250,54 +3541,12 @@ export class EvaluationOfflineRepository {
               ),
             ),
           ),
-          syncState: input.action === 'keep_local' ? 'saved_device' : 'synced',
+          syncState: 'synced',
           updatedAt: timestamp,
           expiresAt: addMilliseconds(now, DRAFT_TTL_MS),
         };
         await this.assertByteQuota(transaction, draftRecord);
         await this.database.drafts.put(draftRecord);
-
-        let rebased: StoredEvaluationMutation | undefined;
-        if (input.action === 'keep_local') {
-          const newQueueKey = evaluationQueueKey(scope, input.server.evaluationId);
-          const queueSequence = await this.validateQueueForStrictAppend(
-            transaction,
-            scope,
-            newQueueKey,
-            now,
-          );
-          const clientMutationId = crypto.randomUUID();
-          const payloadDigest = await Dexie.waitFor(
-            digestValue(
-              evaluationPayload(scope, input.server.evaluationId, input.server.version, localDraft),
-            ),
-          );
-          rebased = {
-            storageKey: `${scopeKey(scope)}|${clientMutationId}`,
-            clientMutationId,
-            scopeKey: scopeKey(scope),
-            queueKey: newQueueKey,
-            queueSequence,
-            scope,
-            evaluationId: input.server.evaluationId,
-            expectedVersion: input.server.version,
-            draft: localDraft,
-            payloadDigest,
-            status: 'pending',
-            syncState: 'saved_device',
-            createdAt: timestamp,
-            updatedAt: timestamp,
-            nextAttemptAt: timestamp,
-            attemptCount: 0,
-          };
-          await this.assertByteQuota(transaction, rebased);
-          await this.database.queueCounters.put({
-            queueKey: newQueueKey,
-            scopeKey: scopeKey(scope),
-            nextSequence: queueSequence + 1,
-          });
-          await this.database.mutations.add(rebased);
-        }
 
         const resolutionId = crypto.randomUUID();
         const retiredRows: {
@@ -3341,11 +3590,7 @@ export class EvaluationOfflineRepository {
             transaction,
             scope,
             row.clientMutationId,
-            row.storageKey === head.storageKey
-              ? input.action === 'keep_local'
-                ? 'conflict_keep_local'
-                : 'conflict_use_server'
-              : 'conflict_dependent',
+            row.storageKey === head.storageKey ? 'conflict_use_server' : 'conflict_dependent',
             now,
             {
               resolutionId,
@@ -3372,31 +3617,28 @@ export class EvaluationOfflineRepository {
                     resolutionInputLocalDraftDigest: requestedLocalDraftDigest,
                     resolutionResultDraftDigest: resultDraftDigest,
                     resolutionResultPayloadDigest: draftRecord.payloadDigest,
-                    resolutionResultMarker:
-                      input.action === 'keep_local' ? 'keep_local_rebased' : 'use_server_discarded',
-                    ...(rebased
-                      ? {
-                          resolutionResultMutationId: rebased.clientMutationId,
-                          resolutionResultQueueSequence: rebased.queueSequence,
-                        }
-                      : {}),
+                    resolutionResultMarker: 'use_server_discarded',
                   }
                 : {}),
             },
           );
         }
+        await this.database.sessionContexts.put(
+          storedSessionContextSchema.parse({
+            ...context,
+            authoritativeSnapshotProof: {
+              ...proof,
+              consumedAt: timestamp,
+              consumedResolutionId: resolutionId,
+            },
+          }),
+        );
         return {
           action: input.action,
           evaluationId: input.server.evaluationId,
           expectedVersion: input.server.version,
           draftDigest: resultDraftDigest,
           payloadDigest: draftRecord.payloadDigest,
-          ...(rebased
-            ? {
-                clientMutationId: rebased.clientMutationId,
-                queueSequence: rebased.queueSequence,
-              }
-            : {}),
         };
       });
     } catch (error) {

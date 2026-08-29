@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
@@ -146,6 +147,20 @@ test('exports a durable conflict, accepts fresh server, then saves deliberate re
   context,
   page,
 }) => {
+  await page.addInitScript(() => {
+    let copied = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        async writeText(value: string) {
+          copied = value;
+        },
+        async readText() {
+          return copied;
+        },
+      },
+    });
+  });
   let releaseConflict!: () => void;
   const holdConflict = new Promise<void>((resolve) => {
     releaseConflict = resolve;
@@ -191,16 +206,57 @@ test('exports a durable conflict, accepts fresh server, then saves deliberate re
   await page.reload();
   await expect(note).toHaveValue('newest edit behind durable conflict');
   await expect(page.getByRole('button', { name: 'Keep my local draft' })).toHaveCount(0);
+  const expectedExport = {
+    scores: [
+      { categoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', value: 4 },
+      { categoryId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', value: 4 },
+    ],
+    note: 'newest edit behind durable conflict',
+    noteTagIds: [],
+    flags: [],
+    request: {
+      scores: [
+        { categoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', value: 4 },
+        { categoryId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', value: 4 },
+      ],
+      note: 'force durable conflict keep local',
+      noteTagIds: [],
+      flags: [],
+      expectedVersion: 1,
+      revision: 3,
+    },
+  };
+  await page.getByRole('button', { name: 'Copy local draft' }).click();
+  const copiedExport = JSON.parse(
+    await page.evaluate(() => navigator.clipboard.readText()),
+  ) as unknown;
+  expect(copiedExport).toEqual(expectedExport);
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download local draft' }).click();
   const localDraftDownload = await downloadPromise;
   expect(localDraftDownload.suggestedFilename()).toBe('evaluation-local-draft.json');
+  const downloadedPath = await localDraftDownload.path();
+  expect(downloadedPath).not.toBeNull();
+  const downloadedExport = JSON.parse(await readFile(downloadedPath!, 'utf8')) as unknown;
+  expect(downloadedExport).toEqual(expectedExport);
+  expect(JSON.stringify(downloadedExport)).not.toMatch(
+    /Athlete K1L2M3|abababab-abab-4bab-8bab-abababababab|tryoutNumber|displayName/u,
+  );
   await context.setOffline(true);
   await expect(page.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Complete evaluation' })).toBeDisabled();
   await context.setOffline(false);
   await page.getByRole('button', { name: 'Use server draft' }).click();
   await page.getByRole('button', { name: 'Confirm use server draft' }).click();
+  await expect(page.getByText(/newer local draft was saved in another tab/i)).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'newest edit behind durable conflict',
+  );
+  await page.getByRole('button', { name: 'Use server draft' }).click();
+  await page.getByRole('button', { name: 'Confirm use server draft' }).click();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toHaveCount(
+    0,
+  );
   await expect(note).not.toHaveValue('newest edit behind durable conflict');
   await page.reload();
   await expect(note).not.toHaveValue('newest edit behind durable conflict');

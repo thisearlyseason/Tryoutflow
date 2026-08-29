@@ -11,6 +11,13 @@ export default defineConfig({
       'npm exec -- next dev tests/fixtures/evaluation --webpack --hostname 127.0.0.1 --port 3103',
     url: 'http://127.0.0.1:3103',
     reuseExistingServer: false,
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_EVALUATION_SNAPSHOT_PROOF_PUBLIC_JWK:
+        '{"kty":"EC","x":"_dPSSLsCXidd4IPFKgJiSwnJ5UBPRpQGKTLfFAN0zG8","y":"DgpgvwNVaOr-dWfrync-k3yGYDk8OGjuElujacdtynQ","crv":"P-256"}',
+      EVALUATION_SNAPSHOT_PROOF_PRIVATE_JWK:
+        '{"kty":"EC","x":"_dPSSLsCXidd4IPFKgJiSwnJ5UBPRpQGKTLfFAN0zG8","y":"DgpgvwNVaOr-dWfrync-k3yGYDk8OGjuElujacdtynQ","crv":"P-256","d":"vDD7kT3X7_b_h5H_sUMNhi8gXMJeZ4MmSQZxJDTmjg0"}',
+    },
   },
   use: { baseURL: 'http://127.0.0.1:3103' },
   projects: [

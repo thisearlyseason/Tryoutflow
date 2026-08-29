@@ -1,8 +1,7 @@
-import { randomUUID } from 'node:crypto';
-
 import { z } from 'zod';
 
 import { completeEvaluationRecord } from '@/modules/evaluations/application/complete-evaluation';
+import { issueAuthoritativeSnapshotProof } from '@/modules/evaluations/application/issue-authoritative-snapshot-proof';
 import {
   loadEvaluatorSession,
   loadOwnEvaluationDraft,
@@ -39,6 +38,30 @@ export default async function AthleteEvaluationPage({
   const basePath = `/app/${organizationSlug}/evaluate/session/${sessionId}`;
   const previous = loaded.value.athletes[athleteIndex - 1];
   const next = loaded.value.athletes[athleteIndex + 1];
+  const storageScope = {
+    userId: loaded.value.current.userId,
+    evaluatorId: loaded.value.current.userId,
+    organizationId: loaded.value.current.organization.id,
+    tryoutId: loaded.value.session.tryoutId,
+    sessionId,
+    registrationId,
+    rubricVersionId: loaded.value.rubricVersionId,
+  };
+  const serverDraft = {
+    scores: ownDraft.draft.scores,
+    ...(ownDraft.draft.note ? { note: ownDraft.draft.note } : {}),
+    noteTagIds: ownDraft.draft.noteTagIds,
+    flags: ownDraft.draft.flags,
+  };
+  const serverSnapshotProof =
+    ownDraft.draft.evaluationId && ownDraft.draft.version > 0
+      ? await issueAuthoritativeSnapshotProof({
+          scope: storageScope,
+          evaluationId: ownDraft.draft.evaluationId,
+          version: ownDraft.draft.version,
+          draft: serverDraft,
+        })
+      : undefined;
 
   async function onComplete(input: unknown) {
     'use server';
@@ -108,16 +131,9 @@ export default async function AthleteEvaluationPage({
         initialDraft={ownDraft.draft}
         noteTags={loaded.value.noteTags}
         onComplete={onComplete}
-        serverSnapshotToken={randomUUID()}
-        storageScope={{
-          userId: loaded.value.current.userId,
-          evaluatorId: loaded.value.current.userId,
-          organizationId: loaded.value.current.organization.id,
-          tryoutId: loaded.value.session.tryoutId,
-          sessionId,
-          registrationId,
-          rubricVersionId: loaded.value.rubricVersionId,
-        }}
+        serverSnapshotToken={serverSnapshotProof?.renderNonce ?? 'no-authoritative-snapshot'}
+        serverSnapshotProof={serverSnapshotProof}
+        storageScope={storageScope}
       />
       <AthletePager
         ariaLabel="Athlete navigation below scoring"

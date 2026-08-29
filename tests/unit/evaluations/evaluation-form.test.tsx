@@ -1015,6 +1015,53 @@ describe('EvaluationForm', () => {
     expect(screen.getByText(/server draft restored/i)).toBeVisible();
   });
 
+  it('shows a newer durable sibling draft and requires a new two-step server confirmation', async () => {
+    const user = userEvent.setup();
+    const evaluationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    window.sessionStorage.setItem(
+      'tryoutflow:evaluation-draft:v1:stale-use-server-dialog',
+      JSON.stringify({
+        draft: { scores: [], note: 'older dialog draft', noteTagIds: [], flags: [] },
+        baseVersion: 1,
+        evaluationId,
+        revision: 1,
+        recovery: 'conflict',
+        serverSnapshotToken: 'older-snapshot',
+      }),
+    );
+    const onResolveRecovery = vi.fn().mockResolvedValue({
+      outcome: 'stale_local_draft' as const,
+      local: {
+        scores: [{ categoryId: skatingId, value: 5 }],
+        note: 'newer durable sibling draft',
+        noteTagIds: [],
+        flags: [],
+      },
+    });
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="stale-use-server-dialog"
+        serverSnapshotToken="fresh-snapshot"
+        initialDraft={{ evaluationId, version: 2, state: 'draft', scores: [] }}
+        onComplete={vi.fn()}
+        onResolveRecovery={onResolveRecovery}
+        onSave={vi.fn()}
+      />,
+    );
+    await user.click(await screen.findByRole('button', { name: 'Use server draft' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm use server draft' }));
+    expect(await screen.findByLabelText('Private evaluator note')).toHaveValue(
+      'newer durable sibling draft',
+    );
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.getByText(/newer local draft was saved in another tab/i)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Use server draft' }));
+    expect(screen.getByRole('alertdialog')).toBeVisible();
+    expect(onResolveRecovery).toHaveBeenCalledTimes(1);
+  });
+
   it('accepts only a receipt-bound sibling-tab resolution as the confirmed winner', async () => {
     const evaluationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
     window.sessionStorage.setItem(

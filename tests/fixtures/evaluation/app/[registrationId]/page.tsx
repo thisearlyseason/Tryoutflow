@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { headers } from 'next/headers';
 
 import { AthletePager } from '../../../../../src/modules/evaluations/ui/athlete-pager';
+import { issueAuthoritativeSnapshotProof } from '../../../../../src/modules/evaluations/application/issue-authoritative-snapshot-proof';
 import { EvaluationForm } from '../../../../../src/modules/evaluations/ui/evaluation-form';
 import { SynchronizedEvaluationForm } from '../../../../../src/modules/evaluations/ui/synchronized-evaluation-form';
 import { readAuthoritativeEvaluationId } from '../../lib/authoritative-evaluation-state';
@@ -83,6 +84,24 @@ export default async function EvaluationFixturePage({
           : 'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd';
   const authoritativeEvaluationId =
     readAuthoritativeEvaluationId(registrationId, engine, fixtureRun) ?? provisionalEvaluationId;
+  const storageScope = {
+    userId: '99999999-9999-4999-8999-999999999901',
+    evaluatorId: '99999999-9999-4999-8999-999999999901',
+    organizationId: '99999999-9999-4999-8999-999999999902',
+    tryoutId: '99999999-9999-4999-8999-999999999903',
+    sessionId: '99999999-9999-4999-8999-999999999904',
+    registrationId,
+    rubricVersionId: '99999999-9999-4999-8999-999999999905',
+  };
+  const serverSnapshotProof =
+    index >= 3
+      ? await issueAuthoritativeSnapshotProof({
+          scope: storageScope,
+          evaluationId: authoritativeEvaluationId,
+          version: 1,
+          draft: { scores: [], noteTagIds: [], flags: [] },
+        })
+      : undefined;
 
   async function onSave(input: { note?: string; expectedVersion: number }) {
     'use server';
@@ -133,16 +152,9 @@ export default async function EvaluationFixturePage({
           }}
           noteTags={[]}
           onComplete={onComplete}
-          serverSnapshotToken={randomUUID()}
-          storageScope={{
-            userId: '99999999-9999-4999-8999-999999999901',
-            evaluatorId: '99999999-9999-4999-8999-999999999901',
-            organizationId: '99999999-9999-4999-8999-999999999902',
-            tryoutId: '99999999-9999-4999-8999-999999999903',
-            sessionId: '99999999-9999-4999-8999-999999999904',
-            registrationId,
-            rubricVersionId: '99999999-9999-4999-8999-999999999905',
-          }}
+          serverSnapshotToken={serverSnapshotProof?.renderNonce ?? randomUUID()}
+          serverSnapshotProof={serverSnapshotProof}
+          storageScope={storageScope}
         />
       ) : (
         <EvaluationForm

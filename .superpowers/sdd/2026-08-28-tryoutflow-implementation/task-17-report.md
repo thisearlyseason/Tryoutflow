@@ -330,6 +330,87 @@ git diff --check                                                  PASS
 - No migration or IndexedDB version rewrite was needed. Existing valid v5 records remain readable; newly written conflict-resolution tombstones use the strengthened complete-resolution schema.
 - `progress.md` and Task 18 were not changed.
 
+## MVP scope-revision review fix round 1
+
+### Status
+
+DONE — destructive server acceptance is bound to the newest durable local authority and a
+short-lived server-signed snapshot proof. The public conflict action is `use_server` only; legacy
+keep-local records remain read-compatible but cannot be requested through the repository API.
+Task 18 was not started.
+
+### RED evidence
+
+- A sequence-1 conflict dialog could discard a sequence-2 sibling edit because its explicit local
+  input was compared with the opened dialog rather than the newest related durable queue tail.
+- Caller booleans `{ online: true, fresh: true }` were accepted as freshness provenance, and
+  `keep_local` remained present in the public action type.
+- The browser exercised Copy/Download controls but did not inspect the clipboard bytes or downloaded
+  file, so an incorrect or PII-expanded export could pass.
+- Two already-mounted tabs could race registration of distinct render nonces for the same exact
+  server snapshot; registration order made one valid tab spuriously stale.
+
+### Delivered
+
+- `use_server` scans and validates the complete related natural lineage inside the same all-store
+  Dexie transaction. The explicit local evaluation ID, expected version, canonical full-payload
+  digest, and content must equal the newest live queue tail, and the stored draft must agree with
+  that tail. Ambiguous queues, stored-draft/queue divergence, corruption, or a newer sibling edit
+  reject before any draft, mutation, tombstone, proof-consumption, or counter write.
+- An in-page edit made while conflict synchronization is in flight is first appended as ordinary
+  durable recovery work only when the conflict head is still the exact durable tail. The first
+  destructive attempt then reports `stale_local_draft`, reloads the newest durable draft, closes the
+  confirmation, and requires a new two-step confirmation for those exact bytes. A concurrent sibling
+  append and discard serialize so the append winner is never silently removed.
+- The repository's public `resolveConflict` accepts only `action: 'use_server'`; a compile-time
+  `@ts-expect-error` assertion proves `keep_local` is unavailable, and a cast runtime request is
+  rejected before storage as defence in depth. Legacy tombstone parsing remains storage-only and
+  fails closed for append/replay authority.
+- The authenticated server render now issues a bounded P-256-signed proof over the exact user,
+  evaluator, organization, tryout, session, registration, rubric, evaluation ID/version, canonical
+  server draft digest, issued/expiry time, and random render nonce. The private JWK is server-only;
+  the repository verifies with the public JWK before durable registration and again inside the
+  destructive transaction. Missing, forged, edited, expired, wrong-scope, wrong-user, wrong-digest,
+  changed-snapshot, and consumed proofs fail closed. Up to five independently signed nonces may be
+  retained only for byte-identical snapshots so already-mounted tabs do not depend on registration
+  order; a changed snapshot replaces the set.
+- The proof threat boundary covers untrusted caller input, stale tabs, storage corruption, and replay.
+  It does not claim protection from arbitrary compromised same-origin script, which can already read
+  evaluator content and control that origin's IndexedDB. Deployment must configure a matching P-256
+  private/public JWK pair; `.env.example` documents both variables without shipping a private key.
+- Mobile Chrome and Safari now inject an observable production-component clipboard adapter and assert
+  the exact copied JSON. Playwright reads the downloaded file and asserts the exact newest note,
+  scores, tags, flags, and context while rejecting athlete name/number/registration identity fields.
+  The flow retains offline blocking, verified server acceptance, reload, and deliberate ordinary-save
+  body assertions.
+
+### Verification
+
+```text
+Focused stale-authority/proof/public-type/form suites             PASS (140 tests)
+npm run verify                                                     PASS (format, lint, types, 349 unit tests, build)
+npm run test:integration, repeated                                 PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                            PASS (47 migrations)
+npx supabase test db --local                                       PASS (29 files / 847 tests)
+npm run test:e2e:evaluation                                        PASS (8/8; Mobile Chrome + Mobile Safari)
+Mobile Safari exact export + mounted-tab conflict --repeat=10      PASS (20/20)
+npm audit --audit-level=high                                       PASS (0 vulnerabilities)
+git diff --check                                                   PASS
+```
+
+### Self-review
+
+- Every destructive authority check and proof revalidation occurs before mutations in the same
+  serialized all-store transaction; stale/corrupt probes assert byte-equivalent rollback.
+- The proof contains only scoped UUIDs, version, SHA-256 digest, timestamps, nonce, and signature.
+  Neither proof nor conflict terminal metadata contains note, score, tag, flag, athlete name, contact,
+  or jersey/tryout number data.
+- Exact idempotent replay remains content-bound. A proof is consumed by resolution identity, and a
+  changed live head cannot reuse it; identical concurrent confirmations return one identical durable
+  outcome.
+- No database migration or IndexedDB version change was introduced. `progress.md` and Task 18 were
+  not changed.
+
 ## User-authorized MVP scope revision — final verification
 
 ### Status

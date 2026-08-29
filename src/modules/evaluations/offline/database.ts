@@ -153,6 +153,30 @@ export type StoredSessionContext = {
     required: boolean;
   }[];
   expiresAt: string;
+  authoritativeSnapshotProof?: AuthoritativeEvaluationSnapshotProof & {
+    acceptedProofs?: Pick<
+      AuthoritativeEvaluationSnapshotProof,
+      'renderNonce' | 'issuedAt' | 'expiresAt' | 'signature'
+    >[];
+    consumedAt?: string;
+    consumedResolutionId?: string;
+  };
+};
+
+/**
+ * An opaque nonce minted by an authenticated server render and durably bound to that exact
+ * evaluation snapshot. It prevents stale tabs/callers from self-attesting freshness. It is not a
+ * defence against compromised same-origin script, which can already read/write IndexedDB.
+ */
+export type AuthoritativeEvaluationSnapshotProof = {
+  renderNonce: string;
+  scope: EvaluationStorageScope;
+  evaluationId: string;
+  version: number;
+  draftDigest: string;
+  issuedAt: string;
+  expiresAt: string;
+  signature: string;
 };
 
 export type QuarantineSource =
@@ -224,6 +248,21 @@ export const evaluationScopeSchema = z.strictObject({
   rubricVersionId: uuid,
 });
 
+export const authoritativeEvaluationSnapshotProofSchema = z
+  .strictObject({
+    renderNonce: uuid,
+    scope: evaluationScopeSchema,
+    evaluationId: uuid,
+    version: z.number().int().min(1).max(2_147_483_646),
+    draftDigest: sha256,
+    issuedAt: isoDate,
+    expiresAt: isoDate,
+    signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
+  })
+  .refine((proof) => Date.parse(proof.issuedAt) < Date.parse(proof.expiresAt), {
+    message: 'Snapshot proof expiry must follow issue.',
+  });
+
 export const evaluationDraftSchema = z.strictObject({
   scores: z
     .array(z.strictObject({ categoryId: uuid, value: z.number().int().min(1).max(10) }))
@@ -259,6 +298,34 @@ export const storedSessionContextSchema = z.strictObject({
       (categories) => new Set(categories.map((category) => category.id)).size === categories.length,
     ),
   expiresAt: isoDate,
+  authoritativeSnapshotProof: authoritativeEvaluationSnapshotProofSchema
+    .extend({
+      acceptedProofs: z
+        .array(
+          z.strictObject({
+            renderNonce: uuid,
+            issuedAt: isoDate,
+            expiresAt: isoDate,
+            signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
+          }),
+        )
+        .max(5)
+        .optional(),
+      consumedAt: isoDate.optional(),
+      consumedResolutionId: uuid.optional(),
+    })
+    .superRefine((proof, context) => {
+      if (Date.parse(proof.issuedAt) >= Date.parse(proof.expiresAt)) {
+        context.addIssue({ code: 'custom', message: 'Snapshot proof expiry must follow issue.' });
+      }
+      if ((proof.consumedAt === undefined) !== (proof.consumedResolutionId === undefined)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'Snapshot proof consumption must be complete.',
+        });
+      }
+    })
+    .optional(),
 });
 
 export const storedDraftSchema = z
