@@ -6,10 +6,13 @@ import { CsvImportWizard } from '@/modules/registration/ui/csv-import-wizard';
 
 export default async function AthleteImportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationSlug: string }>;
+  searchParams: Promise<{ previewId?: string }>;
 }) {
   const { organizationSlug } = await params;
+  const { previewId } = await searchParams;
   const current = await requireCurrentOrganization(organizationSlug);
   if (
     !requireCapability(current.authorization, 'athlete:write', {
@@ -27,7 +30,7 @@ export default async function AthleteImportPage({
           Map columns, review every validation result, then explicitly confirm valid rows.
         </p>
       </div>
-      <CsvImportWizard organizationId={current.organization.id} />
+      <CsvImportWizard organizationId={current.organization.id} resumePreviewId={previewId} />
     </section>
   );
 }

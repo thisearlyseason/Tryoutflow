@@ -125,6 +125,30 @@ export async function POST(
       return responseError(400, 'invalid_request');
     const payload = body as Record<string, unknown>;
 
+    if (payload.action === 'load_preview') {
+      if (typeof payload.previewId !== 'string') return responseError(400, 'invalid_request');
+      const persisted = await client
+        .from('athlete_import_previews')
+        .select('id,organization_id,source_digest,column_mapping,preview_rows,expires_at')
+        .eq('organization_id', organizationId)
+        .eq('actor_user_id', userId)
+        .eq('id', payload.previewId)
+        .gt('expires_at', new Date().toISOString())
+        .is('committed_at', null)
+        .maybeSingle();
+      if (persisted.error || !persisted.data) return responseError(404, 'preview_unavailable');
+      return NextResponse.json({
+        preview: {
+          id: persisted.data.id,
+          organizationId: persisted.data.organization_id,
+          contentHash: persisted.data.source_digest,
+          mapping: persisted.data.column_mapping,
+          rows: persisted.data.preview_rows,
+          expiresAt: persisted.data.expires_at,
+        },
+      });
+    }
+
     if (payload.action === 'preview') {
       const mapping = mappingFrom(payload.mapping);
       const content = decodeCsvBase64(payload.contentBase64);

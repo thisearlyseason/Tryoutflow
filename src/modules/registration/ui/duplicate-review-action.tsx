@@ -32,7 +32,11 @@ export function DuplicateReviewAction({
       });
       if (!response.ok) throw new Error('resolution_failed');
       setMessage('Decision recorded.');
-      router.refresh();
+      if (payload.action === 'resolve_import_duplicate') {
+        router.push(`./import?previewId=${encodeURIComponent(payload.previewId)}`);
+      } else {
+        router.refresh();
+      }
     } catch {
       setMessage('Could not record this decision. Refresh and try again.');
     } finally {

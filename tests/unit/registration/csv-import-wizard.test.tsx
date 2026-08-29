@@ -72,4 +72,70 @@ describe('CSV import wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm import' }));
     expect(await screen.findByRole('status')).toHaveTextContent('already completed (500 athletes)');
   });
+
+  it('reloads persisted conflicts and can commit rows after duplicate review', async () => {
+    const original = {
+      id: 'preview-resume',
+      organizationId: 'a0101010-1010-4010-8010-101010101010',
+      contentHash: 'a'.repeat(64),
+      mapping: { givenName: 'First', familyName: 'Last', birthDate: 'DOB' },
+      rows: [
+        {
+          row: 2,
+          status: 'valid' as const,
+          errors: [],
+          athlete: { givenName: 'Ava', familyName: 'Smith', birthDate: '2013-05-01' },
+          duplicateCandidateIds: [],
+        },
+      ],
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    };
+    const persisted = {
+      ...original,
+      rows: [
+        original.rows[0],
+        {
+          row: 3,
+          status: 'valid' as const,
+          errors: [],
+          athlete: { givenName: 'Ava', familyName: 'Smith', birthDate: '2013-05-01' },
+          duplicateCandidateIds: ['preview-row:2'],
+        },
+      ],
+    };
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ result: { outcome: 'invalid_selection', athleteIds: [] } }), {
+          status: 409,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ preview: persisted }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ result: { outcome: 'committed', athleteIds: ['one', 'two'] } }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
+      );
+    vi.stubGlobal('fetch', fetch);
+    const user = userEvent.setup();
+    render(<CsvImportWizard organizationId={original.organizationId} initialPreview={original} />);
+    await user.click(screen.getByRole('button', { name: 'Confirm import' }));
+    expect(
+      await screen.findByText(/preview changed.*review the current rows/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2 of 2 valid rows selected')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Confirm import' }));
+    expect(await screen.findByRole('status')).toHaveTextContent('Imported 2 athletes');
+    expect(fetch.mock.calls[1]?.[1]?.body).toContain('load_preview');
+  });
 });

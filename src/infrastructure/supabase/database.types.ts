@@ -1576,8 +1576,8 @@ export type Database = {
         };
         Returns: boolean;
       };
-      canonical_registration_text: { Args: { value: string }; Returns: string };
       canonical_import_text: { Args: { value: string }; Returns: string };
+      canonical_registration_text: { Args: { value: string }; Returns: string };
       commit_athlete_import: {
         Args: {
           p_organization_id: string;
@@ -1614,23 +1614,6 @@ export type Database = {
           expires_at: string;
           preview_id: string;
         }[];
-      };
-      purge_expired_athlete_import_previews: {
-        Args: { p_limit?: number };
-        Returns: number;
-      };
-      resolve_athlete_import_duplicate: {
-        Args: {
-          p_decision: string;
-          p_organization_id: string;
-          p_preview_id: string;
-          p_row: number;
-        };
-        Returns: { outcome: string }[];
-      };
-      resolve_registration_duplicate: {
-        Args: { p_candidate_id: string; p_decision: string; p_organization_id: string };
-        Returns: { outcome: string }[];
       };
       create_organization_with_owner: {
         Args: {
@@ -1704,6 +1687,10 @@ export type Database = {
           updated_at: string;
           version: number;
         }[];
+      };
+      current_athlete_import_candidate_ids: {
+        Args: { p_organization_id: string; p_preview_rows: Json; p_row: number };
+        Returns: Json;
       };
       has_active_configuration_assignment: {
         Args: {
@@ -1787,11 +1774,36 @@ export type Database = {
           public_slug: string;
         }[];
       };
+      purge_expired_athlete_import_previews: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
       registration_whitespace_characters: { Args: never; Returns: string };
       reissue_registration_confirmation_token: {
         Args: { p_guardian_email: string; p_token: string };
         Returns: {
           confirmation_token: string;
+          outcome: string;
+        }[];
+      };
+      resolve_athlete_import_duplicate: {
+        Args: {
+          p_decision: string;
+          p_organization_id: string;
+          p_preview_id: string;
+          p_row: number;
+        };
+        Returns: {
+          outcome: string;
+        }[];
+      };
+      resolve_registration_duplicate: {
+        Args: {
+          p_candidate_id: string;
+          p_decision: string;
+          p_organization_id: string;
+        };
+        Returns: {
           outcome: string;
         }[];
       };

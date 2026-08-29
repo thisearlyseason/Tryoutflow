@@ -1,8 +1,9 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import { normalizeAthleteDirectoryPage } from '@/modules/athletes/application/directory-pagination';
 
 export default async function AthletesPage({
   params,
@@ -13,7 +14,8 @@ export default async function AthletesPage({
 }) {
   const { organizationSlug } = await params;
   const requestedPage = Number((await searchParams).page ?? '1');
-  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const requestedSafePage =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pageSize = 50;
   const current = await requireCurrentOrganization(organizationSlug);
   if (
@@ -33,7 +35,9 @@ export default async function AthletesPage({
     .order('family_name')
     .order('given_name')
     .order('id')
-    .range((page - 1) * pageSize, page * pageSize - 1);
+    .range((requestedSafePage - 1) * pageSize, requestedSafePage * pageSize - 1);
+  const page = normalizeAthleteDirectoryPage(requestedPage, count ?? 0, pageSize);
+  if (!error && page !== requestedSafePage) redirect(`?page=${page}`);
   const administrative = ['owner', 'administrator'].includes(
     current.authorization.organizationRole,
   );

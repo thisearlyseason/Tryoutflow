@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import Papa from 'papaparse';
 
 import type { AthleteImportPreview } from '../application/preview-athlete-import';
@@ -15,13 +15,27 @@ const fields = [
   ['guardianPhone', 'Guardian phone', false],
 ] as const;
 
-export function CsvImportWizard({ organizationId }: { organizationId: string }) {
+export function CsvImportWizard({
+  organizationId,
+  initialPreview,
+  resumePreviewId,
+}: {
+  organizationId: string;
+  initialPreview?: AthleteImportPreview;
+  resumePreviewId?: string;
+}) {
   const [contentBase64, setContentBase64] = useState('');
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Partial<CsvColumnMapping>>({});
-  const [preview, setPreview] = useState<AthleteImportPreview | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [message, setMessage] = useState('Choose a CSV file to begin.');
+  const [preview, setPreview] = useState<AthleteImportPreview | null>(initialPreview ?? null);
+  const [selected, setSelected] = useState<Set<number>>(
+    new Set(initialPreview?.rows.filter((row) => row.status === 'valid').map((row) => row.row)),
+  );
+  const [message, setMessage] = useState(
+    initialPreview
+      ? 'Review the persisted preview, then confirm selected valid rows.'
+      : 'Choose a CSV file to begin.',
+  );
   const [busy, setBusy] = useState(false);
   const validRows = useMemo(
     () => preview?.rows.filter((row) => row.status === 'valid') ?? [],
@@ -68,6 +82,30 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
     });
   }
 
+  async function reloadPreview(previewId: string) {
+    const response = await request({ action: 'load_preview', previewId });
+    if (!response.ok) throw new Error('load_preview');
+    const result = (await response.json()) as { preview: AthleteImportPreview };
+    setPreview(result.preview);
+    setSelected(
+      new Set(result.preview.rows.filter((row) => row.status === 'valid').map((row) => row.row)),
+    );
+    return result.preview;
+  }
+
+  useEffect(() => {
+    if (!resumePreviewId || initialPreview) return;
+    setBusy(true);
+    void reloadPreview(resumePreviewId)
+      .then(() =>
+        setMessage('Duplicate decision recorded. Review the current persisted rows, then confirm.'),
+      )
+      .catch(() =>
+        setMessage('That preview is unavailable, expired, or belongs to another administrator.'),
+      )
+      .finally(() => setBusy(false));
+  }, [resumePreviewId, initialPreview]);
+
   async function generatePreview() {
     if (!mapping.givenName || !mapping.familyName || !mapping.birthDate) {
       setMessage('Map given name, family name, and birth date first.');
@@ -102,12 +140,28 @@ export function CsvImportWizard({ organizationId }: { organizationId: string }) 
       const result = (await response.json()) as {
         result?: { outcome: string; athleteIds: string[] };
       };
-      if (!response.ok || !result.result) throw new Error('commit');
+      if (!result.result) throw new Error('commit');
+      if (!response.ok) {
+        if (result.result.outcome === 'invalid_selection') {
+          await reloadPreview(preview.id);
+          setMessage(
+            'The preview changed. Review the current rows and resolve any conflicts before confirming again.',
+          );
+          return;
+        }
+        setMessage(
+          result.result.outcome === 'expired'
+            ? 'This preview expired. Choose the CSV again to create a new preview.'
+            : 'This preview can no longer be committed. Create a new preview and try again.',
+        );
+        return;
+      }
       setMessage(
         result.result.outcome === 'replayed'
           ? `This import was already completed (${result.result.athleteIds.length} athletes).`
           : `Imported ${result.result.athleteIds.length} athletes.`,
       );
+      setSelected(new Set());
     } catch {
       setMessage('The import was not committed. Refresh the preview and try again.');
     } finally {

@@ -67,6 +67,7 @@ export default async function DuplicateReviewPage({
       .from('athlete_import_previews')
       .select('id,preview_rows,created_at,expires_at')
       .eq('organization_id', current.organization.id)
+      .eq('actor_user_id', current.authorization.userId)
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
       .limit(50),

@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync, spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
@@ -83,59 +84,76 @@ describe('athlete CSV import transaction against local Supabase', () => {
     ]);
   });
 
-  it('serializes separate preview commits on canonical tenant identity', async () => {
-    const setup = psql(`
-      insert into auth.users(id) values ('19191919-1919-4919-8919-191919191919');
-      insert into public.organizations(id,name,slug,timezone) values ('a1919191-1919-4919-8919-191919191919','Concurrent Import','concurrent-import','America/Edmonton');
-      insert into public.organization_members(organization_id,user_id,role,status) values ('a1919191-1919-4919-8919-191919191919','19191919-1919-4919-8919-191919191919','owner','active');
+  async function runConcurrencyScenario() {
+    const userId = randomUUID();
+    const organizationId = randomUUID();
+    const slug = `concurrent-${organizationId}`;
+    try {
+      const setup = psql(`
+      insert into auth.users(id) values ('${userId}');
+      insert into public.organizations(id,name,slug,timezone) values ('${organizationId}','Concurrent Import','${slug}','America/Edmonton');
+      insert into public.organization_members(organization_id,user_id,role,status) values ('${organizationId}','${userId}','owner','active');
       set role authenticated;
       select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','19191919-1919-4919-8919-191919191919',false);
+      select set_config('request.jwt.claim.sub','${userId}',false);
       select preview_id from public.create_athlete_import_preview(
-        'a1919191-1919-4919-8919-191919191919',repeat('1',64),
+        '${organizationId}',repeat('1',64),
         '{"givenName":"First","familyName":"Last","birthDate":"DOB"}',
         '[{"row":2,"status":"valid","errors":[],"athlete":{"givenName":"Jose\u0301","familyName":"Smith","birthDate":"2013-05-01"},"duplicateCandidateIds":[]}]');
       select preview_id from public.create_athlete_import_preview(
-        'a1919191-1919-4919-8919-191919191919',repeat('2',64),
+        '${organizationId}',repeat('2',64),
         '{"givenName":"First","familyName":"Last","birthDate":"DOB"}',
         '[{"row":2,"status":"valid","errors":[],"athlete":{"givenName":"Jos\u00e9","familyName":"Smith","birthDate":"2013-05-01"},"duplicateCandidateIds":[]}]');
     `);
-    const previewIds = setup
-      .split('\n')
-      .filter((line) => /^[0-9a-f-]{36}$/u.test(line))
-      .slice(-2);
-    expect(previewIds).toHaveLength(2);
-    const identityKey = 'a1919191-1919-4919-8919-191919191919|josé|smith|2013-05-01';
-    let releaseFirstStarted!: () => void;
-    const firstStarted = new Promise<void>((resolve) => (releaseFirstStarted = resolve));
-    const session = (previewId: string, prefix = '') => `
+      const previewIds = setup
+        .split('\n')
+        .filter((line) => /^[0-9a-f-]{36}$/u.test(line))
+        .slice(-2);
+      expect(previewIds).toHaveLength(2);
+      const identityKey = `${organizationId}|josé|smith|2013-05-01`;
+      let releaseFirstStarted!: () => void;
+      const firstStarted = new Promise<void>((resolve) => (releaseFirstStarted = resolve));
+      const session = (previewId: string, prefix = '') => `
       begin;
       set local role authenticated;
       select set_config('request.jwt.claim.role','authenticated',true);
-      select set_config('request.jwt.claim.sub','19191919-1919-4919-8919-191919191919',true);
+      select set_config('request.jwt.claim.sub','${userId}',true);
       ${prefix}
-      select outcome from public.commit_athlete_import('a1919191-1919-4919-8919-191919191919','${previewId}',array[2]);
+      select outcome from public.commit_athlete_import('${organizationId}','${previewId}',array[2]);
       select pg_sleep(0.5);
       commit;
     `;
-    const first = psqlAsync(
-      session(
-        previewIds[0]!,
-        `select pg_advisory_xact_lock(hashtextextended('${identityKey}',0)); select 'first_ready';`,
-      ),
-      (output) => {
-        if (output.includes('first_ready')) releaseFirstStarted();
-      },
-    );
-    await firstStarted;
-    const second = psqlAsync(session(previewIds[1]!));
-    const [firstOutput, secondOutput] = await Promise.all([first, second]);
-    expect(firstOutput).toContain('committed');
-    expect(secondOutput).toContain('invalid_selection');
-    expect(
-      psql(
-        "select count(*) from public.athletes where organization_id='a1919191-1919-4919-8919-191919191919'",
-      ),
-    ).toBe('1');
+      const first = psqlAsync(
+        session(
+          previewIds[0]!,
+          `select pg_advisory_xact_lock(hashtextextended('${identityKey}',0)); select 'first_ready';`,
+        ),
+        (output) => {
+          if (output.includes('first_ready')) releaseFirstStarted();
+        },
+      );
+      await firstStarted;
+      const second = psqlAsync(session(previewIds[1]!));
+      const [firstOutput, secondOutput] = await Promise.all([first, second]);
+      expect(firstOutput).toContain('committed');
+      expect(secondOutput).toContain('invalid_selection');
+      expect(
+        psql(`select count(*) from public.athletes where organization_id='${organizationId}'`),
+      ).toBe('1');
+    } finally {
+      psql(`
+        begin;
+        set local session_replication_role=replica;
+        delete from public.audit_logs where organization_id='${organizationId}';
+        delete from public.organizations where id='${organizationId}';
+        delete from auth.users where id='${userId}';
+        commit;
+      `);
+    }
+  }
+
+  it('serializes separate preview commits hermetically on repeated runs', async () => {
+    await runConcurrencyScenario();
+    await runConcurrencyScenario();
   });
 });
