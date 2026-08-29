@@ -17,6 +17,10 @@ const wait = (fn: () => Promise<boolean>) =>
     }
     reject(new Error('bounded lock handshake timed out'));
   });
+const waitForExit = async (process: ChildProcess | undefined) => {
+  if (!process || process.exitCode !== null) return;
+  await new Promise<void>((resolve) => process.once('exit', () => resolve()));
+};
 
 describe('tryout publication configuration locking', () => {
   it.each([
@@ -112,12 +116,21 @@ describe('tryout publication configuration locking', () => {
         `select pg_terminate_backend(pid) from pg_stat_activity where application_name='${app}-holder'`,
       );
       const result = await publisher;
+      await waitForExit(mutator);
+      await waitForExit(holder);
       expect(result.stdout.trim()).toMatch(/published|conflict|rubric_invalid/);
     } finally {
       if (mutator && mutator.exitCode === null) mutator.kill();
       if (holder && holder.exitCode === null) holder.kill();
+      await waitForExit(mutator);
+      await waitForExit(holder);
+      // The temporary tenant has append-only audit and configuration root-lock
+      // guards. Delete each explicitly-scoped row while triggers are disabled
+      // instead of relying on an organization cascade (whose child deletes
+      // intentionally acquire a tryout root that has already been removed).
+      // This avoids leaking rows into the canonical pgTAP database.
       await psql(
-        `set session_replication_role=replica; delete from public.organizations where id='${org}'; delete from auth.users where id='${owner}'`,
+        `set session_replication_role=replica; delete from public.audit_logs where organization_id='${org}'; delete from public.tryout_publications where organization_id='${org}'; delete from public.tryout_setup_progress where organization_id='${org}'; delete from public.tryout_registration_form_selections where organization_id='${org}'; delete from public.session_rubrics where organization_id='${org}'; delete from public.rubric_categories where organization_id='${org}'; delete from public.rubric_versions where organization_id='${org}'; delete from public.rubrics where organization_id='${org}'; delete from public.registration_form_versions where organization_id='${org}'; delete from public.registration_forms where organization_id='${org}'; delete from public.session_groups where organization_id='${org}'; delete from public.tryout_sessions where organization_id='${org}'; delete from public.tryout_positions where organization_id='${org}'; delete from public.tryout_divisions where organization_id='${org}'; delete from public.tryout_staff_assignments where organization_id='${org}'; delete from public.tryouts where organization_id='${org}'; delete from public.organization_members where organization_id='${org}'; delete from public.organizations where id='${org}'; delete from auth.users where id='${owner}'; set session_replication_role=origin;`,
       );
     }
   });
