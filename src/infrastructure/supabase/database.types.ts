@@ -28,6 +28,95 @@ export type Database = {
   };
   public: {
     Tables: {
+      athlete_guardians: {
+        Row: {
+          athlete_id: string;
+          communication_permitted: boolean;
+          created_at: string;
+          guardian_id: string;
+          is_primary_contact: boolean;
+          organization_id: string;
+          relationship_label: string;
+        };
+        Insert: {
+          athlete_id: string;
+          communication_permitted?: boolean;
+          created_at?: string;
+          guardian_id: string;
+          is_primary_contact?: boolean;
+          organization_id: string;
+          relationship_label?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          communication_permitted?: boolean;
+          created_at?: string;
+          guardian_id?: string;
+          is_primary_contact?: boolean;
+          organization_id?: string;
+          relationship_label?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'athlete_guardians_athlete_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'athlete_guardians_guardian_fkey';
+            columns: ['organization_id', 'guardian_id'];
+            isOneToOne: false;
+            referencedRelation: 'guardians';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      athletes: {
+        Row: {
+          birth_date: string;
+          created_at: string;
+          family_name: string;
+          given_name: string;
+          id: string;
+          normalized_family_name: string;
+          normalized_given_name: string;
+          organization_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          birth_date: string;
+          created_at?: string;
+          family_name: string;
+          given_name: string;
+          id?: string;
+          normalized_family_name: string;
+          normalized_given_name: string;
+          organization_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          birth_date?: string;
+          created_at?: string;
+          family_name?: string;
+          given_name?: string;
+          id?: string;
+          normalized_family_name?: string;
+          normalized_given_name?: string;
+          organization_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'athletes_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       audit_logs: {
         Row: {
           action: string;
@@ -59,6 +148,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'audit_logs_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      guardians: {
+        Row: {
+          created_at: string;
+          email: string;
+          id: string;
+          name: string;
+          normalized_email: string;
+          organization_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          email: string;
+          id?: string;
+          name: string;
+          normalized_email: string;
+          organization_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          id?: string;
+          name?: string;
+          normalized_email?: string;
+          organization_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'guardians_organization_id_fkey';
             columns: ['organization_id'];
             isOneToOne: false;
             referencedRelation: 'organizations';
@@ -268,6 +395,89 @@ export type Database = {
         };
         Relationships: [];
       };
+      registration_confirmation_tokens: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          id: string;
+          organization_id: string;
+          purpose: string;
+          registration_id: string;
+          token_digest: string;
+          used_at: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          organization_id: string;
+          purpose?: string;
+          registration_id: string;
+          token_digest: string;
+          used_at?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          organization_id?: string;
+          purpose?: string;
+          registration_id?: string;
+          token_digest?: string;
+          used_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'registration_confirmation_tokens_registration_fkey';
+            columns: ['organization_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      registration_duplicate_candidates: {
+        Row: {
+          candidate_athlete_id: string;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          reason: string;
+          registration_id: string;
+        };
+        Insert: {
+          candidate_athlete_id: string;
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          reason: string;
+          registration_id: string;
+        };
+        Update: {
+          candidate_athlete_id?: string;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          reason?: string;
+          registration_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'registration_duplicate_candidates_athlete_fkey';
+            columns: ['organization_id', 'candidate_athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'registration_duplicate_candidates_registration_fkey';
+            columns: ['organization_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       registration_form_versions: {
         Row: {
           created_at: string;
@@ -349,6 +559,33 @@ export type Database = {
             referencedColumns: ['organization_id', 'id'];
           },
         ];
+      };
+      registration_rate_counters: {
+        Row: {
+          attempts: number;
+          created_at: string;
+          expires_at: string;
+          key_hash: string;
+          updated_at: string;
+          window_started_at: string;
+        };
+        Insert: {
+          attempts?: number;
+          created_at?: string;
+          expires_at: string;
+          key_hash: string;
+          updated_at?: string;
+          window_started_at: string;
+        };
+        Update: {
+          attempts?: number;
+          created_at?: string;
+          expires_at?: string;
+          key_hash?: string;
+          updated_at?: string;
+          window_started_at?: string;
+        };
+        Relationships: [];
       };
       rubric_categories: {
         Row: {
@@ -523,6 +760,61 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'organizations';
             referencedColumns: ['id'];
+          },
+        ];
+      };
+      session_enrollments: {
+        Row: {
+          created_at: string;
+          group_id: string | null;
+          id: string;
+          organization_id: string;
+          registration_id: string;
+          session_id: string;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          group_id?: string | null;
+          id?: string;
+          organization_id: string;
+          registration_id: string;
+          session_id: string;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          group_id?: string | null;
+          id?: string;
+          organization_id?: string;
+          registration_id?: string;
+          session_id?: string;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'session_enrollments_group_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id', 'group_id'];
+            isOneToOne: false;
+            referencedRelation: 'session_groups';
+            referencedColumns: ['organization_id', 'tryout_id', 'session_id', 'id'];
+          },
+          {
+            foreignKeyName: 'session_enrollments_registration_fkey';
+            columns: ['organization_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'session_enrollments_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
           },
         ];
       };
@@ -781,6 +1073,80 @@ export type Database = {
           },
         ];
       };
+      tryout_registrations: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          division_id: string;
+          id: string;
+          organization_id: string;
+          registration_form_version_id: string;
+          responses: Json;
+          source: string;
+          status: string;
+          submission_key_digest: string;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          division_id: string;
+          id?: string;
+          organization_id: string;
+          registration_form_version_id: string;
+          responses: Json;
+          source?: string;
+          status?: string;
+          submission_key_digest: string;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          division_id?: string;
+          id?: string;
+          organization_id?: string;
+          registration_form_version_id?: string;
+          responses?: Json;
+          source?: string;
+          status?: string;
+          submission_key_digest?: string;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_registrations_athlete_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_registrations_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_registrations_form_version_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_form_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'registration_form_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_registrations_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       tryout_sessions: {
         Row: {
           capacity: number | null;
@@ -922,6 +1288,13 @@ export type Database = {
           user_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'tryout_staff_assignments_athlete_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
           {
             foreignKeyName: 'tryout_staff_assignments_division_fkey';
             columns: ['organization_id', 'tryout_id', 'division_id'];
@@ -1229,6 +1602,17 @@ export type Database = {
         Returns: boolean;
       };
       is_valid_organization_slug: { Args: { value: string }; Returns: boolean };
+      normalize_registration_text: { Args: { value: string }; Returns: string };
+      public_registration_tryout: {
+        Args: { p_tryout_slug: string };
+        Returns: {
+          divisions: Json;
+          form_schema: Json;
+          name: string;
+          slug: string;
+          tryout_id: string;
+        }[];
+      };
       publish_registration_form_version: {
         Args: {
           p_expected_version: number;
@@ -1287,6 +1671,19 @@ export type Database = {
         };
         Returns: {
           outcome: string;
+        }[];
+      };
+      submit_public_registration: {
+        Args: {
+          p_idempotency_key: string;
+          p_rate_key_hash: string;
+          p_submission: Json;
+          p_tryout_slug: string;
+        };
+        Returns: {
+          confirmation_token: string;
+          outcome: string;
+          registration_id: string;
         }[];
       };
       transition_tryout_lifecycle: {
