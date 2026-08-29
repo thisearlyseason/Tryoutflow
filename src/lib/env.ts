@@ -7,6 +7,7 @@ const clientEnvironmentSchema = z.object({
 
 const serverEnvironmentSchema = clientEnvironmentSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  PUBLIC_REGISTRATION_RATE_LIMIT_SECRET: z.string().min(32),
 });
 
 export type ClientEnvironment = z.infer<typeof clientEnvironmentSchema>;

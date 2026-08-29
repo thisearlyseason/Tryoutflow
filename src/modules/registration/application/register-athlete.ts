@@ -7,15 +7,15 @@ import {
   type RegistrationFormSchema as RegistrationForm,
 } from '../domain/form-schema';
 
-const GuardianSchema = z
-  .object({
-    name: z.string().trim().min(1).max(160),
-    email: z.email().trim().max(254),
-  })
-  .strict();
+const PhoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+?[0-9 ()-]{7,32}$/);
 
 const SubmissionSchema = AthleteIdentitySchema.extend({
-  guardian: GuardianSchema,
+  guardianName: z.string().trim().min(1).max(160),
+  guardianEmail: z.email().trim().max(254),
+  guardianPhone: PhoneSchema.optional(),
   divisionId: z.uuid().optional(),
   responses: z.record(z.string(), z.unknown()),
 }).strict();
@@ -92,7 +92,7 @@ export async function registerAthlete(
   const notification = await dependencies.notifier.enqueue({
     registrationId: result.registrationId,
     confirmationToken: result.confirmationToken,
-    guardianEmail: submission.guardian.email.trim().toLocaleLowerCase('en-CA'),
+    guardianEmail: submission.guardianEmail.trim().toLocaleLowerCase('en-CA'),
   });
   return { accepted: true, delivery: notification.queued ? 'queued' : 'not_configured' };
 }

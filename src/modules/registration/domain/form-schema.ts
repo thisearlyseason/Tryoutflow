@@ -11,6 +11,20 @@ const formFieldKinds = [
   'consent',
 ] as const;
 
+/** These values belong to the public command, never to editable form JSON. */
+export const ReservedRegistrationFieldKeys = new Set([
+  'given_name',
+  'family_name',
+  'birth_date',
+  'guardian_name',
+  'guardian_email',
+  'guardian_phone',
+  'guardian',
+  'division_id',
+  'responses',
+  'idempotency_key',
+]);
+
 export const RegistrationFormFieldSchema = z
   .object({
     key: z
@@ -50,6 +64,13 @@ export const RegistrationFormSchema = z
     const keys = new Set<string>();
     const order = new Set<number>();
     schema.fields.forEach((field, index) => {
+      if (ReservedRegistrationFieldKeys.has(field.key)) {
+        context.addIssue({
+          code: 'custom',
+          message: 'field keys cannot use reserved registration inputs',
+          path: ['fields', index, 'key'],
+        });
+      }
       if (keys.has(field.key)) {
         context.addIssue({
           code: 'custom',

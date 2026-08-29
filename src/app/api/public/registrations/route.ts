@@ -6,6 +6,8 @@ import { createAdminSupabaseClient } from '../../../../infrastructure/supabase/a
 import type { Json } from '../../../../infrastructure/supabase/database.types';
 import { getServerEnvironment } from '../../../../lib/env';
 import { noRegistrationConfirmationNotifier } from '../../../../modules/registration/application/registration-confirmation-notifier';
+import { registerAthlete } from '../../../../modules/registration/application/register-athlete';
+import { RegistrationFormSchema } from '../../../../modules/registration/domain/form-schema';
 
 const MAX_BODY_BYTES = 32 * 1024;
 
@@ -25,10 +27,10 @@ function trustedRequestKey(request: NextRequest, slug: string) {
   const forwarded = request.headers.get('x-vercel-forwarded-for');
   const local =
     process.env.NODE_ENV !== 'production' ? request.headers.get('x-forwarded-for') : null;
-  const address = forwarded?.split(',')[0]?.trim() || local?.split(',')[0]?.trim();
+  const address = forwarded?.trim() || local?.trim();
   if (!address && process.env.NODE_ENV === 'production') return null;
-  const context = `${slug}|${address ?? 'local'}|${request.headers.get('user-agent') ?? ''}`;
-  return createHmac('sha256', getServerEnvironment().SUPABASE_SERVICE_ROLE_KEY)
+  const context = `${slug}|${address ?? 'local'}`;
+  return createHmac('sha256', getServerEnvironment().PUBLIC_REGISTRATION_RATE_LIMIT_SECRET)
     .update(context)
     .digest('hex');
 }
@@ -58,7 +60,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (
     !sameOrigin(request) ||
-    !request.headers.get('content-type')?.toLowerCase().startsWith('application/json')
+    request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !==
+      'application/json'
   ) {
     return genericError(403);
   }
@@ -67,8 +70,8 @@ export async function POST(request: NextRequest) {
 
   let body: { tryoutSlug?: unknown; submission?: unknown; idempotencyKey?: unknown };
   try {
-    const raw = await request.text();
-    if (raw.length > MAX_BODY_BYTES) return genericError(413);
+    const raw = await readBodyWithinLimit(request);
+    if (raw === null) return genericError(413);
     body = JSON.parse(raw) as typeof body;
   } catch {
     return genericError(400);
@@ -85,36 +88,68 @@ export async function POST(request: NextRequest) {
   if (!rateKey) return genericError(400);
 
   try {
-    const result = await createAdminSupabaseClient().rpc('submit_public_registration', {
+    const client = createAdminSupabaseClient();
+    const configuration = await client.rpc('public_registration_tryout', {
       p_tryout_slug: body.tryoutSlug,
-      p_submission: body.submission as Json,
-      p_idempotency_key: body.idempotencyKey,
-      p_rate_key_hash: rateKey,
     });
-    const outcome = result.data?.[0];
-    if (result.error || !outcome) return genericError(400);
-    if (outcome.outcome === 'rate_limited') return genericError(429);
-    if (outcome.outcome === 'registration_closed') return genericError(400);
-    const guardianEmail =
-      typeof (body.submission as { guardian?: { email?: unknown } }).guardian?.email === 'string'
-        ? (body.submission as { guardian: { email: string } }).guardian.email
-        : '';
-    if (
-      outcome.outcome === 'submitted' &&
-      outcome.confirmation_token &&
-      outcome.registration_id &&
-      guardianEmail
-    ) {
-      // The Task 22 outbox adapter owns actual delivery. Never tell a guardian
-      // an email was sent until an adapter has accepted the durable job.
-      await noRegistrationConfirmationNotifier.enqueue({
-        registrationId: outcome.registration_id,
-        confirmationToken: outcome.confirmation_token,
-        guardianEmail,
-      });
-    }
+    const row = configuration.data?.[0];
+    if (configuration.error || !row) return genericError(400);
+    await registerAthlete(
+      {
+        tryoutSlug: body.tryoutSlug,
+        idempotencyKey: body.idempotencyKey,
+        submission: body.submission,
+      },
+      {
+        form: RegistrationFormSchema.parse(row.form_schema),
+        notifier: noRegistrationConfirmationNotifier,
+        gateway: {
+          async submit(input) {
+            const result = await client.rpc('submit_public_registration', {
+              p_tryout_slug: input.tryoutSlug,
+              p_submission: input.submission as Json,
+              p_idempotency_key: input.idempotencyKey,
+              p_rate_key_hash: rateKey,
+            });
+            const outcome = result.data?.[0];
+            if (result.error || !outcome || outcome.outcome === 'registration_closed')
+              throw new Error('closed');
+            if (outcome.outcome === 'rate_limited') throw new Error('rate_limited');
+            if (outcome.outcome === 'idempotency_conflict') throw new Error('idempotency_conflict');
+            if (outcome.outcome === 'replayed') return { outcome: 'replayed' as const };
+            return {
+              outcome: 'submitted' as const,
+              registrationId: outcome.registration_id,
+              confirmationToken: outcome.confirmation_token,
+            };
+          },
+        },
+      },
+    );
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === 'rate_limited') return genericError(429);
     return genericError(400);
   }
+}
+
+async function readBodyWithinLimit(request: NextRequest): Promise<string | null> {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  for (;;) {
+    const next = await reader.read();
+    if (next.done) break;
+    bytes += next.value.byteLength;
+    if (bytes > MAX_BODY_BYTES) return null;
+    chunks.push(next.value);
+  }
+  const combined = new Uint8Array(bytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(combined);
 }

@@ -33,7 +33,7 @@ update public.tryouts set status='published', published_at=clock_timestamp() whe
 create temporary table registration_result as
 select * from public.submit_public_registration(
   'registration-camp',
-  '{"givenName":" Ava ","familyName":"Smith","birthDate":"2013-05-01","guardian":{"name":"Taylor Smith","email":"GUARDIAN@example.com"},"divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true}}',
+  '{"givenName":"Ava","familyName":"Smith","birthDate":"2013-05-01","guardianName":"Taylor Smith","guardianEmail":"guardian@example.com","divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true}}',
   'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
   repeat('1', 64)
 );
@@ -41,11 +41,11 @@ select is((select outcome from registration_result), 'submitted', 'controlled co
 select is((select count(*) from public.session_enrollments where registration_id=(select registration_id from registration_result)), 1::bigint, 'valid submission creates its session enrollment atomically');
 select is((select registration_form_version_id from public.tryout_registrations where id=(select registration_id from registration_result)), 'f0101010-1010-4010-8010-101010101010'::uuid, 'submission uses the exact selected immutable form version');
 select ok((select token.token_digest <> result.confirmation_token and char_length(token.token_digest)=64 from public.registration_confirmation_tokens token join registration_result result on token.registration_id=result.registration_id), 'confirmation secret is hashed at rest');
-select is((select outcome from public.submit_public_registration('registration-camp', '{"givenName":"Ava","familyName":"Smith","birthDate":"2013-05-01","guardian":{"name":"Taylor Smith","email":"guardian@example.com"},"divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true}}', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repeat('1', 64))), 'replayed', 'same idempotency key is replay-safe');
+select is((select outcome from public.submit_public_registration('registration-camp', '{"givenName":"Ava","familyName":"Smith","birthDate":"2013-05-01","guardianName":"Taylor Smith","guardianEmail":"guardian@example.com","divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true}}', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', repeat('1', 64))), 'replayed', 'same idempotency key is replay-safe');
 select throws_ok(
-  $$select * from public.submit_public_registration('registration-camp', '{"givenName":"Ava","familyName":"Smith","birthDate":"2013-05-01","guardian":{"name":"Taylor Smith","email":"guardian@example.com"},"divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true,"unknown":"x"}}', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', repeat('2', 64))$$,
+  $$select * from public.submit_public_registration('registration-camp', '{"givenName":"Ava","familyName":"Smith","birthDate":"2013-05-01","guardianName":"Taylor Smith","guardianEmail":"guardian@example.com","divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true,"unknown":"x"}}', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', repeat('2', 64))$$,
   '22023', null, 'unknown form responses are rejected');
-select is((select outcome from public.submit_public_registration('missing-registration', '{"givenName":"Ava","familyName":"Smith","birthDate":"2013-05-01","guardian":{"name":"Taylor Smith","email":"guardian@example.com"},"divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true}}', 'cccccccccccccccccccccccccccccccc', repeat('3', 64))), 'registration_closed', 'closed or unknown registration accepts no new records');
+select is((select outcome from public.submit_public_registration('missing-registration', '{"givenName":"Ava","familyName":"Smith","birthDate":"2013-05-01","guardianName":"Taylor Smith","guardianEmail":"guardian@example.com","divisionId":"c0101010-1010-4010-8010-101010101010","responses":{"consent":true}}', 'cccccccccccccccccccccccccccccccc', repeat('3', 64))), 'registration_closed', 'closed or unknown registration accepts no new records');
 
 select * from finish();
 rollback;

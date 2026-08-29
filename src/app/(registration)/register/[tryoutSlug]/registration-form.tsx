@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { Button } from '../../../../components/ui/button';
 import { Input } from '../../../../components/ui/input';
@@ -19,6 +19,17 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
   const [tryout, setTryout] = useState<RegistrationTryout | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const idempotencyKey = useRef<string | null>(null);
+
+  function stableIdempotencyKey() {
+    if (idempotencyKey.current) return idempotencyKey.current;
+    const storageKey = `tryoutflow:registration:${tryoutSlug}:idempotency`;
+    idempotencyKey.current =
+      window.sessionStorage.getItem(storageKey) ??
+      `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
+    window.sessionStorage.setItem(storageKey, idempotencyKey.current);
+    return idempotencyKey.current;
+  }
 
   useEffect(() => {
     fetch(`/api/public/registrations?tryoutSlug=${encodeURIComponent(tryoutSlug)}`)
@@ -51,19 +62,21 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           tryoutSlug,
-          idempotencyKey:
-            crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', ''),
+          idempotencyKey: stableIdempotencyKey(),
           submission: {
             givenName: fields.get('givenName'),
             familyName: fields.get('familyName'),
             birthDate: fields.get('birthDate'),
             divisionId: fields.get('divisionId') || undefined,
-            guardian: { name: fields.get('guardianName'), email: fields.get('guardianEmail') },
+            guardianName: fields.get('guardianName'),
+            guardianEmail: fields.get('guardianEmail'),
+            guardianPhone: fields.get('guardianPhone') || undefined,
             responses,
           },
         }),
       });
       if (!response.ok) throw new Error('failed');
+      window.sessionStorage.removeItem(`tryoutflow:registration:${tryoutSlug}:idempotency`);
       window.location.assign(`/register/${encodeURIComponent(tryoutSlug)}/confirmation`);
     } catch {
       setError('We could not submit your registration. Review the form and try again.');
@@ -111,6 +124,10 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
             required
             autoComplete="family-name"
           />{' '}
+        </label>
+        <label>
+          Guardian phone (optional){' '}
+          <Input name="guardianPhone" aria-label="Guardian phone" type="tel" autoComplete="tel" />
         </label>
         <label>
           {' '}

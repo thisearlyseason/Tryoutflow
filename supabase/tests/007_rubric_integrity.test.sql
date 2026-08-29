@@ -33,7 +33,7 @@ insert into public.registration_forms (id, organization_id, tryout_id, name)
 values ('76767676-7676-4676-8676-767676767676', '72727272-7272-4272-8272-727272727272', '73737373-7373-4373-8373-737373737373', 'Default registration');
 
 insert into public.registration_form_versions (id, organization_id, tryout_id, registration_form_id, version_number, schema)
-values ('77777777-7777-4777-8777-777777777777', '72727272-7272-4272-8272-727272727272', '73737373-7373-4373-8373-737373737373', '76767676-7676-4676-8676-767676767676', 1, '{"fields":[{"key":"guardian_email","label":"Guardian email","kind":"email","required":true,"sortOrder":0}]}');
+values ('77777777-7777-4777-8777-777777777777', '72727272-7272-4272-8272-727272727272', '73737373-7373-4373-8373-737373737373', '76767676-7676-4676-8676-767676767676', 1, '{"fields":[{"key":"guardian_contact_email","label":"Guardian email","kind":"email","required":true,"sortOrder":0}]}');
 
 insert into public.registration_forms (id, organization_id, tryout_id, name)
 values ('78787878-7878-4787-8787-787878787878', '72727272-7272-4272-8272-727272727272', '73737373-7373-4373-8373-737373737373', 'Schema validation');

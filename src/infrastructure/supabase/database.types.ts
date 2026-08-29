@@ -403,6 +403,7 @@ export type Database = {
           organization_id: string;
           purpose: string;
           registration_id: string;
+          revoked_at: string | null;
           token_digest: string;
           used_at: string | null;
         };
@@ -413,6 +414,7 @@ export type Database = {
           organization_id: string;
           purpose?: string;
           registration_id: string;
+          revoked_at?: string | null;
           token_digest: string;
           used_at?: string | null;
         };
@@ -423,6 +425,7 @@ export type Database = {
           organization_id?: string;
           purpose?: string;
           registration_id?: string;
+          revoked_at?: string | null;
           token_digest?: string;
           used_at?: string | null;
         };
@@ -803,11 +806,11 @@ export type Database = {
             referencedColumns: ['organization_id', 'tryout_id', 'session_id', 'id'];
           },
           {
-            foreignKeyName: 'session_enrollments_registration_fkey';
-            columns: ['organization_id', 'registration_id'];
+            foreignKeyName: 'session_enrollments_registration_tryout_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_id'];
             isOneToOne: false;
             referencedRelation: 'tryout_registrations';
-            referencedColumns: ['organization_id', 'id'];
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
           },
           {
             foreignKeyName: 'session_enrollments_session_fkey';
@@ -1084,6 +1087,7 @@ export type Database = {
           responses: Json;
           source: string;
           status: string;
+          submission_digest: string;
           submission_key_digest: string;
           tryout_id: string;
           updated_at: string;
@@ -1098,6 +1102,7 @@ export type Database = {
           responses: Json;
           source?: string;
           status?: string;
+          submission_digest?: string;
           submission_key_digest: string;
           tryout_id: string;
           updated_at?: string;
@@ -1112,6 +1117,7 @@ export type Database = {
           responses?: Json;
           source?: string;
           status?: string;
+          submission_digest?: string;
           submission_key_digest?: string;
           tryout_id?: string;
           updated_at?: string;
@@ -1483,6 +1489,14 @@ export type Database = {
         };
         Returns: boolean;
       };
+      can_read_full_athlete_pii: {
+        Args: { target_athlete_id: string; target_organization_id: string };
+        Returns: boolean;
+      };
+      can_read_full_registration_pii: {
+        Args: { target_organization_id: string; target_tryout_id: string };
+        Returns: boolean;
+      };
       can_read_tenant_record: {
         Args: { target_organization_id: string };
         Returns: boolean;
@@ -1496,6 +1510,13 @@ export type Database = {
           target_tryout_id: string;
         };
         Returns: boolean;
+      };
+      consume_registration_confirmation_token: {
+        Args: { p_token: string };
+        Returns: {
+          outcome: string;
+          registration_id: string;
+        }[];
       };
       create_organization_with_owner: {
         Args: {

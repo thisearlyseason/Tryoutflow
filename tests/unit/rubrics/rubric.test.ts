@@ -50,7 +50,7 @@ describe('rubric validation', () => {
     const valid = RegistrationFormSchema.safeParse({
       fields: [
         {
-          key: 'guardian_email',
+          key: 'guardian_contact_email',
           label: 'Guardian email',
           kind: 'email',
           required: true,
