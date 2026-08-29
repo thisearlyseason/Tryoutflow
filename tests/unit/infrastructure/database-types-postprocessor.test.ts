@@ -67,6 +67,9 @@ describe('database type postprocessor', () => {
       execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes]);
       const processed = readFileSync(databaseTypes, 'utf8');
 
+      execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes]);
+      const processedTwice = readFileSync(databaseTypes, 'utf8');
+
       expect(processed).toContain('version: number;\n        };\n        Returns:');
       expect(processed).toContain('p_expected_version: number | null;');
       expect(processed).toContain('version: number | null;\n        }[];');
@@ -80,6 +83,30 @@ describe('database type postprocessor', () => {
       expect(processed).toContain('Returns: { evaluation_id: string | null;');
       expect(processed).toContain('tryout_number: number | null }[];');
       expect(processed).toContain('expires_at: string | null;');
+      expect(processedTwice).toBe(processed);
+      expect(processedTwice).not.toContain('| null | null');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('is byte-idempotent for the tracked processed declaration shape', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-database-types-tracked-'));
+    const databaseTypes = join(directory, 'database.types.ts');
+    const tracked = readFileSync(resolve('src/infrastructure/supabase/database.types.ts'), 'utf8');
+
+    try {
+      writeFileSync(databaseTypes, tracked);
+      execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes]);
+      const processedOnce = readFileSync(databaseTypes, 'utf8');
+      execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes]);
+      const processedTwice = readFileSync(databaseTypes, 'utf8');
+
+      expect(processedOnce).toBe(tracked);
+      expect(processedTwice).toBe(tracked);
+      expect(processedTwice).not.toContain('| null | null');
+      expect(processedTwice).toContain('p_flag_id: string | null;');
+      expect(processedTwice).toContain('athlete_flag_id: string | null;');
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }

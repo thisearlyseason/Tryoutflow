@@ -27,11 +27,11 @@ function makeNullable(section, functionName, fields, allowOptional = false) {
   for (const [field, type] of Object.entries(fields)) {
     const optional = allowOptional ? '(\\??)' : '';
     const prefix = new RegExp(
-      `(^|[\\s{;])(${escaped(field)}${optional}: )${escaped(type)}(?=;|[\\s}])`,
+      `(^|[\\s{;])(${escaped(field)}${optional}: )${escaped(type)}(?=\\s*[;}])`,
       'm',
     );
     const nullable = new RegExp(
-      `(^|[\\s{;])${escaped(field)}${allowOptional ? '\\??' : ''}: ${escaped(type)} \\| null(?=;|[\\s}])`,
+      `(^|[\\s{;])${escaped(field)}${allowOptional ? '\\??' : ''}: ${escaped(type)} \\| null(?=\\s*[;}])`,
       'm',
     );
     if (!prefix.test(result) && !nullable.test(result)) {

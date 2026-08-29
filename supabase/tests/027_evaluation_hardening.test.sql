@@ -98,6 +98,39 @@ select is((select outcome from public.lock_evaluation(
 select is((select outcome from public.reopen_evaluation(
  'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
  'f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',current_setting('app.test.hardened_evaluation')::uuid,3,'Video review requires revision')),'reopened','locked evaluation can be reopened by exact-scope director');
+reset role;
+select set_config('app.test.director_flag_count_before_invalid_create',(select count(*)::text from public.athlete_flags),true);
+select set_config('app.test.director_audit_count_before_invalid_create',(select count(*)::text from public.audit_logs),true);
+select set_config('app.test.director_permit_count_before_invalid_create',(select count(*)::text from private.director_flag_write_permits),true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1222222-2222-4222-8222-222222222222',true);
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',null,null,'eligibility_review')),'invalid_flag','null create action fails closed before mutation');
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',null,'upsert',null)),'invalid_flag','null create flag type fails closed before mutation');
+select is((select outcome from public.manage_director_evaluation_flag(
+ null,'f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',null,'upsert','eligibility_review')),'invalid_flag','null organization fails closed before authorization');
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001',null,'f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',null,'upsert','eligibility_review')),'invalid_flag','null tryout fails closed before authorization');
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661',null,
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',null,'upsert','eligibility_review')),'invalid_flag','null division fails closed before authorization');
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ null,'f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',null,'upsert','eligibility_review')),'invalid_flag','null registration fails closed before authorization');
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014',null,'f1999999-9999-4999-8999-999999999991',null,'upsert','eligibility_review')),'invalid_flag','null session fails closed before authorization');
+reset role;
+select is((select count(*) from public.athlete_flags),current_setting('app.test.director_flag_count_before_invalid_create')::bigint,'invalid create probes leave flag rows unchanged');
+select is((select count(*) from public.audit_logs),current_setting('app.test.director_audit_count_before_invalid_create')::bigint,'invalid create probes leave audits unchanged');
+select is((select count(*) from private.director_flag_write_permits),current_setting('app.test.director_permit_count_before_invalid_create')::bigint,'invalid create probes leave permits unchanged');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1222222-2222-4222-8222-222222222222',true);
 select is((select outcome from public.manage_director_evaluation_flag(
  'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
  'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999999',null,'upsert','eligibility_review')),'forbidden','known unrelated group cannot receive a director flag');
@@ -105,6 +138,27 @@ select is((select outcome from public.manage_director_evaluation_flag(
  'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
  'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',null,'upsert','eligibility_review')),'saved','director creates an independent attributed flag');
 select set_config('app.test.director_flag',(select id::text from public.athlete_flags where creator_kind='director' and creator_user_id='f1222222-2222-4222-8222-222222222222'),true);
+reset role;
+select set_config('app.test.director_flag_before_invalid_mutation',(select to_jsonb(f)::text from public.athlete_flags f where id=current_setting('app.test.director_flag')::uuid),true);
+select set_config('app.test.director_audit_count_before_invalid_mutation',(select count(*)::text from public.audit_logs),true);
+select set_config('app.test.director_permit_count_before_invalid_mutation',(select count(*)::text from private.director_flag_write_permits),true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1222222-2222-4222-8222-222222222222',true);
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',current_setting('app.test.director_flag')::uuid,null,'injury_concern')),'invalid_flag','null update action fails closed before mutation');
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',current_setting('app.test.director_flag')::uuid,'upsert',null)),'invalid_flag','null update flag type fails closed before mutation');
+select is((select outcome from public.manage_director_evaluation_flag(
+ 'f1000000-0000-4000-8000-000000000001','f1666666-6666-4666-8666-666666666661','f1777777-7777-4777-8777-777777777771',
+ 'f1000000-0000-4000-8000-000000000014','f1888888-8888-4888-8888-888888888881','f1999999-9999-4999-8999-999999999991',current_setting('app.test.director_flag')::uuid,'revoke',null)),'invalid_flag','null revoke flag type fails closed before mutation');
+reset role;
+select is((select to_jsonb(f)::text from public.athlete_flags f where id=current_setting('app.test.director_flag')::uuid),current_setting('app.test.director_flag_before_invalid_mutation'),'invalid update and revoke probes leave the row byte-equivalent');
+select is((select count(*) from public.audit_logs),current_setting('app.test.director_audit_count_before_invalid_mutation')::bigint,'invalid update and revoke probes leave audits unchanged');
+select is((select count(*) from private.director_flag_write_permits),current_setting('app.test.director_permit_count_before_invalid_mutation')::bigint,'invalid update and revoke probes leave permits unchanged');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','f1222222-2222-4222-8222-222222222222',true);
 select is((select count(*) from public.evaluation_notes),0::bigint,'director flag authority does not reveal evaluator notes');
 select is((select count(*) from public.evaluation_scores),0::bigint,'director flag authority does not reveal evaluator scores');
 select is((select creator_kind from public.athlete_flags where id=current_setting('app.test.director_flag')::uuid),'director','director flag stores creator kind');
