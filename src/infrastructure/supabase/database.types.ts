@@ -208,6 +208,163 @@ export type Database = {
           },
         ];
       };
+      checkin_qr_tokens: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          id: string;
+          organization_id: string;
+          registration_id: string;
+          revoked_at: string | null;
+          token_digest: string;
+          tryout_id: string;
+          used_at: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          organization_id: string;
+          registration_id: string;
+          revoked_at?: string | null;
+          token_digest: string;
+          tryout_id: string;
+          used_at?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          organization_id?: string;
+          registration_id?: string;
+          revoked_at?: string | null;
+          token_digest?: string;
+          tryout_id?: string;
+          used_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checkin_qr_registration_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
+      checkin_search_rate_counters: {
+        Row: {
+          actor_user_id: string;
+          attempts: number;
+          expires_at: string;
+          organization_id: string;
+          tryout_id: string;
+          window_started_at: string;
+        };
+        Insert: {
+          actor_user_id: string;
+          attempts: number;
+          expires_at: string;
+          organization_id: string;
+          tryout_id: string;
+          window_started_at: string;
+        };
+        Update: {
+          actor_user_id?: string;
+          attempts?: number;
+          expires_at?: string;
+          organization_id?: string;
+          tryout_id?: string;
+          window_started_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checkin_search_rate_counters_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'checkin_search_rate_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      checkins: {
+        Row: {
+          checked_in_at: string;
+          checked_in_by_user_id: string;
+          group_id: string | null;
+          id: string;
+          idempotency_key_digest: string;
+          organization_id: string;
+          registration_id: string;
+          reversed_at: string | null;
+          session_id: string;
+          tryout_id: string;
+          tryout_number_id: string;
+        };
+        Insert: {
+          checked_in_at?: string;
+          checked_in_by_user_id: string;
+          group_id?: string | null;
+          id?: string;
+          idempotency_key_digest: string;
+          organization_id: string;
+          registration_id: string;
+          reversed_at?: string | null;
+          session_id: string;
+          tryout_id: string;
+          tryout_number_id: string;
+        };
+        Update: {
+          checked_in_at?: string;
+          checked_in_by_user_id?: string;
+          group_id?: string | null;
+          id?: string;
+          idempotency_key_digest?: string;
+          organization_id?: string;
+          registration_id?: string;
+          reversed_at?: string | null;
+          session_id?: string;
+          tryout_id?: string;
+          tryout_number_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'checkins_group_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id', 'group_id'];
+            isOneToOne: false;
+            referencedRelation: 'session_groups';
+            referencedColumns: ['organization_id', 'tryout_id', 'session_id', 'id'];
+          },
+          {
+            foreignKeyName: 'checkins_number_fkey';
+            columns: ['organization_id', 'tryout_number_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_numbers';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'checkins_registration_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'checkins_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
       guardians: {
         Row: {
           created_at: string;
@@ -1022,6 +1179,80 @@ export type Database = {
           },
         ];
       };
+      tryout_numbers: {
+        Row: {
+          assigned_at: string;
+          assigned_by_user_id: string;
+          division_id: string;
+          group_id: string | null;
+          id: string;
+          number: number;
+          organization_id: string;
+          registration_id: string;
+          released_at: string | null;
+          scope_kind: string;
+          session_id: string | null;
+          tryout_id: string;
+        };
+        Insert: {
+          assigned_at?: string;
+          assigned_by_user_id: string;
+          division_id: string;
+          group_id?: string | null;
+          id?: string;
+          number: number;
+          organization_id: string;
+          registration_id: string;
+          released_at?: string | null;
+          scope_kind: string;
+          session_id?: string | null;
+          tryout_id: string;
+        };
+        Update: {
+          assigned_at?: string;
+          assigned_by_user_id?: string;
+          division_id?: string;
+          group_id?: string | null;
+          id?: string;
+          number?: number;
+          organization_id?: string;
+          registration_id?: string;
+          released_at?: string | null;
+          scope_kind?: string;
+          session_id?: string | null;
+          tryout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_numbers_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_numbers_group_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id', 'group_id'];
+            isOneToOne: false;
+            referencedRelation: 'session_groups';
+            referencedColumns: ['organization_id', 'tryout_id', 'session_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_numbers_registration_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_numbers_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
       tryout_positions: {
         Row: {
           code: string | null;
@@ -1503,6 +1734,24 @@ export type Database = {
           outcome: string;
         }[];
       };
+      assign_tryout_number: {
+        Args: {
+          p_division_id: string;
+          p_group_id: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_requested: number;
+          p_scope_kind: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          assigned_number: number;
+          assignment_id: string;
+          next_available: number;
+          outcome: string;
+        }[];
+      };
       can_access_evaluation: {
         Args: {
           evaluator_user_id: string;
@@ -1554,6 +1803,16 @@ export type Database = {
         };
         Returns: boolean;
       };
+      can_operate_checkin: {
+        Args: {
+          p_division_id: string;
+          p_group_id: string;
+          p_organization_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: boolean;
+      };
       can_read_full_athlete_pii: {
         Args: { target_athlete_id: string; target_organization_id: string };
         Returns: boolean;
@@ -1587,6 +1846,25 @@ export type Database = {
       };
       canonical_import_text: { Args: { value: string }; Returns: string };
       canonical_registration_text: { Args: { value: string }; Returns: string };
+      check_in_registration: {
+        Args: {
+          p_group_id: string;
+          p_idempotency_key: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_requested: number;
+          p_scope_kind: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          assigned_number: number;
+          checked_in_at: string;
+          next_available: number;
+          outcome: string;
+          receipt_id: string;
+        }[];
+      };
       commit_athlete_import: {
         Args: {
           p_organization_id: string;
@@ -1750,6 +2028,14 @@ export type Database = {
       };
       is_valid_registration_email: { Args: { value: string }; Returns: boolean };
       is_valid_registration_phone: { Args: { value: string }; Returns: boolean };
+      issue_checkin_qr_token: {
+        Args: {
+          p_organization_id: string;
+          p_registration_id: string;
+          p_tryout_id: string;
+        };
+        Returns: string;
+      };
       lock_canonical_athlete_identity: {
         Args: {
           p_birth_date: string;
@@ -1807,6 +2093,10 @@ export type Database = {
         Args: { p_limit?: number };
         Returns: number;
       };
+      registration_has_missing_information: {
+        Args: { p_registration_id: string };
+        Returns: boolean;
+      };
       registration_whitespace_characters: { Args: never; Returns: string };
       reissue_registration_confirmation_token: {
         Args: { p_guardian_email: string; p_token: string };
@@ -1855,6 +2145,23 @@ export type Database = {
         };
         Returns: {
           outcome: string;
+        }[];
+      };
+      search_checkin_registrations: {
+        Args: {
+          p_limit: number;
+          p_organization_id: string;
+          p_query: string;
+          p_rate_key_hash: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          athlete_name: string;
+          checkin_status: string;
+          division_name: string;
+          guardian_name: string;
+          registration_id: string;
+          tryout_number: number;
         }[];
       };
       select_tryout_registration_form_version: {
