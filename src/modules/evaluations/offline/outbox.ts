@@ -119,6 +119,12 @@ export async function resolveNeedsAttention(
   return repository().resolveNeedsAttention(...input);
 }
 
+export async function resolveConflict(
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['resolveConflict']>
+) {
+  return repository().resolveConflict(...input);
+}
+
 export async function listMutations(
   ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['listMutations']>
 ) {

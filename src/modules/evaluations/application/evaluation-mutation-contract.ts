@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isJsonPostgresCompatibleString } from '../../../lib/json-string-contract';
 
 const uuid = z.uuid();
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u);
@@ -16,7 +17,7 @@ const draftSchema = z.strictObject({
     .array(z.strictObject({ categoryId: uuid, value: z.number().int().min(1).max(10) }))
     .max(50)
     .refine((rows) => new Set(rows.map((row) => row.categoryId)).size === rows.length),
-  note: z.string().max(4_000).optional(),
+  note: z.string().max(4_000).refine(isJsonPostgresCompatibleString).optional(),
   noteTagIds: z
     .array(uuid)
     .max(25)

@@ -1,5 +1,9 @@
 import Dexie, { type EntityTable, type Transaction } from 'dexie';
 import { z } from 'zod';
+import {
+  assertJsonPostgresCompatible,
+  isJsonPostgresCompatibleString,
+} from '../../../lib/json-string-contract';
 
 import { evaluationSyncStates, type EvaluationSyncState } from './sync-state';
 
@@ -28,6 +32,7 @@ export type EvaluationStoredFailureCategory =
   | 'server'
   | 'conflict'
   | 'forbidden'
+  | 'invalid_input'
   | 'invalid_rubric'
   | 'retry_exhausted'
   | 'corrupt_record'
@@ -95,7 +100,12 @@ export type StoredEvaluationReceiptTombstone = {
   storageKey: string;
   scopeKey: string;
   clientMutationId: string;
-  reason: 'receipt_authority' | 'corrupt_receipt';
+  reason:
+    | 'receipt_authority'
+    | 'corrupt_receipt'
+    | 'conflict_keep_local'
+    | 'conflict_use_server'
+    | 'conflict_dependent';
   createdAt: string;
   evaluationId?: string;
   expectedVersion?: number;
@@ -169,6 +179,7 @@ export const evaluationMutationFailureCategorySchema = z.enum([
   'server',
   'conflict',
   'forbidden',
+  'invalid_input',
   'invalid_rubric',
   'retry_exhausted',
   'corrupt_record',
@@ -191,7 +202,7 @@ export const evaluationDraftSchema = z.strictObject({
     .array(z.strictObject({ categoryId: uuid, value: z.number().int().min(1).max(10) }))
     .max(50)
     .refine((scores) => new Set(scores.map((score) => score.categoryId)).size === scores.length),
-  note: z.string().max(4_000).optional(),
+  note: z.string().max(4_000).refine(isJsonPostgresCompatibleString).optional(),
   noteTagIds: z
     .array(uuid)
     .max(25)
@@ -337,7 +348,13 @@ export const storedReceiptTombstoneSchema = z
     storageKey: z.string().min(1).max(600),
     scopeKey: z.string().min(1).max(512),
     clientMutationId: uuid,
-    reason: z.enum(['receipt_authority', 'corrupt_receipt']),
+    reason: z.enum([
+      'receipt_authority',
+      'corrupt_receipt',
+      'conflict_keep_local',
+      'conflict_use_server',
+      'conflict_dependent',
+    ]),
     createdAt: isoDate,
     evaluationId: uuid.optional(),
     expectedVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
@@ -541,6 +558,7 @@ function canonicalize(value: unknown): string {
 
 /** A stable integrity/idempotency digest; it is not encryption. */
 export async function digestValue(value: unknown): Promise<string> {
+  assertJsonPostgresCompatible(value);
   const source = canonicalize(value);
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(source));
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, '0')).join('');

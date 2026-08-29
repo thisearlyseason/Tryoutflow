@@ -20,6 +20,16 @@ const athletes = [
     displayName: 'Athlete G7H8J9',
     tryoutNumber: 44,
   },
+  {
+    registrationId: 'abababab-abab-4bab-8bab-abababababab',
+    displayName: 'Athlete K1L2M3',
+    tryoutNumber: 45,
+  },
+  {
+    registrationId: 'acacacac-acac-4cac-8cac-acacacacacac',
+    displayName: 'Athlete N4P5Q6',
+    tryoutNumber: 46,
+  },
 ];
 
 const categories = [
@@ -84,7 +94,7 @@ export default async function EvaluationFixturePage({
         previousHref={previous ? `/${previous.registrationId}` : null}
         total={athletes.length}
       />
-      {registrationId === athletes[2]?.registrationId ? (
+      {index >= 2 ? (
         <SynchronizedEvaluationForm
           athlete={{
             ...athlete,
@@ -95,7 +105,17 @@ export default async function EvaluationFixturePage({
           }}
           categories={categories}
           draftCacheKey={`fixture:${registrationId}`}
-          initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+          initialDraft={{
+            evaluationId:
+              index === 2
+                ? 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+                : index === 3
+                  ? 'fefefefe-fefe-4efe-8efe-fefefefefefe'
+                  : 'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd',
+            version: 0,
+            state: 'draft',
+            scores: [],
+          }}
           noteTags={[]}
           onComplete={onComplete}
           serverSnapshotToken={randomUUID()}

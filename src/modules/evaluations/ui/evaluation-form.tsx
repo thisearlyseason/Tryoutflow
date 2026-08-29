@@ -169,6 +169,9 @@ export function EvaluationForm({
   serverSnapshotToken,
   durableDeviceSave = false,
   serverConfirmation,
+  backgroundSaveResult,
+  onResolveRecovery,
+  recoveryServerDraft,
 }: {
   athlete: EvaluatorAthlete;
   categories: EvaluatorCategory[];
@@ -187,12 +190,24 @@ export function EvaluationForm({
   }) => Promise<EvaluationSaveResult>;
   durableDeviceSave?: boolean;
   serverConfirmation?: { evaluationId: string; version: number } | null;
+  backgroundSaveResult?: {
+    token: number;
+    outcome: Exclude<EvaluationSaveResult['outcome'], 'saved' | 'saved_device'>;
+  } | null;
+  onResolveRecovery?: (input: {
+    action: 'keep_local' | 'use_server';
+    local: EditableDraft;
+  }) => Promise<
+    { outcome: 'resolved'; evaluationId: string; version: number } | { outcome: 'failed' }
+  >;
+  recoveryServerDraft?: EvaluationDraftInput;
 } & (
   | { draftCacheKey: string; serverSnapshotToken: string }
   | { draftCacheKey?: undefined; serverSnapshotToken?: never }
 )) {
-  const serverDraft = editableDraft(initialDraft);
-  const [draft, setDraft] = useState<EditableDraft>(serverDraft);
+  const authoritativeServerDraft = recoveryServerDraft ?? initialDraft;
+  const serverDraft = editableDraft(authoritativeServerDraft);
+  const [draft, setDraft] = useState<EditableDraft>(editableDraft(initialDraft));
   const [saveState, setSaveState] = useState<EvaluationSaveStatus>(
     initialDraft.evaluationId ? 'saved' : 'idle',
   );
@@ -216,6 +231,7 @@ export function EvaluationForm({
   } | null>(null);
   const [recoveryNotice, setRecoveryNotice] = useState('');
   const [completing, setCompleting] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const versionRef = useRef(initialDraft.version);
   const evaluationIdRef = useRef(initialDraft.evaluationId);
   const revisionRef = useRef(0);
@@ -259,6 +275,27 @@ export function EvaluationForm({
       clearCachedDraft(draftCacheKey);
     }
   }, [draftCacheKey, serverConfirmation]);
+
+  useEffect(() => {
+    if (!backgroundSaveResult || !hydrated) return;
+    const request = lastRequestRef.current;
+    if (backgroundSaveResult.outcome === 'conflict') requireRecovery('conflict', request);
+    else if (
+      backgroundSaveResult.outcome === 'forbidden' ||
+      backgroundSaveResult.outcome === 'invalid_context' ||
+      backgroundSaveResult.outcome === 'locked'
+    )
+      restrictEditing(backgroundSaveResult.outcome);
+    else if (
+      backgroundSaveResult.outcome === 'invalid_input' ||
+      backgroundSaveResult.outcome === 'invalid_score' ||
+      backgroundSaveResult.outcome === 'invalid_note_tag'
+    ) {
+      setServerValidation(backgroundSaveResult.outcome);
+      setSaveState(backgroundSaveResult.outcome);
+      persistDraft('dirty');
+    } else requireRecovery('unconfirmed', request);
+  }, [backgroundSaveResult, hydrated]);
 
   function persistDraft(recoveryState: CachedDraft['recovery'] = 'dirty'): boolean {
     if (
@@ -313,8 +350,9 @@ export function EvaluationForm({
         Boolean(serverSnapshotToken) &&
         Boolean(cached.serverSnapshotToken) &&
         cached.serverSnapshotToken !== serverSnapshotToken &&
-        initialDraft.version >= cached.baseVersion &&
-        (cached.evaluationId === null || cached.evaluationId === initialDraft.evaluationId);
+        authoritativeServerDraft.version >= cached.baseVersion &&
+        (cached.evaluationId === null ||
+          cached.evaluationId === authoritativeServerDraft.evaluationId);
       blockedRef.current = true;
       recoveryKindRef.current = kind;
       setRecovery({
@@ -611,28 +649,52 @@ export function EvaluationForm({
     return operation;
   }
 
-  function keepLocalDraft() {
-    versionRef.current = initialDraft.version;
-    evaluationIdRef.current = initialDraft.evaluationId;
+  async function keepLocalDraft() {
+    setResolving(true);
+    const resolution = onResolveRecovery
+      ? await onResolveRecovery({ action: 'keep_local', local: latestDraftRef.current }).catch(
+          () => ({ outcome: 'failed' as const }),
+        )
+      : null;
+    setResolving(false);
+    if (resolution?.outcome === 'failed') {
+      setRecoveryNotice('The local draft is still protected. Reload and try resolving again.');
+      return;
+    }
+    versionRef.current = resolution?.version ?? authoritativeServerDraft.version;
+    evaluationIdRef.current = resolution?.evaluationId ?? authoritativeServerDraft.evaluationId;
     blockedRef.current = false;
     recoveryKindRef.current = null;
     lastRequestRef.current = undefined;
     lastCompletionRef.current = undefined;
-    confirmedRevisionRef.current = 0;
+    confirmedRevisionRef.current = resolution ? revisionRef.current : 0;
+    if (resolution) serverConfirmedRef.current = true;
     drainGoalRef.current = 0;
     setRecovery(null);
     setRecoveryNotice('');
-    setSaveState(navigator.onLine ? 'editing' : 'offline');
-    persistDraft('dirty');
+    setSaveState(resolution ? 'saved' : navigator.onLine ? 'editing' : 'offline');
+    if (resolution) clearCachedDraft(draftCacheKey);
+    else persistDraft('dirty');
   }
 
-  function useServerDraft() {
+  async function useServerDraft() {
+    setResolving(true);
+    const resolution = onResolveRecovery
+      ? await onResolveRecovery({ action: 'use_server', local: latestDraftRef.current }).catch(
+          () => ({ outcome: 'failed' as const }),
+        )
+      : null;
+    setResolving(false);
+    if (resolution?.outcome === 'failed') {
+      setRecoveryNotice('The local draft is still protected. Reload and try resolving again.');
+      return;
+    }
     latestDraftRef.current = serverDraft;
     revisionRef.current = 0;
     confirmedRevisionRef.current = 0;
     drainGoalRef.current = 0;
-    versionRef.current = initialDraft.version;
-    evaluationIdRef.current = initialDraft.evaluationId;
+    versionRef.current = resolution?.version ?? authoritativeServerDraft.version;
+    evaluationIdRef.current = resolution?.evaluationId ?? authoritativeServerDraft.evaluationId;
     blockedRef.current = false;
     recoveryKindRef.current = null;
     lastRequestRef.current = undefined;
@@ -640,7 +702,7 @@ export function EvaluationForm({
     setDraft(serverDraft);
     setRecovery(null);
     setRecoveryNotice('Server draft restored. The local session copy was cleared.');
-    setSaveState(initialDraft.evaluationId ? 'saved' : 'idle');
+    setSaveState(authoritativeServerDraft.evaluationId ? 'saved' : 'idle');
     clearCachedDraft(draftCacheKey);
   }
 
@@ -797,16 +859,16 @@ export function EvaluationForm({
             </button>
             <button
               className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)]"
-              disabled={!editable || !recovery.serverFresh}
-              onClick={keepLocalDraft}
+              disabled={resolving || !editable || !recovery.serverFresh}
+              onClick={() => void keepLocalDraft()}
               type="button"
             >
               Keep my local draft
             </button>
             <button
               className="min-h-[44px] rounded-lg border border-[var(--color-destructive)] px-4 font-bold text-[var(--color-destructive)]"
-              disabled={!recovery.serverFresh}
-              onClick={useServerDraft}
+              disabled={resolving || !recovery.serverFresh}
+              onClick={() => void useServerDraft()}
               type="button"
             >
               Use server draft

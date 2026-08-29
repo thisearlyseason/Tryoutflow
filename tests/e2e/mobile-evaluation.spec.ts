@@ -104,3 +104,35 @@ test('states conflict and offline limits without overwriting the page draft', as
     'force server conflict',
   );
 });
+
+test('durably resolves synchronized conflicts without resurrecting discarded work', async ({
+  page,
+}) => {
+  await page.goto('/abababab-abab-4bab-8bab-abababababab');
+  const note = page.getByLabel('Private evaluator note');
+  await note.fill('force durable conflict keep local');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Keep my local draft' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Keep my local draft' }).click();
+  await expect(page.getByRole('status')).toContainText('Saved on server');
+  await note.fill('edited after durable keep-local resolution');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('status')).toContainText('Saved on server');
+  await page.reload();
+  await expect(note).toHaveValue('edited after durable keep-local resolution');
+
+  await page.goto('/acacacac-acac-4cac-8cac-acacacacacac');
+  const discarded = page.getByLabel('Private evaluator note');
+  await discarded.fill('force durable conflict discard this');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Use server draft' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Use server draft' }).click();
+  await expect(discarded).toHaveValue('');
+  await page.reload();
+  await expect(discarded).toHaveValue('');
+  await expect(page.getByText('force durable conflict discard this')).toHaveCount(0);
+});

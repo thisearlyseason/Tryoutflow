@@ -139,4 +139,25 @@ describe('evaluation mutation route', () => {
     expect(response.status).toBe(413);
     expect(getUser).not.toHaveBeenCalled();
   });
+
+  it.each(['escaped \\u0000 note', 'lone high \\ud800', 'lone low \\udc00'])(
+    'rejects incompatible JSON string %s with no command call',
+    async (escaped) => {
+      getUser.mockResolvedValue({ data: { user: { id: userId } } });
+      const body = JSON.stringify(validBody).replace(
+        '"noteTagIds"',
+        `"note":"${escaped}","noteTagIds"`,
+      );
+      const response = await POST(
+        new Request(`http://localhost/api/evaluations/${evaluationId}/mutations`, {
+          method: 'POST',
+          headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+          body,
+        }) as never,
+        { params: Promise.resolve({ evaluationId }) },
+      );
+      expect(response.status).toBe(400);
+      expect(sync).not.toHaveBeenCalled();
+    },
+  );
 });

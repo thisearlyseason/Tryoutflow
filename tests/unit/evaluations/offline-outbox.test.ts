@@ -446,6 +446,193 @@ describe('evaluation offline outbox', () => {
     target.close();
   });
 
+  it('atomically rebases the newest durable local draft and permanently retires conflicted lineage', async () => {
+    const target = await prepare(repository('conflict-keep-local'));
+    const firstId = '30000000-0000-4000-8000-000000000091';
+    const secondId = '30000000-0000-4000-8000-000000000092';
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: firstId }));
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 3,
+      draft: { ...draft, note: 'newest durable local edit' },
+    });
+    await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: secondId,
+        expectedVersion: 3,
+        draft: { ...draft, note: 'newest durable local edit' },
+      }),
+    );
+    const head = await target.nextPendingMutation(scope);
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head!.evaluationId,
+      clientMutationId: head!.clientMutationId,
+      claimToken: head!.claimToken!,
+      category: 'conflict',
+      message: 'stale server version',
+    });
+    const resolved = await target.resolveConflict({
+      scope,
+      evaluationId: mutation().evaluationId,
+      clientMutationId: firstId,
+      action: 'keep_local',
+      server: {
+        evaluationId: mutation().evaluationId,
+        version: 7,
+        draft: { ...draft, note: 'fresh server' },
+      },
+    });
+    expect(resolved).toMatchObject({
+      action: 'keep_local',
+      expectedVersion: 7,
+      draft: { note: 'newest durable local edit' },
+    });
+    const rows = await target.listMutations(scope);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: 'pending',
+      expectedVersion: 7,
+      draft: { note: 'newest durable local edit' },
+    });
+    expect(rows[0]!.clientMutationId).not.toBe(firstId);
+    expect(rows[0]!.clientMutationId).not.toBe(secondId);
+    await expect(
+      target.enqueueEvaluationMutation(mutation({ clientMutationId: firstId })),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+    target.close();
+  });
+
+  it('uses the fresh server draft atomically and cannot resurrect discarded local work after reopen', async () => {
+    const baseName = databaseBase('conflict-use-server');
+    trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    const firstId = '30000000-0000-4000-8000-000000000093';
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 2,
+      draft,
+    });
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: firstId }));
+    const head = await target.nextPendingMutation(scope);
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head!.evaluationId,
+      clientMutationId: head!.clientMutationId,
+      claimToken: head!.claimToken!,
+      category: 'conflict',
+      message: 'stale server version',
+    });
+    const serverDraft = { ...draft, note: 'authoritative server draft' };
+    await target.resolveConflict({
+      scope,
+      evaluationId: mutation().evaluationId,
+      clientMutationId: firstId,
+      action: 'use_server',
+      server: { evaluationId: mutation().evaluationId, version: 8, draft: serverDraft },
+    });
+    target.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    expect(await reopened.listMutations(scope)).toEqual([]);
+    expect(await reopened.loadDraft(scope)).toMatchObject({
+      expectedVersion: 8,
+      syncState: 'synced',
+      draft: { note: 'authoritative server draft' },
+    });
+    await expect(
+      reopened.enqueueEvaluationMutation(mutation({ clientMutationId: firstId })),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+    reopened.close();
+  });
+
+  it('rejects cross-scope conflict resolution and makes exact repeated resolution idempotent', async () => {
+    const target = await prepare(repository('conflict-scope'));
+    const id = '30000000-0000-4000-8000-000000000094';
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: id }));
+    const head = await target.nextPendingMutation(scope);
+    const targetEvaluationId = mutation().evaluationId;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: targetEvaluationId,
+      clientMutationId: id,
+      claimToken: head!.claimToken!,
+      category: 'conflict',
+      message: 'conflict',
+    });
+    await expect(
+      target.resolveConflict({
+        scope: { ...scope, registrationId: crypto.randomUUID() },
+        evaluationId: targetEvaluationId,
+        clientMutationId: id,
+        action: 'use_server',
+        server: { evaluationId: targetEvaluationId, version: 3, draft },
+      }),
+    ).rejects.toMatchObject({ code: 'mutation_not_found' });
+    const input = {
+      scope,
+      evaluationId: targetEvaluationId,
+      clientMutationId: id,
+      action: 'use_server' as const,
+      server: { evaluationId: targetEvaluationId, version: 3, draft },
+    };
+    const first = await target.resolveConflict(input);
+    const replay = await target.resolveConflict(input);
+    expect(replay).toEqual(first);
+    await expect(target.resolveConflict({ ...input, action: 'keep_local' })).rejects.toMatchObject({
+      code: 'invalid_transition',
+    });
+    target.close();
+  });
+
+  it.each(['nul\u0000value', '\ud800', '\udc00'])(
+    'rejects PostgreSQL-incompatible note %j before IndexedDB',
+    async (note) => {
+      const target = await prepare(repository('unicode-reject'));
+      await expect(
+        target.saveDraftLocally({
+          scope,
+          evaluationId: mutation().evaluationId,
+          expectedVersion: 0,
+          draft: { ...draft, note },
+        }),
+      ).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(await target.loadDraft(scope)).toBeNull();
+      expect(await target.listMutations(scope)).toEqual([]);
+      target.close();
+    },
+  );
+
+  it.each(['valid 😀 emoji', 'é', 'e\u0301'])(
+    'accepts valid canonical Unicode note %j',
+    async (note) => {
+      const target = await prepare(repository('unicode-accept'));
+      await expect(
+        target.saveDraftLocally({
+          scope,
+          evaluationId: mutation().evaluationId,
+          expectedVersion: 0,
+          draft: { ...draft, note },
+        }),
+      ).resolves.toMatchObject({ draft: { note } });
+      target.close();
+    },
+  );
+
+  it('matches PostgreSQL for a nested emoji and NFC/NFD canonical digest', async () => {
+    await expect(digestValue({ b: [{ x: 'é' }, 2], a: { z: '😀', a: 'e\u0301' } })).resolves.toBe(
+      '5ab4d537db8177b589093223d55322a499b02e56a0d797cea7f2485bcba47163',
+    );
+  });
+
   it('blocks successors behind retry backoff until the queue head is due', async () => {
     const target = await prepare(repository('fifo-backoff'));
     await target.enqueueEvaluationMutation(

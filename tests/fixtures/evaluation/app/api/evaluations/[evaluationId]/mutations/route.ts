@@ -8,6 +8,7 @@ import {
 
 const receipts = new Map<string, Record<string, unknown>>();
 const versions = new Map<string, number>();
+const forcedConflicts = new Set<string>();
 
 export async function POST(
   request: Request,
@@ -20,6 +21,8 @@ export async function POST(
   if (!mutation.success) return NextResponse.json({ error: 'invalid' }, { status: 400 });
   const prior = receipts.get(mutation.data.clientMutationId);
   if (prior) return NextResponse.json({ receipt: prior });
+  const engine = request.headers.get('user-agent')?.includes('Chrome') ? 'chromium' : 'webkit';
+  const serverKey = `${mutation.data.evaluationId}:${engine}`;
   const payloadDigest = await digestValue(
     evaluationPayload(
       mutation.data.scope,
@@ -28,14 +31,19 @@ export async function POST(
       mutation.data.draft,
     ),
   );
-  const current = versions.get(mutation.data.evaluationId) ?? 0;
+  const current = versions.get(serverKey) ?? 0;
+  const forceOnce =
+    mutation.data.draft.note?.startsWith('force durable conflict') &&
+    !forcedConflicts.has(serverKey);
+  if (forceOnce) forcedConflicts.add(serverKey);
   const outcome =
     mutation.data.draft.note === 'force server conflict' ||
+    forceOnce ||
     mutation.data.expectedVersion !== current
       ? 'conflict'
       : 'synced';
   const serverVersion = outcome === 'synced' ? current + 1 : current || null;
-  if (outcome === 'synced') versions.set(mutation.data.evaluationId, serverVersion as number);
+  if (outcome === 'synced') versions.set(serverKey, serverVersion as number);
   const receipt = {
     outcome,
     clientMutationId: mutation.data.clientMutationId,

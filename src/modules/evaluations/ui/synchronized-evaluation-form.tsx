@@ -33,6 +33,10 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       ? { evaluationId: props.initialDraft.evaluationId, version: props.initialDraft.version }
       : null,
   );
+  const [backgroundSaveResult, setBackgroundSaveResult] = useState<{
+    token: number;
+    outcome: 'forbidden' | 'invalid_input' | 'invalid_context' | 'conflict' | 'unexpected';
+  } | null>(null);
   const repository = useMemo(
     () =>
       typeof globalThis.indexedDB === 'undefined' || typeof globalThis.IDBKeyRange === 'undefined'
@@ -76,6 +80,23 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         });
       }
     }
+    const unsubscribe = activeSynchronizer.subscribe((event) => {
+      if (cancelled || event.evaluationId !== evaluationIdRef.current) return;
+      if (event.state === 'synced') void refreshConfirmation();
+      else if (event.state === 'needs_attention') {
+        const outcome =
+          event.category === 'forbidden'
+            ? 'forbidden'
+            : event.category === 'invalid_input'
+              ? 'invalid_input'
+              : event.category === 'invalid_rubric'
+                ? 'invalid_context'
+                : event.category === 'conflict'
+                  ? 'conflict'
+                  : 'unexpected';
+        setBackgroundSaveResult({ token: Date.now(), outcome });
+      }
+    });
     const online = () => void refreshConfirmation();
     async function initialize() {
       try {
@@ -118,6 +139,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     return () => {
       cancelled = true;
       window.removeEventListener('online', online);
+      unsubscribe();
       activeSynchronizer.stop();
     };
   }, [repository, storageScope, synchronizer]);
@@ -199,6 +221,64 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     };
   }
 
+  async function resolveRecovery(input: {
+    action: 'keep_local' | 'use_server';
+    local: {
+      scores: { categoryId: string; value: number }[];
+      note: string;
+      noteTagIds: string[];
+      flags: string[];
+    };
+  }) {
+    if (!repository || !synchronizer || !props.initialDraft.evaluationId)
+      return { outcome: 'failed' as const };
+    const rows = (await repository.listMutations(storageScope))
+      .filter(
+        (row) =>
+          row.evaluationId === props.initialDraft.evaluationId &&
+          row.status === 'needs_attention' &&
+          row.errorCategory === 'conflict',
+      )
+      .sort((left, right) => left.queueSequence - right.queueSequence);
+    const head = rows[0];
+    if (!head) return { outcome: 'failed' as const };
+    const serverDraft = {
+      scores: props.initialDraft.scores,
+      ...(props.initialDraft.note ? { note: props.initialDraft.note } : {}),
+      noteTagIds: props.initialDraft.noteTagIds ?? [],
+      flags: props.initialDraft.flags ?? [],
+    };
+    const resolved = await repository.resolveConflict({
+      scope: storageScope,
+      evaluationId: props.initialDraft.evaluationId,
+      clientMutationId: head.clientMutationId,
+      action: input.action,
+      server: {
+        evaluationId: props.initialDraft.evaluationId,
+        version: props.initialDraft.version,
+        draft: serverDraft,
+      },
+    });
+    if (input.action === 'keep_local') {
+      await synchronizer.flush();
+      const receipt = resolved.clientMutationId
+        ? await repository.getReceipt(storageScope, resolved.clientMutationId)
+        : null;
+      const version = receipt?.serverVersion ?? resolved.expectedVersion + 1;
+      setServerConfirmation({ evaluationId: resolved.evaluationId, version });
+      return { outcome: 'resolved' as const, evaluationId: resolved.evaluationId, version };
+    }
+    setServerConfirmation({
+      evaluationId: resolved.evaluationId,
+      version: resolved.expectedVersion,
+    });
+    return {
+      outcome: 'resolved' as const,
+      evaluationId: resolved.evaluationId,
+      version: resolved.expectedVersion,
+    };
+  }
+
   if (!repository || !synchronizer || !deviceLoaded) {
     return (
       <p aria-live="polite" role="status">
@@ -213,8 +293,11 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         {...props}
         durableDeviceSave
         initialDraft={initialDraft}
+        recoveryServerDraft={props.initialDraft}
         key={deviceLoaded ? 'device-loaded' : 'server-loaded'}
         onSave={saveOnDevice}
+        backgroundSaveResult={backgroundSaveResult}
+        onResolveRecovery={resolveRecovery}
         serverConfirmation={serverConfirmation}
       />
     );
@@ -224,8 +307,11 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       {...props}
       durableDeviceSave
       initialDraft={initialDraft}
+      recoveryServerDraft={props.initialDraft}
       key={deviceLoaded ? 'device-loaded' : 'server-loaded'}
       onSave={saveOnDevice}
+      backgroundSaveResult={backgroundSaveResult}
+      onResolveRecovery={resolveRecovery}
       serverConfirmation={serverConfirmation}
     />
   );

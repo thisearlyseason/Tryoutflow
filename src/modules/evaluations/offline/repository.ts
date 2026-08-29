@@ -44,6 +44,7 @@ const publicFailureCategorySchema = z.enum([
   'server',
   'conflict',
   'forbidden',
+  'invalid_input',
   'invalid_rubric',
   'retry_exhausted',
   'corrupt_record',
@@ -62,6 +63,7 @@ export type EvaluationMutationFailureCategory =
   | 'server'
   | 'conflict'
   | 'forbidden'
+  | 'invalid_input'
   | 'invalid_rubric'
   | 'retry_exhausted'
   | 'corrupt_record';
@@ -679,6 +681,40 @@ export class EvaluationOfflineRepository {
           reason: 'corrupt_receipt',
           createdAt: now.toISOString(),
         };
+    const candidate = storedReceiptTombstoneSchema.parse({
+      ...withoutDigest,
+      tombstoneDigest: await Dexie.waitFor(digestValue(receiptTombstonePayload(withoutDigest))),
+    });
+    await this.assertByteQuota(transaction, candidate);
+    await this.database.receiptTombstones.put(candidate);
+    return candidate;
+  }
+
+  private async ensureConflictResolutionTombstone(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    clientMutationId: string,
+    reason: 'conflict_keep_local' | 'conflict_use_server' | 'conflict_dependent',
+    now: Date,
+  ): Promise<StoredEvaluationReceiptTombstone> {
+    const storageKey = `${scopeKey(scope)}|${clientMutationId}`;
+    const rawExisting = await this.database.receiptTombstones.get(storageKey);
+    if (rawExisting) {
+      const existing = await this.validateReceiptTombstone(rawExisting, scope, clientMutationId);
+      if (existing.reason !== reason)
+        throw new EvaluationOfflineError(
+          'invalid_transition',
+          'Conflict resolution action does not match its durable terminal record.',
+        );
+      return existing;
+    }
+    const withoutDigest: Omit<StoredEvaluationReceiptTombstone, 'tombstoneDigest'> = {
+      storageKey,
+      scopeKey: scopeKey(scope),
+      clientMutationId,
+      reason,
+      createdAt: now.toISOString(),
+    };
     const candidate = storedReceiptTombstoneSchema.parse({
       ...withoutDigest,
       tombstoneDigest: await Dexie.waitFor(digestValue(receiptTombstonePayload(withoutDigest))),
@@ -1628,7 +1664,9 @@ export class EvaluationOfflineRepository {
   }): Promise<StoredEvaluationMutation> {
     return this.updateFailure(
       input,
-      ['conflict', 'forbidden', 'invalid_rubric', 'corrupt_record'].includes(input.category),
+      ['conflict', 'forbidden', 'invalid_input', 'invalid_rubric', 'corrupt_record'].includes(
+        input.category,
+      ),
     );
   }
 
@@ -1743,6 +1781,205 @@ export class EvaluationOfflineRepository {
         };
         await this.database.mutations.put(updated);
         return structuredClone(updated);
+      });
+    } catch (error) {
+      throw mapStorageError(error, 'write');
+    }
+  }
+
+  async resolveConflict(input: {
+    scope: EvaluationStorageScope;
+    evaluationId: string;
+    clientMutationId: string;
+    action: 'keep_local' | 'use_server';
+    server: {
+      evaluationId: string;
+      version: number;
+      draft: EvaluationDraftPayload;
+    };
+    now?: Date;
+  }): Promise<{
+    action: 'keep_local' | 'use_server';
+    evaluationId: string;
+    expectedVersion: number;
+    draft: EvaluationDraftPayload;
+    clientMutationId?: string;
+  }> {
+    const scope = this.parseScope(input.scope);
+    const serverDraft = this.parseDraft(input.server.draft);
+    const now = safeDate(input.now ?? new Date());
+    if (
+      !uuid.safeParse(input.evaluationId).success ||
+      !uuid.safeParse(input.clientMutationId).success ||
+      input.server.evaluationId !== input.evaluationId ||
+      !Number.isSafeInteger(input.server.version) ||
+      input.server.version < 0 ||
+      input.server.version >= 2_147_483_647 ||
+      !['keep_local', 'use_server'].includes(input.action)
+    )
+      throw new EvaluationOfflineError('invalid_input', 'Invalid conflict resolution context.');
+
+    try {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        const storageKey = `${scopeKey(scope)}|${input.clientMutationId}`;
+        const rawHead = await this.database.mutations.get(storageKey);
+        if (!rawHead) {
+          const rawTombstone = await this.database.receiptTombstones.get(storageKey);
+          if (!rawTombstone)
+            throw new EvaluationOfflineError(
+              'mutation_not_found',
+              'Evaluation mutation not found.',
+            );
+          const tombstone = await this.validateReceiptTombstone(
+            rawTombstone,
+            scope,
+            input.clientMutationId,
+          );
+          const expectedReason =
+            input.action === 'keep_local' ? 'conflict_keep_local' : 'conflict_use_server';
+          if (tombstone.reason !== expectedReason)
+            throw new EvaluationOfflineError(
+              'invalid_transition',
+              'Conflict resolution action does not match its durable terminal record.',
+            );
+          const current = await this.database.drafts.get(scopeKey(scope));
+          if (!current)
+            throw new EvaluationOfflineError(
+              'invalid_transition',
+              'Resolved draft is unavailable.',
+            );
+          const draftRecord = await this.validateDraftRecord(current, scope);
+          return {
+            action: input.action,
+            evaluationId: input.evaluationId,
+            expectedVersion: draftRecord.expectedVersion,
+            draft: structuredClone(draftRecord.draft),
+          };
+        }
+        const head = await this.validateMutationRecord(rawHead);
+        if (
+          head.scopeKey !== scopeKey(scope) ||
+          head.evaluationId !== input.evaluationId ||
+          head.status !== 'needs_attention' ||
+          head.errorCategory !== 'conflict'
+        )
+          throw new EvaluationOfflineError(
+            'invalid_transition',
+            'Only the exact conflicted queue head can be reconciled.',
+          );
+        const context = await this.requireContext(transaction, scope);
+        this.assertDraftMatchesContext(serverDraft, context);
+        const queueRowsRaw = await this.database.mutations
+          .where('scopeKey')
+          .equals(scopeKey(scope))
+          .filter((row) => row.queueKey === head.queueKey && row.status !== 'acknowledged')
+          .toArray();
+        const queueRows: StoredEvaluationMutation[] = [];
+        for (const raw of queueRowsRaw) queueRows.push(await this.validateMutationRecord(raw));
+        queueRows.sort((left, right) => left.queueSequence - right.queueSequence);
+        if (
+          queueRows[0]?.storageKey !== head.storageKey ||
+          queueRows.some((row) => row.status === 'leased')
+        )
+          throw new EvaluationOfflineError(
+            'invalid_transition',
+            'Conflict resolution lost the durable FIFO head.',
+          );
+
+        const rawDraft = await this.database.drafts.get(scopeKey(scope));
+        const storedDraft = rawDraft ? await this.validateDraftRecord(rawDraft, scope) : null;
+        const latestMutation = queueRows.at(-1) ?? head;
+        const localDraft =
+          storedDraft && storedDraft.updatedAt >= latestMutation.updatedAt
+            ? storedDraft.draft
+            : latestMutation.draft;
+        this.assertDraftMatchesContext(localDraft, context);
+
+        for (const row of queueRows) {
+          await this.database.mutations.delete(row.storageKey);
+          await this.ensureConflictResolutionTombstone(
+            transaction,
+            scope,
+            row.clientMutationId,
+            row.storageKey === head.storageKey
+              ? input.action === 'keep_local'
+                ? 'conflict_keep_local'
+                : 'conflict_use_server'
+              : 'conflict_dependent',
+            now,
+          );
+        }
+
+        const chosenDraft = input.action === 'keep_local' ? localDraft : serverDraft;
+        const timestamp = now.toISOString();
+        const draftRecord: StoredEvaluationDraft = {
+          scopeKey: scopeKey(scope),
+          scope,
+          evaluationId: input.evaluationId,
+          expectedVersion: input.server.version,
+          draft: chosenDraft,
+          payloadDigest: await Dexie.waitFor(
+            digestValue(
+              evaluationPayload(scope, input.evaluationId, input.server.version, chosenDraft),
+            ),
+          ),
+          syncState: input.action === 'keep_local' ? 'saved_device' : 'synced',
+          updatedAt: timestamp,
+          expiresAt: addMilliseconds(now, DRAFT_TTL_MS),
+        };
+        await this.assertByteQuota(transaction, draftRecord);
+        await this.database.drafts.put(draftRecord);
+
+        if (input.action === 'use_server') {
+          return {
+            action: input.action,
+            evaluationId: input.evaluationId,
+            expectedVersion: input.server.version,
+            draft: structuredClone(serverDraft),
+          };
+        }
+
+        const rawCounter = await this.database.queueCounters.get(head.queueKey);
+        const counter = storedQueueCounterSchema.safeParse(rawCounter);
+        if (!counter.success || counter.data.scopeKey !== scopeKey(scope))
+          throw new EvaluationOfflineError('corrupt_record', 'Queue sequence lineage is invalid.');
+        const clientMutationId = crypto.randomUUID();
+        const payloadDigest = await Dexie.waitFor(
+          digestValue(
+            evaluationPayload(scope, input.evaluationId, input.server.version, localDraft),
+          ),
+        );
+        const rebased: StoredEvaluationMutation = {
+          storageKey: `${scopeKey(scope)}|${clientMutationId}`,
+          clientMutationId,
+          scopeKey: scopeKey(scope),
+          queueKey: head.queueKey,
+          queueSequence: counter.data.nextSequence,
+          scope,
+          evaluationId: input.evaluationId,
+          expectedVersion: input.server.version,
+          draft: localDraft,
+          payloadDigest,
+          status: 'pending',
+          syncState: 'saved_device',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          nextAttemptAt: timestamp,
+          attemptCount: 0,
+        };
+        await this.assertByteQuota(transaction, rebased);
+        await this.database.queueCounters.put({
+          ...counter.data,
+          nextSequence: counter.data.nextSequence + 1,
+        });
+        await this.database.mutations.add(rebased);
+        return {
+          action: input.action,
+          evaluationId: input.evaluationId,
+          expectedVersion: input.server.version,
+          draft: structuredClone(localDraft),
+          clientMutationId,
+        };
       });
     } catch (error) {
       throw mapStorageError(error, 'write');
@@ -2544,8 +2781,8 @@ export class EvaluationOfflineRepository {
         for (const { physicalKey, clientMutationId, raw } of rawTombstones) {
           try {
             const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
-            if (tombstone.reason === 'corrupt_receipt') terminalFencesRetained += 1;
-            else tombstoneKeys.push(physicalKey);
+            if (tombstone.reason === 'receipt_authority') tombstoneKeys.push(physicalKey);
+            else terminalFencesRetained += 1;
           } catch {
             if (uuid.safeParse(clientMutationId).success) {
               await this.ensureReceiptTombstone(transaction, scope, clientMutationId, new Date());
