@@ -6,7 +6,7 @@ select has_table('public', 'tryout_registrations', 'registrations are stored sep
 select ok(not has_table_privilege('anon', 'public.athletes', 'select,insert,update,delete'), 'anonymous users have no direct athlete-table privileges');
 select ok(not has_table_privilege('anon', 'public.tryout_registrations', 'select,insert,update,delete'), 'anonymous users have no direct registration-table privileges');
 select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'anon', array[]::text[], 'anonymous callers cannot invoke the privileged write');
-select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'service_role', array['EXECUTE'], 'only the server role invokes the controlled write');
+select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'service_role', array[]::text[], 'the unnormalized base transaction is internal to the controlled wrapper');
 select ok(exists (
   select 1 from pg_constraint constraint_row
   where constraint_row.conrelid = 'public.tryout_registrations'::regclass

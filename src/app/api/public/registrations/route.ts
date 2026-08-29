@@ -72,6 +72,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const client = createAdminSupabaseClient();
+    const contextLimit = await client.rpc('consume_public_registration_rate_limit', {
+      p_rate_key_hash: guarded.contextRateKey,
+      p_limit: 10,
+    });
+    if (contextLimit.error) return genericError(400);
+    if (contextLimit.data?.[0]?.outcome === 'rate_limited') return genericError(429);
     const configuration = await client.rpc('public_registration_tryout', {
       p_tryout_slug: body.tryoutSlug,
     });

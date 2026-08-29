@@ -16,7 +16,37 @@ type ConfirmationStatus =
 const sessionKey = 'tryoutflow:registration:confirmation';
 
 function currentTryoutSlug() {
-  return /^\/register\/([^/]+)\/confirmation\/?$/u.exec(window.location.pathname)?.[1] ?? '';
+  const encoded = /^\/register\/([^/]+)\/confirmation\/?$/u.exec(window.location.pathname)?.[1];
+  if (!encoded) return '';
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return '';
+  }
+}
+
+function readStorage(storage: Storage, key: string) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(storage: Storage, key: string, value: string) {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Confirmation remains usable in memory when persistent storage is blocked.
+  }
+}
+
+function removeStorage(storage: Storage, key: string) {
+  try {
+    storage.removeItem(key);
+  } catch {
+    // Storage denial must not break confirmation state transitions.
+  }
 }
 
 export default function RegistrationConfirmationPage() {
@@ -27,9 +57,9 @@ export default function RegistrationConfirmationPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const slug = decodeURIComponent(currentTryoutSlug());
+    const slug = currentTryoutSlug();
     setTryoutSlug(slug);
-    const stored = window.sessionStorage.getItem(sessionKey);
+    const stored = readStorage(window.sessionStorage, sessionKey);
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as { token?: unknown; tryoutSlug?: unknown };
@@ -38,7 +68,7 @@ export default function RegistrationConfirmationPage() {
           /^[0-9a-f]{64}$/iu.test(parsed.token) &&
           parsed.tryoutSlug === slug
         ) {
-          window.localStorage.removeItem(`tryoutflow:registration:${slug}:confirmed`);
+          removeStorage(window.localStorage, `tryoutflow:registration:${slug}:confirmed`);
           setToken(parsed.token.toLowerCase());
           setStatus('pending');
           return;
@@ -46,11 +76,11 @@ export default function RegistrationConfirmationPage() {
       } catch {
         // Older or malformed browser state is intentionally discarded.
       }
-      window.sessionStorage.removeItem(sessionKey);
+      removeStorage(window.sessionStorage, sessionKey);
     }
     if (
       slug &&
-      window.localStorage.getItem(`tryoutflow:registration:${slug}:confirmed`) === 'true'
+      readStorage(window.localStorage, `tryoutflow:registration:${slug}:confirmed`) === 'true'
     ) {
       setStatus('confirmed');
       return;
@@ -60,9 +90,9 @@ export default function RegistrationConfirmationPage() {
 
   function persistConfirmed() {
     if (tryoutSlug) {
-      window.localStorage.setItem(`tryoutflow:registration:${tryoutSlug}:confirmed`, 'true');
+      writeStorage(window.localStorage, `tryoutflow:registration:${tryoutSlug}:confirmed`, 'true');
     }
-    window.sessionStorage.removeItem(sessionKey);
+    removeStorage(window.sessionStorage, sessionKey);
     setToken(null);
   }
 
@@ -107,7 +137,11 @@ export default function RegistrationConfirmationPage() {
         /^[0-9a-f]{64}$/iu.test(result.manualConfirmationToken)
       ) {
         const nextToken = result.manualConfirmationToken.toLowerCase();
-        window.sessionStorage.setItem(sessionKey, JSON.stringify({ token: nextToken, tryoutSlug }));
+        writeStorage(
+          window.sessionStorage,
+          sessionKey,
+          JSON.stringify({ token: nextToken, tryoutSlug }),
+        );
         setToken(nextToken);
         setGuardianEmail('');
         setStatus('pending');

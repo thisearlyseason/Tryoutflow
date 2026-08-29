@@ -16,6 +16,13 @@ export async function POST(request: NextRequest) {
   if (!guarded.ok) return NextResponse.json({ status: 'invalid' }, { status: guarded.status });
   try {
     const client = createAdminSupabaseClient();
+    const contextLimit = await client.rpc('consume_public_registration_rate_limit', {
+      p_rate_key_hash: guarded.contextRateKey,
+      p_limit: 10,
+    });
+    if (contextLimit.error) return NextResponse.json({ status: 'invalid' }, { status: 400 });
+    if (contextLimit.data?.[0]?.outcome === 'rate_limited')
+      return NextResponse.json({ status: 'rate_limited' }, { status: 429 });
     const limit = await client.rpc('consume_public_registration_rate_limit', {
       p_rate_key_hash: guarded.rateKey,
       p_limit: 10,

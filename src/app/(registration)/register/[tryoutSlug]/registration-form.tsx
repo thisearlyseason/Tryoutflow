@@ -24,10 +24,20 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
   function stableIdempotencyKey() {
     if (idempotencyKey.current) return idempotencyKey.current;
     const storageKey = `tryoutflow:registration:${tryoutSlug}:idempotency`;
+    let stored: string | null = null;
+    try {
+      stored = window.sessionStorage.getItem(storageKey);
+    } catch {
+      // A private/blocked storage context still gets an in-memory retry key.
+    }
     idempotencyKey.current =
-      window.sessionStorage.getItem(storageKey) ??
+      stored ??
       `${crypto.randomUUID().replaceAll('-', '')}${crypto.randomUUID().replaceAll('-', '')}`;
-    window.sessionStorage.setItem(storageKey, idempotencyKey.current);
+    try {
+      window.sessionStorage.setItem(storageKey, idempotencyKey.current);
+    } catch {
+      // The ref preserves stability for the current mounted form.
+    }
     return idempotencyKey.current;
   }
 
@@ -78,12 +88,20 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
       if (!response.ok) throw new Error('failed');
       const result = (await response.json()) as { manualConfirmationToken?: string };
       if (result.manualConfirmationToken) {
-        window.sessionStorage.setItem(
-          'tryoutflow:registration:confirmation',
-          JSON.stringify({ token: result.manualConfirmationToken, tryoutSlug }),
-        );
+        try {
+          window.sessionStorage.setItem(
+            'tryoutflow:registration:confirmation',
+            JSON.stringify({ token: result.manualConfirmationToken, tryoutSlug }),
+          );
+        } catch {
+          // Submission succeeded; the confirmation page will show recovery guidance.
+        }
       }
-      window.sessionStorage.removeItem(`tryoutflow:registration:${tryoutSlug}:idempotency`);
+      try {
+        window.sessionStorage.removeItem(`tryoutflow:registration:${tryoutSlug}:idempotency`);
+      } catch {
+        // Nothing else depends on cleanup succeeding.
+      }
       window.location.assign(`/register/${encodeURIComponent(tryoutSlug)}/confirmation`);
     } catch {
       setError('We could not submit your registration. Review the form and try again.');

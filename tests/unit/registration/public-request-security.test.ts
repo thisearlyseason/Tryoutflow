@@ -41,8 +41,25 @@ describe('shared public registration request defenses', () => {
     });
     expect(guarded).toEqual(expect.objectContaining({ ok: true, body: { target: 'fall-camp' } }));
     if (guarded.ok) {
+      expect(guarded.contextRateKey).toMatch(/^[0-9a-f]{64}$/u);
       expect(guarded.rateKey).toMatch(/^[0-9a-f]{64}$/u);
       expect(guarded.rateKey).not.toContain('fall-camp');
+    }
+  });
+
+  it('keeps the route/address context bucket stable when attacker-controlled targets change', async () => {
+    const first = await guardPublicJsonRequest(request('{"target":"fall-camp"}'), {
+      bucket: 'consume',
+      parse,
+    });
+    const second = await guardPublicJsonRequest(request('{"target":"winter-camp"}'), {
+      bucket: 'consume',
+      parse,
+    });
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.contextRateKey).toBe(second.contextRateKey);
+      expect(first.rateKey).not.toBe(second.rateKey);
     }
   });
 

@@ -1,3 +1,5 @@
+import { canonicalRegistrationText } from './registration-validation';
+
 export type DuplicateReason = 'name_birthdate_guardian_email';
 
 export type DuplicateCandidate = {
@@ -16,7 +18,7 @@ export type DuplicateAthlete = {
 export type DuplicateInput = Omit<DuplicateAthlete, 'athleteId'>;
 
 function normaliseText(value: string) {
-  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-CA');
+  return canonicalRegistrationText(value).toLocaleLowerCase('en-CA');
 }
 
 export function findDuplicateCandidates(

@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import { NextRequest } from 'next/server';
@@ -76,7 +77,7 @@ beforeAll(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
-  process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = 'route-integration-secret-'.padEnd(64, 'r');
+  process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
   execFileSync(
     'psql',
     [
@@ -247,6 +248,48 @@ describe('real public registration route with local Supabase', () => {
       statuses.push(response.status);
     }
     expect(statuses).toEqual([...Array(10).fill(200), 429]);
+  });
+
+  it('rate-limits random confirmation tokens by stable context with bounded durable rows', async () => {
+    const address = '203.0.113.151';
+    const before = Number(psql('select count(*) from public.registration_rate_counters'));
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      const token = attempt.toString(16).padStart(64, '0');
+      const response = await consumeConfirmation(
+        jsonRequest(
+          '/api/public/registrations/confirmation',
+          { token },
+          { 'x-forwarded-for': address },
+        ),
+      );
+      statuses.push(response.status);
+    }
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(200));
+    expect(statuses.slice(10)).toEqual(Array(20).fill(429));
+    const after = Number(psql('select count(*) from public.registration_rate_counters'));
+    expect(after - before).toBeLessThanOrEqual(11);
+  });
+
+  it('rate-limits random reissue tokens by stable context with bounded durable rows', async () => {
+    const address = '203.0.113.152';
+    const before = Number(psql('select count(*) from public.registration_rate_counters'));
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const token = (attempt + 100).toString(16).padStart(64, '0');
+      const response = await reissueConfirmation(
+        jsonRequest(
+          '/api/public/registrations/confirmation/reissue',
+          { token, guardianEmail: 'guardian@example.com' },
+          { 'x-forwarded-for': address },
+        ),
+      );
+      statuses.push(response.status);
+    }
+    expect(statuses.slice(0, 5)).toEqual(Array(5).fill(200));
+    expect(statuses.slice(5)).toEqual(Array(15).fill(429));
+    const after = Number(psql('select count(*) from public.registration_rate_counters'));
+    expect(after - before).toBeLessThanOrEqual(6);
   });
 
   it('durably rate-limits malformed submissions before the registration transaction rolls back', async () => {

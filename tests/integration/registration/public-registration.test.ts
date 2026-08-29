@@ -82,12 +82,44 @@ describe('public registration validation', () => {
     expect(() => validateRegistrationSubmission(validSubmission, form)).not.toThrow();
   });
 
+  it('uses canonical Unicode whitespace and Unicode code-point limits for identity and text', () => {
+    const accepted = validateRegistrationSubmission(
+      {
+        ...validSubmission,
+        givenName: `\u00a0${'🥅'.repeat(120)}\u3000`,
+        guardianName: '\ufeffTaylor\u2003\u2003Smith\u00a0',
+        guardianEmail: `\u3000${'a'.repeat(242)}@example.com\u00a0`,
+        responses: {
+          ...validSubmission.responses,
+          short_text: `\u00a0${'🥅'.repeat(500)}\u3000`,
+          email: `${'a'.repeat(242)}@example.com`,
+        },
+      },
+      form,
+    );
+    expect(accepted.givenName).toBe('🥅'.repeat(120));
+    expect(accepted.guardianName).toBe('Taylor Smith');
+    expect(accepted.guardianEmail).toBe(`${'a'.repeat(242)}@example.com`);
+  });
+
+  it.each([
+    ['identity max plus one code point', { givenName: '🥅'.repeat(121) }],
+    ['guardian max plus one code point', { guardianName: '🥅'.repeat(161) }],
+    ['whitespace-only identity', { givenName: '\u00a0\u2003\ufeff' }],
+    ['year zero birth date', { birthDate: '0000-01-01' }],
+    ['non-leap birth date', { birthDate: '2023-02-29' }],
+    ['future birth date', { birthDate: '9999-12-31' }],
+  ])('rejects %s with the shared identity rules', (_name, patch) => {
+    expect(() => validateRegistrationSubmission({ ...validSubmission, ...patch }, form)).toThrow();
+  });
+
   it.each([
     ['email syntax', { email: 'not-an-email' }],
     ['email length', { email: `${'a'.repeat(245)}@example.com` }],
     ['phone characters', { phone: '+1 403 CALL-NOW' }],
     ['phone digit length', { phone: '+1 (23) 45' }],
     ['non-calendar date', { date: '2023-02-29' }],
+    ['year zero date', { date: '0000-01-01' }],
     ['non-padded date', { date: '2024-2-09' }],
     ['unknown select option', { position: 'Coach' }],
     ['non-boolean checkbox', { checked: 'false' }],

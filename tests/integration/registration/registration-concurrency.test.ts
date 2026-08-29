@@ -128,7 +128,9 @@ describe('registration idempotency concurrency', () => {
       );
       expect(resultRows.get(firstName)?.outcome).toBe('submitted');
       expect(resultRows.get(secondName)?.outcome).toBe('replayed');
+      const originalToken = resultRows.get(firstName)?.token ?? '';
       const replayToken = resultRows.get(secondName)?.token ?? '';
+      expect(originalToken).toMatch(/^[0-9a-f]{64}$/u);
       expect(replayToken).toMatch(/^[0-9a-f]{64}$/u);
       expect(
         (
@@ -151,6 +153,20 @@ describe('registration idempotency concurrency', () => {
           )
         ).stdout.trim(),
       ).toBe('t');
+      expect(
+        (
+          await psql(
+            `select outcome from public.consume_registration_confirmation_token('${originalToken}')`,
+          )
+        ).stdout.trim(),
+      ).toBe('invalid');
+      expect(
+        (
+          await psql(
+            `select outcome from public.consume_registration_confirmation_token('${replayToken}')`,
+          )
+        ).stdout.trim(),
+      ).toBe('confirmed');
     } finally {
       if (holder && holder.exitCode === null) holder.kill();
       await waitForExit(holder);

@@ -1,15 +1,33 @@
 begin;
-select plan(61);
+select no_plan();
+
+select is(public.normalize_registration_text(E'\u00a0Ava  Marie\t\n'), 'ava marie', 'duplicate normalization collapses canonical spaces, tabs, and newlines');
+select is(public.normalize_registration_text(E'\u3000VAN\u2003\u2003DYKE\ufeff'), 'van dyke', 'duplicate normalization collapses explicit Unicode whitespace');
 
 select ok(public.is_valid_registration_email('player@example.com'), 'dynamic email validator accepts a bounded address');
 select ok(not public.is_valid_registration_email('not-an-email'), 'dynamic email validator rejects malformed input');
 select ok(not public.is_valid_registration_email(repeat('a', 245) || '@example.com'), 'dynamic email validator caps addresses at 254 characters');
+select ok(public.is_valid_registration_email(E'\u00a0player@example.com\u3000'), 'dynamic email trims canonical Unicode whitespace');
+select ok(not public.is_valid_registration_email(E'player\u00a0@example.com'), 'dynamic email rejects canonical whitespace inside an address');
 select ok(public.is_valid_registration_phone('+1 (403) 555-0100'), 'dynamic phone validator accepts permitted punctuation and normalized digits');
 select ok(not public.is_valid_registration_phone('+1 403 CALL-NOW'), 'dynamic phone validator rejects letters');
 select ok(not public.is_valid_registration_phone('+1 (23) 45'), 'dynamic phone validator rejects too few normalized digits');
 select ok(public.is_valid_registration_calendar_date('2024-02-29'), 'calendar validator accepts leap day');
 select ok(not public.is_valid_registration_calendar_date('2023-02-29'), 'calendar validator rejects a non-leap day');
 select ok(not public.is_valid_registration_calendar_date('2024-2-09'), 'calendar validator requires exact YYYY-MM-DD');
+select ok(public.is_valid_registration_calendar_date('0001-01-01'), 'calendar validator accepts the minimum exact year');
+select ok(not public.is_valid_registration_calendar_date('0000-01-01'), 'calendar validator rejects year zero');
+select ok(public.is_valid_registration_calendar_date('9999-12-31'), 'calendar validator accepts the maximum exact year');
+
+select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'anon', array[]::text[], 'anonymous cannot invoke the base public write');
+select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'authenticated', array[]::text[], 'authenticated clients cannot invoke the base public write');
+select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'service_role', array[]::text[], 'base transaction remains internal to the trusted wrapper');
+select function_privs_are('public', 'submit_public_registration_with_phone', array['text', 'jsonb', 'text', 'text'], 'anon', array[]::text[], 'anonymous cannot invoke the phone-preserving public write');
+select function_privs_are('public', 'submit_public_registration_with_phone', array['text', 'jsonb', 'text', 'text'], 'authenticated', array[]::text[], 'authenticated clients cannot invoke the phone-preserving public write');
+select function_privs_are('public', 'submit_public_registration_with_phone', array['text', 'jsonb', 'text', 'text'], 'service_role', array['EXECUTE'], 'server role alone invokes the phone-preserving public write');
+select function_privs_are('public', 'rotate_registration_confirmation_token', array['uuid'], 'anon', array[]::text[], 'anonymous cannot rotate tokens');
+select function_privs_are('public', 'rotate_registration_confirmation_token', array['uuid'], 'authenticated', array[]::text[], 'authenticated clients cannot rotate tokens');
+select function_privs_are('public', 'rotate_registration_confirmation_token', array['uuid'], 'service_role', array[]::text[], 'token rotation remains internal to the trusted wrapper');
 
 select function_privs_are('public', 'consume_registration_confirmation_token', array['text'], 'anon', array[]::text[], 'anonymous cannot consume confirmation tokens');
 select function_privs_are('public', 'consume_registration_confirmation_token', array['text'], 'authenticated', array[]::text[], 'authenticated clients cannot consume confirmation tokens directly');
@@ -95,6 +113,23 @@ select is((select phone from public.guardians where normalized_email='guardian@e
 select is((select count(*) from public.registration_confirmation_tokens where registration_id=(select registration_id from first_registration) and used_at is null and revoked_at is null),1::bigint,'only one active token survives replay rotation');
 select is((select outcome from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{guardianName}','"Different Guardian"'),'recovery-idempotency-key-000001',repeat('b',64))),'idempotency_conflict','same idempotency key with a different payload conflicts');
 
+savepoint exact_registration_boundaries;
+select lives_ok(
+  $$select * from public.submit_public_registration_with_phone(
+    'recovery-camp',
+    jsonb_set(
+      jsonb_set(
+        jsonb_set((select payload from recovery_payload),'{givenName}',to_jsonb(repeat('🥅',120))),
+        '{guardianName}',to_jsonb(repeat('🥅',160))
+      ),
+      '{responses,short_text}',to_jsonb(repeat('🥅',500))
+    ),
+    'recovery-exact-boundary-key-01',repeat('9',64)
+  )$$,
+  'SQL accepts exact Unicode code-point maxima for identity and short text'
+);
+rollback to savepoint exact_registration_boundaries;
+
 select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{responses,email}','"bad"'),'recovery-invalid-email-key-001',repeat('b',64))$$,'22023',null,'SQL rejects malformed dynamic email');
 select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{responses,phone}','"+1 403 CALL-NOW"'),'recovery-invalid-phone-key-001',repeat('c',64))$$,'22023',null,'SQL rejects malformed dynamic phone');
 select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{responses,date}','"2023-02-29"'),'recovery-invalid-date-key-0001',repeat('d',64))$$,'22023',null,'SQL rejects a non-calendar date');
@@ -102,9 +137,23 @@ select throws_ok($$select * from public.submit_public_registration_with_phone('r
 select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{responses,notes}',to_jsonb(repeat('🥅',5001))),'recovery-oversize-area-key-001',repeat('f',64))$$,'22023',null,'SQL caps Unicode textarea at 5,000 code points');
 select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{responses,position}','"Coach"'),'recovery-invalid-select-key-1',repeat('1',64))$$,'22023',null,'SQL rejects unknown select options');
 select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{responses,checked}','"false"'),'recovery-invalid-check-key-01',repeat('2',64))$$,'22023',null,'SQL requires checkbox booleans');
+select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{givenName}',to_jsonb(repeat('🥅',121))),'recovery-oversize-name-key-001',repeat('5',64))$$,'22023',null,'SQL caps identity names by Unicode code point');
+select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{givenName}',to_jsonb(E'\u00a0\u2003\ufeff'::text)),'recovery-empty-name-key-00001',repeat('6',64))$$,'22023',null,'SQL rejects canonical-whitespace-only identity');
+select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{birthDate}','"0000-01-01"'),'recovery-year-zero-key-000001',repeat('7',64))$$,'22023',null,'SQL rejects year-zero birth date');
+select throws_ok($$select * from public.submit_public_registration_with_phone('recovery-camp',jsonb_set((select payload from recovery_payload),'{birthDate}','"9999-12-31"'),'recovery-future-birth-key-001',repeat('8',64))$$,'22023',null,'SQL rejects a future birth date');
 
 create temporary table duplicate_registration as
-select * from public.submit_public_registration_with_phone('recovery-camp',(select payload from recovery_payload),'recovery-idempotency-key-000002',repeat('3',64));
+select * from public.submit_public_registration_with_phone(
+  'recovery-camp',
+  jsonb_set(
+    jsonb_set(
+      jsonb_set((select payload from recovery_payload), '{givenName}', to_jsonb(E'\u00a0AVA\t\t'::text)),
+      '{familyName}', to_jsonb(E'SMITH\n'::text)
+    ),
+    '{guardianEmail}', to_jsonb(E'\u3000GUARDIAN@example.com\ufeff'::text)
+  ),
+  'recovery-idempotency-key-000002',repeat('3',64)
+);
 select is((select outcome from duplicate_registration),'submitted','a distinct idempotency key creates a reviewable submission');
 select is((select count(*) from public.athletes where organization_id='a2101010-1010-4010-8010-101010101010'),2::bigint,'duplicate candidates remain separate athlete records');
 select is((select count(*) from public.registration_duplicate_candidates where registration_id=(select registration_id from duplicate_registration)),1::bigint,'matching identity creates one duplicate-review candidate');
@@ -133,28 +182,31 @@ update public.registration_rate_counters set window_started_at=clock_timestamp()
 select is((select outcome from public.consume_public_registration_rate_limit(repeat('4',64),10)),'allowed','expired limiter window resets');
 select is((select attempts from public.registration_rate_counters where key_hash=repeat('4',64)),1,'reset limiter starts at one attempt');
 
+create function pg_temp.assert_registration_read_matrix(actor uuid, expected bigint[], actor_label text)
+returns setof text language plpgsql as $$
+begin
+  perform set_config('request.jwt.claim.sub', actor::text, true);
+  return next is((select count(*) from public.athletes where organization_id='a2101010-1010-4010-8010-101010101010'),expected[1],actor_label || ' athlete visibility');
+  return next is((select count(*) from public.guardians where organization_id='a2101010-1010-4010-8010-101010101010'),expected[2],actor_label || ' guardian visibility');
+  return next is((select count(*) from public.athlete_guardians where organization_id='a2101010-1010-4010-8010-101010101010'),expected[3],actor_label || ' athlete-guardian visibility');
+  return next is((select count(*) from public.tryout_registrations where organization_id='a2101010-1010-4010-8010-101010101010'),expected[4],actor_label || ' registration visibility');
+  return next is((select count(*) from public.session_enrollments where organization_id='a2101010-1010-4010-8010-101010101010'),expected[5],actor_label || ' enrollment visibility');
+  return next is((select count(*) from public.registration_duplicate_candidates where organization_id='a2101010-1010-4010-8010-101010101010'),expected[6],actor_label || ' duplicate-candidate visibility');
+end;
+$$;
+
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claim.sub','21111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations where tryout_id='b2101010-1010-4010-8010-101010101010'),2::bigint,'active owner can read full registration PII');
-select set_config('request.jwt.claim.sub','22111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations where tryout_id='b2101010-1010-4010-8010-101010101010'),2::bigint,'active administrator can read full registration PII');
-select set_config('request.jwt.claim.sub','23111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations where tryout_id='b2101010-1010-4010-8010-101010101010'),2::bigint,'active root director can read exact-tryout PII');
-select set_config('request.jwt.claim.sub','24111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations),0::bigint,'evaluator cannot read full registration PII');
-select set_config('request.jwt.claim.sub','25111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations),0::bigint,'check-in staff cannot read full registration PII');
-select set_config('request.jwt.claim.sub','26111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations),0::bigint,'reviewer cannot read full registration PII');
-select set_config('request.jwt.claim.sub','27111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations),0::bigint,'child-scoped director cannot read full registration PII');
-select set_config('request.jwt.claim.sub','28111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations),0::bigint,'inactive root director cannot read full registration PII');
-select set_config('request.jwt.claim.sub','29111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations),0::bigint,'revoked root director cannot read full registration PII');
-select set_config('request.jwt.claim.sub','2a111111-1111-4111-8111-111111111111',true);
-select is((select count(*) from public.tryout_registrations),0::bigint,'cross-tenant owner cannot read registration PII');
+select * from pg_temp.assert_registration_read_matrix('21111111-1111-4111-8111-111111111111',array[2,2,2,2,2,1]::bigint[],'active owner');
+select * from pg_temp.assert_registration_read_matrix('22111111-1111-4111-8111-111111111111',array[2,2,2,2,2,1]::bigint[],'active administrator');
+select * from pg_temp.assert_registration_read_matrix('23111111-1111-4111-8111-111111111111',array[2,2,2,2,2,1]::bigint[],'active root director');
+select * from pg_temp.assert_registration_read_matrix('24111111-1111-4111-8111-111111111111',array[0,0,0,0,0,0]::bigint[],'evaluator');
+select * from pg_temp.assert_registration_read_matrix('25111111-1111-4111-8111-111111111111',array[0,0,0,0,0,0]::bigint[],'check-in staff');
+select * from pg_temp.assert_registration_read_matrix('26111111-1111-4111-8111-111111111111',array[0,0,0,0,0,0]::bigint[],'reviewer');
+select * from pg_temp.assert_registration_read_matrix('27111111-1111-4111-8111-111111111111',array[0,0,0,0,0,0]::bigint[],'child-scoped director');
+select * from pg_temp.assert_registration_read_matrix('28111111-1111-4111-8111-111111111111',array[0,0,0,0,0,0]::bigint[],'inactive root director');
+select * from pg_temp.assert_registration_read_matrix('29111111-1111-4111-8111-111111111111',array[0,0,0,0,0,0]::bigint[],'revoked root director');
+select * from pg_temp.assert_registration_read_matrix('2a111111-1111-4111-8111-111111111111',array[0,0,0,0,0,0]::bigint[],'cross-tenant owner');
 reset role;
 
 select * from finish();

@@ -5,7 +5,6 @@ delete from public.tryout_registrations where organization_id = 'a1101010-1010-4
 delete from public.athlete_guardians where organization_id = 'a1101010-1010-4010-8010-101010101010';
 delete from public.guardians where organization_id = 'a1101010-1010-4010-8010-101010101010';
 delete from public.athletes where organization_id = 'a1101010-1010-4010-8010-101010101010';
-delete from public.registration_rate_counters;
 insert into public.organizations(id, name, slug, timezone)
 values ('a1101010-1010-4010-8010-101010101010', 'HTTP Registration Club', 'http-registration-club', 'America/Edmonton') on conflict (id) do nothing;
 insert into public.tryouts(id, organization_id, name, slug, sport, timezone, registration_starts_at, registration_ends_at)

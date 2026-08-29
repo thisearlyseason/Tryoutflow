@@ -1514,6 +1514,7 @@ export type Database = {
         };
         Returns: boolean;
       };
+      canonical_registration_text: { Args: { value: string }; Returns: string };
       consume_public_registration_rate_limit: {
         Args: { p_limit: number; p_rate_key_hash: string };
         Returns: {
@@ -1683,6 +1684,7 @@ export type Database = {
           public_slug: string;
         }[];
       };
+      registration_whitespace_characters: { Args: never; Returns: string };
       reissue_registration_confirmation_token: {
         Args: { p_guardian_email: string; p_token: string };
         Returns: {

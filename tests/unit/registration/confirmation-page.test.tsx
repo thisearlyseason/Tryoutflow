@@ -6,10 +6,21 @@ import RegistrationConfirmationPage from '../../../src/app/(registration)/regist
 
 describe('registration confirmation page', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     window.history.replaceState({}, '', '/register/fall-camp/confirmation');
     window.sessionStorage.clear();
     window.localStorage.clear();
     vi.unstubAllGlobals();
+  });
+
+  it('falls back to unknown when browser storage access is denied', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError');
+    });
+    render(<RegistrationConfirmationPage />);
+    expect(
+      await screen.findByText(/No confirmation code is available in this browser/i),
+    ).toBeInTheDocument();
   });
 
   it('hydrates direct navigation as pending or unknown rather than successful', async () => {

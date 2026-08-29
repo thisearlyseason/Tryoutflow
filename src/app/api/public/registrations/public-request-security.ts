@@ -52,7 +52,9 @@ export async function guardPublicJsonRequest<T>(
     bucket: 'registration' | 'confirmation' | 'reissue' | 'consume';
     parse(value: unknown): ParsedTarget<T> | null;
   },
-): Promise<(ParsedTarget<T> & { ok: true; rateKey: string }) | GuardFailure> {
+): Promise<
+  (ParsedTarget<T> & { ok: true; contextRateKey: string; rateKey: string }) | GuardFailure
+> {
   const origin = request.headers.get('origin');
   const mime = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
   const host = request.headers.get('host');
@@ -87,13 +89,14 @@ export async function guardPublicJsonRequest<T>(
     if (!parsed || parsed.target.length > 256 || /[\r\n|]/u.test(parsed.target)) {
       return { ok: false, status: 400 };
     }
-    const rateKey = createHmac(
-      'sha256',
-      getServerEnvironment().PUBLIC_REGISTRATION_RATE_LIMIT_SECRET,
-    )
-      .update(`${options.bucket}|${parsed.target}|${address}`)
+    const secret = getServerEnvironment().PUBLIC_REGISTRATION_RATE_LIMIT_SECRET;
+    const contextRateKey = createHmac('sha256', secret)
+      .update(`${options.bucket}|context|${address}`)
       .digest('hex');
-    return { ok: true, ...parsed, rateKey };
+    const rateKey = createHmac('sha256', secret)
+      .update(`${options.bucket}|target|${parsed.target}|${address}`)
+      .digest('hex');
+    return { ok: true, ...parsed, contextRateKey, rateKey };
   } catch {
     return { ok: false, status: 400 };
   }

@@ -29,6 +29,29 @@ describe('duplicate detection', () => {
     );
     expect(result).not.toContainEqual(expect.objectContaining({ action: 'auto_merge' }));
   });
+
+  it('collapses the canonical Unicode whitespace set without auto-merging', () => {
+    const result = findDuplicateCandidates(
+      [
+        {
+          athleteId: 'a2',
+          givenName: 'Ava\tMarie',
+          familyName: 'Van\nDyke',
+          birthDate: '2013-05-01',
+          guardianEmail: 'guardian@example.com',
+        },
+      ],
+      {
+        givenName: '\u00a0AVA\u2003\u2003MARIE\u00a0',
+        familyName: ' van  dyke ',
+        birthDate: '2013-05-01',
+        guardianEmail: '\u3000GUARDIAN@example.com\ufeff',
+      },
+    );
+
+    expect(result).toEqual([{ athleteId: 'a2', reason: 'name_birthdate_guardian_email' }]);
+    expect(result).not.toContainEqual(expect.objectContaining({ action: 'auto_merge' }));
+  });
 });
 
 describe('registration application command', () => {

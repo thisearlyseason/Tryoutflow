@@ -6,54 +6,32 @@ import {
   RegistrationFormSchema,
   type RegistrationFormSchema as RegistrationForm,
 } from '../domain/form-schema';
+import {
+  canonicalRegistrationText,
+  isValidRegistrationCalendarDate,
+  isValidRegistrationEmail,
+  isValidRegistrationPhone,
+  registrationCodePointLength,
+} from '../domain/registration-validation';
 
 const PhoneSchema = z
   .string()
-  .trim()
-  .regex(/^\+?[0-9 ()-]{7,32}$/)
-  .refine(isValidPhone);
+  .transform(canonicalRegistrationText)
+  .refine(isValidRegistrationPhone);
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
-const PHONE_PATTERN = /^\+?[0-9 ()-]+$/u;
-
-function codePointLength(value: string) {
-  return Array.from(value).length;
-}
-
-function isValidEmail(value: string) {
-  const normalized = value.trim();
-  return codePointLength(normalized) <= 254 && EMAIL_PATTERN.test(normalized);
-}
-
-function isValidPhone(value: string) {
-  const normalized = value.trim();
-  const digits = normalized.replace(/\D/gu, '');
-  return (
-    codePointLength(normalized) <= 32 &&
-    PHONE_PATTERN.test(normalized) &&
-    digits.length >= 7 &&
-    digits.length <= 15
-  );
-}
-
-function isValidCalendarDate(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
-  if (!match) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
-  const date = new Date(0);
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCFullYear(year, month - 1, day);
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  );
+function contactName(maximum: number) {
+  return z
+    .string()
+    .transform(canonicalRegistrationText)
+    .refine(
+      (value) =>
+        registrationCodePointLength(value) >= 1 && registrationCodePointLength(value) <= maximum,
+    );
 }
 
 const SubmissionSchema = AthleteIdentitySchema.extend({
-  guardianName: z.string().trim().min(1).max(160),
-  guardianEmail: z.string().trim().refine(isValidEmail),
+  guardianName: contactName(160),
+  guardianEmail: z.string().transform(canonicalRegistrationText).refine(isValidRegistrationEmail),
   guardianPhone: PhoneSchema.optional(),
   divisionId: z.uuid().optional(),
   responses: z.record(z.string(), z.unknown()),
@@ -76,7 +54,9 @@ export function validateRegistrationSubmission(
     const value = submission.responses[field.key];
     if (
       field.required &&
-      (value === undefined || value === null || (typeof value === 'string' && value.trim() === ''))
+      (value === undefined ||
+        value === null ||
+        (typeof value === 'string' && canonicalRegistrationText(value) === ''))
     ) {
       throw new Error(`Required registration response field: ${field.key}`);
     }
@@ -93,20 +73,21 @@ export function validateRegistrationSubmission(
         throw new Error(`Invalid registration response field: ${field.key}`);
       }
     } else if (field.kind === 'date') {
-      if (typeof value !== 'string' || !isValidCalendarDate(value)) {
+      if (typeof value !== 'string' || !isValidRegistrationCalendarDate(value)) {
         throw new Error(`Invalid registration response field: ${field.key}`);
       }
     } else if (field.kind === 'email') {
-      if (typeof value !== 'string' || !isValidEmail(value)) {
+      if (typeof value !== 'string' || !isValidRegistrationEmail(value)) {
         throw new Error(`Invalid registration response field: ${field.key}`);
       }
     } else if (field.kind === 'phone') {
-      if (typeof value !== 'string' || !isValidPhone(value)) {
+      if (typeof value !== 'string' || !isValidRegistrationPhone(value)) {
         throw new Error(`Invalid registration response field: ${field.key}`);
       }
     } else if (
       typeof value !== 'string' ||
-      codePointLength(value.trim()) > (field.kind === 'textarea' ? 5_000 : 500)
+      registrationCodePointLength(canonicalRegistrationText(value)) >
+        (field.kind === 'textarea' ? 5_000 : 500)
     ) {
       throw new Error(`Invalid registration response field: ${field.key}`);
     }
