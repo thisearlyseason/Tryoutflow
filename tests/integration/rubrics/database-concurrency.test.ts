@@ -48,6 +48,29 @@ async function waitForAdvisoryLock(granted: boolean) {
   throw new Error(`timed out waiting for advisory lock granted=${granted}`);
 }
 
+async function waitForPublisherBlocked(
+  publisherApplicationName: string,
+  mutatorApplicationName: string,
+) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const { stdout } = await psql(`
+      select exists (
+        select 1
+        from pg_stat_activity as publisher
+        join pg_stat_activity as mutator
+          on mutator.application_name = '${mutatorApplicationName}'
+        where publisher.application_name = '${publisherApplicationName}'
+          and publisher.wait_event_type = 'Lock'
+          and mutator.pid = any(pg_blocking_pids(publisher.pid))
+      )
+    `);
+    if (stdout.trim() === 't') return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('timed out waiting for publisher to block on the mutator parent lock');
+}
+
 async function releaseAdvisoryLockHolder() {
   await psql(`
     select pg_terminate_backend(pid)
@@ -78,6 +101,8 @@ describe('rubric publication concurrency', () => {
       const firstCategoryId = randomUUID();
       const secondCategoryId = randomUUID();
       const insertedCategoryId = randomUUID();
+      const mutatorApplicationName = `tryoutflow-mutator-${randomUUID()}`;
+      const publisherApplicationName = `tryoutflow-publisher-${randomUUID()}`;
       let lockHolder: ChildProcess | undefined;
 
       const mutationSql = {
@@ -108,6 +133,7 @@ describe('rubric publication concurrency', () => {
         lockHolder = holdAdvisoryLock();
         await waitForAdvisoryLock(true);
         const mutator = psql(`
+          set application_name = '${mutatorApplicationName}';
           begin;
           ${mutationSql}
           select pg_advisory_lock(${advisoryClassId}, ${advisoryObjectId});
@@ -116,9 +142,11 @@ describe('rubric publication concurrency', () => {
         await waitForAdvisoryLock(false);
 
         const publisher = psql(`
+          set application_name = '${publisherApplicationName}';
           set request.jwt.claim.sub = '${ownerId}';
           select outcome from public.publish_rubric_version('${organizationId}', '${rubricId}', 1);
         `);
+        await waitForPublisherBlocked(publisherApplicationName, mutatorApplicationName);
         await releaseAdvisoryLockHolder();
         await waitForExit(lockHolder);
         lockHolder = undefined;
