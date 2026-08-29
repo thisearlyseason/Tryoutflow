@@ -3,10 +3,12 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: 'checkin.spec.ts',
+  reporter: 'line',
   workers: 1,
   timeout: 20_000,
   webServer: {
-    command: 'npx next dev tests/fixtures/checkin --webpack --hostname 127.0.0.1 --port 3102',
+    command:
+      'npm exec -- next dev tests/fixtures/checkin --webpack --hostname 127.0.0.1 --port 3102',
     url: 'http://127.0.0.1:3102',
     reuseExistingServer: false,
   },

@@ -23,6 +23,7 @@
     "supabase:start": "supabase start",
     "supabase:reset": "supabase db reset",
     "test:e2e": "playwright test",
+    "test:e2e:checkin": "playwright test --config=playwright.checkin.config.ts --project=chromium --project='Mobile Safari'",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build"
   },
   "dependencies": {

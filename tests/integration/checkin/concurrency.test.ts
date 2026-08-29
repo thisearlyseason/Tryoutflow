@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { execFile as execFileCallback } from 'node:child_process';
+import { execFile as execFileCallback, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 
@@ -9,15 +9,62 @@ import { describe, expect, it } from 'vitest';
 const execFile = promisify(execFileCallback);
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-const psql = (sql: string) =>
-  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
+const psql = (sql: string, applicationName = 'tryoutflow-checkin-integration') =>
+  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
+    env: { ...process.env, PGAPPNAME: applicationName },
+  });
+
+const waitForOutput = (child: ReturnType<typeof spawn>, expected: string) =>
+  new Promise<void>((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    const onStdout = (chunk: Buffer) => {
+      stdout += chunk.toString();
+      if (stdout.includes(expected)) {
+        child.stdout?.off('data', onStdout);
+        resolve();
+      }
+    };
+    child.stdout?.on('data', onStdout);
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    child.once('exit', (code) => {
+      if (!stdout.includes(expected)) reject(new Error(`psql exited ${code}: ${stderr}`));
+    });
+  });
+
+const waitForBlockedCalls = async (applicationNames: string[]) => {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const result = await psql(
+      `select count(*) from pg_stat_activity where application_name=any(array[${applicationNames.map((name) => `'${name}'`).join(',')}]) and wait_event_type='Lock'`,
+    );
+    if (Number(result.stdout.trim()) === applicationNames.length) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`calls did not block on enrollment move: ${applicationNames.join(', ')}`);
+};
 
 describe('concurrent number assignment and check-in', () => {
+  it.each([
+    ['anon', 'audit_logs'],
+    ['authenticated', 'audit_logs'],
+    ['service_role', 'audit_logs'],
+    ['anon', 'platform_support_elevations'],
+    ['authenticated', 'platform_support_elevations'],
+    ['service_role', 'platform_support_elevations'],
+  ])('denies %s runtime TRUNCATE on %s', async (role, table) => {
+    await expect(
+      psql(`begin; set local role ${role}; truncate table public.${table}; rollback;`),
+    ).rejects.toMatchObject({ stderr: expect.stringMatching(/permission denied/u) });
+  });
+
   it('allows one requested number claimant, permits the same session number in another session, and deduplicates check-in', async () => {
     const id = () => randomUUID();
     const ownerId = id();
     const staffId = id();
     const scopedStaffId = id();
+    const groupScopedStaffId = id();
     const organizationId = id();
     const tryoutId = id();
     const divisionId = id();
@@ -27,23 +74,26 @@ describe('concurrent number assignment and check-in', () => {
     const correctionSessionId = id();
     const divisionTwoSessionId = id();
     const groupId = id();
+    const siblingGroupId = id();
     const formId = id();
     const versionId = id();
     const athleteIds = [id(), id(), id(), id(), id()];
     const registrationIds = [id(), id(), id(), id(), id()];
     const slug = `checkin-${tryoutId.slice(0, 8)}`;
-    const callAs = (actorId: string, sql: string, column = 'outcome') =>
+    const callAs = (actorId: string, sql: string, column = 'outcome', applicationName?: string) =>
       psql(
         `begin; set local role authenticated; select set_config('request.jwt.claim.sub','${actorId}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
+        applicationName,
       );
     const call = (sql: string, column = 'outcome') => callAs(staffId, sql, column);
     try {
       await psql(`
-        insert into auth.users(id) values('${ownerId}'),('${staffId}'),('${scopedStaffId}');
+        insert into auth.users(id) values('${ownerId}'),('${staffId}'),('${scopedStaffId}'),('${groupScopedStaffId}');
         insert into public.organizations(id,name,slug,timezone) values('${organizationId}','Concurrent Checkin','${slug}','America/Edmonton');
         insert into public.organization_members(organization_id,user_id,role,status) values
           ('${organizationId}','${ownerId}','owner','active'),('${organizationId}','${staffId}','member','active'),
-          ('${organizationId}','${scopedStaffId}','member','active');
+          ('${organizationId}','${scopedStaffId}','member','active'),
+          ('${organizationId}','${groupScopedStaffId}','member','active');
         insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('${tryoutId}','${organizationId}','Concurrent Camp','${slug}','Hockey','America/Edmonton');
         insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values
           ('${divisionId}','${organizationId}','${tryoutId}','U13',0),
@@ -53,8 +103,9 @@ describe('concurrent number assignment and check-in', () => {
           ('${sessionTwoId}','${organizationId}','${tryoutId}','${divisionId}','Two',1,clock_timestamp()+interval '1 day 2 hours',clock_timestamp()+interval '1 day 3 hours',1),
           ('${correctionSessionId}','${organizationId}','${tryoutId}','${divisionId}','Correction',null,clock_timestamp()+interval '1 day 4 hours',clock_timestamp()+interval '1 day 5 hours',2),
           ('${divisionTwoSessionId}','${organizationId}','${tryoutId}','${divisionTwoId}','Other division',null,clock_timestamp()+interval '1 day',clock_timestamp()+interval '1 day 1 hour',0);
-        insert into public.session_groups(id,organization_id,tryout_id,session_id,name,sort_order,capacity)
-          values('${groupId}','${organizationId}','${tryoutId}','${sessionOneId}','Last slot',0,1);
+        insert into public.session_groups(id,organization_id,tryout_id,session_id,name,sort_order,capacity) values
+          ('${groupId}','${organizationId}','${tryoutId}','${sessionOneId}','Last slot',0,1),
+          ('${siblingGroupId}','${organizationId}','${tryoutId}','${sessionOneId}','Sibling group',1,null);
         insert into public.registration_forms(id,organization_id,tryout_id,name) values('${formId}','${organizationId}','${tryoutId}','Form');
         insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at)
           values('${versionId}','${organizationId}','${tryoutId}','${formId}',1,'{"fields":[]}','published',clock_timestamp());
@@ -73,9 +124,10 @@ describe('concurrent number assignment and check-in', () => {
         insert into public.session_enrollments(organization_id,tryout_id,registration_id,session_id) values
           ('${organizationId}','${tryoutId}','${registrationIds[2]}','${sessionOneId}'),
           ('${organizationId}','${tryoutId}','${registrationIds[3]}','${sessionOneId}');
-        insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,session_id,granted_by_user_id) values
-          ('${organizationId}','${staffId}','checkin','tryout','${tryoutId}',null,'${ownerId}'),
-          ('${organizationId}','${scopedStaffId}','checkin','session','${tryoutId}','${sessionOneId}','${ownerId}');
+        insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,session_id,group_id,granted_by_user_id) values
+          ('${organizationId}','${staffId}','checkin','tryout','${tryoutId}',null,null,'${ownerId}'),
+          ('${organizationId}','${scopedStaffId}','checkin','session','${tryoutId}','${sessionOneId}',null,'${ownerId}'),
+          ('${organizationId}','${groupScopedStaffId}','checkin','group','${tryoutId}','${sessionOneId}','${groupId}','${ownerId}');
         set session_replication_role=replica;
         update public.tryouts set status='published',published_at=clock_timestamp() where id='${tryoutId}';
         set session_replication_role=origin;
@@ -124,6 +176,111 @@ describe('concurrent number assignment and check-in', () => {
         'assigned',
         'assigned',
       ]);
+
+      const mover = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
+        env: { ...process.env, PGAPPNAME: 'checkin-enrollment-mover' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const moveLocked = waitForOutput(mover, 'enrollment-move-locked');
+      mover.stdin?.write(
+        `begin; update public.session_enrollments set session_id='${sessionTwoId}' where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionOneId}'; select 'enrollment-move-locked';\n`,
+      );
+      await moveLocked;
+      const moveRaceNames = [
+        'checkin-move-race-assign',
+        'checkin-move-race-release',
+        'checkin-move-race-checkin',
+      ];
+      const moveRace = [
+        callAs(
+          scopedStaffId,
+          `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[2]}','${divisionId}','${sessionOneId}',null,'session',8)`,
+          'outcome',
+          moveRaceNames[0],
+        ),
+        callAs(
+          scopedStaffId,
+          `select public.release_tryout_number('${organizationId}','${tryoutId}','${registrationIds[2]}','${sessionOneId}',null,'placement_changed') as outcome`,
+          'outcome',
+          moveRaceNames[1],
+        ),
+        callAs(
+          scopedStaffId,
+          `select outcome from public.check_in_registration_v2('${organizationId}','${tryoutId}','${registrationIds[2]}','${sessionOneId}',null,'concurrent-move-request-0001','session',8)`,
+          'outcome',
+          moveRaceNames[2],
+        ),
+      ];
+      await waitForBlockedCalls(moveRaceNames);
+      const moverExited = new Promise<void>((resolve, reject) => {
+        mover.once('exit', (code) =>
+          code === 0 ? resolve() : reject(new Error(`enrollment mover exited ${code}`)),
+        );
+      });
+      mover.stdin?.end('commit;\n');
+      await moverExited;
+      expect((await Promise.all(moveRace)).map(({ stdout }) => stdout.trim())).toEqual([
+        'forbidden',
+        'forbidden',
+        'forbidden',
+      ]);
+      expect(
+        (
+          await psql(
+            `select count(*) from public.tryout_numbers where registration_id='${registrationIds[2]}' and session_id='${sessionOneId}' and released_at is null`,
+          )
+        ).stdout.trim(),
+      ).toBe('0');
+      await psql(
+        `update public.session_enrollments set session_id='${sessionOneId}' where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionTwoId}'`,
+      );
+
+      const placer = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
+        env: { ...process.env, PGAPPNAME: 'checkin-unplaced-placer' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const placementLocked = waitForOutput(placer, 'unplaced-placement-locked');
+      placer.stdin?.write(
+        `begin; insert into public.session_enrollments(organization_id,tryout_id,registration_id,session_id,group_id) values('${organizationId}','${tryoutId}','${registrationIds[1]}','${sessionOneId}','${siblingGroupId}'); select 'unplaced-placement-locked';\n`,
+      );
+      await placementLocked;
+      const unplacedRaceNames = ['checkin-unplaced-race-assign', 'checkin-unplaced-race-checkin'];
+      const unplacedRace = [
+        callAs(
+          groupScopedStaffId,
+          `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[1]}','${divisionId}','${sessionOneId}','${groupId}','group',18)`,
+          'outcome',
+          unplacedRaceNames[0],
+        ),
+        callAs(
+          groupScopedStaffId,
+          `select outcome from public.check_in_registration_v2('${organizationId}','${tryoutId}','${registrationIds[1]}','${sessionOneId}','${groupId}','concurrent-unplaced-request-1','group',18)`,
+          'outcome',
+          unplacedRaceNames[1],
+        ),
+      ];
+      await waitForBlockedCalls(unplacedRaceNames);
+      const placerExited = new Promise<void>((resolve, reject) => {
+        placer.once('exit', (code) =>
+          code === 0 ? resolve() : reject(new Error(`unplaced placer exited ${code}`)),
+        );
+      });
+      placer.stdin?.end('commit;\n');
+      await placerExited;
+      expect((await Promise.all(unplacedRace)).map(({ stdout }) => stdout.trim())).toEqual([
+        'forbidden',
+        'forbidden',
+      ]);
+      expect(
+        (
+          await psql(
+            `select count(*) from public.tryout_numbers where registration_id='${registrationIds[1]}' and group_id='${groupId}' and released_at is null`,
+          )
+        ).stdout.trim(),
+      ).toBe('0');
+      await psql(
+        `delete from public.session_enrollments where organization_id='${organizationId}' and registration_id='${registrationIds[1]}' and session_id='${sessionOneId}'`,
+      );
 
       expect(
         (
@@ -359,7 +516,7 @@ describe('concurrent number assignment and check-in', () => {
         delete from public.tryouts where organization_id='${organizationId}';
         delete from public.organization_members where organization_id='${organizationId}';
         delete from public.organizations where id='${organizationId}';
-        delete from auth.users where id in('${ownerId}','${staffId}','${scopedStaffId}');
+        delete from auth.users where id in('${ownerId}','${staffId}','${scopedStaffId}','${groupScopedStaffId}');
         set session_replication_role=origin;
       `);
     }

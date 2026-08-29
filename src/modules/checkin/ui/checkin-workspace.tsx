@@ -158,7 +158,7 @@ export function CheckinWorkspace({
           requestKey,
           numberScope: placement?.numberScope ?? (placement?.groupId ? 'group' : 'session'),
         });
-        requestKeys.current.delete(requestPayload);
+        if (receipt.outcome !== 'unexpected_error') requestKeys.current.delete(requestPayload);
         if (receipt.outcome !== 'checked_in' && receipt.outcome !== 'already_checked_in') {
           const suffix =
             receipt.outcome === 'number_conflict' && receipt.nextAvailable
@@ -181,7 +181,9 @@ export function CheckinWorkspace({
             ) ?? null,
         );
       } catch {
-        setMessage(`Could not check in ${result.athleteName}. Resolve the conflict and retry.`);
+        setMessage(
+          `The check-in request for ${result.athleteName} could not be confirmed. Try again.`,
+        );
       } finally {
         inFlightRequests.current.delete(requestPayload);
       }
