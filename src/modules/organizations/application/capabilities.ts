@@ -15,6 +15,7 @@ export type Capability =
   | 'athlete:write'
   | 'tryout:read'
   | 'tryout:write'
+  | 'tryout:publish'
   | 'checkin:read'
   | 'checkin:write'
   | 'evaluation:read'
@@ -52,6 +53,7 @@ const ownerCapabilities: ReadonlySet<Capability> = new Set([
   'athlete:write',
   'tryout:read',
   'tryout:write',
+  'tryout:publish',
   'checkin:read',
   'checkin:write',
   'evaluation:read',
@@ -70,6 +72,7 @@ const administratorCapabilities: ReadonlySet<Capability> = new Set([
   'athlete:write',
   'tryout:read',
   'tryout:write',
+  'tryout:publish',
   'checkin:read',
   'checkin:write',
   'evaluation:read',
@@ -146,6 +149,7 @@ export function can(
       'athlete:write',
       'tryout:read',
       'tryout:write',
+      'tryout:publish',
       'checkin:read',
       'checkin:write',
       'evaluation:read',

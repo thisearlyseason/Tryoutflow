@@ -706,6 +706,45 @@ export type Database = {
           },
         ];
       };
+      tryout_publications: {
+        Row: {
+          created_at: string;
+          id: string;
+          organization_id: string;
+          registration_form_version_id: string;
+          tryout_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          registration_form_version_id: string;
+          tryout_id: string;
+        };
+        Update: {
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          registration_form_version_id?: string;
+          tryout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_publications_form_version_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_form_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'registration_form_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_publications_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: true;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       tryout_sessions: {
         Row: {
           capacity: number | null;
@@ -756,6 +795,41 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'tryout_divisions';
             referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
+      tryout_setup_progress: {
+        Row: {
+          completed_steps: string[];
+          id: string;
+          last_step: string;
+          organization_id: string;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          completed_steps?: string[];
+          id?: string;
+          last_step?: string;
+          organization_id: string;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          completed_steps?: string[];
+          id?: string;
+          last_step?: string;
+          organization_id?: string;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_setup_progress_tryout_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: true;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
           },
         ];
       };
@@ -1141,6 +1215,23 @@ export type Database = {
           version_id: string;
         }[];
       };
+      publish_tryout: {
+        Args: {
+          p_expected_version: number;
+          p_organization_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+          public_slug: string;
+        }[];
+      };
+      save_tryout_setup_step: {
+        Args: { p_organization_id: string; p_step: string; p_tryout_id: string };
+        Returns: {
+          outcome: string;
+        }[];
+      };
       transition_tryout_lifecycle: {
         Args: {
           p_action: string;
@@ -1165,6 +1256,12 @@ export type Database = {
           tryout_id: string;
           updated_at: string;
           version: number;
+        }[];
+      };
+      validate_tryout_for_publish: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          blocker: string;
         }[];
       };
     };
