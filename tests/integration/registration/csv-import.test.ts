@@ -510,18 +510,12 @@ describe('athlete CSV import transaction against local Supabase', () => {
       .slice(-2);
     expect(previewIds).toHaveLength(2);
 
-    const minimumKey = psql(`
-      select least(
-        public.canonical_athlete_identity_lock_key('${organizationId}','Ada|Beth','Chen','2012-01-01'),
-        public.canonical_athlete_identity_lock_key('${organizationId}','Ada','Beth|Chen','2012-01-01')
-      )
-    `);
     let releaseHolderReady!: () => void;
     const holderReady = new Promise<void>((resolve) => (releaseHolderReady = resolve));
     const holder = psqlAsync(
       `
         set application_name='${holderName}';
-        select pg_advisory_lock(${minimumKey});
+        select pg_advisory_lock(${gateClass},${gateObject});
         select 'holder_ready';
         select pg_sleep(30);
       `,
@@ -531,7 +525,7 @@ describe('athlete CSV import transaction against local Supabase', () => {
     );
     await withTimeout(holderReady, 'inverse-batch gate holder');
 
-    const commit = (applicationName: string, previewId: string) =>
+    const commit = (applicationName: string, previewId: string, waitAtGate: boolean) =>
       psqlAsync(`
         begin;
         set local statement_timeout='7s';
@@ -540,20 +534,72 @@ describe('athlete CSV import transaction against local Supabase', () => {
         select set_config('request.jwt.claim.role','authenticated',true);
         select set_config('request.jwt.claim.sub','${userId}',true);
         select outcome from public.commit_athlete_import('${organizationId}','${previewId}',array[2,3]);
+        ${waitAtGate ? `select 'first_import_holds_identity_locks'; select pg_advisory_lock(${gateClass},${gateObject});` : ''}
         commit;
       `);
-    const first = commit(firstName, previewIds[0]!);
-    const second = commit(secondName, previewIds[1]!);
+    const first = commit(firstName, previewIds[0]!, true);
     await waitFor(
       () =>
         psql(`
-          select count(*)=2
-          from pg_stat_activity batch
-          join pg_stat_activity holder on holder.application_name='${holderName}'
-          where batch.application_name in('${firstName}','${secondName}')
-            and holder.pid=any(pg_blocking_pids(batch.pid))
+          select exists(
+            select 1
+            from pg_stat_activity first_batch
+            join pg_stat_activity holder on holder.application_name='${holderName}'
+            where first_batch.application_name='${firstName}'
+              and holder.pid=any(pg_blocking_pids(first_batch.pid))
+              and (
+                select count(distinct ((identity_lock.classid::bigint<<32)|identity_lock.objid::bigint))
+                from pg_locks identity_lock
+                where identity_lock.pid=first_batch.pid
+                  and identity_lock.locktype='advisory'
+                  and identity_lock.objsubid=1
+                  and identity_lock.granted
+                  and ((identity_lock.classid::bigint<<32)|identity_lock.objid::bigint) in(
+                    public.canonical_athlete_identity_lock_key(
+                      '${organizationId}','Ada|Beth','Chen','2012-01-01'
+                    ),
+                    public.canonical_athlete_identity_lock_key(
+                      '${organizationId}','Ada','Beth|Chen','2012-01-01'
+                    )
+                  )
+              )=2
+          )
         `) === 't',
-      'both inverse batches wait on the same first signed key',
+      'first inverse batch naturally holds both identity locks at the test handshake',
+    );
+    const second = commit(secondName, previewIds[1]!, false);
+    await waitFor(
+      () =>
+        psql(`
+          select exists(
+            select 1
+            from pg_stat_activity second_batch
+            join pg_stat_activity first_batch on first_batch.application_name='${firstName}'
+            join pg_locks waiting_identity_lock
+              on waiting_identity_lock.pid=second_batch.pid
+              and waiting_identity_lock.locktype='advisory'
+              and waiting_identity_lock.objsubid=1
+              and not waiting_identity_lock.granted
+            join pg_locks held_identity_lock
+              on held_identity_lock.pid=first_batch.pid
+              and held_identity_lock.locktype='advisory'
+              and held_identity_lock.objsubid=waiting_identity_lock.objsubid
+              and held_identity_lock.classid=waiting_identity_lock.classid
+              and held_identity_lock.objid=waiting_identity_lock.objid
+              and held_identity_lock.granted
+            where second_batch.application_name='${secondName}'
+              and first_batch.pid=any(pg_blocking_pids(second_batch.pid))
+              and ((waiting_identity_lock.classid::bigint<<32)|waiting_identity_lock.objid::bigint)=least(
+                public.canonical_athlete_identity_lock_key(
+                  '${organizationId}','Ada|Beth','Chen','2012-01-01'
+                ),
+                public.canonical_athlete_identity_lock_key(
+                  '${organizationId}','Ada','Beth|Chen','2012-01-01'
+                )
+              )
+          )
+        `) === 't',
+      'second inverse batch naturally waits on the first signed identity key',
     );
     psql(
       `select pg_terminate_backend(pid) from pg_stat_activity where application_name='${holderName}'`,
@@ -579,5 +625,5 @@ describe('athlete CSV import transaction against local Supabase', () => {
           <> public.canonical_athlete_identity_lock_key('${organizationId}','Ada','Beth|Chen','2012-01-01')
       `),
     ).toBe('t');
-  });
+  }, 15_000);
 });

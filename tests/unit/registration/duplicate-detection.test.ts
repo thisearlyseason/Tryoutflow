@@ -52,6 +52,34 @@ describe('duplicate detection', () => {
     expect(result).toEqual([{ athleteId: 'a2', reason: 'name_birthdate_guardian_email' }]);
     expect(result).not.toContainEqual(expect.objectContaining({ action: 'auto_merge' }));
   });
+
+  it.each([
+    ['composed existing and decomposed incoming', 'Jos\u00e9', 'Jose\u0301'],
+    ['decomposed existing and composed incoming', 'Jose\u0301', 'Jos\u00e9'],
+  ])('uses NFC identity parity for %s without auto-merging', (_caseName, existing, incoming) => {
+    const result = findDuplicateCandidates(
+      [
+        {
+          athleteId: 'nfc-candidate',
+          givenName: existing,
+          familyName: 'Nu\u00f1ez',
+          birthDate: '2013-05-01',
+          guardianEmail: 'guardian@example.com',
+        },
+      ],
+      {
+        givenName: incoming,
+        familyName: 'Nun\u0303ez',
+        birthDate: '2013-05-01',
+        guardianEmail: 'GUARDIAN@example.com',
+      },
+    );
+
+    expect(result).toEqual([
+      { athleteId: 'nfc-candidate', reason: 'name_birthdate_guardian_email' },
+    ]);
+    expect(result).not.toContainEqual(expect.objectContaining({ action: 'auto_merge' }));
+  });
 });
 
 describe('registration application command', () => {

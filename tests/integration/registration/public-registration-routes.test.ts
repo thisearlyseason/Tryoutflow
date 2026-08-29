@@ -99,6 +99,93 @@ beforeAll(async () => {
 });
 
 describe('real public registration route with local Supabase', () => {
+  it.each([
+    {
+      label: 'composed stored identity and decomposed request',
+      candidateId: '91101010-1010-4010-8010-101010101010',
+      storedName: 'Jos\u00e9',
+      submittedName: 'Jose\u0301',
+      familyName: 'RouteComposed',
+      birthDate: '2013-07-01',
+      email: 'nfc-composed@example.com',
+      address: '203.0.113.201',
+      idempotencyKey: 'route-nfc-decomposed-key-00001',
+    },
+    {
+      label: 'decomposed stored identity and composed request',
+      candidateId: '92101010-1010-4010-8010-101010101010',
+      storedName: 'Jose\u0301',
+      submittedName: 'Jos\u00e9',
+      familyName: 'RouteDecomposed',
+      birthDate: '2013-08-01',
+      email: 'nfc-decomposed@example.com',
+      address: '203.0.113.202',
+      idempotencyKey: 'route-nfc-composed-key-000001',
+    },
+  ])('emits an NFC duplicate candidate for $label without merging', async (testCase) => {
+    const sqlText = (value: string) => value.replaceAll("'", "''");
+    psql(`
+      insert into public.athletes(
+        id,organization_id,given_name,family_name,
+        normalized_given_name,normalized_family_name,birth_date
+      ) values(
+        '${testCase.candidateId}','a1101010-1010-4010-8010-101010101010',
+        '${sqlText(testCase.storedName)}','${testCase.familyName}','ignored','ignored','${testCase.birthDate}'
+      );
+      with guardian as(
+        insert into public.guardians(organization_id,name,email,normalized_email)
+        values(
+          'a1101010-1010-4010-8010-101010101010','NFC Route Guardian',
+          '${testCase.email}','${testCase.email}'
+        ) returning id
+      )
+      insert into public.athlete_guardians(organization_id,athlete_id,guardian_id)
+      select 'a1101010-1010-4010-8010-101010101010','${testCase.candidateId}',id from guardian;
+    `);
+
+    const response = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        {
+          tryoutSlug: 'http-registration-camp',
+          idempotencyKey: testCase.idempotencyKey,
+          submission: {
+            ...validSubmission,
+            givenName: testCase.submittedName,
+            familyName: testCase.familyName,
+            birthDate: testCase.birthDate,
+            guardianEmail: testCase.email,
+          },
+        },
+        { 'x-forwarded-for': testCase.address },
+      ),
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      psql(`
+        select count(*)
+        from public.registration_duplicate_candidates candidate
+        join public.tryout_registrations registration on registration.id=candidate.registration_id
+        join public.athletes submitted on submitted.id=registration.athlete_id
+        where candidate.candidate_athlete_id='${testCase.candidateId}'
+          and submitted.organization_id='a1101010-1010-4010-8010-101010101010'
+          and submitted.family_name='${testCase.familyName}'
+          and submitted.birth_date='${testCase.birthDate}'
+      `),
+    ).toBe('1');
+    expect(
+      psql(`
+        select count(*)
+        from public.athletes
+        where organization_id='a1101010-1010-4010-8010-101010101010'
+          and normalized_given_name=lower(public.canonical_import_text('${sqlText(testCase.submittedName)}'))
+          and normalized_family_name=lower(public.canonical_import_text('${testCase.familyName}'))
+          and birth_date='${testCase.birthDate}'
+      `),
+    ).toBe('2');
+  });
+
   it('persists phone and returns a fresh usable token on an identical idempotent retry', async () => {
     const idempotencyKey = 'http-route-idempotency-key-000001';
     const first = await submitRegistration(
@@ -130,12 +217,12 @@ describe('real public registration route with local Supabase', () => {
     expect(replayBody.manualConfirmationToken).not.toBe(firstBody.manualConfirmationToken);
     expect(
       psql(
-        "select count(*) from public.tryout_registrations where organization_id='a1101010-1010-4010-8010-101010101010'",
+        "select count(*) from public.tryout_registrations registration join public.athletes athlete on athlete.id=registration.athlete_id where registration.organization_id='a1101010-1010-4010-8010-101010101010' and athlete.given_name='Ava' and athlete.family_name='Smith' and athlete.birth_date='2013-05-01'",
       ),
     ).toBe('1');
     expect(
       psql(
-        "select count(*) from public.registration_confirmation_tokens where organization_id='a1101010-1010-4010-8010-101010101010' and used_at is null and revoked_at is null",
+        "select count(*) from public.registration_confirmation_tokens token join public.tryout_registrations registration on registration.id=token.registration_id join public.athletes athlete on athlete.id=registration.athlete_id where token.organization_id='a1101010-1010-4010-8010-101010101010' and athlete.given_name='Ava' and athlete.family_name='Smith' and athlete.birth_date='2013-05-01' and token.used_at is null and token.revoked_at is null",
       ),
     ).toBe('1');
   });
