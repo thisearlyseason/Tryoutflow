@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(14);
 
 select has_function('public', 'publish_tryout', array['uuid', 'uuid', 'integer'], 'publication is one database transaction');
 
@@ -30,6 +30,9 @@ select throws_ok(
   $$select * from public.publish_tryout('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 0)$$,
   '42501', null, 'an inactive non-member cannot publish');
 set local request.jwt.claim.sub = '10101010-1010-4010-8010-101010101010';
+select is(
+  (select outcome from public.select_tryout_registration_form_version('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '70707070-7070-4070-8070-707070707070')),
+  'selected', 'an exact registration form version is selected before publication');
 insert into public.session_rubrics (organization_id, tryout_id, session_id, rubric_version_id)
 values ('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '50505050-5050-4050-8050-505050505050', '90909090-9090-4090-8090-909090909090');
 
