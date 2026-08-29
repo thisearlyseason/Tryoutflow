@@ -393,8 +393,10 @@ select is(
 );
 
 -- Migration 025 and the position wrapper shipped in 049 hashed the normalized
--- position-less submission. Their rows may accept normalization-equivalent
--- retries, but position still has to equal the row exactly.
+-- position-less submission. Because version 1 has no era provenance, that
+-- digest is indistinguishable from a pre-025 submission that arrived already
+-- normalized. Byte-different normalization-equivalent retries therefore fail
+-- closed; exact stored digest bytes can still upgrade safely.
 select pg_temp.insert_historical_registration(
   '85151515-5151-4151-8151-515151515151',
   '95151515-5151-4151-8151-515151515151',
@@ -411,12 +413,12 @@ select * from public.submit_public_registration_v2(
     from historical_payloads where name='raw'),
   'historical-normalized-position-key',repeat('7',64)
 );
-select is((select outcome from normalized_upgrade),'replayed',
-  'a 025/049 normalized digest accepts the normalization-equivalent historical replay');
+select is((select outcome from normalized_upgrade),'idempotency_conflict',
+  'a normalization-equivalent v1 digest fails closed without era provenance');
 select is(
   (select submission_digest_version from public.tryout_registrations
-    where id='85151515-5151-4151-8151-515151515151'),2::smallint,
-  'the normalized historical candidate upgrades exactly once'
+    where id='85151515-5151-4151-8151-515151515151'),1::smallint,
+  'the ambiguous normalized candidate cannot rewrite digest metadata'
 );
 select is(
   (select position_id from public.tryout_registrations
@@ -424,13 +426,27 @@ select is(
   'd5151515-5151-4151-8151-515151515151'::uuid,
   'historical upgrade preserves the exact assigned position'
 );
+create temporary table normalized_exact_upgrade as
+select * from public.submit_public_registration_v2(
+  'historical-digest-camp',
+  (select payload||jsonb_build_object('positionId','d5151515-5151-4151-8151-515151515151')
+    from historical_payloads where name='normalized'),
+  'historical-normalized-position-key',repeat('8',64)
+);
+select is((select outcome from normalized_exact_upgrade),'replayed',
+  'the exact normalized historical digest bytes upgrade safely');
+select is(
+  (select submission_digest_version from public.tryout_registrations
+    where id='85151515-5151-4151-8151-515151515151'),2::smallint,
+  'the exact historical candidate upgrades exactly once'
+);
 select is(
   (select outcome from public.submit_public_registration_v2(
     'historical-digest-camp',
     (select payload||jsonb_build_object('positionId','d5151515-5151-4151-8151-515151515151')
       from historical_payloads where name='raw'),
-    'historical-normalized-position-key',repeat('8',64)
-  )),'replayed','a repeated call uses v2 replay semantics after the one-time upgrade'
+    'historical-normalized-position-key',repeat('9',64)
+  )),'replayed','v2 normalization semantics apply after the exact one-time upgrade'
 );
 select is(
   (select count(*) from public.tryout_registrations
