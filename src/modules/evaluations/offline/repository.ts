@@ -87,7 +87,10 @@ export type EvaluationDraftLineage = {
   state: 'saved_device' | 'synced' | 'needs_attention';
   repaired: boolean;
   draft: StoredEvaluationDraft | null;
+  /** The newest durable mutation whose payload exactly backs the displayed draft. */
   mutation?: StoredEvaluationMutation;
+  /** The earliest durable FIFO head that can block the displayed natural evaluation lineage. */
+  blockingMutation?: StoredEvaluationMutation;
   receipt?: StoredEvaluationReceipt;
   confirmation?: {
     clientMutationId: string;
@@ -721,6 +724,7 @@ export class EvaluationOfflineRepository {
       | 'resolutionResultMutationId'
       | 'resolutionResultQueueSequence'
       | 'resolutionResultDraftDigest'
+      | 'resolutionResultPayloadDigest'
       | 'resolutionResultMarker'
     >,
   ): Promise<StoredEvaluationReceiptTombstone> {
@@ -969,6 +973,58 @@ export class EvaluationOfflineRepository {
       }
       if (row.queueKey === queueKey) rows.push(row);
     }
+    const physicalPrefix = `${scopeKey(scope)}|`;
+    const receipts = new Map<string, StoredEvaluationReceipt>();
+    const rawReceipts = await this.database.receipts
+      .filter(
+        (record) =>
+          typeof record.storageKey === 'string' && record.storageKey.startsWith(physicalPrefix),
+      )
+      .toArray();
+    for (const raw of rawReceipts) {
+      const physicalStorageKey = (raw as { storageKey: string }).storageKey;
+      const clientMutationId = physicalStorageKey.slice(physicalPrefix.length);
+      receipts.set(
+        physicalStorageKey,
+        await this.validateReceiptRecord(raw, { scope, clientMutationId }),
+      );
+    }
+    const tombstones = new Map<string, StoredEvaluationReceiptTombstone>();
+    for (const { physicalKey, clientMutationId, raw } of await this.physicallyScopedTombstones(
+      transaction,
+      scope,
+    )) {
+      tombstones.set(
+        physicalKey,
+        await this.validateReceiptTombstone(raw, scope, clientMutationId),
+      );
+    }
+    for (const [storageKey, receipt] of receipts) {
+      const tombstone = tombstones.get(storageKey);
+      if (!tombstone) continue;
+      if (
+        tombstone.reason !== 'receipt_authority' ||
+        !this.tombstoneMatchesMutation(tombstone, receipt) ||
+        tombstone.serverVersion !== receipt.serverVersion ||
+        tombstone.acknowledgedAt !== receipt.acknowledgedAt
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Target terminal receipt and tombstone lineage diverge.',
+        );
+    }
+    const rawQuarantines = await this.database.quarantines
+      .where('scopeKey')
+      .equals(scopeKey(scope))
+      .toArray();
+    for (const raw of rawQuarantines) {
+      const parsed = storedQuarantineSchema.safeParse(raw);
+      if (!parsed.success || parsed.data.scopeKey !== scopeKey(scope))
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Target recovery quarantine metadata is invalid.',
+        );
+    }
     if (!(await this.validateQueueLineage(transaction, scope, rows, now))) {
       throw new EvaluationOfflineError('corrupt_record', 'Target queue lineage is invalid.');
     }
@@ -999,23 +1055,6 @@ export class EvaluationOfflineRepository {
       throw new EvaluationOfflineError('corrupt_record', 'Target queue counter is invalid.');
     }
 
-    const physicalPrefix = `${scopeKey(scope)}|`;
-    const rawReceipts = await this.database.receipts
-      .filter(
-        (record) =>
-          typeof record.storageKey === 'string' && record.storageKey.startsWith(physicalPrefix),
-      )
-      .toArray();
-    for (const raw of rawReceipts) {
-      const clientMutationId = raw.storageKey.slice(physicalPrefix.length);
-      await this.validateReceiptRecord(raw, { scope, clientMutationId });
-    }
-    for (const { clientMutationId, raw } of await this.physicallyScopedTombstones(
-      transaction,
-      scope,
-    )) {
-      await this.validateReceiptTombstone(raw, scope, clientMutationId);
-    }
     return parsedCounter.data.nextSequence;
   }
 
@@ -1275,15 +1314,57 @@ export class EvaluationOfflineRepository {
           )
           .sort((left, right) => right.queueSequence - left.queueSequence)[0];
         if (exactMutation) {
+          const relatedEvaluationIds = new Set([exactMutation.evaluationId]);
+          let addedRelatedId = true;
+          while (addedRelatedId) {
+            addedRelatedId = false;
+            for (const mutation of mutations) {
+              const related =
+                relatedEvaluationIds.has(mutation.evaluationId) ||
+                (mutation.conflictServerEvaluationId !== undefined &&
+                  relatedEvaluationIds.has(mutation.conflictServerEvaluationId));
+              if (!related) continue;
+              for (const evaluationId of [
+                mutation.evaluationId,
+                mutation.conflictServerEvaluationId,
+              ]) {
+                if (evaluationId && !relatedEvaluationIds.has(evaluationId)) {
+                  relatedEvaluationIds.add(evaluationId);
+                  addedRelatedId = true;
+                }
+              }
+            }
+          }
+          const queueHeads = new Map<string, StoredEvaluationMutation>();
+          for (const mutation of mutations) {
+            if (
+              mutation.status === 'acknowledged' ||
+              !relatedEvaluationIds.has(mutation.evaluationId)
+            )
+              continue;
+            const current = queueHeads.get(mutation.queueKey);
+            if (!current || mutation.queueSequence < current.queueSequence)
+              queueHeads.set(mutation.queueKey, mutation);
+          }
+          const blockingMutation = [...queueHeads.values()].sort(
+            (left, right) =>
+              Number(left.status !== 'needs_attention') -
+                Number(right.status !== 'needs_attention') ||
+              left.createdAt.localeCompare(right.createdAt) ||
+              left.queueSequence - right.queueSequence ||
+              left.storageKey.localeCompare(right.storageKey),
+          )[0];
           if (storedDraft.syncState !== 'saved_device') {
             storedDraft = { ...storedDraft, syncState: 'saved_device' };
             await this.database.drafts.put(storedDraft);
           }
           return {
-            state: exactMutation.status === 'needs_attention' ? 'needs_attention' : 'saved_device',
+            state:
+              blockingMutation?.status === 'needs_attention' ? 'needs_attention' : 'saved_device',
             repaired: false,
             draft: structuredClone(storedDraft),
             mutation: structuredClone(exactMutation),
+            ...(blockingMutation ? { blockingMutation: structuredClone(blockingMutation) } : {}),
           };
         }
 
@@ -1974,13 +2055,39 @@ export class EvaluationOfflineRepository {
               heads.push(record);
             }
           }
+          const blockedEvaluationIds = new Set<string>();
+          for (const head of heads) {
+            if (head.status !== 'needs_attention') continue;
+            blockedEvaluationIds.add(head.evaluationId);
+            if (head.conflictServerEvaluationId)
+              blockedEvaluationIds.add(head.conflictServerEvaluationId);
+          }
+          let propagatedBlock = true;
+          while (propagatedBlock) {
+            propagatedBlock = false;
+            for (const record of records) {
+              if (
+                !blockedEvaluationIds.has(record.evaluationId) &&
+                (!record.conflictServerEvaluationId ||
+                  !blockedEvaluationIds.has(record.conflictServerEvaluationId))
+              )
+                continue;
+              for (const evaluationId of [record.evaluationId, record.conflictServerEvaluationId]) {
+                if (evaluationId && !blockedEvaluationIds.has(evaluationId)) {
+                  blockedEvaluationIds.add(evaluationId);
+                  propagatedBlock = true;
+                }
+              }
+            }
+          }
           const candidate = heads
             .filter(
               (record) =>
-                (record.status === 'pending' && record.nextAttemptAt <= now.toISOString()) ||
-                (record.status === 'leased' &&
-                  Boolean(record.leaseUntil) &&
-                  record.leaseUntil! <= now.toISOString()),
+                !blockedEvaluationIds.has(record.evaluationId) &&
+                ((record.status === 'pending' && record.nextAttemptAt <= now.toISOString()) ||
+                  (record.status === 'leased' &&
+                    Boolean(record.leaseUntil) &&
+                    record.leaseUntil! <= now.toISOString())),
             )
             .sort(
               (left, right) =>
@@ -2233,6 +2340,7 @@ export class EvaluationOfflineRepository {
     evaluationId: string;
     expectedVersion: number;
     draftDigest: string;
+    payloadDigest?: string;
     clientMutationId?: string;
     queueSequence?: number;
   }> {
@@ -2293,12 +2401,94 @@ export class EvaluationOfflineRepository {
             tombstone.resolutionServerVersion !== input.server.version ||
             tombstone.resolutionServerSnapshotDigest !== serverSnapshotDigest ||
             !tombstone.resolutionResultDraftDigest ||
+            !tombstone.resolutionResultPayloadDigest ||
             !tombstone.resolutionResultMarker
           )
             throw new EvaluationOfflineError(
               'invalid_transition',
               'Conflict resolution does not match its durable server snapshot and lineage.',
             );
+          const context = await this.requireContext(transaction, scope);
+          this.assertDraftMatchesContext(serverDraft, context);
+          if (tombstone.resolutionResultMarker === 'keep_local_rebased') {
+            const successorMutationId = tombstone.resolutionResultMutationId!;
+            const successorStorageKey = `${scopeKey(scope)}|${successorMutationId}`;
+            const rawSuccessor = await this.database.mutations.get(successorStorageKey);
+            let successorProven = false;
+            if (rawSuccessor) {
+              const successor = await this.validateMutationRecord(rawSuccessor);
+              this.assertDraftMatchesContext(successor.draft, context);
+              const successorDraftDigest = await Dexie.waitFor(digestValue(successor.draft));
+              successorProven =
+                successor.evaluationId === tombstone.resolutionServerEvaluationId &&
+                successor.expectedVersion === tombstone.resolutionServerVersion &&
+                successor.queueSequence === tombstone.resolutionResultQueueSequence &&
+                successor.payloadDigest === tombstone.resolutionResultPayloadDigest &&
+                successorDraftDigest === tombstone.resolutionResultDraftDigest;
+              if (successorProven) {
+                await this.validateQueueForStrictAppend(
+                  transaction,
+                  scope,
+                  successor.queueKey,
+                  now,
+                );
+              }
+            } else {
+              const rawReceipt = await this.database.receipts.get(successorStorageKey);
+              if (rawReceipt) {
+                const receipt = await this.validateReceiptRecord(rawReceipt, {
+                  scope,
+                  clientMutationId: successorMutationId,
+                });
+                successorProven =
+                  receipt.evaluationId === tombstone.resolutionServerEvaluationId &&
+                  receipt.expectedVersion === tombstone.resolutionServerVersion &&
+                  receipt.payloadDigest === tombstone.resolutionResultPayloadDigest;
+              } else {
+                const rawSuccessorTombstone =
+                  await this.database.receiptTombstones.get(successorStorageKey);
+                if (rawSuccessorTombstone) {
+                  const successorTombstone = await this.validateReceiptTombstone(
+                    rawSuccessorTombstone,
+                    scope,
+                    successorMutationId,
+                  );
+                  successorProven =
+                    successorTombstone.reason === 'receipt_authority' &&
+                    successorTombstone.evaluationId === tombstone.resolutionServerEvaluationId &&
+                    successorTombstone.expectedVersion === tombstone.resolutionServerVersion &&
+                    successorTombstone.payloadDigest === tombstone.resolutionResultPayloadDigest &&
+                    successorTombstone.serverVersion === tombstone.resolutionServerVersion! + 1;
+                }
+              }
+            }
+            if (!successorProven)
+              throw new EvaluationOfflineError(
+                'corrupt_record',
+                'Conflict resolution successor lineage is missing or divergent.',
+              );
+            await this.validateQueueForStrictAppend(
+              transaction,
+              scope,
+              evaluationQueueKey(scope, tombstone.resolutionServerEvaluationId),
+              now,
+            );
+          } else {
+            const rawDraft = await this.database.drafts.get(scopeKey(scope));
+            const resolvedDraft = rawDraft ? await this.validateDraftRecord(rawDraft, scope) : null;
+            if (
+              !resolvedDraft ||
+              resolvedDraft.evaluationId !== tombstone.resolutionServerEvaluationId ||
+              resolvedDraft.expectedVersion !== tombstone.resolutionServerVersion ||
+              resolvedDraft.payloadDigest !== tombstone.resolutionResultPayloadDigest ||
+              (await Dexie.waitFor(digestValue(resolvedDraft.draft))) !==
+                tombstone.resolutionResultDraftDigest
+            )
+              throw new EvaluationOfflineError(
+                'corrupt_record',
+                'Conflict resolution server draft lineage is missing or divergent.',
+              );
+          }
           return {
             action: input.action,
             evaluationId: tombstone.resolutionServerEvaluationId,
@@ -2309,6 +2499,9 @@ export class EvaluationOfflineRepository {
               : {}),
             ...(tombstone.resolutionResultQueueSequence
               ? { queueSequence: tombstone.resolutionResultQueueSequence }
+              : {}),
+            ...(tombstone.resolutionResultPayloadDigest
+              ? { payloadDigest: tombstone.resolutionResultPayloadDigest }
               : {}),
           };
         }
@@ -2329,16 +2522,46 @@ export class EvaluationOfflineRepository {
           );
         const context = await this.requireContext(transaction, scope);
         this.assertDraftMatchesContext(serverDraft, context);
-        const queueRowsRaw = await this.database.mutations
+        const rawDraft = await this.database.drafts.get(scopeKey(scope));
+        const storedDraft = rawDraft ? await this.validateDraftRecord(rawDraft, scope) : null;
+        const allScopeRowsRaw = await this.database.mutations
           .where('scopeKey')
           .equals(scopeKey(scope))
-          .filter((row) => row.queueKey === head.queueKey && row.status !== 'acknowledged')
           .toArray();
-        const queueRows: StoredEvaluationMutation[] = [];
-        for (const raw of queueRowsRaw) queueRows.push(await this.validateMutationRecord(raw));
-        queueRows.sort((left, right) => left.queueSequence - right.queueSequence);
+        const allScopeRows: StoredEvaluationMutation[] = [];
+        for (const raw of allScopeRowsRaw)
+          allScopeRows.push(await this.validateMutationRecord(raw));
+        const relatedEvaluationIds = new Set([
+          head.evaluationId,
+          input.server.evaluationId,
+          ...(storedDraft?.evaluationId ? [storedDraft.evaluationId] : []),
+        ]);
+        let addedRelatedId = true;
+        while (addedRelatedId) {
+          addedRelatedId = false;
+          for (const row of allScopeRows) {
+            if (
+              !relatedEvaluationIds.has(row.evaluationId) &&
+              (!row.conflictServerEvaluationId ||
+                !relatedEvaluationIds.has(row.conflictServerEvaluationId))
+            )
+              continue;
+            for (const evaluationId of [row.evaluationId, row.conflictServerEvaluationId]) {
+              if (evaluationId && !relatedEvaluationIds.has(evaluationId)) {
+                relatedEvaluationIds.add(evaluationId);
+                addedRelatedId = true;
+              }
+            }
+          }
+        }
+        const queueRows = allScopeRows.filter(
+          (row) => row.status !== 'acknowledged' && relatedEvaluationIds.has(row.evaluationId),
+        );
+        const originalQueueRows = queueRows
+          .filter((row) => row.queueKey === head.queueKey)
+          .sort((left, right) => left.queueSequence - right.queueSequence);
         if (
-          queueRows[0]?.storageKey !== head.storageKey ||
+          originalQueueRows[0]?.storageKey !== head.storageKey ||
           queueRows.some((row) => row.status === 'leased')
         )
           throw new EvaluationOfflineError(
@@ -2346,11 +2569,17 @@ export class EvaluationOfflineRepository {
             'Conflict resolution lost the durable FIFO head.',
           );
 
-        const rawDraft = await this.database.drafts.get(scopeKey(scope));
-        const storedDraft = rawDraft ? await this.validateDraftRecord(rawDraft, scope) : null;
-        const latestMutation = queueRows.at(-1) ?? head;
+        const latestMutation =
+          [...queueRows]
+            .sort(
+              (left, right) =>
+                left.createdAt.localeCompare(right.createdAt) ||
+                left.queueSequence - right.queueSequence ||
+                left.storageKey.localeCompare(right.storageKey),
+            )
+            .at(-1) ?? head;
         const localDraft =
-          storedDraft && storedDraft.updatedAt >= latestMutation.updatedAt
+          storedDraft?.evaluationId && relatedEvaluationIds.has(storedDraft.evaluationId)
             ? storedDraft.draft
             : latestMutation.draft;
         this.assertDraftMatchesContext(localDraft, context);
@@ -2444,6 +2673,7 @@ export class EvaluationOfflineRepository {
                   resolutionServerVersion: input.server.version,
                   resolutionServerSnapshotDigest: serverSnapshotDigest,
                   resolutionResultDraftDigest: resultDraftDigest,
+                  resolutionResultPayloadDigest: draftRecord.payloadDigest,
                   resolutionResultMarker:
                     input.action === 'keep_local' ? 'keep_local_rebased' : 'use_server_discarded',
                   ...(rebased
@@ -2461,6 +2691,7 @@ export class EvaluationOfflineRepository {
           evaluationId: input.server.evaluationId,
           expectedVersion: input.server.version,
           draftDigest: resultDraftDigest,
+          payloadDigest: draftRecord.payloadDigest,
           ...(rebased
             ? {
                 clientMutationId: rebased.clientMutationId,

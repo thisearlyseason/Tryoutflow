@@ -205,3 +205,42 @@ git diff --check                                                PASS
 - Recovery metadata remains bounded identifiers, versions, and SHA-256 digests. No score, note, athlete identity, guardian/contact field, or other draft content was added to tombstones or quarantine.
 - Authenticated cookies, live membership, the production Next route, PostgREST, and PostgreSQL in one browser request still require the documented staging/local authenticated release run; no stronger claim is made.
 - `progress.md` was not changed.
+
+## Fix round 4
+
+### Status
+
+DONE — the displayed newest draft and its earliest blocking FIFO predecessor are now separate durable lineage facts; strict target validation and resolution replay no longer trust partial or stale terminal state.
+
+### RED evidence
+
+- Focused outbox probes first returned `saved_device` with no blocker when sequence 1 was conflicted and sequence 2 backed the displayed draft, both for one evaluation ID and for a provisional-to-authoritative ID mapping.
+- A keep-local remap into an empty target first succeeded despite an invalid scoped receipt or receipt tombstone because strict append returned before terminal validation.
+- Exact resolution replay first returned the tombstone result after the successor draft was changed without revalidating any live or terminal successor proof.
+
+### Delivered
+
+- `reconcileDraftLineage` returns the newest exact draft mutation and the earliest related queue head independently. Conflict mappings propagate the natural lineage across provisional and authoritative evaluation IDs, while all physical reads remain exact-scope. Claim selection fences mapped successor queues behind a predecessor needing attention.
+- Conflict recovery is bound to the exact blocking head. Keep-local selects the newest durable local draft, removes its mapped dependent chain, and rebases one authoritative successor; use-server discards that exact chain. The synchronized form listens to both displayed and blocking mutation events, suppresses confirmation/completion authority while a predecessor remains, and selects the successor by mutation ID, evaluation ID, version, queue sequence, and payload digest.
+- Strict target append validates all physically scoped receipts and tombstones, terminal-pair consistency, scoped quarantine envelopes, mutation lineage, and the target counter before every return, including empty mutation/counter targets. Invalid targets roll the transaction back with the original conflict unchanged.
+- Resolution tombstones now bind the result payload digest. Replays prove an exact live successor and its queue/context or an exact receipt/receipt-authority tombstone after compaction; divergent draft, payload digest, version, queue sequence, evaluation identity, or missing proof returns `corrupt_record` instead of success.
+- Mobile Chrome and Mobile Safari hold the real production component's conflict response while a newer edit is durably queued, then prove the conflict remains visible, reload recovers the newest draft, keep-local resolves that newest draft, and synchronization resumes.
+
+### Verification
+
+```text
+Focused RED outbox probes                                      FAIL (5 reviewed gaps), then GREEN
+Focused outbox/form unit tests                                 PASS (116, then 76 expanded outbox cases)
+npm run test:unit                                              PASS (32 files / 329 tests)
+npm run test:integration, repeated                             PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                        PASS (47 migrations)
+npx supabase test db --local                                   PASS (29 files / 847 tests)
+npm run verify                                                 PASS (format, lint, types, 329 unit tests, build)
+npm run test:e2e:evaluation                                    PASS (6 tests; Mobile Chrome + Mobile Safari)
+npm audit --audit-level=high                                   PASS (0 vulnerabilities)
+git diff --check                                               PASS
+```
+
+### Release gate
+
+The authenticated production-browser traversal remains a release-environment gate. The browser fixture imports the real synchronized form, repository, synchronizer, and conflict recovery path; PostgreSQL and the production route remain covered at their real security boundaries separately.

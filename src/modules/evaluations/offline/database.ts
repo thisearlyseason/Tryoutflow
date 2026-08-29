@@ -123,6 +123,7 @@ export type StoredEvaluationReceiptTombstone = {
   resolutionResultMutationId?: string;
   resolutionResultQueueSequence?: number;
   resolutionResultDraftDigest?: string;
+  resolutionResultPayloadDigest?: string;
   resolutionResultMarker?: 'keep_local_rebased' | 'use_server_discarded';
   tombstoneDigest: string;
 };
@@ -404,6 +405,7 @@ export const storedReceiptTombstoneSchema = z
     resolutionResultMutationId: uuid.optional(),
     resolutionResultQueueSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
     resolutionResultDraftDigest: sha256.optional(),
+    resolutionResultPayloadDigest: sha256.optional(),
     resolutionResultMarker: z.enum(['keep_local_rebased', 'use_server_discarded']).optional(),
     tombstoneDigest: sha256,
   })
@@ -436,6 +438,7 @@ export const storedReceiptTombstoneSchema = z
       record.resolutionServerVersion,
       record.resolutionServerSnapshotDigest,
       record.resolutionResultDraftDigest,
+      record.resolutionResultPayloadDigest,
       record.resolutionResultMarker,
     ];
     const resolutionCount = resolution.filter((value) => value !== undefined).length;

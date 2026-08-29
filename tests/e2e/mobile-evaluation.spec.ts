@@ -137,6 +137,27 @@ test('durably resolves synchronized conflicts without resurrecting discarded wor
   context,
   page,
 }) => {
+  let releaseConflict!: () => void;
+  const holdConflict = new Promise<void>((resolve) => {
+    releaseConflict = resolve;
+  });
+  let reportConflictRequest!: () => void;
+  const conflictRequested = new Promise<void>((resolve) => {
+    reportConflictRequest = resolve;
+  });
+  let heldConflict = false;
+  await page.route('**/api/evaluations/**', async (route) => {
+    const requestBody = route.request().postDataJSON() as { draft?: { note?: string } };
+    if (!heldConflict && requestBody.draft?.note?.startsWith('force durable conflict keep local')) {
+      heldConflict = true;
+      const response = await route.fetch();
+      reportConflictRequest();
+      await holdConflict;
+      await route.fulfill({ response });
+      return;
+    }
+    await route.continue();
+  });
   const mutationUrls: string[] = [];
   page.on('request', (request) => {
     if (request.method() === 'POST' && request.url().includes('/api/evaluations/'))
@@ -148,8 +169,15 @@ test('durably resolves synchronized conflicts without resurrecting discarded wor
   await page.getByRole('radio', { name: 'Compete score 4 of 5' }).click();
   await note.fill('force durable conflict keep local');
   await page.getByRole('button', { name: 'Save now' }).click();
+  await conflictRequested;
+  await note.fill('newest edit behind durable conflict');
+  releaseConflict();
   await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'newest edit behind durable conflict',
+  );
   await page.reload();
+  await expect(note).toHaveValue('newest edit behind durable conflict');
   await expect(page.getByRole('button', { name: 'Keep my local draft' })).toBeEnabled();
   await context.setOffline(true);
   await page.getByRole('button', { name: 'Keep my local draft' }).click();
@@ -157,6 +185,7 @@ test('durably resolves synchronized conflicts without resurrecting discarded wor
   await expect(page.getByRole('button', { name: 'Complete evaluation' })).toBeDisabled();
   await context.setOffline(false);
   await expect(page.getByRole('status')).toContainText('Saved on server');
+  await expect(note).toHaveValue('newest edit behind durable conflict');
   expect(mutationUrls.some((url) => url.includes('edededed-eded-4ede-8ede-edededededed'))).toBe(
     true,
   );

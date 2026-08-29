@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { createEvaluationOfflineRepository } from '../offline/repository';
 import { createEvaluationMutationSender, EvaluationSynchronizer } from '../offline/synchronizer';
-import type { EvaluationStorageScope } from '../offline/database';
+import type { EvaluationStorageScope, StoredEvaluationMutation } from '../offline/database';
 import {
   EvaluationForm,
   type EvaluationDraftInput,
@@ -59,6 +59,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     expectedVersion: number;
     payloadDigest: string;
   } | null>(null);
+  const blockingLineageRef = useRef<StoredEvaluationMutation | null>(null);
+  const relevantMutationIdsRef = useRef(new Set<string>());
   const [initialDraft, setInitialDraft] = useState<EvaluationDraftInput>(props.initialDraft);
   const [deviceLoaded, setDeviceLoaded] = useState(false);
   const [serverConfirmation, setServerConfirmation] = useState<{
@@ -97,9 +99,48 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     const activeRepository = repository;
     const activeSynchronizer = synchronizer;
     let cancelled = false;
+    function rememberLineage(
+      active: StoredEvaluationMutation | undefined,
+      blocking: StoredEvaluationMutation | undefined,
+    ) {
+      activeLineageRef.current = active
+        ? {
+            clientMutationId: active.clientMutationId,
+            evaluationId: active.evaluationId,
+            expectedVersion: active.expectedVersion,
+            payloadDigest: active.payloadDigest,
+          }
+        : null;
+      blockingLineageRef.current = blocking ?? null;
+      relevantMutationIdsRef.current = new Set(
+        [active?.clientMutationId, blocking?.clientMutationId].filter(
+          (value): value is string => value !== undefined,
+        ),
+      );
+    }
     async function refreshConfirmation() {
       if (!navigator.onLine) return;
       await activeSynchronizer.flush();
+      const reconciled = await activeRepository.reconcileDraftLineage(storageScope);
+      rememberLineage(reconciled.mutation, reconciled.blockingMutation);
+      if (
+        reconciled.state === 'needs_attention' ||
+        (reconciled.blockingMutation &&
+          reconciled.blockingMutation.clientMutationId !== reconciled.mutation?.clientMutationId)
+      ) {
+        if (!cancelled) setServerConfirmation(null);
+        return;
+      }
+      if (reconciled.confirmation) {
+        if (!cancelled) {
+          evaluationIdRef.current = reconciled.confirmation.evaluationId;
+          setServerConfirmation({
+            evaluationId: reconciled.confirmation.evaluationId,
+            version: reconciled.confirmation.serverVersion,
+          });
+        }
+        return;
+      }
       const lineage = activeLineageRef.current;
       if (!lineage) return;
       const receipt = await activeRepository.getReceipt(storageScope, lineage.clientMutationId);
@@ -119,8 +160,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       }
     }
     const unsubscribe = activeSynchronizer.subscribe((event) => {
-      if (cancelled || event.clientMutationId !== activeLineageRef.current?.clientMutationId)
-        return;
+      if (cancelled || !relevantMutationIdsRef.current.has(event.clientMutationId)) return;
       if (event.state === 'synced') void refreshConfirmation();
       else if (event.state === 'needs_attention') {
         const outcome =
@@ -157,7 +197,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
             server: props.initialDraft,
           });
           if (newerServerSnapshot) {
-            activeLineageRef.current = null;
+            rememberLineage(undefined, undefined);
             evaluationIdRef.current = props.initialDraft.evaluationId!;
             if (!cancelled) {
               setInitialDraft(props.initialDraft);
@@ -169,14 +209,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
             return;
           }
           const activeMutation = lineage.mutation;
-          activeLineageRef.current = activeMutation
-            ? {
-                clientMutationId: activeMutation.clientMutationId,
-                evaluationId: activeMutation.evaluationId,
-                expectedVersion: activeMutation.expectedVersion,
-                payloadDigest: activeMutation.payloadDigest,
-              }
-            : null;
+          const blockingMutation = lineage.blockingMutation;
+          rememberLineage(activeMutation, blockingMutation);
           const optimisticVersion = activeMutation
             ? activeMutation.expectedVersion + 1
             : local.expectedVersion;
@@ -184,7 +218,10 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
           if (evaluationId) evaluationIdRef.current = evaluationId;
           if (!cancelled) {
             setServerConfirmation(
-              lineage.confirmation
+              lineage.confirmation &&
+                lineage.state !== 'needs_attention' &&
+                (!blockingMutation ||
+                  blockingMutation.clientMutationId === activeMutation?.clientMutationId)
                 ? {
                     evaluationId: lineage.confirmation.evaluationId,
                     version: lineage.confirmation.serverVersion,
@@ -192,7 +229,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
                 : null,
             );
             if (lineage.state === 'needs_attention') {
-              const category = activeMutation?.errorCategory;
+              const category = blockingMutation?.errorCategory;
               setBackgroundSaveResult({
                 token: Date.now(),
                 outcome:
@@ -206,8 +243,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
                           ? 'invalid_context'
                           : 'unexpected',
                 ...(category === 'conflict' &&
-                activeMutation?.conflictServerEvaluationId === props.initialDraft.evaluationId &&
-                activeMutation.conflictServerVersion === props.initialDraft.version
+                blockingMutation?.conflictServerEvaluationId === props.initialDraft.evaluationId &&
+                blockingMutation.conflictServerVersion === props.initialDraft.version
                   ? { serverFresh: true }
                   : {}),
               });
@@ -301,6 +338,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       expectedVersion: queued.expectedVersion,
       payloadDigest: queued.payloadDigest,
     };
+    relevantMutationIdsRef.current.add(queued.clientMutationId);
+    blockingLineageRef.current ??= queued;
     setServerConfirmation(null);
     if (navigator.onLine) await synchronizer.flush();
     const receipt = await repository.getReceipt(storageScope, queued.clientMutationId);
@@ -347,10 +386,13 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
   }) {
     if (!repository || !synchronizer || !props.initialDraft.evaluationId)
       return { outcome: 'failed' as const };
-    const activeClientMutationId = activeLineageRef.current?.clientMutationId;
+    const blocking = blockingLineageRef.current;
     const head = (await repository.listMutations(storageScope)).find(
       (row) =>
-        row.clientMutationId === activeClientMutationId &&
+        row.clientMutationId === blocking?.clientMutationId &&
+        row.evaluationId === blocking.evaluationId &&
+        row.payloadDigest === blocking.payloadDigest &&
+        row.queueSequence === blocking.queueSequence &&
         row.status === 'needs_attention' &&
         row.errorCategory === 'conflict',
     );
@@ -388,7 +430,12 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     if (input.action === 'keep_local') {
       const successor = resolved.clientMutationId
         ? (await repository.listMutations(storageScope)).find(
-            (row) => row.clientMutationId === resolved.clientMutationId,
+            (row) =>
+              row.clientMutationId === resolved.clientMutationId &&
+              row.evaluationId === resolved.evaluationId &&
+              row.expectedVersion === resolved.expectedVersion &&
+              row.queueSequence === resolved.queueSequence &&
+              row.payloadDigest === resolved.payloadDigest,
           )
         : null;
       activeLineageRef.current = successor
@@ -399,6 +446,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
             payloadDigest: successor.payloadDigest,
           }
         : null;
+      blockingLineageRef.current = successor ?? null;
+      relevantMutationIdsRef.current = new Set(successor ? [successor.clientMutationId] : []);
       await synchronizer.flush();
       const receipt = resolved.clientMutationId
         ? await repository.getReceipt(storageScope, resolved.clientMutationId)
@@ -407,7 +456,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         receipt &&
         receipt.clientMutationId === resolved.clientMutationId &&
         receipt.evaluationId === resolved.evaluationId &&
-        receipt.expectedVersion === resolved.expectedVersion
+        receipt.expectedVersion === resolved.expectedVersion &&
+        receipt.payloadDigest === resolved.payloadDigest
       ) {
         setServerConfirmation({
           evaluationId: receipt.evaluationId,
@@ -427,6 +477,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       };
     }
     activeLineageRef.current = null;
+    blockingLineageRef.current = null;
+    relevantMutationIdsRef.current.clear();
     setServerConfirmation({
       evaluationId: resolved.evaluationId,
       version: resolved.expectedVersion,
