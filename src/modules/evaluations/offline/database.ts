@@ -73,6 +73,8 @@ export type StoredEvaluationMutation = {
   errorCategory?: EvaluationStoredFailureCategory;
   lastError?: string;
   acknowledgedAt?: string;
+  conflictServerEvaluationId?: string;
+  conflictServerVersion?: number;
 };
 
 export type StoredEvaluationQueueCounter = {
@@ -112,6 +114,16 @@ export type StoredEvaluationReceiptTombstone = {
   payloadDigest?: string;
   serverVersion?: number;
   acknowledgedAt?: string;
+  resolutionOriginalEvaluationId?: string;
+  resolutionOriginalPayloadDigest?: string;
+  resolutionOriginalQueueSequence?: number;
+  resolutionServerEvaluationId?: string;
+  resolutionServerVersion?: number;
+  resolutionServerSnapshotDigest?: string;
+  resolutionResultMutationId?: string;
+  resolutionResultQueueSequence?: number;
+  resolutionResultDraftDigest?: string;
+  resolutionResultMarker?: 'keep_local_rebased' | 'use_server_discarded';
   tombstoneDigest: string;
 };
 
@@ -277,6 +289,8 @@ export const storedMutationSchema = z
       .refine((value) => new TextEncoder().encode(value).byteLength <= 500)
       .optional(),
     acknowledgedAt: isoDate.optional(),
+    conflictServerEvaluationId: uuid.optional(),
+    conflictServerVersion: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
   })
   .superRefine((record, context) => {
     if (Date.parse(record.updatedAt) < Date.parse(record.createdAt)) {
@@ -318,6 +332,21 @@ export const storedMutationSchema = z
     }
     if (record.status === 'needs_attention' && !record.errorCategory) {
       context.addIssue({ code: 'custom', message: 'Attention work requires a bounded category.' });
+    }
+    if (
+      (record.conflictServerEvaluationId === undefined) !==
+      (record.conflictServerVersion === undefined)
+    ) {
+      context.addIssue({ code: 'custom', message: 'Conflict server identity must be complete.' });
+    }
+    if (
+      record.conflictServerEvaluationId !== undefined &&
+      (record.status !== 'needs_attention' || record.errorCategory !== 'conflict')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Only conflict attention stores server identity.',
+      });
     }
   });
 
@@ -361,6 +390,21 @@ export const storedReceiptTombstoneSchema = z
     payloadDigest: sha256.optional(),
     serverVersion: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
     acknowledgedAt: isoDate.optional(),
+    resolutionOriginalEvaluationId: uuid.optional(),
+    resolutionOriginalPayloadDigest: sha256.optional(),
+    resolutionOriginalQueueSequence: z
+      .number()
+      .int()
+      .min(1)
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+    resolutionServerEvaluationId: uuid.optional(),
+    resolutionServerVersion: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+    resolutionServerSnapshotDigest: sha256.optional(),
+    resolutionResultMutationId: uuid.optional(),
+    resolutionResultQueueSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+    resolutionResultDraftDigest: sha256.optional(),
+    resolutionResultMarker: z.enum(['keep_local_rebased', 'use_server_discarded']).optional(),
     tombstoneDigest: sha256,
   })
   .superRefine((record, context) => {
@@ -383,6 +427,44 @@ export const storedReceiptTombstoneSchema = z
       record.serverVersion !== record.expectedVersion + 1
     ) {
       context.addIssue({ code: 'custom', message: 'Terminal lineage version is not exact.' });
+    }
+    const resolution = [
+      record.resolutionOriginalEvaluationId,
+      record.resolutionOriginalPayloadDigest,
+      record.resolutionOriginalQueueSequence,
+      record.resolutionServerEvaluationId,
+      record.resolutionServerVersion,
+      record.resolutionServerSnapshotDigest,
+      record.resolutionResultDraftDigest,
+      record.resolutionResultMarker,
+    ];
+    const resolutionCount = resolution.filter((value) => value !== undefined).length;
+    if (resolutionCount !== 0 && resolutionCount !== resolution.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Conflict resolution lineage must be complete.',
+      });
+    }
+    if (
+      resolutionCount > 0 &&
+      !['conflict_keep_local', 'conflict_use_server'].includes(record.reason)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Only conflict heads store resolution lineage.',
+      });
+    }
+    if (
+      record.resolutionResultMarker === 'keep_local_rebased' &&
+      (!record.resolutionResultMutationId || !record.resolutionResultQueueSequence)
+    ) {
+      context.addIssue({ code: 'custom', message: 'A local rebase requires successor lineage.' });
+    }
+    if (
+      record.resolutionResultMarker === 'use_server_discarded' &&
+      (record.resolutionResultMutationId || record.resolutionResultQueueSequence)
+    ) {
+      context.addIssue({ code: 'custom', message: 'A server discard cannot name a successor.' });
     }
   });
 

@@ -233,15 +233,17 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     if (!repository || !synchronizer || !props.initialDraft.evaluationId)
       return { outcome: 'failed' as const };
     const rows = (await repository.listMutations(storageScope))
-      .filter(
-        (row) =>
-          row.evaluationId === props.initialDraft.evaluationId &&
-          row.status === 'needs_attention' &&
-          row.errorCategory === 'conflict',
-      )
+      .filter((row) => row.status === 'needs_attention' && row.errorCategory === 'conflict')
       .sort((left, right) => left.queueSequence - right.queueSequence);
     const head = rows[0];
-    if (!head) return { outcome: 'failed' as const };
+    if (
+      !head ||
+      !head.conflictServerEvaluationId ||
+      !head.conflictServerVersion ||
+      props.initialDraft.evaluationId !== head.conflictServerEvaluationId ||
+      props.initialDraft.version !== head.conflictServerVersion
+    )
+      return { outcome: 'failed' as const };
     const serverDraft = {
       scores: props.initialDraft.scores,
       ...(props.initialDraft.note ? { note: props.initialDraft.note } : {}),
@@ -250,23 +252,48 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     };
     const resolved = await repository.resolveConflict({
       scope: storageScope,
-      evaluationId: props.initialDraft.evaluationId,
       clientMutationId: head.clientMutationId,
       action: input.action,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
       server: {
+        scope: storageScope,
         evaluationId: props.initialDraft.evaluationId,
         version: props.initialDraft.version,
         draft: serverDraft,
       },
     });
+    evaluationIdRef.current = resolved.evaluationId;
     if (input.action === 'keep_local') {
       await synchronizer.flush();
       const receipt = resolved.clientMutationId
         ? await repository.getReceipt(storageScope, resolved.clientMutationId)
         : null;
-      const version = receipt?.serverVersion ?? resolved.expectedVersion + 1;
-      setServerConfirmation({ evaluationId: resolved.evaluationId, version });
-      return { outcome: 'resolved' as const, evaluationId: resolved.evaluationId, version };
+      if (
+        receipt &&
+        receipt.clientMutationId === resolved.clientMutationId &&
+        receipt.evaluationId === resolved.evaluationId &&
+        receipt.expectedVersion === resolved.expectedVersion
+      ) {
+        setServerConfirmation({
+          evaluationId: receipt.evaluationId,
+          version: receipt.serverVersion,
+        });
+        return {
+          outcome: 'resolved' as const,
+          evaluationId: receipt.evaluationId,
+          version: receipt.serverVersion,
+        };
+      }
+      setServerConfirmation(null);
+      return {
+        outcome: 'pending' as const,
+        evaluationId: resolved.evaluationId,
+        version: resolved.expectedVersion + 1,
+      };
     }
     setServerConfirmation({
       evaluationId: resolved.evaluationId,
@@ -292,6 +319,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       <EvaluationForm
         {...props}
         durableDeviceSave
+        allowVerifiedIdentityRemap
         initialDraft={initialDraft}
         recoveryServerDraft={props.initialDraft}
         key={deviceLoaded ? 'device-loaded' : 'server-loaded'}
@@ -306,6 +334,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     <EvaluationForm
       {...props}
       durableDeviceSave
+      allowVerifiedIdentityRemap
       initialDraft={initialDraft}
       recoveryServerDraft={props.initialDraft}
       key={deviceLoaded ? 'device-loaded' : 'server-loaded'}

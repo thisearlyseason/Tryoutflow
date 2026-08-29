@@ -111,3 +111,50 @@ git diff --check                                                PASS
 - Existing Task 16 physical user partitioning, quotas, immutable digest checks, FIFO counters, leases, fencing, authoritative receipts, compaction, corruption recovery, and teardown rules remain active.
 - HTTP/UI messages expose only coarse recovery categories and never reflect response details.
 - `progress.md` and unrelated files were not changed.
+
+## Fix round 2
+
+### Status
+
+DONE — authoritative identity remapping, exact receipt-gated confirmation, durable resolution replay, generation fencing, and streaming response caps are addressed. The authenticated production-browser traversal remains the same release-environment gate.
+
+### RED evidence
+
+- A natural-key conflict returned only the provisional evaluation ID; fake-IndexedDB remap tests first could not reconcile a different authoritative ID, and the synchronized mobile fixture kept recovery disabled after the server identity changed.
+- Keep-local resolution initially promoted `Saved on server` through an `expectedVersion + 1` fallback with no receipt. The enhanced mobile flow held the browser offline during resolution and exposed that completion remained visually enabled while only device durability existed.
+- Existing action-only tombstones accepted a changed server snapshot and reconstructed replay results from mutable current draft state. Concurrent opposite tab decisions had no exact result-bound replay record.
+- StrictMode stop→start could schedule retry and publish from an old generation after awaited sender/storage work.
+- Success responses used `response.json()` and error responses used `response.text()`, allocating the complete body before the byte check.
+
+### Delivered
+
+- Additive migration `202608280047_authoritative_evaluation_conflicts.sql` preserves the original immutable client/evaluation mutation identity while augmenting exact-scope natural-key conflict receipts with `serverEvaluationId`. The wrapper remains actor-bound, delegates all authorization and atomic mutation behavior to the prior command, and stores the augmented byte-equivalent replay receipt before commit.
+- Conflict attention persists the verified authoritative ID/version from the receipt. Resolution requires the exact physical user/scope, original client ID/evaluation ID/payload digest/FIFO sequence, authoritative server ID/version, and canonical server snapshot digest. Arbitrary ID/scope/rubric/snapshot swaps fail closed.
+- Keep-local atomically retires the original queue, rebases the newest durable local draft onto the authoritative evaluation and queue identity, and creates one successor mutation. Use-server atomically replaces the draft with the authoritative snapshot and permanently discards the local lineage. Reload, teardown, and cleanup retain permanent fences.
+- The conflict-head tombstone now stores a bounded privacy-safe resolution record: action, original lineage/digests, authoritative identity/version/snapshot digest, and exact successor mutation/sequence/draft digest or discard marker. No notes, scores, athlete identity, or contact data are copied. Exact replay returns the stored result; changed action/snapshot/identity conflicts; concurrent tabs serialize to one winner.
+- Keep-local remains `Saved on device` and completion is disabled until the exact new successor receipt exists. Missing receipt/offline/transient/attention paths retain the draft; the later background receipt alone promotes `Saved on server` and completion authority. The optimistic version is never treated as confirmation.
+- Every awaited synchronizer transition is generation-fenced before emit, retry, continuation, or recursion. New-generation recovery is scheduled only by start/current-generation callbacks; stale sends and acknowledgements cannot publish into new subscribers.
+- Both response paths share a streaming actual-byte reader with strict MIME and announced-length preflight, actual chunk caps, early cancellation, fatal UTF-8 decode, JSON parse, and strict Zod envelope validation. Missing/lying lengths and split multibyte/oversize bodies are covered without full-body allocation.
+- The production-component mobile fixture now exercises a provisional `fefe…` mutation remapped to authoritative `eded…`, reload recovery, offline keep-local, blocked completion, background receipt promotion, an authoritative-ID network send, and both keep/discard reload outcomes in Mobile Chrome and Mobile Safari.
+
+### Verification
+
+```text
+npx supabase db reset --local --no-seed                         PASS (47 migrations)
+npx supabase test db --local                                    PASS (29 files / 847 tests)
+npm run test:integration, repeated                              PASS twice (19 files / 137 tests)
+focused outbox/synchronizer/form unit suites                    PASS (125 focused tests)
+npm run verify                                                  PASS (format, lint, types, 310 unit tests, build)
+npm run test:e2e:evaluation                                     PASS (6 tests; Mobile Chrome + Mobile Safari)
+npm audit --audit-level=high                                    PASS (0 vulnerabilities)
+git diff --check                                                PASS
+```
+
+### Self-review
+
+- Migration 046 and Task 16 primary-key/schema history remain untouched; migration 047 is additive and the browser record extension is schemaless within the existing integrity-digested tombstone store.
+- The SQL wrapper does not preflight natural identity before the legacy authorization boundary, so it adds no cross-tenant existence oracle. Advisory locking remains held until the augmented receipt commits.
+- Server identity can change only when it matches the conflict receipt already persisted on the exact queue head; UI freshness merely enables the action, while the repository remains the durable authority.
+- Resolution metadata contains UUIDs, versions, sequence numbers, and SHA-256 digests only. Raw local/server drafts remain in their existing scoped draft/mutation stores, not in replay metadata.
+- Authenticated production cookies, live membership lookup, Next route, PostgREST, and PostgreSQL in one browser request still require the documented staging/local authenticated release run; no stronger claim is made.
+- `progress.md` was not changed.

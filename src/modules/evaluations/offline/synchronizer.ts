@@ -83,6 +83,7 @@ export class EvaluationSynchronizer {
     const generation = this.generation;
     this.options.eventTarget?.addEventListener('online', this.onlineListener);
     if (this.flushing) {
+      this.scheduleRetry(new Date(this.now().getTime() + 30_000).toISOString(), generation);
       void this.flushing.finally(() => {
         if (this.isActive(generation)) void this.flush();
       });
@@ -123,7 +124,7 @@ export class EvaluationSynchronizer {
       try {
         receipt = await this.options.send(entry);
       } catch (error) {
-        if (this.fenceStaleGeneration(entry, generation)) return;
+        if (this.fenceStaleGeneration(generation)) return;
         if (
           error instanceof EvaluationMutationSendError &&
           ['forbidden', 'conflict', 'invalid_input'].includes(error.category)
@@ -134,7 +135,12 @@ export class EvaluationSynchronizer {
               : error.category === 'conflict'
                 ? 'conflict'
                 : 'invalid_input';
-          await this.attention(entry, category, 'Evaluation synchronization requires review.');
+          await this.attention(
+            entry,
+            category,
+            'Evaluation synchronization requires review.',
+            generation,
+          );
           continue;
         }
         const failed = await this.options.repository.recordMutationFailure({
@@ -149,18 +155,24 @@ export class EvaluationSynchronizer {
           message: 'The synchronization request was not confirmed.',
           now: this.now(),
         });
+        if (this.fenceStaleGeneration(generation)) return;
         this.emitMutation(failed);
         if (failed.status === 'pending') this.scheduleRetry(failed.nextAttemptAt, generation);
         return;
       }
-      if (this.fenceStaleGeneration(entry, generation)) return;
+      if (this.fenceStaleGeneration(generation)) return;
       if (
         receipt.clientMutationId !== entry.clientMutationId ||
         receipt.evaluationId !== entry.evaluationId ||
         receipt.expectedVersion !== entry.expectedVersion ||
         receipt.payloadDigest !== entry.payloadDigest
       ) {
-        await this.attention(entry, 'corrupt_record', 'Server receipt did not match queued work.');
+        await this.attention(
+          entry,
+          'corrupt_record',
+          'Server receipt did not match queued work.',
+          generation,
+        );
         continue;
       }
       if (receipt.outcome !== 'synced') {
@@ -168,6 +180,13 @@ export class EvaluationSynchronizer {
           entry,
           attentionCategory[receipt.outcome],
           `Evaluation synchronization requires review (${receipt.outcome}).`,
+          generation,
+          receipt.outcome === 'conflict'
+            ? {
+                evaluationId: receipt.serverEvaluationId,
+                version: receipt.serverVersion,
+              }
+            : undefined,
         );
         continue;
       }
@@ -176,6 +195,7 @@ export class EvaluationSynchronizer {
           entry,
           'corrupt_record',
           'Server version was not the exact successor.',
+          generation,
         );
         continue;
       }
@@ -191,6 +211,7 @@ export class EvaluationSynchronizer {
           acknowledgedAt: receipt.acknowledgedAt,
         });
       } catch (error) {
+        if (this.fenceStaleGeneration(generation)) throw error;
         this.emit({
           scopeKey: entry.scopeKey,
           evaluationId: entry.evaluationId,
@@ -200,6 +221,7 @@ export class EvaluationSynchronizer {
         });
         throw error;
       }
+      if (this.fenceStaleGeneration(generation)) return;
       this.emit({
         scopeKey: scopeKey(entry.scope),
         evaluationId: entry.evaluationId,
@@ -212,13 +234,8 @@ export class EvaluationSynchronizer {
   private isActive(generation: number): boolean {
     return this.running && this.generation === generation;
   }
-  private fenceStaleGeneration(
-    entry: StoredEvaluationMutation,
-    generation: number | null,
-  ): boolean {
-    if (generation === null || this.isActive(generation)) return false;
-    if (this.running && entry.leaseUntil) this.scheduleRetry(entry.leaseUntil, this.generation);
-    return true;
+  private fenceStaleGeneration(generation: number | null): boolean {
+    return generation !== null && !this.isActive(generation);
   }
   private now(): Date {
     return this.options.now?.() ?? new Date();
@@ -240,13 +257,19 @@ export class EvaluationSynchronizer {
     this.retryTimer = schedule(() => {
       if (!this.isActive(generation)) return;
       this.retryTimer = null;
-      void this.flush();
+      if (this.flushing) {
+        void this.flushing.finally(() => {
+          if (this.isActive(generation)) void this.flush();
+        });
+      } else void this.flush();
     }, delay);
   }
   private async attention(
     entry: StoredEvaluationMutation,
     category: 'conflict' | 'forbidden' | 'invalid_input' | 'invalid_rubric' | 'corrupt_record',
     message: string,
+    generation: number | null,
+    conflictServer?: { evaluationId: string | null | undefined; version: number | null },
   ): Promise<void> {
     const updated = await this.options.repository.markNeedsAttention({
       scope: entry.scope,
@@ -255,7 +278,14 @@ export class EvaluationSynchronizer {
       claimToken: entry.claimToken!,
       category,
       message,
+      ...(conflictServer?.evaluationId && conflictServer.version !== null
+        ? {
+            conflictServerEvaluationId: conflictServer.evaluationId,
+            conflictServerVersion: conflictServer.version,
+          }
+        : {}),
     });
+    if (this.fenceStaleGeneration(generation)) return;
     this.emitMutation(updated);
   }
   private emitMutation(entry: StoredEvaluationMutation): void {
@@ -289,18 +319,57 @@ const errorBodySchema = z.strictObject({
     'temporarily_unavailable',
   ]),
 });
+const successBodySchema = z.strictObject({ receipt: evaluationMutationReceiptSchema });
 
 async function parseBoundedError(response: Response): Promise<z.infer<typeof errorBodySchema>> {
-  const type = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
-  const announced = Number(response.headers.get('content-length') ?? '0');
-  if (type !== 'application/json' || (announced && announced > 4_096))
-    throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
-  const text = await response.text();
-  if (new TextEncoder().encode(text).byteLength > 4_096)
-    throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
   try {
-    return errorBodySchema.parse(JSON.parse(text) as unknown);
-  } catch {
+    return errorBodySchema.parse(await readJsonResponseEnvelope(response, 4_096));
+  } catch (error) {
+    if (error instanceof EvaluationMutationSendError) throw error;
+    throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
+  }
+}
+
+export async function readJsonResponseEnvelope(response: Response, maximumBytes: number) {
+  const type = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+  const announcedRaw = response.headers.get('content-length');
+  const announced = announcedRaw === null ? null : Number(announcedRaw);
+  if (
+    type !== 'application/json' ||
+    (announced !== null &&
+      (!Number.isSafeInteger(announced) || announced < 0 || announced > maximumBytes)) ||
+    !response.body
+  )
+    throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const next = await reader.read();
+      if (next.done) break;
+      total += next.value.byteLength;
+      if (total > maximumBytes) {
+        await reader.cancel('response_too_large');
+        throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
+      }
+      chunks.push(next.value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return JSON.parse(text) as unknown;
+  } catch (error) {
+    try {
+      await reader.cancel('invalid_response');
+    } catch {
+      // Cancellation is best-effort and never changes the response classification.
+    }
+    if (error instanceof EvaluationMutationSendError) throw error;
     throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
   }
 }
@@ -339,19 +408,10 @@ export function createEvaluationMutationSender(
         throw new EvaluationMutationSendError('transient', 'sync_temporarily_unavailable');
       throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
     }
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
-    }
-    if (!body || typeof body !== 'object' || !('receipt' in body))
-      throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
-    const parsed = evaluationMutationReceiptSchema.safeParse(
-      (body as { receipt?: unknown }).receipt,
-    );
+    const body = await readJsonResponseEnvelope(response, 64 * 1_024);
+    const parsed = successBodySchema.safeParse(body);
     if (!parsed.success)
       throw new EvaluationMutationSendError('transient', 'sync_response_invalid');
-    return parsed.data;
+    return parsed.data.receipt;
   };
 }

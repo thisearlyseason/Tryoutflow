@@ -5,6 +5,7 @@ import {
   digestValue,
   evaluationPayload,
 } from '../../../../../../../../src/modules/evaluations/offline/database';
+import { recordAuthoritativeEvaluationId } from '../../../../../lib/authoritative-evaluation-state';
 
 const receipts = new Map<string, Record<string, unknown>>();
 const versions = new Map<string, number>();
@@ -23,6 +24,7 @@ export async function POST(
   if (prior) return NextResponse.json({ receipt: prior });
   const engine = request.headers.get('user-agent')?.includes('Chrome') ? 'chromium' : 'webkit';
   const serverKey = `${mutation.data.evaluationId}:${engine}`;
+  const forcedKey = `${mutation.data.scope.registrationId}:${engine}`;
   const payloadDigest = await digestValue(
     evaluationPayload(
       mutation.data.scope,
@@ -31,11 +33,33 @@ export async function POST(
       mutation.data.draft,
     ),
   );
-  const current = versions.get(serverKey) ?? 0;
+  const current =
+    versions.get(serverKey) ??
+    ([
+      'fefefefe-fefe-4efe-8efe-fefefefefefe',
+      'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd',
+      'edededed-eded-4ede-8ede-edededededed',
+      'dcdcdcdc-dcdc-4dcd-8dcd-dcdcdcdcdcdc',
+    ].includes(mutation.data.evaluationId)
+      ? 1
+      : 0);
   const forceOnce =
     mutation.data.draft.note?.startsWith('force durable conflict') &&
-    !forcedConflicts.has(serverKey);
-  if (forceOnce) forcedConflicts.add(serverKey);
+    !forcedConflicts.has(forcedKey);
+  if (forceOnce) forcedConflicts.add(forcedKey);
+  const remappedEvaluationId =
+    mutation.data.scope.registrationId === 'abababab-abab-4bab-8bab-abababababab'
+      ? 'edededed-eded-4ede-8ede-edededededed'
+      : mutation.data.scope.registrationId === 'acacacac-acac-4cac-8cac-acacacacacac'
+        ? 'dcdcdcdc-dcdc-4dcd-8dcd-dcdcdcdcdcdc'
+        : mutation.data.evaluationId;
+  if (forceOnce) {
+    recordAuthoritativeEvaluationId(
+      mutation.data.scope.registrationId,
+      engine,
+      remappedEvaluationId,
+    );
+  }
   const outcome =
     mutation.data.draft.note === 'force server conflict' ||
     forceOnce ||
@@ -48,6 +72,9 @@ export async function POST(
     outcome,
     clientMutationId: mutation.data.clientMutationId,
     evaluationId: mutation.data.evaluationId,
+    ...(outcome === 'conflict'
+      ? { serverEvaluationId: forceOnce ? remappedEvaluationId : mutation.data.evaluationId }
+      : {}),
     expectedVersion: mutation.data.expectedVersion,
     payloadDigest,
     serverVersion,

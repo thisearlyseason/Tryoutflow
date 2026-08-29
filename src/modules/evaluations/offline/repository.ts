@@ -696,6 +696,19 @@ export class EvaluationOfflineRepository {
     clientMutationId: string,
     reason: 'conflict_keep_local' | 'conflict_use_server' | 'conflict_dependent',
     now: Date,
+    resolution?: Pick<
+      StoredEvaluationReceiptTombstone,
+      | 'resolutionOriginalEvaluationId'
+      | 'resolutionOriginalPayloadDigest'
+      | 'resolutionOriginalQueueSequence'
+      | 'resolutionServerEvaluationId'
+      | 'resolutionServerVersion'
+      | 'resolutionServerSnapshotDigest'
+      | 'resolutionResultMutationId'
+      | 'resolutionResultQueueSequence'
+      | 'resolutionResultDraftDigest'
+      | 'resolutionResultMarker'
+    >,
   ): Promise<StoredEvaluationReceiptTombstone> {
     const storageKey = `${scopeKey(scope)}|${clientMutationId}`;
     const rawExisting = await this.database.receiptTombstones.get(storageKey);
@@ -706,6 +719,15 @@ export class EvaluationOfflineRepository {
           'invalid_transition',
           'Conflict resolution action does not match its durable terminal record.',
         );
+      if (resolution) {
+        for (const [key, value] of Object.entries(resolution)) {
+          if (existing[key as keyof StoredEvaluationReceiptTombstone] !== value)
+            throw new EvaluationOfflineError(
+              'invalid_transition',
+              'Conflict resolution does not match its durable server snapshot and result.',
+            );
+        }
+      }
       return existing;
     }
     const withoutDigest: Omit<StoredEvaluationReceiptTombstone, 'tombstoneDigest'> = {
@@ -714,6 +736,7 @@ export class EvaluationOfflineRepository {
       clientMutationId,
       reason,
       createdAt: now.toISOString(),
+      ...resolution,
     };
     const candidate = storedReceiptTombstoneSchema.parse({
       ...withoutDigest,
@@ -1677,6 +1700,8 @@ export class EvaluationOfflineRepository {
     claimToken: string;
     category: EvaluationMutationFailureCategory;
     message: string;
+    conflictServerEvaluationId?: string;
+    conflictServerVersion?: number;
     now?: Date;
   }): Promise<StoredEvaluationMutation> {
     return this.updateFailure(input, true);
@@ -1690,6 +1715,8 @@ export class EvaluationOfflineRepository {
       claimToken: string;
       category: EvaluationMutationFailureCategory;
       message: string;
+      conflictServerEvaluationId?: string;
+      conflictServerVersion?: number;
       now?: Date;
     },
     forceAttention: boolean,
@@ -1702,6 +1729,16 @@ export class EvaluationOfflineRepository {
       new TextEncoder().encode(rawInput.message).byteLength > 500
     )
       throw new EvaluationOfflineError('invalid_input', 'Invalid bounded failure details.');
+    if (
+      (rawInput.conflictServerEvaluationId === undefined) !==
+        (rawInput.conflictServerVersion === undefined) ||
+      (rawInput.conflictServerEvaluationId !== undefined &&
+        (!uuid.safeParse(rawInput.conflictServerEvaluationId).success ||
+          rawInput.category !== 'conflict' ||
+          !Number.isSafeInteger(rawInput.conflictServerVersion) ||
+          rawInput.conflictServerVersion! < 1))
+    )
+      throw new EvaluationOfflineError('invalid_input', 'Invalid conflict server identity.');
     try {
       return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const raw = await this.database.mutations.get(
@@ -1729,6 +1766,8 @@ export class EvaluationOfflineRepository {
               ? 'retry_exhausted'
               : rawInput.category,
           lastError: safeDiagnostic(rawInput.message),
+          conflictServerEvaluationId: rawInput.conflictServerEvaluationId,
+          conflictServerVersion: rawInput.conflictServerVersion,
           claimToken: undefined,
           leaseUntil: undefined,
         };
@@ -1778,6 +1817,8 @@ export class EvaluationOfflineRepository {
           updatedAt: now.toISOString(),
           errorCategory: undefined,
           lastError: undefined,
+          conflictServerEvaluationId: undefined,
+          conflictServerVersion: undefined,
         };
         await this.database.mutations.put(updated);
         return structuredClone(updated);
@@ -1789,10 +1830,15 @@ export class EvaluationOfflineRepository {
 
   async resolveConflict(input: {
     scope: EvaluationStorageScope;
-    evaluationId: string;
     clientMutationId: string;
     action: 'keep_local' | 'use_server';
+    original: {
+      evaluationId: string;
+      payloadDigest: string;
+      queueSequence: number;
+    };
     server: {
+      scope: EvaluationStorageScope;
       evaluationId: string;
       version: number;
       draft: EvaluationDraftPayload;
@@ -1802,22 +1848,35 @@ export class EvaluationOfflineRepository {
     action: 'keep_local' | 'use_server';
     evaluationId: string;
     expectedVersion: number;
-    draft: EvaluationDraftPayload;
+    draftDigest: string;
     clientMutationId?: string;
+    queueSequence?: number;
   }> {
     const scope = this.parseScope(input.scope);
+    const serverScope = this.parseScope(input.server.scope);
     const serverDraft = this.parseDraft(input.server.draft);
     const now = safeDate(input.now ?? new Date());
     if (
-      !uuid.safeParse(input.evaluationId).success ||
+      scopeKey(serverScope) !== scopeKey(scope) ||
+      !uuid.safeParse(input.original.evaluationId).success ||
+      !/^[0-9a-f]{64}$/.test(input.original.payloadDigest) ||
+      !Number.isSafeInteger(input.original.queueSequence) ||
+      input.original.queueSequence < 1 ||
       !uuid.safeParse(input.clientMutationId).success ||
-      input.server.evaluationId !== input.evaluationId ||
+      !uuid.safeParse(input.server.evaluationId).success ||
       !Number.isSafeInteger(input.server.version) ||
-      input.server.version < 0 ||
+      input.server.version < 1 ||
       input.server.version >= 2_147_483_647 ||
       !['keep_local', 'use_server'].includes(input.action)
     )
       throw new EvaluationOfflineError('invalid_input', 'Invalid conflict resolution context.');
+
+    const serverSnapshotDigest = await digestValue({
+      scope: serverScope,
+      evaluationId: input.server.evaluationId,
+      version: input.server.version,
+      draft: serverDraft,
+    });
 
     try {
       return await this.database.transaction('rw', this.allTables(), async (transaction) => {
@@ -1842,26 +1901,43 @@ export class EvaluationOfflineRepository {
               'invalid_transition',
               'Conflict resolution action does not match its durable terminal record.',
             );
-          const current = await this.database.drafts.get(scopeKey(scope));
-          if (!current)
+          if (
+            tombstone.resolutionOriginalEvaluationId !== input.original.evaluationId ||
+            tombstone.resolutionOriginalPayloadDigest !== input.original.payloadDigest ||
+            tombstone.resolutionOriginalQueueSequence !== input.original.queueSequence ||
+            tombstone.resolutionServerEvaluationId !== input.server.evaluationId ||
+            tombstone.resolutionServerVersion !== input.server.version ||
+            tombstone.resolutionServerSnapshotDigest !== serverSnapshotDigest ||
+            !tombstone.resolutionResultDraftDigest ||
+            !tombstone.resolutionResultMarker
+          )
             throw new EvaluationOfflineError(
               'invalid_transition',
-              'Resolved draft is unavailable.',
+              'Conflict resolution does not match its durable server snapshot and lineage.',
             );
-          const draftRecord = await this.validateDraftRecord(current, scope);
           return {
             action: input.action,
-            evaluationId: input.evaluationId,
-            expectedVersion: draftRecord.expectedVersion,
-            draft: structuredClone(draftRecord.draft),
+            evaluationId: tombstone.resolutionServerEvaluationId,
+            expectedVersion: tombstone.resolutionServerVersion,
+            draftDigest: tombstone.resolutionResultDraftDigest,
+            ...(tombstone.resolutionResultMutationId
+              ? { clientMutationId: tombstone.resolutionResultMutationId }
+              : {}),
+            ...(tombstone.resolutionResultQueueSequence
+              ? { queueSequence: tombstone.resolutionResultQueueSequence }
+              : {}),
           };
         }
         const head = await this.validateMutationRecord(rawHead);
         if (
           head.scopeKey !== scopeKey(scope) ||
-          head.evaluationId !== input.evaluationId ||
+          head.evaluationId !== input.original.evaluationId ||
+          head.payloadDigest !== input.original.payloadDigest ||
+          head.queueSequence !== input.original.queueSequence ||
           head.status !== 'needs_attention' ||
-          head.errorCategory !== 'conflict'
+          head.errorCategory !== 'conflict' ||
+          head.conflictServerEvaluationId !== input.server.evaluationId ||
+          head.conflictServerVersion !== input.server.version
         )
           throw new EvaluationOfflineError(
             'invalid_transition',
@@ -1895,6 +1971,79 @@ export class EvaluationOfflineRepository {
             : latestMutation.draft;
         this.assertDraftMatchesContext(localDraft, context);
 
+        const chosenDraft = input.action === 'keep_local' ? localDraft : serverDraft;
+        const timestamp = now.toISOString();
+        const resultDraftDigest = await Dexie.waitFor(digestValue(chosenDraft));
+        const draftRecord: StoredEvaluationDraft = {
+          scopeKey: scopeKey(scope),
+          scope,
+          evaluationId: input.server.evaluationId,
+          expectedVersion: input.server.version,
+          draft: chosenDraft,
+          payloadDigest: await Dexie.waitFor(
+            digestValue(
+              evaluationPayload(
+                scope,
+                input.server.evaluationId,
+                input.server.version,
+                chosenDraft,
+              ),
+            ),
+          ),
+          syncState: input.action === 'keep_local' ? 'saved_device' : 'synced',
+          updatedAt: timestamp,
+          expiresAt: addMilliseconds(now, DRAFT_TTL_MS),
+        };
+        await this.assertByteQuota(transaction, draftRecord);
+        await this.database.drafts.put(draftRecord);
+
+        let rebased: StoredEvaluationMutation | undefined;
+        if (input.action === 'keep_local') {
+          const newQueueKey = evaluationQueueKey(scope, input.server.evaluationId);
+          const rawCounter = await this.database.queueCounters.get(newQueueKey);
+          const parsedCounter = rawCounter ? storedQueueCounterSchema.safeParse(rawCounter) : null;
+          if (
+            parsedCounter &&
+            (!parsedCounter.success || parsedCounter.data.scopeKey !== scopeKey(scope))
+          )
+            throw new EvaluationOfflineError(
+              'corrupt_record',
+              'Queue sequence lineage is invalid.',
+            );
+          const queueSequence = parsedCounter?.success ? parsedCounter.data.nextSequence : 1;
+          const clientMutationId = crypto.randomUUID();
+          const payloadDigest = await Dexie.waitFor(
+            digestValue(
+              evaluationPayload(scope, input.server.evaluationId, input.server.version, localDraft),
+            ),
+          );
+          rebased = {
+            storageKey: `${scopeKey(scope)}|${clientMutationId}`,
+            clientMutationId,
+            scopeKey: scopeKey(scope),
+            queueKey: newQueueKey,
+            queueSequence,
+            scope,
+            evaluationId: input.server.evaluationId,
+            expectedVersion: input.server.version,
+            draft: localDraft,
+            payloadDigest,
+            status: 'pending',
+            syncState: 'saved_device',
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            nextAttemptAt: timestamp,
+            attemptCount: 0,
+          };
+          await this.assertByteQuota(transaction, rebased);
+          await this.database.queueCounters.put({
+            queueKey: newQueueKey,
+            scopeKey: scopeKey(scope),
+            nextSequence: queueSequence + 1,
+          });
+          await this.database.mutations.add(rebased);
+        }
+
         for (const row of queueRows) {
           await this.database.mutations.delete(row.storageKey);
           await this.ensureConflictResolutionTombstone(
@@ -1907,78 +2056,38 @@ export class EvaluationOfflineRepository {
                 : 'conflict_use_server'
               : 'conflict_dependent',
             now,
+            row.storageKey === head.storageKey
+              ? {
+                  resolutionOriginalEvaluationId: head.evaluationId,
+                  resolutionOriginalPayloadDigest: head.payloadDigest,
+                  resolutionOriginalQueueSequence: head.queueSequence,
+                  resolutionServerEvaluationId: input.server.evaluationId,
+                  resolutionServerVersion: input.server.version,
+                  resolutionServerSnapshotDigest: serverSnapshotDigest,
+                  resolutionResultDraftDigest: resultDraftDigest,
+                  resolutionResultMarker:
+                    input.action === 'keep_local' ? 'keep_local_rebased' : 'use_server_discarded',
+                  ...(rebased
+                    ? {
+                        resolutionResultMutationId: rebased.clientMutationId,
+                        resolutionResultQueueSequence: rebased.queueSequence,
+                      }
+                    : {}),
+                }
+              : undefined,
           );
         }
-
-        const chosenDraft = input.action === 'keep_local' ? localDraft : serverDraft;
-        const timestamp = now.toISOString();
-        const draftRecord: StoredEvaluationDraft = {
-          scopeKey: scopeKey(scope),
-          scope,
-          evaluationId: input.evaluationId,
-          expectedVersion: input.server.version,
-          draft: chosenDraft,
-          payloadDigest: await Dexie.waitFor(
-            digestValue(
-              evaluationPayload(scope, input.evaluationId, input.server.version, chosenDraft),
-            ),
-          ),
-          syncState: input.action === 'keep_local' ? 'saved_device' : 'synced',
-          updatedAt: timestamp,
-          expiresAt: addMilliseconds(now, DRAFT_TTL_MS),
-        };
-        await this.assertByteQuota(transaction, draftRecord);
-        await this.database.drafts.put(draftRecord);
-
-        if (input.action === 'use_server') {
-          return {
-            action: input.action,
-            evaluationId: input.evaluationId,
-            expectedVersion: input.server.version,
-            draft: structuredClone(serverDraft),
-          };
-        }
-
-        const rawCounter = await this.database.queueCounters.get(head.queueKey);
-        const counter = storedQueueCounterSchema.safeParse(rawCounter);
-        if (!counter.success || counter.data.scopeKey !== scopeKey(scope))
-          throw new EvaluationOfflineError('corrupt_record', 'Queue sequence lineage is invalid.');
-        const clientMutationId = crypto.randomUUID();
-        const payloadDigest = await Dexie.waitFor(
-          digestValue(
-            evaluationPayload(scope, input.evaluationId, input.server.version, localDraft),
-          ),
-        );
-        const rebased: StoredEvaluationMutation = {
-          storageKey: `${scopeKey(scope)}|${clientMutationId}`,
-          clientMutationId,
-          scopeKey: scopeKey(scope),
-          queueKey: head.queueKey,
-          queueSequence: counter.data.nextSequence,
-          scope,
-          evaluationId: input.evaluationId,
-          expectedVersion: input.server.version,
-          draft: localDraft,
-          payloadDigest,
-          status: 'pending',
-          syncState: 'saved_device',
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          nextAttemptAt: timestamp,
-          attemptCount: 0,
-        };
-        await this.assertByteQuota(transaction, rebased);
-        await this.database.queueCounters.put({
-          ...counter.data,
-          nextSequence: counter.data.nextSequence + 1,
-        });
-        await this.database.mutations.add(rebased);
         return {
           action: input.action,
-          evaluationId: input.evaluationId,
+          evaluationId: input.server.evaluationId,
           expectedVersion: input.server.version,
-          draft: structuredClone(localDraft),
-          clientMutationId,
+          draftDigest: resultDraftDigest,
+          ...(rebased
+            ? {
+                clientMutationId: rebased.clientMutationId,
+                queueSequence: rebased.queueSequence,
+              }
+            : {}),
         };
       });
     } catch (error) {

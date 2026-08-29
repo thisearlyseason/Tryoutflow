@@ -172,6 +172,7 @@ export function EvaluationForm({
   backgroundSaveResult,
   onResolveRecovery,
   recoveryServerDraft,
+  allowVerifiedIdentityRemap = false,
 }: {
   athlete: EvaluatorAthlete;
   categories: EvaluatorCategory[];
@@ -198,18 +199,33 @@ export function EvaluationForm({
     action: 'keep_local' | 'use_server';
     local: EditableDraft;
   }) => Promise<
-    { outcome: 'resolved'; evaluationId: string; version: number } | { outcome: 'failed' }
+    | { outcome: 'resolved'; evaluationId: string; version: number }
+    | { outcome: 'pending'; evaluationId: string; version: number }
+    | { outcome: 'failed' }
   >;
   recoveryServerDraft?: EvaluationDraftInput;
+  allowVerifiedIdentityRemap?: boolean;
 } & (
   | { draftCacheKey: string; serverSnapshotToken: string }
   | { draftCacheKey?: undefined; serverSnapshotToken?: never }
 )) {
   const authoritativeServerDraft = recoveryServerDraft ?? initialDraft;
   const serverDraft = editableDraft(authoritativeServerDraft);
+  const serverInitiallyConfirmed =
+    serverConfirmation === undefined
+      ? Boolean(initialDraft.evaluationId)
+      : Boolean(
+          serverConfirmation &&
+          serverConfirmation.evaluationId === initialDraft.evaluationId &&
+          serverConfirmation.version >= initialDraft.version,
+        );
   const [draft, setDraft] = useState<EditableDraft>(editableDraft(initialDraft));
   const [saveState, setSaveState] = useState<EvaluationSaveStatus>(
-    initialDraft.evaluationId ? 'saved' : 'idle',
+    initialDraft.evaluationId
+      ? durableDeviceSave && !serverInitiallyConfirmed
+        ? 'saved_device'
+        : 'saved'
+      : 'idle',
   );
   const [missing, setMissing] = useState<Set<string>>(new Set());
   const [serverValidation, setServerValidation] = useState<
@@ -243,15 +259,7 @@ export function EvaluationForm({
   const restrictionRef = useRef(restriction);
   const completionGateRef = useRef(false);
   const completionPromiseRef = useRef<Promise<void> | null>(null);
-  const serverConfirmedRef = useRef(
-    serverConfirmation === undefined
-      ? Boolean(initialDraft.evaluationId)
-      : Boolean(
-          serverConfirmation &&
-          serverConfirmation.evaluationId === initialDraft.evaluationId &&
-          serverConfirmation.version >= initialDraft.version,
-        ),
-  );
+  const serverConfirmedRef = useRef(serverInitiallyConfirmed);
   const debounceTimerRef = useRef<number | null>(null);
   const recoveryKindRef = useRef<RecoveryKind | null>(null);
   const lastRequestRef = useRef<CachedDraft['lastRequest']>(undefined);
@@ -352,7 +360,8 @@ export function EvaluationForm({
         cached.serverSnapshotToken !== serverSnapshotToken &&
         authoritativeServerDraft.version >= cached.baseVersion &&
         (cached.evaluationId === null ||
-          cached.evaluationId === authoritativeServerDraft.evaluationId);
+          cached.evaluationId === authoritativeServerDraft.evaluationId ||
+          (allowVerifiedIdentityRemap && Boolean(onResolveRecovery)));
       blockedRef.current = true;
       recoveryKindRef.current = kind;
       setRecovery({
@@ -667,13 +676,16 @@ export function EvaluationForm({
     recoveryKindRef.current = null;
     lastRequestRef.current = undefined;
     lastCompletionRef.current = undefined;
-    confirmedRevisionRef.current = resolution ? revisionRef.current : 0;
-    if (resolution) serverConfirmedRef.current = true;
+    const confirmed = resolution?.outcome === 'resolved';
+    confirmedRevisionRef.current = confirmed ? revisionRef.current : 0;
+    serverConfirmedRef.current = confirmed;
     drainGoalRef.current = 0;
     setRecovery(null);
     setRecoveryNotice('');
-    setSaveState(resolution ? 'saved' : navigator.onLine ? 'editing' : 'offline');
-    if (resolution) clearCachedDraft(draftCacheKey);
+    setSaveState(
+      confirmed ? 'saved' : resolution ? 'saved_device' : navigator.onLine ? 'editing' : 'offline',
+    );
+    if (confirmed) clearCachedDraft(draftCacheKey);
     else persistDraft('dirty');
   }
 
@@ -1015,7 +1027,12 @@ export function EvaluationForm({
           </button>
           <button
             className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)] disabled:opacity-50"
-            disabled={!interactive || blockedRef.current}
+            disabled={
+              !interactive ||
+              blockedRef.current ||
+              (durableDeviceSave &&
+                (!serverConfirmedRef.current || confirmedRevisionRef.current < revisionRef.current))
+            }
             onClick={() => void complete()}
             type="button"
           >

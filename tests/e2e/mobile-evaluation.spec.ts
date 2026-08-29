@@ -106,17 +106,32 @@ test('states conflict and offline limits without overwriting the page draft', as
 });
 
 test('durably resolves synchronized conflicts without resurrecting discarded work', async ({
+  context,
   page,
 }) => {
+  const mutationUrls: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/evaluations/'))
+      mutationUrls.push(request.url());
+  });
   await page.goto('/abababab-abab-4bab-8bab-abababababab');
   const note = page.getByLabel('Private evaluator note');
+  await page.getByRole('radio', { name: 'Skating score 4 of 5' }).click();
+  await page.getByRole('radio', { name: 'Compete score 4 of 5' }).click();
   await note.fill('force durable conflict keep local');
   await page.getByRole('button', { name: 'Save now' }).click();
   await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Keep my local draft' })).toBeEnabled();
+  await context.setOffline(true);
   await page.getByRole('button', { name: 'Keep my local draft' }).click();
+  await expect(page.getByRole('status')).toContainText('Saved on device');
+  await expect(page.getByRole('button', { name: 'Complete evaluation' })).toBeDisabled();
+  await context.setOffline(false);
   await expect(page.getByRole('status')).toContainText('Saved on server');
+  expect(mutationUrls.some((url) => url.includes('edededed-eded-4ede-8ede-edededededed'))).toBe(
+    true,
+  );
   await note.fill('edited after durable keep-local resolution');
   await page.getByRole('button', { name: 'Save now' }).click();
   await expect(page.getByRole('status')).toContainText('Saved on server');

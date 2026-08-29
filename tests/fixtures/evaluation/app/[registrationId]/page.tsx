@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { headers } from 'next/headers';
 
 import { AthletePager } from '../../../../../src/modules/evaluations/ui/athlete-pager';
 import { EvaluationForm } from '../../../../../src/modules/evaluations/ui/evaluation-form';
 import { SynchronizedEvaluationForm } from '../../../../../src/modules/evaluations/ui/synchronized-evaluation-form';
+import { readAuthoritativeEvaluationId } from '../../lib/authoritative-evaluation-state';
 
 const athletes = [
   {
@@ -59,10 +61,19 @@ export default async function EvaluationFixturePage({
   params: Promise<{ registrationId: string }>;
 }) {
   const { registrationId } = await params;
+  const engine = (await headers()).get('user-agent')?.includes('Chrome') ? 'chromium' : 'webkit';
   const index = athletes.findIndex((athlete) => athlete.registrationId === registrationId);
   const athlete = athletes[index] ?? athletes[0]!;
   const previous = athletes[index - 1];
   const next = athletes[index + 1];
+  const provisionalEvaluationId =
+    index === 2
+      ? 'ffffffff-ffff-4fff-8fff-ffffffffffff'
+      : index === 3
+        ? 'fefefefe-fefe-4efe-8efe-fefefefefefe'
+        : 'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd';
+  const authoritativeEvaluationId =
+    readAuthoritativeEvaluationId(registrationId, engine) ?? provisionalEvaluationId;
 
   async function onSave(input: { note?: string; expectedVersion: number }) {
     'use server';
@@ -106,13 +117,8 @@ export default async function EvaluationFixturePage({
           categories={categories}
           draftCacheKey={`fixture:${registrationId}`}
           initialDraft={{
-            evaluationId:
-              index === 2
-                ? 'ffffffff-ffff-4fff-8fff-ffffffffffff'
-                : index === 3
-                  ? 'fefefefe-fefe-4efe-8efe-fefefefefefe'
-                  : 'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd',
-            version: 0,
+            evaluationId: authoritativeEvaluationId,
+            version: index >= 3 ? 1 : 0,
             state: 'draft',
             scores: [],
           }}

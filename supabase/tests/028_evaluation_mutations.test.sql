@@ -81,6 +81,23 @@ reset role;
 select is((select version from public.evaluations where id='e8000000-0000-4000-8000-000000000041'),1,'stale conflict preserves server version');
 select is((select value from public.evaluation_scores where evaluation_id='e8000000-0000-4000-8000-000000000041'),4,'stale conflict preserves server score');
 
+set local role authenticated;
+select set_config('request.jwt.claim.sub','e8333333-3333-4333-8333-333333333333',true);
+select set_config('app.test.identity_conflict',(select receipt::text from public.sync_evaluation_mutation(
+ 'e8000000-0000-4000-8000-000000000001','e8666666-6666-4666-8666-666666666661','e8888888-8888-4888-8888-888888888881',
+ 'e8000000-0000-4000-8000-000000000014','e8000000-0000-4000-8000-000000000022','e8000000-0000-4000-8000-000000000042',
+ 'e8000000-0000-4000-8000-000000000059',0,
+ '{"scores":[{"categoryId":"e8000000-0000-4000-8000-000000000023","value":5}],"noteTagIds":[],"flags":[]}')),true);
+select is(current_setting('app.test.identity_conflict')::jsonb->>'evaluationId','e8000000-0000-4000-8000-000000000042','receipt retains original offline evaluation identity');
+select is(current_setting('app.test.identity_conflict')::jsonb->>'serverEvaluationId','e8000000-0000-4000-8000-000000000041','natural-key conflict returns exact authoritative server identity');
+select is((select receipt::text from public.sync_evaluation_mutation(
+ 'e8000000-0000-4000-8000-000000000001','e8666666-6666-4666-8666-666666666661','e8888888-8888-4888-8888-888888888881',
+ 'e8000000-0000-4000-8000-000000000014','e8000000-0000-4000-8000-000000000022','e8000000-0000-4000-8000-000000000042',
+ 'e8000000-0000-4000-8000-000000000059',0,
+ '{"scores":[{"categoryId":"e8000000-0000-4000-8000-000000000023","value":5}],"noteTagIds":[],"flags":[]}')),current_setting('app.test.identity_conflict'),'authoritative identity conflict replay is byte-equivalent');
+reset role;
+select is((select count(*) from public.evaluations where organization_id='e8000000-0000-4000-8000-000000000001'),1::bigint,'identity remap conflict creates no duplicate evaluation');
+
 delete from public.tryout_staff_assignments
 where organization_id='e8000000-0000-4000-8000-000000000001'
   and user_id='e8333333-3333-4333-8333-333333333333';

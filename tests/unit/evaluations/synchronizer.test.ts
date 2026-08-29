@@ -92,6 +92,70 @@ describe('EvaluationSynchronizer', () => {
     repository.close();
   });
 
+  it('stream-caps lying success and error envelopes by actual bytes and cancels early', async () => {
+    const repository = await queuedRepository();
+    const entry = (await repository.nextPendingMutation(scope))!;
+    for (const status of [200, 400]) {
+      const cancelled = vi.fn();
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array((status === 200 ? 64 : 4) * 1_024));
+            controller.enqueue(new Uint8Array([1]));
+          },
+          cancel: cancelled,
+        }),
+        {
+          status,
+          headers: { 'content-type': 'application/json', 'content-length': '1' },
+        },
+      );
+      const sender = createEvaluationMutationSender(vi.fn(async () => response) as never);
+      await expect(sender(entry)).rejects.toMatchObject({
+        category: 'transient',
+        message: 'sync_response_invalid',
+      });
+      expect(cancelled).toHaveBeenCalledOnce();
+    }
+    repository.close();
+  });
+
+  it('decodes split multibyte UTF-8 before rejecting a non-schema success envelope', async () => {
+    const repository = await queuedRepository();
+    const entry = (await repository.nextPendingMutation(scope))!;
+    const body = new TextEncoder().encode(
+      JSON.stringify({
+        receipt: {
+          outcome: 'synced',
+          clientMutationId: entry.clientMutationId,
+          evaluationId: entry.evaluationId,
+          expectedVersion: entry.expectedVersion,
+          serverVersion: entry.expectedVersion + 1,
+          payloadDigest: entry.payloadDigest,
+          acknowledgedAt: '2026-08-29T12:00:00.000Z',
+        },
+        ignored: 'rink 😀',
+      }),
+    );
+    const split = body.findIndex((byte) => byte === 0xf0) + 2;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body.slice(0, split));
+          controller.enqueue(body.slice(split));
+          controller.close();
+        },
+      }),
+      { headers: { 'content-type': 'application/json' } },
+    );
+    const sender = createEvaluationMutationSender(vi.fn(async () => response) as never);
+    await expect(sender(entry)).rejects.toMatchObject({
+      category: 'transient',
+      message: 'sync_response_invalid',
+    });
+    repository.close();
+  });
+
   it('does not resend acknowledged work on a repeated flush', async () => {
     const repository = await queuedRepository();
     let requests = 0;
@@ -179,6 +243,7 @@ describe('EvaluationSynchronizer', () => {
 
   it('retains stale-version work as needs attention instead of acknowledging it', async () => {
     const repository = await queuedRepository();
+    const authoritativeId = '72000000-0000-4000-8000-000000000099';
     const synchronizer = new EvaluationSynchronizer({
       repository,
       scope,
@@ -186,6 +251,7 @@ describe('EvaluationSynchronizer', () => {
         outcome: 'conflict',
         clientMutationId: entry.clientMutationId,
         evaluationId: entry.evaluationId,
+        serverEvaluationId: authoritativeId,
         expectedVersion: entry.expectedVersion,
         payloadDigest: entry.payloadDigest,
         serverVersion: 3,
@@ -196,6 +262,8 @@ describe('EvaluationSynchronizer', () => {
     expect((await repository.listMutations(scope))[0]).toMatchObject({
       status: 'needs_attention',
       errorCategory: 'conflict',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 3,
     });
     repository.close();
   });
@@ -341,12 +409,15 @@ describe('EvaluationSynchronizer', () => {
     await vi.waitFor(() => expect(sends).toBe(1));
     synchronizer.stop();
     synchronizer.start();
+    const newGenerationEvents: string[] = [];
+    synchronizer.subscribe((event) => newGenerationEvents.push(event.state));
     release();
     await vi.waitFor(() => expect(timer).not.toBeNull());
+    expect(newGenerationEvents).toEqual([]);
     now = new Date(now.getTime() + 31_000);
     timer!();
-    await synchronizer.flush();
-    expect(sends).toBe(2);
+    await vi.waitFor(() => expect(sends).toBe(2));
+    await vi.waitFor(() => expect(newGenerationEvents).toEqual(['synced']));
     await expect(repository.getSyncState(scope)).resolves.toBe('synced');
     synchronizer.stop();
     repository.close();

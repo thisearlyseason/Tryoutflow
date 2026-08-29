@@ -181,8 +181,7 @@ describe('EvaluationForm', () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it('does not treat an older server receipt as confirmation for queued work', async () => {
-    const user = userEvent.setup();
+  it('does not treat an older server receipt as confirmation for queued work', () => {
     const onComplete = vi.fn();
     render(
       <EvaluationForm
@@ -206,9 +205,9 @@ describe('EvaluationForm', () => {
         }}
       />,
     );
-    await user.click(screen.getByRole('button', { name: 'Complete evaluation' }));
+    expect(screen.getByRole('button', { name: 'Complete evaluation' })).toBeDisabled();
     expect(onComplete).not.toHaveBeenCalled();
-    expect(screen.getByRole('status')).toHaveTextContent('Sync needs attention');
+    expect(screen.getByRole('status')).toHaveTextContent('Saved on device');
   });
 
   it('keeps editable controls disabled in server HTML until interaction handlers hydrate', () => {

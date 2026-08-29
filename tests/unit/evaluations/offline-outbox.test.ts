@@ -450,6 +450,7 @@ describe('evaluation offline outbox', () => {
     const target = await prepare(repository('conflict-keep-local'));
     const firstId = '30000000-0000-4000-8000-000000000091';
     const secondId = '30000000-0000-4000-8000-000000000092';
+    const authoritativeId = '30000000-0000-4000-8000-000000000099';
     await target.enqueueEvaluationMutation(mutation({ clientMutationId: firstId }));
     await target.saveDraftLocally({
       scope,
@@ -472,14 +473,21 @@ describe('evaluation offline outbox', () => {
       claimToken: head!.claimToken!,
       category: 'conflict',
       message: 'stale server version',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
     });
     const resolved = await target.resolveConflict({
       scope,
-      evaluationId: mutation().evaluationId,
       clientMutationId: firstId,
       action: 'keep_local',
+      original: {
+        evaluationId: head!.evaluationId,
+        payloadDigest: head!.payloadDigest,
+        queueSequence: head!.queueSequence,
+      },
       server: {
-        evaluationId: mutation().evaluationId,
+        scope,
+        evaluationId: authoritativeId,
         version: 7,
         draft: { ...draft, note: 'fresh server' },
       },
@@ -487,13 +495,14 @@ describe('evaluation offline outbox', () => {
     expect(resolved).toMatchObject({
       action: 'keep_local',
       expectedVersion: 7,
-      draft: { note: 'newest durable local edit' },
+      evaluationId: authoritativeId,
     });
     const rows = await target.listMutations(scope);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       status: 'pending',
       expectedVersion: 7,
+      evaluationId: authoritativeId,
       draft: { note: 'newest durable local edit' },
     });
     expect(rows[0]!.clientMutationId).not.toBe(firstId);
@@ -521,6 +530,7 @@ describe('evaluation offline outbox', () => {
     });
     await target.enqueueEvaluationMutation(mutation({ clientMutationId: firstId }));
     const head = await target.nextPendingMutation(scope);
+    const authoritativeId = '30000000-0000-4000-8000-000000000098';
     await target.markNeedsAttention({
       scope,
       evaluationId: head!.evaluationId,
@@ -528,14 +538,20 @@ describe('evaluation offline outbox', () => {
       claimToken: head!.claimToken!,
       category: 'conflict',
       message: 'stale server version',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 8,
     });
     const serverDraft = { ...draft, note: 'authoritative server draft' };
     await target.resolveConflict({
       scope,
-      evaluationId: mutation().evaluationId,
       clientMutationId: firstId,
       action: 'use_server',
-      server: { evaluationId: mutation().evaluationId, version: 8, draft: serverDraft },
+      original: {
+        evaluationId: head!.evaluationId,
+        payloadDigest: head!.payloadDigest,
+        queueSequence: head!.queueSequence,
+      },
+      server: { scope, evaluationId: authoritativeId, version: 8, draft: serverDraft },
     });
     target.close();
     const reopened = createEvaluationOfflineRepository({
@@ -544,6 +560,7 @@ describe('evaluation offline outbox', () => {
     });
     expect(await reopened.listMutations(scope)).toEqual([]);
     expect(await reopened.loadDraft(scope)).toMatchObject({
+      evaluationId: authoritativeId,
       expectedVersion: 8,
       syncState: 'synced',
       draft: { note: 'authoritative server draft' },
@@ -567,30 +584,101 @@ describe('evaluation offline outbox', () => {
       claimToken: head!.claimToken!,
       category: 'conflict',
       message: 'conflict',
+      conflictServerEvaluationId: targetEvaluationId,
+      conflictServerVersion: 3,
     });
     await expect(
       target.resolveConflict({
         scope: { ...scope, registrationId: crypto.randomUUID() },
-        evaluationId: targetEvaluationId,
         clientMutationId: id,
         action: 'use_server',
-        server: { evaluationId: targetEvaluationId, version: 3, draft },
+        original: {
+          evaluationId: head!.evaluationId,
+          payloadDigest: head!.payloadDigest,
+          queueSequence: head!.queueSequence,
+        },
+        server: { scope, evaluationId: targetEvaluationId, version: 3, draft },
       }),
-    ).rejects.toMatchObject({ code: 'mutation_not_found' });
+    ).rejects.toMatchObject({ code: 'invalid_input' });
     const input = {
       scope,
-      evaluationId: targetEvaluationId,
       clientMutationId: id,
       action: 'use_server' as const,
-      server: { evaluationId: targetEvaluationId, version: 3, draft },
+      original: {
+        evaluationId: head!.evaluationId,
+        payloadDigest: head!.payloadDigest,
+        queueSequence: head!.queueSequence,
+      },
+      server: { scope, evaluationId: targetEvaluationId, version: 3, draft },
     };
     const first = await target.resolveConflict(input);
     const replay = await target.resolveConflict(input);
     expect(replay).toEqual(first);
+    await expect(
+      target.resolveConflict({
+        ...input,
+        server: { ...input.server, version: 4, draft: { ...draft, note: 'changed snapshot' } },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_transition' });
     await expect(target.resolveConflict({ ...input, action: 'keep_local' })).rejects.toMatchObject({
       code: 'invalid_transition',
     });
     target.close();
+  });
+
+  it('serializes concurrent tab decisions into one permanent exact resolution winner', async () => {
+    const baseName = databaseBase('conflict-tabs');
+    trackUserDatabase(baseName);
+    const first = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const second = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    const id = '30000000-0000-4000-8000-000000000095';
+    await first.enqueueEvaluationMutation(mutation({ clientMutationId: id }));
+    const head = (await first.nextPendingMutation(scope))!;
+    await first.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: id,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'concurrent server create',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 3,
+    });
+    const common = {
+      scope,
+      clientMutationId: id,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      server: { scope, evaluationId: head.evaluationId, version: 3, draft },
+    };
+    const outcomes = await Promise.allSettled([
+      first.resolveConflict({ ...common, action: 'keep_local' }),
+      second.resolveConflict({ ...common, action: 'use_server' }),
+    ]);
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    const winningAction = outcomes[0]!.status === 'fulfilled' ? 'keep_local' : 'use_server';
+    const winning = await second.resolveConflict({ ...common, action: winningAction });
+    expect(winning.action).toBe(winningAction);
+    await expect(
+      first.resolveConflict({
+        ...common,
+        action: winningAction === 'keep_local' ? 'use_server' : 'keep_local',
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_transition' });
+    first.close();
+    second.close();
   });
 
   it.each(['nul\u0000value', '\ud800', '\udc00'])(

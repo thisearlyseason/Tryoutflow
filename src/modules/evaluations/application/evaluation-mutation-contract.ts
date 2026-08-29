@@ -49,6 +49,7 @@ export const evaluationMutationReceiptSchema = z.strictObject({
   ]),
   clientMutationId: uuid,
   evaluationId: uuid,
+  serverEvaluationId: uuid.nullable().optional(),
   expectedVersion: z.number().int().min(0),
   payloadDigest: sha256,
   serverVersion: z.number().int().min(1).nullable(),
