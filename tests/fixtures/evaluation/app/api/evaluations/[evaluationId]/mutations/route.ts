@@ -1,0 +1,50 @@
+import { NextResponse } from 'next/server';
+
+import { evaluationMutationSchema } from '../../../../../../../../src/modules/evaluations/application/evaluation-mutation-contract';
+import {
+  digestValue,
+  evaluationPayload,
+} from '../../../../../../../../src/modules/evaluations/offline/database';
+
+const receipts = new Map<string, Record<string, unknown>>();
+const versions = new Map<string, number>();
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ evaluationId: string }> },
+) {
+  const mutation = evaluationMutationSchema.safeParse({
+    ...((await request.json()) as object),
+    evaluationId: (await params).evaluationId,
+  });
+  if (!mutation.success) return NextResponse.json({ error: 'invalid' }, { status: 400 });
+  const prior = receipts.get(mutation.data.clientMutationId);
+  if (prior) return NextResponse.json({ receipt: prior });
+  const payloadDigest = await digestValue(
+    evaluationPayload(
+      mutation.data.scope,
+      mutation.data.evaluationId,
+      mutation.data.expectedVersion,
+      mutation.data.draft,
+    ),
+  );
+  const current = versions.get(mutation.data.evaluationId) ?? 0;
+  const outcome =
+    mutation.data.draft.note === 'force server conflict' ||
+    mutation.data.expectedVersion !== current
+      ? 'conflict'
+      : 'synced';
+  const serverVersion = outcome === 'synced' ? current + 1 : current || null;
+  if (outcome === 'synced') versions.set(mutation.data.evaluationId, serverVersion as number);
+  const receipt = {
+    outcome,
+    clientMutationId: mutation.data.clientMutationId,
+    evaluationId: mutation.data.evaluationId,
+    expectedVersion: mutation.data.expectedVersion,
+    payloadDigest,
+    serverVersion,
+    acknowledgedAt: new Date().toISOString(),
+  };
+  receipts.set(mutation.data.clientMutationId, receipt);
+  return NextResponse.json({ receipt });
+}

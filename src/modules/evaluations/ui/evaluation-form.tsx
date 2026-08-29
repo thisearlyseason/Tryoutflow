@@ -45,6 +45,7 @@ type EditableDraft = {
 
 export type EvaluationSaveResult =
   | { outcome: 'saved'; evaluationId: string; version: number }
+  | { outcome: 'saved_device'; evaluationId: string; version: number }
   | {
       outcome:
         | 'forbidden'
@@ -166,6 +167,8 @@ export function EvaluationForm({
   onComplete,
   onSave,
   serverSnapshotToken,
+  durableDeviceSave = false,
+  serverConfirmation,
 }: {
   athlete: EvaluatorAthlete;
   categories: EvaluatorCategory[];
@@ -182,6 +185,8 @@ export function EvaluationForm({
     flags: string[];
     expectedVersion: number;
   }) => Promise<EvaluationSaveResult>;
+  durableDeviceSave?: boolean;
+  serverConfirmation?: { evaluationId: string; version: number } | null;
 } & (
   | { draftCacheKey: string; serverSnapshotToken: string }
   | { draftCacheKey?: undefined; serverSnapshotToken?: never }
@@ -222,6 +227,15 @@ export function EvaluationForm({
   const restrictionRef = useRef(restriction);
   const completionGateRef = useRef(false);
   const completionPromiseRef = useRef<Promise<void> | null>(null);
+  const serverConfirmedRef = useRef(
+    serverConfirmation === undefined
+      ? Boolean(initialDraft.evaluationId)
+      : Boolean(
+          serverConfirmation &&
+          serverConfirmation.evaluationId === initialDraft.evaluationId &&
+          serverConfirmation.version >= initialDraft.version,
+        ),
+  );
   const debounceTimerRef = useRef<number | null>(null);
   const recoveryKindRef = useRef<RecoveryKind | null>(null);
   const lastRequestRef = useRef<CachedDraft['lastRequest']>(undefined);
@@ -229,6 +243,22 @@ export function EvaluationForm({
   const storageAvailableRef = useRef(Boolean(draftCacheKey));
   const editable = completionState === 'draft' || completionState === 'reopened';
   const interactive = editable && hydrated && !restriction && !completing;
+
+  useEffect(() => {
+    if (
+      !serverConfirmation ||
+      serverConfirmation.evaluationId !== evaluationIdRef.current ||
+      serverConfirmation.version < versionRef.current
+    )
+      return;
+    evaluationIdRef.current = serverConfirmation.evaluationId;
+    versionRef.current = Math.max(versionRef.current, serverConfirmation.version);
+    serverConfirmedRef.current = true;
+    if (confirmedRevisionRef.current === revisionRef.current && !blockedRef.current) {
+      setSaveState('saved');
+      clearCachedDraft(draftCacheKey);
+    }
+  }, [draftCacheKey, serverConfirmation]);
 
   function persistDraft(recoveryState: CachedDraft['recovery'] = 'dirty'): boolean {
     if (
@@ -369,7 +399,7 @@ export function EvaluationForm({
     let lastResult: EvaluationSaveResult | null = null;
     while (confirmedRevisionRef.current < drainGoalRef.current) {
       if (!editable || blockedRef.current || restrictionRef.current) return lastResult;
-      if (!navigator.onLine) {
+      if (!navigator.onLine && !durableDeviceSave) {
         setSaveState('offline');
         persistDraft('dirty');
         return null;
@@ -400,18 +430,19 @@ export function EvaluationForm({
         result = { outcome: 'unexpected' };
       }
       lastResult = result;
-      if (result.outcome !== 'saved') {
+      if (result.outcome !== 'saved' && result.outcome !== 'saved_device') {
         handleSaveFailure(result, request);
         return result;
       }
       versionRef.current = result.version;
       evaluationIdRef.current = result.evaluationId;
+      serverConfirmedRef.current = result.outcome === 'saved';
       confirmedRevisionRef.current = savedRevision;
       setServerValidation(null);
       if (confirmedRevisionRef.current === revisionRef.current) {
         clearCachedDraft(draftCacheKey);
         lastRequestRef.current = undefined;
-        setSaveState('saved');
+        setSaveState(result.outcome === 'saved' ? 'saved' : 'saved_device');
       } else {
         setSaveState('editing');
         persistDraft('dirty');
@@ -422,7 +453,7 @@ export function EvaluationForm({
 
   function flushDraft(targetRevision = revisionRef.current): Promise<EvaluationSaveResult | null> {
     if (!editable || blockedRef.current || restrictionRef.current) return Promise.resolve(null);
-    if (!navigator.onLine) {
+    if (!navigator.onLine && !durableDeviceSave) {
       setSaveState('offline');
       persistDraft('dirty');
       return Promise.resolve(null);
@@ -527,6 +558,10 @@ export function EvaluationForm({
       const evaluationId = evaluationIdRef.current;
       if (!evaluationId) {
         requireRecovery('unconfirmed', lastRequestRef.current);
+        return;
+      }
+      if (!serverConfirmedRef.current) {
+        setSaveState('needs_attention');
         return;
       }
       setSaveState('completing');

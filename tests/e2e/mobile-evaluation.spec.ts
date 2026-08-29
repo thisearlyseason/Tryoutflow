@@ -80,9 +80,27 @@ test('states conflict and offline limits without overwriting the page draft', as
 
   await page.goto('/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
   await expect(page.getByLabel('Private evaluator note')).toBeEnabled();
+  let mutationRequests = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/api/evaluations/') && request.method() === 'POST') {
+      mutationRequests += 1;
+    }
+  });
   await context.setOffline(true);
-  await page.getByLabel('Private evaluator note').fill('Page-only while disconnected');
-  await expect(page.getByRole('status')).toContainText('Offline');
-  await expect(page.getByRole('status')).toContainText('retained for this browser session');
+  await page.getByRole('radio', { name: 'Skating score 4 of 5' }).click();
+  await page.getByLabel('Private evaluator note').fill('Durable rink-side draft');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('status')).toContainText('Saved on device');
+  expect(mutationRequests).toBe(0);
   await context.setOffline(false);
+  await expect(page.getByRole('status')).toContainText('Saved on server');
+  expect(mutationRequests).toBe(1);
+  await page.reload();
+  await expect(page.getByLabel('Private evaluator note')).toHaveValue('Durable rink-side draft');
+  await page.getByLabel('Private evaluator note').fill('force server conflict');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'force server conflict',
+  );
 });

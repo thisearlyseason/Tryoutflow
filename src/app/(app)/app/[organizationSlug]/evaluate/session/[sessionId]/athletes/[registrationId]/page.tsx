@@ -3,23 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import { completeEvaluationRecord } from '@/modules/evaluations/application/complete-evaluation';
-import { saveEvaluationDraft } from '@/modules/evaluations/application/save-evaluation-draft';
 import {
   loadEvaluatorSession,
   loadOwnEvaluationDraft,
 } from '@/modules/evaluations/infrastructure/evaluator-session-loader';
 import { SupabaseEvaluationGateway } from '@/modules/evaluations/infrastructure/supabase-evaluation-gateway';
 import { AthletePager } from '@/modules/evaluations/ui/athlete-pager';
-import { EvaluationForm } from '@/modules/evaluations/ui/evaluation-form';
+import { SynchronizedEvaluationForm } from '@/modules/evaluations/ui/synchronized-evaluation-form';
 import { EvaluationRouteMessage } from '@/modules/evaluations/ui/session-state';
 
-const saveSchema = z.strictObject({
-  scores: z.array(z.strictObject({ categoryId: z.uuid(), value: z.number().int() })).max(100),
-  note: z.string().trim().min(1).max(4000).optional(),
-  noteTagIds: z.array(z.uuid()).max(50),
-  flags: z.array(z.enum(['needs_another_look', 'injury_concern', 'eligibility_review'])).max(3),
-  expectedVersion: z.number().int().min(0),
-});
 const completeSchema = z.strictObject({
   evaluationId: z.uuid(),
   expectedVersion: z.number().int().positive(),
@@ -47,41 +39,6 @@ export default async function AthleteEvaluationPage({
   const basePath = `/app/${organizationSlug}/evaluate/session/${sessionId}`;
   const previous = loaded.value.athletes[athleteIndex - 1];
   const next = loaded.value.athletes[athleteIndex + 1];
-
-  async function onSave(input: unknown) {
-    'use server';
-    const parsed = saveSchema.safeParse(input);
-    if (!parsed.success) return { outcome: 'invalid_input' as const };
-    const scoped = await loadEvaluatorSession(organizationSlug, sessionId);
-    if (scoped.outcome !== 'ready')
-      return { outcome: scoped.outcome as 'forbidden' | 'unexpected' };
-    const athlete = scoped.value.athletes.find(
-      (candidate) => candidate.registrationId === registrationId,
-    );
-    if (!athlete || athlete.sessionId !== sessionId) return { outcome: 'forbidden' as const };
-    const result = await saveEvaluationDraft(
-      {
-        organizationId: scoped.value.current.organization.id,
-        tryoutId: scoped.value.session.tryoutId,
-        divisionId: athlete.divisionId,
-        registrationId: athlete.registrationId,
-        sessionId,
-        groupId: athlete.groupId,
-        evaluatorUserId: scoped.value.current.userId,
-        rubricVersionId: scoped.value.rubricVersionId,
-        scores: parsed.data.scores,
-        note: parsed.data.note,
-        noteTagIds: parsed.data.noteTagIds,
-        flags: parsed.data.flags,
-      },
-      scoped.value.current.authorization,
-      parsed.data.expectedVersion,
-      { gateway: new SupabaseEvaluationGateway(scoped.value.current.client) },
-    );
-    return result.ok
-      ? { outcome: 'saved' as const, ...result.value }
-      : { outcome: result.error.code };
-  }
 
   async function onComplete(input: unknown) {
     'use server';
@@ -136,7 +93,7 @@ export default async function AthleteEvaluationPage({
         previousHref={previous ? `${basePath}/athletes/${previous.registrationId}` : null}
         total={loaded.value.athletes.length}
       />
-      <EvaluationForm
+      <SynchronizedEvaluationForm
         athlete={{
           registrationId: ownDraft.athlete.registrationId,
           displayName: ownDraft.athlete.displayName,
@@ -151,8 +108,16 @@ export default async function AthleteEvaluationPage({
         initialDraft={ownDraft.draft}
         noteTags={loaded.value.noteTags}
         onComplete={onComplete}
-        onSave={onSave}
         serverSnapshotToken={randomUUID()}
+        storageScope={{
+          userId: loaded.value.current.userId,
+          evaluatorId: loaded.value.current.userId,
+          organizationId: loaded.value.current.organization.id,
+          tryoutId: loaded.value.session.tryoutId,
+          sessionId,
+          registrationId,
+          rubricVersionId: loaded.value.rubricVersionId,
+        }}
       />
       <AthletePager
         ariaLabel="Athlete navigation below scoring"

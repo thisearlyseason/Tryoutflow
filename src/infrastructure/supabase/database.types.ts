@@ -488,6 +488,53 @@ export type Database = {
           },
         ];
       };
+      evaluation_mutations: {
+        Row: {
+          actor_user_id: string;
+          client_mutation_id: string;
+          created_at: string;
+          evaluation_id: string;
+          expected_version: number;
+          organization_id: string;
+          outcome: string;
+          payload_digest: string;
+          receipt: Json;
+          server_version: number | null;
+        };
+        Insert: {
+          actor_user_id: string;
+          client_mutation_id: string;
+          created_at?: string;
+          evaluation_id: string;
+          expected_version: number;
+          organization_id: string;
+          outcome: string;
+          payload_digest: string;
+          receipt: Json;
+          server_version?: number | null;
+        };
+        Update: {
+          actor_user_id?: string;
+          client_mutation_id?: string;
+          created_at?: string;
+          evaluation_id?: string;
+          expected_version?: number;
+          organization_id?: string;
+          outcome?: string;
+          payload_digest?: string;
+          receipt?: Json;
+          server_version?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'evaluation_mutations_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       evaluation_note_tags: {
         Row: {
           created_at: string;
@@ -2939,6 +2986,22 @@ export type Database = {
           confirmation_token: string;
           outcome: string;
           registration_id: string;
+        }[];
+      };
+      sync_evaluation_mutation: {
+        Args: {
+          p_client_mutation_id: string;
+          p_draft: Json;
+          p_evaluation_id: string;
+          p_expected_version: number;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_rubric_version_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          receipt: Json;
         }[];
       };
       transition_tryout_lifecycle: {

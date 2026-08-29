@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { AthletePager } from '../../../../../src/modules/evaluations/ui/athlete-pager';
 import { EvaluationForm } from '../../../../../src/modules/evaluations/ui/evaluation-form';
+import { SynchronizedEvaluationForm } from '../../../../../src/modules/evaluations/ui/synchronized-evaluation-form';
 
 const athletes = [
   {
@@ -83,25 +84,52 @@ export default async function EvaluationFixturePage({
         previousHref={previous ? `/${previous.registrationId}` : null}
         total={athletes.length}
       />
-      <EvaluationForm
-        athlete={{
-          ...athlete,
-          identityMode: 'blind',
-          divisionName: 'U13',
-          sessionName: 'Morning skills',
-          groupName: 'Blue',
-        }}
-        categories={categories}
-        draftCacheKey={`fixture:${registrationId}`}
-        initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
-        noteTags={[
-          { id: '11111111-1111-4111-8111-111111111111', label: 'Quick feet' },
-          { id: '22222222-2222-4222-8222-222222222222', label: 'Good awareness' },
-        ]}
-        onComplete={onComplete}
-        onSave={onSave}
-        serverSnapshotToken={randomUUID()}
-      />
+      {registrationId === athletes[2]?.registrationId ? (
+        <SynchronizedEvaluationForm
+          athlete={{
+            ...athlete,
+            identityMode: 'blind',
+            divisionName: 'U13',
+            sessionName: 'Morning skills',
+            groupName: 'Blue',
+          }}
+          categories={categories}
+          draftCacheKey={`fixture:${registrationId}`}
+          initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+          noteTags={[]}
+          onComplete={onComplete}
+          serverSnapshotToken={randomUUID()}
+          storageScope={{
+            userId: '99999999-9999-4999-8999-999999999901',
+            evaluatorId: '99999999-9999-4999-8999-999999999901',
+            organizationId: '99999999-9999-4999-8999-999999999902',
+            tryoutId: '99999999-9999-4999-8999-999999999903',
+            sessionId: '99999999-9999-4999-8999-999999999904',
+            registrationId,
+            rubricVersionId: '99999999-9999-4999-8999-999999999905',
+          }}
+        />
+      ) : (
+        <EvaluationForm
+          athlete={{
+            ...athlete,
+            identityMode: 'blind',
+            divisionName: 'U13',
+            sessionName: 'Morning skills',
+            groupName: 'Blue',
+          }}
+          categories={categories}
+          draftCacheKey={`fixture:${registrationId}`}
+          initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+          noteTags={[
+            { id: '11111111-1111-4111-8111-111111111111', label: 'Quick feet' },
+            { id: '22222222-2222-4222-8222-222222222222', label: 'Good awareness' },
+          ]}
+          onComplete={onComplete}
+          onSave={onSave}
+          serverSnapshotToken={randomUUID()}
+        />
+      )}
       <AthletePager
         ariaLabel="Athlete navigation below scoring"
         currentIndex={index}

@@ -139,6 +139,8 @@ describe('EvaluationSaveState', () => {
     ['idle', 'Not saved yet'],
     ['editing', 'Unsaved changes on this page'],
     ['saving', 'Saving to server'],
+    ['saved_device', 'Saved on device'],
+    ['needs_attention', 'Sync needs attention'],
     ['saved', 'Saved on server'],
     ['conflict', 'Server draft changed'],
     ['offline', 'Offline'],
@@ -150,6 +152,65 @@ describe('EvaluationSaveState', () => {
 });
 
 describe('EvaluationForm', () => {
+  it('truthfully accepts a durable device save while offline and blocks server completion', async () => {
+    vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    const user = userEvent.setup();
+    const onSave = vi.fn(async () => ({
+      outcome: 'saved_device' as const,
+      evaluationId: 'aaaaaaaa-0000-4000-8000-000000000001',
+      version: 1,
+    }));
+    const onComplete = vi.fn();
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        durableDeviceSave
+        initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [], note: '' }}
+        onComplete={onComplete}
+        onSave={onSave}
+      />,
+    );
+    await user.click(screen.getByRole('radio', { name: 'Skating score 4 of 5' }));
+    await user.click(screen.getByRole('button', { name: 'Save now' }));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Saved on device'));
+    expect(onSave).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole('radio', { name: 'Compete score 4 of 5' }));
+    await user.click(screen.getByRole('button', { name: 'Complete evaluation' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it('does not treat an older server receipt as confirmation for queued work', async () => {
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        durableDeviceSave
+        initialDraft={{
+          evaluationId: 'aaaaaaaa-0000-4000-8000-000000000001',
+          version: 2,
+          state: 'draft',
+          scores: [
+            { categoryId: skatingId, value: 4 },
+            { categoryId: competeId, value: 4 },
+          ],
+        }}
+        onComplete={onComplete}
+        onSave={vi.fn()}
+        serverConfirmation={{
+          evaluationId: 'aaaaaaaa-0000-4000-8000-000000000001',
+          version: 1,
+        }}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Complete evaluation' }));
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(screen.getByRole('status')).toHaveTextContent('Sync needs attention');
+  });
+
   it('keeps editable controls disabled in server HTML until interaction handlers hydrate', () => {
     const html = renderToString(
       <EvaluationForm

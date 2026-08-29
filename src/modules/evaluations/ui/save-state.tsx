@@ -4,6 +4,8 @@ export type EvaluationSaveStatus =
   | 'idle'
   | 'editing'
   | 'saving'
+  | 'saved_device'
+  | 'needs_attention'
   | 'completing'
   | 'saved'
   | 'conflict'
@@ -27,6 +29,14 @@ const content: Record<EvaluationSaveStatus, { label: string; detail: string }> =
     detail: 'Keep this tab open until the server confirms the draft.',
   },
   saving: { label: 'Saving to server', detail: 'Your draft is being checked and stored.' },
+  saved_device: {
+    label: 'Saved on device',
+    detail: 'This draft is durable on this device and queued for server confirmation.',
+  },
+  needs_attention: {
+    label: 'Sync needs attention',
+    detail: 'Your device draft is retained. Review the conflict or access change before retrying.',
+  },
   completing: {
     label: 'Completing evaluation',
     detail: 'Waiting for every draft revision before the completion request.',
@@ -89,7 +99,8 @@ export function EvaluationSaveState({
           state === 'forbidden' ||
           state === 'invalid_context' ||
           state === 'locked' ||
-          state === 'unconfirmed'
+          state === 'unconfirmed' ||
+          state === 'needs_attention'
         ? 'border-[var(--color-destructive)]'
         : 'border-[var(--color-primary)]';
   return (
@@ -99,7 +110,8 @@ export function EvaluationSaveState({
         state === 'conflict' ||
         state === 'forbidden' ||
         state === 'locked' ||
-        state === 'unconfirmed'
+        state === 'unconfirmed' ||
+        state === 'needs_attention'
           ? 'assertive'
           : 'polite'
       }
