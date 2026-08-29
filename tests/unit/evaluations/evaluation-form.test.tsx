@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AthletePager } from '../../../src/modules/evaluations/ui/athlete-pager';
 import { EvaluationForm } from '../../../src/modules/evaluations/ui/evaluation-form';
+import { shouldPreferAuthoritativeServerSnapshot } from '../../../src/modules/evaluations/ui/synchronized-evaluation-form';
 import { EvaluationSaveState } from '../../../src/modules/evaluations/ui/save-state';
 import { ScoreControl } from '../../../src/modules/evaluations/ui/score-control';
 
@@ -152,6 +153,51 @@ describe('EvaluationSaveState', () => {
 });
 
 describe('EvaluationForm', () => {
+  it('prefers SSR only when it is exact authoritative evidence newer than a synced local snapshot', () => {
+    const local = {
+      evaluationId: 'aaaaaaaa-0000-4000-8000-000000000001',
+      version: 2,
+      state: 'draft' as const,
+      scores: [{ categoryId: skatingId, value: 4 }],
+      note: 'exact local receipt',
+    };
+    expect(
+      shouldPreferAuthoritativeServerSnapshot({
+        lineageState: 'synced',
+        local,
+        server: { ...local, version: 1 },
+      }),
+    ).toBe(false);
+    expect(
+      shouldPreferAuthoritativeServerSnapshot({
+        lineageState: 'synced',
+        local,
+        server: { ...local, version: 2 },
+      }),
+    ).toBe(false);
+    expect(
+      shouldPreferAuthoritativeServerSnapshot({
+        lineageState: 'synced',
+        local,
+        server: { ...local, version: 2, note: 'same version authoritative correction' },
+      }),
+    ).toBe(true);
+    expect(
+      shouldPreferAuthoritativeServerSnapshot({
+        lineageState: 'synced',
+        local,
+        server: { ...local, version: 3 },
+      }),
+    ).toBe(true);
+    expect(
+      shouldPreferAuthoritativeServerSnapshot({
+        lineageState: 'saved_device',
+        local,
+        server: { ...local, version: 99 },
+      }),
+    ).toBe(false);
+  });
+
   it('truthfully accepts a durable device save while offline and blocks server completion', async () => {
     vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
     const user = userEvent.setup();

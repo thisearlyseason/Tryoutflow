@@ -83,6 +83,20 @@ export type AcknowledgedEvaluationEnqueueResult = {
   queueSequence?: never;
 };
 
+export type EvaluationDraftLineage = {
+  state: 'saved_device' | 'synced' | 'needs_attention';
+  repaired: boolean;
+  draft: StoredEvaluationDraft | null;
+  mutation?: StoredEvaluationMutation;
+  receipt?: StoredEvaluationReceipt;
+  confirmation?: {
+    clientMutationId: string;
+    evaluationId: string;
+    serverVersion: number;
+    payloadDigest: string;
+  };
+};
+
 export type EvaluationQuotaName =
   | 'contexts'
   | 'drafts'
@@ -937,6 +951,130 @@ export class EvaluationOfflineRepository {
     return valid;
   }
 
+  private async validateQueueForStrictAppend(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    queueKey: string,
+    now: Date,
+  ): Promise<number> {
+    const rawRows = await this.database.mutations
+      .where('scopeKey')
+      .equals(scopeKey(scope))
+      .toArray();
+    const rows: StoredEvaluationMutation[] = [];
+    for (const raw of rawRows) {
+      const row = await this.validateMutationRecord(raw);
+      if (row.scopeKey !== scopeKey(scope)) {
+        throw new EvaluationOfflineError('corrupt_record', 'Target queue scope is invalid.');
+      }
+      if (row.queueKey === queueKey) rows.push(row);
+    }
+    if (!(await this.validateQueueLineage(transaction, scope, rows, now))) {
+      throw new EvaluationOfflineError('corrupt_record', 'Target queue lineage is invalid.');
+    }
+    rows.sort((left, right) => left.queueSequence - right.queueSequence);
+    for (let index = 1; index < rows.length; index += 1) {
+      if (rows[index]!.queueSequence !== rows[index - 1]!.queueSequence + 1) {
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Target queue contains an unproven sequence gap.',
+        );
+      }
+    }
+    const rawCounter = await this.database.queueCounters.get(queueKey);
+    if (!rawCounter) {
+      if (rows.length > 0)
+        throw new EvaluationOfflineError('corrupt_record', 'Target queue counter is missing.');
+      return 1;
+    }
+    const parsedCounter = storedQueueCounterSchema.safeParse(rawCounter);
+    const maximum = rows.at(-1)?.queueSequence ?? 0;
+    if (
+      !parsedCounter.success ||
+      parsedCounter.data.scopeKey !== scopeKey(scope) ||
+      parsedCounter.data.queueKey !== queueKey ||
+      (rows.length > 0 && parsedCounter.data.nextSequence !== maximum + 1) ||
+      parsedCounter.data.nextSequence >= Number.MAX_SAFE_INTEGER
+    ) {
+      throw new EvaluationOfflineError('corrupt_record', 'Target queue counter is invalid.');
+    }
+
+    const physicalPrefix = `${scopeKey(scope)}|`;
+    const rawReceipts = await this.database.receipts
+      .filter(
+        (record) =>
+          typeof record.storageKey === 'string' && record.storageKey.startsWith(physicalPrefix),
+      )
+      .toArray();
+    for (const raw of rawReceipts) {
+      const clientMutationId = raw.storageKey.slice(physicalPrefix.length);
+      await this.validateReceiptRecord(raw, { scope, clientMutationId });
+    }
+    for (const { clientMutationId, raw } of await this.physicallyScopedTombstones(
+      transaction,
+      scope,
+    )) {
+      await this.validateReceiptTombstone(raw, scope, clientMutationId);
+    }
+    return parsedCounter.data.nextSequence;
+  }
+
+  private async appendFreshMutation(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    baseRecord: Omit<StoredEvaluationMutation, 'queueSequence'>,
+    now: Date,
+  ): Promise<StoredEvaluationMutation> {
+    if (
+      (await this.database.mutations.get(baseRecord.storageKey)) ||
+      (await this.database.receipts.get(baseRecord.storageKey)) ||
+      (await this.database.receiptTombstones.get(baseRecord.storageKey))
+    ) {
+      throw new EvaluationOfflineError(
+        'mutation_id_conflict',
+        'The client mutation ID already has durable lineage.',
+      );
+    }
+    const allMutations = await this.database.mutations.toArray();
+    if (allMutations.length >= this.quotas.maxMutations) throw quotaError('mutations');
+    if (
+      allMutations.filter((item) => item.status !== 'acknowledged').length >=
+      this.quotas.maxUnacknowledgedMutations
+    )
+      throw quotaError('unacknowledged_mutations');
+    const rawQueue = allMutations.filter((item) => item.queueKey === baseRecord.queueKey);
+    const queue: StoredEvaluationMutation[] = [];
+    for (const raw of rawQueue) queue.push(await this.validateMutationRecord(raw));
+    if (!(await this.validateQueueLineage(transaction, scope, queue, now))) {
+      throw new EvaluationOfflineError('corrupt_record', 'Queue lineage is invalid.');
+    }
+    const maximum = queue.reduce((value, mutation) => Math.max(value, mutation.queueSequence), 0);
+    const rawCounter = await this.database.queueCounters.get(baseRecord.queueKey);
+    const parsedCounter = rawCounter ? storedQueueCounterSchema.safeParse(rawCounter) : null;
+    if (
+      parsedCounter &&
+      (!parsedCounter.success ||
+        parsedCounter.data.scopeKey !== scopeKey(scope) ||
+        parsedCounter.data.nextSequence <= maximum ||
+        parsedCounter.data.nextSequence >= Number.MAX_SAFE_INTEGER)
+    ) {
+      throw new EvaluationOfflineError('corrupt_record', 'Queue counter is invalid.');
+    }
+    if (!rawCounter && maximum > 0) {
+      throw new EvaluationOfflineError('corrupt_record', 'Queue counter is missing.');
+    }
+    const queueSequence = parsedCounter?.success ? parsedCounter.data.nextSequence : 1;
+    const mutation: StoredEvaluationMutation = { ...baseRecord, queueSequence };
+    await this.assertByteQuota(transaction, mutation);
+    await this.database.queueCounters.put({
+      queueKey: mutation.queueKey,
+      scopeKey: mutation.scopeKey,
+      nextSequence: queueSequence + 1,
+    });
+    await this.database.mutations.add(mutation);
+    return structuredClone(mutation);
+  }
+
   async saveSessionContext(
     input: Omit<StoredSessionContext, 'scopeKey' | 'expiresAt'>,
     options: OperationTime = {},
@@ -1034,6 +1172,252 @@ export class EvaluationOfflineRepository {
     }
     notify(options, 'saved_device');
     return result;
+  }
+
+  async saveDraftAndEnqueueMutation(
+    input: EvaluationMutationInput,
+    options: OperationTime = {},
+  ): Promise<{
+    draft: StoredEvaluationDraft;
+    mutation: StoredEvaluationMutation | AcknowledgedEvaluationEnqueueResult;
+  }> {
+    const scope = this.parseScope(input.scope);
+    const draftPayload = this.parseDraft(input.draft);
+    const now = safeDate(options.now ?? new Date());
+    const clientMutationId = input.clientMutationId ?? crypto.randomUUID();
+    if (
+      !uuid.safeParse(clientMutationId).success ||
+      !uuid.safeParse(input.evaluationId).success ||
+      !Number.isSafeInteger(input.expectedVersion) ||
+      input.expectedVersion < 0
+    )
+      throw new EvaluationOfflineError('invalid_input', 'Invalid evaluation mutation context.');
+    const timestamp = now.toISOString();
+    const payloadDigest = await digestValue(
+      evaluationPayload(scope, input.evaluationId, input.expectedVersion, draftPayload),
+    );
+    const draft: StoredEvaluationDraft = {
+      scopeKey: scopeKey(scope),
+      scope,
+      evaluationId: input.evaluationId,
+      expectedVersion: input.expectedVersion,
+      draft: draftPayload,
+      payloadDigest,
+      syncState: 'saved_device',
+      updatedAt: timestamp,
+      expiresAt: addMilliseconds(now, DRAFT_TTL_MS),
+    };
+    const baseMutation: Omit<StoredEvaluationMutation, 'queueSequence'> = {
+      storageKey: `${scopeKey(scope)}|${clientMutationId}`,
+      clientMutationId,
+      scopeKey: scopeKey(scope),
+      queueKey: evaluationQueueKey(scope, input.evaluationId),
+      scope,
+      evaluationId: input.evaluationId,
+      expectedVersion: input.expectedVersion,
+      draft: draftPayload,
+      payloadDigest,
+      status: 'pending',
+      syncState: 'saved_device',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      nextAttemptAt: timestamp,
+      attemptCount: 0,
+    };
+    notify(options, 'saving_local');
+    try {
+      const result = await this.database.transaction(
+        'rw',
+        this.allTables(),
+        async (transaction) => {
+          const context = await this.requireContext(transaction, scope);
+          this.assertDraftMatchesContext(draftPayload, context);
+          const existingDraft = await this.database.drafts.get(draft.scopeKey);
+          if (!existingDraft && (await this.database.drafts.count()) >= this.quotas.maxDrafts)
+            throw quotaError('drafts');
+          const mutation = await this.appendFreshMutation(transaction, scope, baseMutation, now);
+          await this.assertByteQuota(transaction, draft);
+          await this.database.drafts.put(draft);
+          return { draft: structuredClone(draft), mutation };
+        },
+      );
+      notify(options, result.mutation.status === 'acknowledged' ? 'synced' : 'saved_device');
+      return result;
+    } catch (error) {
+      throw mapStorageError(error, 'write');
+    }
+  }
+
+  async reconcileDraftLineage(scopeInput: EvaluationStorageScope): Promise<EvaluationDraftLineage> {
+    const scope = this.parseScope(scopeInput);
+    const key = scopeKey(scope);
+    try {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        const rawDraft = await this.database.drafts.get(key);
+        if (!rawDraft) return { state: 'saved_device', repaired: false, draft: null };
+        let storedDraft = await this.validateDraftRecord(rawDraft, scope);
+        const context = await this.requireContext(transaction, scope);
+        this.assertDraftMatchesContext(storedDraft.draft, context);
+        const rawMutations = await this.database.mutations.where('scopeKey').equals(key).toArray();
+        const mutations: StoredEvaluationMutation[] = [];
+        for (const raw of rawMutations) mutations.push(await this.validateMutationRecord(raw));
+        if (!(await this.validateQueueLineage(transaction, scope, mutations, new Date()))) {
+          throw new EvaluationOfflineError('corrupt_record', 'Draft queue lineage is invalid.');
+        }
+
+        const exactMutation = mutations
+          .filter(
+            (mutation) =>
+              mutation.evaluationId === storedDraft.evaluationId &&
+              mutation.expectedVersion === storedDraft.expectedVersion &&
+              mutation.payloadDigest === storedDraft.payloadDigest &&
+              mutation.status !== 'acknowledged',
+          )
+          .sort((left, right) => right.queueSequence - left.queueSequence)[0];
+        if (exactMutation) {
+          if (storedDraft.syncState !== 'saved_device') {
+            storedDraft = { ...storedDraft, syncState: 'saved_device' };
+            await this.database.drafts.put(storedDraft);
+          }
+          return {
+            state: exactMutation.status === 'needs_attention' ? 'needs_attention' : 'saved_device',
+            repaired: false,
+            draft: structuredClone(storedDraft),
+            mutation: structuredClone(exactMutation),
+          };
+        }
+
+        if (storedDraft.evaluationId) {
+          const prefix = `${key}|`;
+          const rawReceipts = await this.database.receipts
+            .filter(
+              (record) =>
+                typeof record.storageKey === 'string' && record.storageKey.startsWith(prefix),
+            )
+            .toArray();
+          for (const raw of rawReceipts) {
+            const clientMutationId = raw.storageKey.slice(prefix.length);
+            const receipt = await this.validateReceiptRecord(raw, { scope, clientMutationId });
+            const draftDigestAtReceiptVersion = await Dexie.waitFor(
+              digestValue(
+                evaluationPayload(
+                  scope,
+                  storedDraft.evaluationId,
+                  receipt.expectedVersion,
+                  storedDraft.draft,
+                ),
+              ),
+            );
+            if (
+              receipt.evaluationId === storedDraft.evaluationId &&
+              receipt.serverVersion === storedDraft.expectedVersion &&
+              receipt.payloadDigest === draftDigestAtReceiptVersion
+            ) {
+              if (storedDraft.syncState !== 'synced') {
+                storedDraft = { ...storedDraft, syncState: 'synced' };
+                await this.database.drafts.put(storedDraft);
+              }
+              return {
+                state: 'synced',
+                repaired: false,
+                draft: structuredClone(storedDraft),
+                receipt: structuredClone(receipt),
+                confirmation: {
+                  clientMutationId: receipt.clientMutationId,
+                  evaluationId: receipt.evaluationId,
+                  serverVersion: receipt.serverVersion,
+                  payloadDigest: receipt.payloadDigest,
+                },
+              };
+            }
+          }
+          for (const { clientMutationId, raw } of await this.physicallyScopedTombstones(
+            transaction,
+            scope,
+          )) {
+            const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
+            if (
+              tombstone.reason !== 'receipt_authority' ||
+              tombstone.evaluationId !== storedDraft.evaluationId ||
+              tombstone.serverVersion !== storedDraft.expectedVersion ||
+              tombstone.expectedVersion === undefined ||
+              tombstone.payloadDigest === undefined
+            )
+              continue;
+            const draftDigestAtReceiptVersion = await Dexie.waitFor(
+              digestValue(
+                evaluationPayload(
+                  scope,
+                  storedDraft.evaluationId,
+                  tombstone.expectedVersion,
+                  storedDraft.draft,
+                ),
+              ),
+            );
+            if (tombstone.payloadDigest === draftDigestAtReceiptVersion) {
+              if (storedDraft.syncState !== 'synced') {
+                storedDraft = { ...storedDraft, syncState: 'synced' };
+                await this.database.drafts.put(storedDraft);
+              }
+              return {
+                state: 'synced',
+                repaired: false,
+                draft: structuredClone(storedDraft),
+                confirmation: {
+                  clientMutationId: tombstone.clientMutationId,
+                  evaluationId: tombstone.evaluationId,
+                  serverVersion: tombstone.serverVersion,
+                  payloadDigest: tombstone.payloadDigest,
+                },
+              };
+            }
+          }
+        }
+
+        if (storedDraft.syncState === 'saved_device' && storedDraft.evaluationId) {
+          const clientMutationId = crypto.randomUUID();
+          const recoveredAt = new Date(storedDraft.updatedAt);
+          const mutation = await this.appendFreshMutation(
+            transaction,
+            scope,
+            {
+              storageKey: `${key}|${clientMutationId}`,
+              clientMutationId,
+              scopeKey: key,
+              queueKey: evaluationQueueKey(scope, storedDraft.evaluationId),
+              scope,
+              evaluationId: storedDraft.evaluationId,
+              expectedVersion: storedDraft.expectedVersion,
+              draft: storedDraft.draft,
+              payloadDigest: storedDraft.payloadDigest,
+              status: 'pending',
+              syncState: 'saved_device',
+              createdAt: storedDraft.updatedAt,
+              updatedAt: storedDraft.updatedAt,
+              nextAttemptAt: recoveredAt.toISOString(),
+              attemptCount: 0,
+            },
+            recoveredAt,
+          );
+          return {
+            state: 'saved_device',
+            repaired: true,
+            draft: structuredClone(storedDraft),
+            mutation: structuredClone(mutation),
+          };
+        }
+
+        storedDraft = { ...storedDraft, syncState: 'needs_attention' };
+        await this.database.drafts.put(storedDraft);
+        return {
+          state: 'needs_attention',
+          repaired: false,
+          draft: structuredClone(storedDraft),
+        };
+      });
+    } catch (error) {
+      throw mapStorageError(error, 'read');
+    }
   }
 
   async loadDraft(scopeInput: EvaluationStorageScope): Promise<StoredEvaluationDraft | null> {
@@ -2000,17 +2384,12 @@ export class EvaluationOfflineRepository {
         let rebased: StoredEvaluationMutation | undefined;
         if (input.action === 'keep_local') {
           const newQueueKey = evaluationQueueKey(scope, input.server.evaluationId);
-          const rawCounter = await this.database.queueCounters.get(newQueueKey);
-          const parsedCounter = rawCounter ? storedQueueCounterSchema.safeParse(rawCounter) : null;
-          if (
-            parsedCounter &&
-            (!parsedCounter.success || parsedCounter.data.scopeKey !== scopeKey(scope))
-          )
-            throw new EvaluationOfflineError(
-              'corrupt_record',
-              'Queue sequence lineage is invalid.',
-            );
-          const queueSequence = parsedCounter?.success ? parsedCounter.data.nextSequence : 1;
+          const queueSequence = await this.validateQueueForStrictAppend(
+            transaction,
+            scope,
+            newQueueKey,
+            now,
+          );
           const clientMutationId = crypto.randomUUID();
           const payloadDigest = await Dexie.waitFor(
             digestValue(

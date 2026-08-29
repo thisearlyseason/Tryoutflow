@@ -70,6 +70,22 @@ export async function saveDraftLocally(
   return repository().saveDraftLocally(input, options);
 }
 
+export async function saveDraftAndEnqueueMutation(
+  ...input: Parameters<
+    ReturnType<typeof createEvaluationOfflineRepository>['saveDraftAndEnqueueMutation']
+  >
+) {
+  return repository().saveDraftAndEnqueueMutation(...input);
+}
+
+export async function reconcileDraftLineage(
+  ...input: Parameters<
+    ReturnType<typeof createEvaluationOfflineRepository>['reconcileDraftLineage']
+  >
+) {
+  return repository().reconcileDraftLineage(...input);
+}
+
 export async function saveSessionContext(
   ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['saveSessionContext']>
 ) {

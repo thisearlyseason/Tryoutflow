@@ -194,6 +194,7 @@ export function EvaluationForm({
   backgroundSaveResult?: {
     token: number;
     outcome: Exclude<EvaluationSaveResult['outcome'], 'saved' | 'saved_device'>;
+    serverFresh?: boolean;
   } | null;
   onResolveRecovery?: (input: {
     action: 'keep_local' | 'use_server';
@@ -287,7 +288,8 @@ export function EvaluationForm({
   useEffect(() => {
     if (!backgroundSaveResult || !hydrated) return;
     const request = lastRequestRef.current;
-    if (backgroundSaveResult.outcome === 'conflict') requireRecovery('conflict', request);
+    if (backgroundSaveResult.outcome === 'conflict')
+      requireRecovery('conflict', request, backgroundSaveResult.serverFresh);
     else if (
       backgroundSaveResult.outcome === 'forbidden' ||
       backgroundSaveResult.outcome === 'invalid_context' ||
@@ -400,7 +402,11 @@ export function EvaluationForm({
     persistDraft('dirty');
   }
 
-  function requireRecovery(kind: RecoveryKind, request: CachedDraft['lastRequest']) {
+  function requireRecovery(
+    kind: RecoveryKind,
+    request: CachedDraft['lastRequest'],
+    serverFresh = false,
+  ) {
     blockedRef.current = true;
     recoveryKindRef.current = kind;
     lastRequestRef.current = request;
@@ -409,7 +415,7 @@ export function EvaluationForm({
       kind,
       local: latestDraftRef.current,
       server: serverDraft,
-      serverFresh: false,
+      serverFresh,
       durable,
       lastRequest: request,
       lastCompletion: lastCompletionRef.current,

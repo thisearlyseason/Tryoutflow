@@ -129,6 +129,164 @@ afterEach(async () => {
 });
 
 describe('evaluation offline outbox', () => {
+  it('commits the draft and its outbox lineage atomically', async () => {
+    const target = await prepare(
+      repository('atomic-draft-outbox', scope.userId, { quotas: { maxMutations: 0 } }),
+    );
+
+    await expect(
+      target.saveDraftAndEnqueueMutation({
+        scope,
+        evaluationId: mutation().evaluationId,
+        expectedVersion: 2,
+        draft,
+      }),
+    ).rejects.toMatchObject({ code: 'quota_exceeded', quota: 'mutations' });
+
+    expect(await target.loadDraft(scope)).toBeNull();
+    expect(await target.listMutations(scope)).toEqual([]);
+    target.close();
+  });
+
+  it('repairs a legacy saved-device draft with no outbox lineage without claiming server authority', async () => {
+    const target = await prepare(repository('repair-missing-draft-lineage'));
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 2,
+      draft,
+    });
+
+    const repaired = await target.reconcileDraftLineage(scope);
+
+    expect(repaired).toMatchObject({ state: 'saved_device', repaired: true });
+    expect(repaired.mutation).toMatchObject({
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 2,
+      payloadDigest: repaired.draft?.payloadDigest,
+      status: 'pending',
+    });
+    expect(await target.getReceipt(scope, repaired.mutation!.clientMutationId)).toBeNull();
+    target.close();
+  });
+
+  it('binds hydration to the exact evaluation when two queues both have sequence one', async () => {
+    const target = await prepare(repository('hydrate-two-sequence-one-queues'));
+    const firstEvaluationId = mutation().evaluationId;
+    const secondDraft = { ...draft, note: 'second provisional evaluation' };
+    await target.enqueueEvaluationMutation(mutation());
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: secondEvaluationId,
+      expectedVersion: 2,
+      draft: secondDraft,
+    });
+    const second = await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: '30000000-0000-4000-8000-000000000084',
+        evaluationId: secondEvaluationId,
+        draft: secondDraft,
+      }),
+    );
+
+    const lineage = await target.reconcileDraftLineage(scope);
+
+    expect((await target.listMutations(scope)).map((row) => row.queueSequence)).toEqual([1, 1]);
+    expect(lineage.mutation).toMatchObject({
+      clientMutationId: second.clientMutationId,
+      evaluationId: secondEvaluationId,
+      queueSequence: 1,
+      draft: { note: 'second provisional evaluation' },
+    });
+    expect(lineage.mutation?.evaluationId).not.toBe(firstEvaluationId);
+    target.close();
+  });
+
+  it('never promotes or replays a synced draft whose exact durable receipt lineage is absent', async () => {
+    const baseName = databaseBase('missing-synced-lineage');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 3,
+      draft,
+    });
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('drafts').update(Object.values(scope).join('|'), { syncState: 'synced' });
+    raw.close();
+
+    const recovered = await target.reconcileDraftLineage(scope);
+
+    expect(recovered).toMatchObject({ state: 'needs_attention', repaired: false });
+    expect(recovered).not.toHaveProperty('receipt');
+    expect(await target.listMutations(scope)).toEqual([]);
+    expect(await target.loadDraft(scope)).toMatchObject({ syncState: 'needs_attention', draft });
+    target.close();
+  });
+
+  it('hydrates exact server authority from the permanent receipt marker after compaction', async () => {
+    const baseName = databaseBase('compacted-draft-lineage');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const saved = await target.saveDraftAndEnqueueMutation(
+      {
+        ...mutation(),
+        expectedVersion: 2,
+      },
+      { now: new Date('2026-08-29T10:00:00.000Z') },
+    );
+    const claimed = await target.nextPendingMutation(scope, {
+      now: new Date('2026-08-29T10:00:00.000Z'),
+    });
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: claimed!.evaluationId,
+      clientMutationId: claimed!.clientMutationId,
+      claimToken: claimed!.claimToken!,
+      expectedVersion: claimed!.expectedVersion,
+      payloadDigest: claimed!.payloadDigest,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T10:00:01.000Z',
+      now: new Date('2026-08-29T10:00:01.000Z'),
+    });
+    await target.clearAcknowledged(scope);
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw
+      .table('receipts')
+      .delete(`${Object.values(scope).join('|')}|${claimed!.clientMutationId}`);
+    raw.close();
+
+    const lineage = await target.reconcileDraftLineage(scope);
+
+    expect(saved.mutation.clientMutationId).toBe(claimed!.clientMutationId);
+    expect(lineage).toMatchObject({
+      state: 'synced',
+      repaired: false,
+      confirmation: {
+        clientMutationId: claimed!.clientMutationId,
+        evaluationId: claimed!.evaluationId,
+        serverVersion: 3,
+        payloadDigest: claimed!.payloadDigest,
+      },
+    });
+    target.close();
+  });
+
   it('physically partitions databases and denies cross-user scopes at every API boundary', async () => {
     const baseName = databaseBase('physical-user-isolation');
     trackUserDatabase(baseName, scope.userId);
@@ -513,6 +671,67 @@ describe('evaluation offline outbox', () => {
     target.close();
   });
 
+  it('rejects an authoritative remap queue with an unproven sequence gap before retiring conflict', async () => {
+    const baseName = databaseBase('conflict-target-lineage');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const originalId = '30000000-0000-4000-8000-000000000081';
+    const targetMutationId = '30000000-0000-4000-8000-000000000082';
+    const authoritativeId = '30000000-0000-4000-8000-000000000083';
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = await target.nextPendingMutation(scope);
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head!.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head!.claimToken!,
+      category: 'conflict',
+      message: 'authoritative remap',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
+    });
+    await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: targetMutationId,
+        evaluationId: authoritativeId,
+        expectedVersion: 7,
+      }),
+    );
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('queueCounters').update(evaluationQueueKey(scope, authoritativeId), {
+      nextSequence: 9,
+    });
+    raw.close();
+
+    await expect(
+      target.resolveConflict({
+        scope,
+        clientMutationId: originalId,
+        action: 'keep_local',
+        original: {
+          evaluationId: head!.evaluationId,
+          payloadDigest: head!.payloadDigest,
+          queueSequence: head!.queueSequence,
+        },
+        server: { scope, evaluationId: authoritativeId, version: 7, draft },
+      }),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+    expect(await target.listMutations(scope)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ clientMutationId: originalId, status: 'needs_attention' }),
+        expect.objectContaining({ clientMutationId: targetMutationId, status: 'pending' }),
+      ]),
+    );
+    target.close();
+  });
+
   it('uses the fresh server draft atomically and cannot resurrect discarded local work after reopen', async () => {
     const baseName = databaseBase('conflict-use-server');
     trackUserDatabase(baseName);
@@ -677,6 +896,72 @@ describe('evaluation offline outbox', () => {
         action: winningAction === 'keep_local' ? 'use_server' : 'keep_local',
       }),
     ).rejects.toMatchObject({ code: 'invalid_transition' });
+    first.close();
+    second.close();
+  });
+
+  it('serializes a concurrent authoritative enqueue and remap into one valid target queue', async () => {
+    const baseName = databaseBase('conflict-target-concurrency');
+    trackUserDatabase(baseName);
+    const first = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const second = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    const originalId = '30000000-0000-4000-8000-000000000085';
+    const concurrentId = '30000000-0000-4000-8000-000000000086';
+    const authoritativeId = '30000000-0000-4000-8000-000000000087';
+    await first.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = await first.nextPendingMutation(scope);
+    await first.markNeedsAttention({
+      scope,
+      evaluationId: head!.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head!.claimToken!,
+      category: 'conflict',
+      message: 'concurrent remap',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
+    });
+
+    const [enqueued, remapped] = await Promise.all([
+      second.enqueueEvaluationMutation(
+        mutation({
+          clientMutationId: concurrentId,
+          evaluationId: authoritativeId,
+          expectedVersion: 7,
+        }),
+      ),
+      first.resolveConflict({
+        scope,
+        clientMutationId: originalId,
+        action: 'keep_local',
+        original: {
+          evaluationId: head!.evaluationId,
+          payloadDigest: head!.payloadDigest,
+          queueSequence: head!.queueSequence,
+        },
+        server: { scope, evaluationId: authoritativeId, version: 7, draft },
+      }),
+    ]);
+    const targetRows = (await first.listMutations(scope)).filter(
+      (row) => row.evaluationId === authoritativeId,
+    );
+    expect(enqueued.evaluationId).toBe(authoritativeId);
+    expect(remapped.clientMutationId).toBeDefined();
+    expect(targetRows).toHaveLength(2);
+    expect(targetRows.map((row) => row.queueSequence).sort((left, right) => left - right)).toEqual([
+      1, 2,
+    ]);
+    expect(targetRows.map((row) => row.clientMutationId)).toEqual(
+      expect.arrayContaining([concurrentId, remapped.clientMutationId]),
+    );
+    expect(targetRows.some((row) => row.clientMutationId === originalId)).toBe(false);
     first.close();
     second.close();
   });

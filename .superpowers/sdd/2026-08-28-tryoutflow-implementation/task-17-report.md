@@ -158,3 +158,50 @@ git diff --check                                                PASS
 - Resolution metadata contains UUIDs, versions, sequence numbers, and SHA-256 digests only. Raw local/server drafts remain in their existing scoped draft/mutation stores, not in replay metadata.
 - Authenticated production cookies, live membership lookup, Next route, PostgREST, and PostgreSQL in one browser request still require the documented staging/local authenticated release run; no stronger claim is made.
 - `progress.md` was not changed.
+
+## Fix round 3
+
+### Status
+
+DONE — hydration authority, exact UI lineage, and authoritative remap queue validation are addressed. The authenticated production-browser traversal remains the same release-environment gate.
+
+### RED evidence
+
+- A quota failure after the draft write timed out under the first nested-transaction experiment and the original two-step UI could commit a draft without an outbox row. The final single Dexie transaction rolls both records and the counter back together.
+- A legacy `saved_device` draft with no mutation had no repair API, while a forged `synced` draft without any receipt lineage could inherit SSR confirmation. Focused fake-IndexedDB probes failed before reconciliation was added.
+- Two provisional evaluation queues both at sequence `1` exposed that UI hydration and background confirmation sorted queue-local sequences globally. The exact second evaluation/digest now wins regardless of the unrelated queue.
+- A target authoritative queue with sequence `1` and counter `9` was accepted by keep-local remap. The failing probe also verified the original conflict was at risk of retirement before strict target validation.
+- The first synchronized browser run exposed a recovery regression: a durable conflict reload had a verified authoritative SSR snapshot, but a background conflict notification overwrote its freshness and disabled both resolution actions. Freshness is now carried only when the stored conflict's authoritative ID/version exactly match SSR.
+
+### Delivered
+
+- `saveDraftAndEnqueueMutation` parses and hashes once, then commits the scoped draft, fresh mutation, monotonic counter, quotas, and rubric validation in one all-tables transaction. A failed enqueue leaves neither a draft nor partial counter lineage.
+- `reconcileDraftLineage` binds hydration to the exact scope, evaluation identity, expected/server version, canonical payload digest, and client mutation lineage. It reconstructs only a `saved_device` draft through a CAS-safe pending mutation. An unprovable `synced` draft becomes durable `needs_attention`; content is never deleted or guessed as server state.
+- Exact receipts confirm the matching draft, and a validated permanent `receipt_authority` tombstone continues that authority after acknowledged-mutation and receipt compaction. Older/equal/newer SSR probes preserve newer exact local authority, accept an actually newer authoritative snapshot, and never let SSR confirm device-only work.
+- The synchronized form tracks one active client mutation lineage. Hydration, success/attention events, receipt lookup, conflict-head selection, and remap successor recovery require that exact ID/evaluation/version/digest. Queue sequence is used only inside its evaluation queue and is never compared globally.
+- Keep-local remap validates all scoped mutation records, the complete target queue through Task 16's `validateQueueLineage`, strict contiguous retained sequences, exact target counter continuation, and every scoped receipt/tombstone before writing a successor or retiring the original. Corrupt/missing/behind/ahead lineage fails in the same transaction.
+- Concurrent target enqueue/remap serializes to one valid target queue with sequences `[1, 2]`; the original conflict is retired only in the successful transaction. Existing opposite-action multi-tab resolution fencing remains intact.
+- Mobile Chrome and Safari now exercise a legacy crash-gap by deleting the queued mutation after a durable device save, reloading with sends blocked, verifying the local draft and disabled completion, then observing exactly one reconstructed synchronization.
+
+### Verification
+
+```text
+npx supabase db reset --local --no-seed                         PASS (47 migrations)
+npx supabase test db --local                                    PASS (29 files / 847 tests)
+npm run test:integration, repeated                              PASS twice (19 files / 137 tests)
+focused outbox/synchronizer/form suites                         PASS (133 tests before final SSR probe)
+npm run verify                                                   PASS (format, lint, types, 318 unit tests, build)
+npm run test:e2e:evaluation                                     PASS (6 tests; Mobile Chrome + Mobile Safari)
+npm audit --audit-level=high                                    PASS (0 vulnerabilities)
+git diff --check                                                PASS
+```
+
+### Self-review
+
+- No migration or IndexedDB schema rewrite was needed. The prevention is transactional in the existing v5 store; backward compatibility is a bounded reconciliation of already-valid stored drafts.
+- Reconstruction cannot overwrite server data: it reuses the persisted base version and exact digest, so the normal server CAS either acknowledges that draft or returns recoverable conflict.
+- Receipt/tombstone confirmation is content-bound by recomputing the canonical payload digest at the receipt's expected version. A UUID, version, queue sequence, or broad `synced` flag alone is never authority.
+- Strict remap checks happen before conflict retirement in one serialized transaction. Any validation, quota, digest, counter, or write failure rolls back the draft, successor, counter, and original conflict changes together.
+- Recovery metadata remains bounded identifiers, versions, and SHA-256 digests. No score, note, athlete identity, guardian/contact field, or other draft content was added to tombstones or quarantine.
+- Authenticated cookies, live membership, the production Next route, PostgREST, and PostgreSQL in one browser request still require the documented staging/local authenticated release run; no stronger claim is made.
+- `progress.md` was not changed.

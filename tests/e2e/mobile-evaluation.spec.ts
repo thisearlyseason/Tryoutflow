@@ -92,7 +92,35 @@ test('states conflict and offline limits without overwriting the page draft', as
   await page.getByRole('button', { name: 'Save now' }).click();
   await expect(page.getByRole('status')).toContainText('Saved on device');
   expect(mutationRequests).toBe(0);
+  await page.evaluate(async () => {
+    const database = (await indexedDB.databases()).find((candidate) =>
+      candidate.name?.startsWith('tryoutflow-evaluations--u-'),
+    );
+    if (!database?.name) throw new Error('Expected the physical evaluator database.');
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(database.name!);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const connection = request.result;
+        const transaction = connection.transaction('mutations', 'readwrite');
+        transaction.objectStore('mutations').clear();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
+          connection.close();
+          resolve();
+        };
+      };
+    });
+  });
   await context.setOffline(false);
+  await page.route('**/api/evaluations/**', (route) => route.abort('failed'));
+  await page.reload();
+  await expect(page.getByLabel('Private evaluator note')).toHaveValue('Durable rink-side draft');
+  await expect(page.getByRole('status')).toContainText('Saved on device');
+  await expect(page.getByRole('button', { name: 'Complete evaluation' })).toBeDisabled();
+  mutationRequests = 0;
+  await page.unroute('**/api/evaluations/**');
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await expect(page.getByRole('status')).toContainText('Saved on server');
   expect(mutationRequests).toBe(1);
   await page.reload();
