@@ -3,11 +3,17 @@ import {
   createEvaluationOfflineRepository,
   EvaluationOfflineError,
   type EvaluationMutationInput,
+  type RepositoryOptions,
 } from './repository';
 
 export type { EvaluationDraftPayload, EvaluationStorageScope } from './database';
+export { evaluationDatabaseName } from './database';
 export type { EvaluationSyncState } from './sync-state';
-export type { EvaluationMutationInput } from './repository';
+export type {
+  EvaluationMutationInput,
+  EvaluationOfflineQuotas,
+  EvaluationQuotaName,
+} from './repository';
 export { createEvaluationOfflineRepository, EvaluationOfflineError } from './repository';
 
 export type EvaluationOutboxEntry = Awaited<
@@ -16,16 +22,41 @@ export type EvaluationOutboxEntry = Awaited<
 
 let defaultRepository: ReturnType<typeof createEvaluationOfflineRepository> | null = null;
 
+/**
+ * Bind the module API to the current authenticated user. A changed identity
+ * closes the previous IndexedDB handle before opening the user's physical DB.
+ * Call with the authoritative auth-session UUID, never a route or form value.
+ */
+export function bindEvaluationOfflineUser(
+  authenticatedUserId: string,
+  options: Omit<RepositoryOptions, 'authenticatedUserId'> = {},
+): void {
+  const previousRepository = defaultRepository;
+  defaultRepository = null;
+  previousRepository?.close();
+  defaultRepository = createEvaluationOfflineRepository({ ...options, authenticatedUserId });
+}
+
+export function resetEvaluationOfflineUser(): void {
+  defaultRepository?.close();
+  defaultRepository = null;
+}
+
 function repository() {
-  defaultRepository ??= createEvaluationOfflineRepository();
+  if (!defaultRepository) {
+    throw new EvaluationOfflineError(
+      'user_not_bound',
+      'Bind offline evaluation storage to the authenticated user before use.',
+    );
+  }
   return defaultRepository;
 }
 
 /**
- * Notes, tags, and flags are sensitive evaluator data. IndexedDB is same-origin
- * device storage, not encrypted vault storage: shared device/browser profiles and
- * compromised same-origin scripts can read it. Call teardown only after all work
- * is acknowledged, and rely on the bounded retention implemented by the repository.
+ * Evaluation notes/tags/flags remain sensitive same-origin device data. Physical
+ * per-user databases prevent accidental account crossover, but do not protect a
+ * shared browser profile from local OS users or compromised same-origin script.
+ * Keep CSP/dependency controls and explicit sign-out retention UX as release gates.
  */
 export async function saveDraftLocally(
   input: {
@@ -39,6 +70,12 @@ export async function saveDraftLocally(
   return repository().saveDraftLocally(input, options);
 }
 
+export async function saveSessionContext(
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['saveSessionContext']>
+) {
+  return repository().saveSessionContext(...input);
+}
+
 export async function enqueueEvaluationMutation(
   input: EvaluationMutationInput,
   options?: Parameters<
@@ -49,17 +86,15 @@ export async function enqueueEvaluationMutation(
 }
 
 export async function nextPendingMutation(
-  options?: Parameters<
-    ReturnType<typeof createEvaluationOfflineRepository>['nextPendingMutation']
-  >[0],
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['nextPendingMutation']>
 ) {
-  return repository().nextPendingMutation(options);
+  return repository().nextPendingMutation(...input);
 }
 
 export async function acknowledgeMutation(
-  input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['acknowledgeMutation']>[0],
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['acknowledgeMutation']>
 ) {
-  return repository().acknowledgeMutation(input);
+  return repository().acknowledgeMutation(...input);
 }
 
 export async function markNeedsAttention(
@@ -76,10 +111,42 @@ export async function recordMutationFailure(
   return repository().recordMutationFailure(...input);
 }
 
+export async function resolveNeedsAttention(
+  ...input: Parameters<
+    ReturnType<typeof createEvaluationOfflineRepository>['resolveNeedsAttention']
+  >
+) {
+  return repository().resolveNeedsAttention(...input);
+}
+
+export async function listMutations(
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['listMutations']>
+) {
+  return repository().listMutations(...input);
+}
+
+export async function getReceipt(
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['getReceipt']>
+) {
+  return repository().getReceipt(...input);
+}
+
+export async function getSyncState(
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['getSyncState']>
+) {
+  return repository().getSyncState(...input);
+}
+
 export async function clearAcknowledged(
   ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['clearAcknowledged']>
 ) {
   return repository().clearAcknowledged(...input);
+}
+
+export async function teardownScope(
+  ...input: Parameters<ReturnType<typeof createEvaluationOfflineRepository>['teardownScope']>
+) {
+  return repository().teardownScope(...input);
 }
 
 export async function cleanupExpired(
