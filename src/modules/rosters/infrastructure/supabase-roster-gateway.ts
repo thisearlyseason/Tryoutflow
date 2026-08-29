@@ -98,6 +98,8 @@ export function mapReviseRosterResponse(data: unknown, error: RpcError): ReviseR
     return row.roster_version_id && row.version
       ? { outcome: 'revised', rosterVersionId: row.roster_version_id, version: row.version }
       : { outcome: 'unexpected' };
+  if (row.outcome === 'conflict')
+    return row.version ? { outcome: 'conflict', version: row.version } : { outcome: 'unexpected' };
   return { outcome: row.outcome };
 }
 
@@ -199,6 +201,7 @@ export class SupabaseRosterGateway implements RosterGateway {
       p_tryout_id: input.tryoutId,
       p_division_id: input.divisionId,
       p_roster_version_id: input.rosterVersionId,
+      p_expected_version: input.expectedVersion,
       p_reason: input.reason,
       p_confirmation: input.confirmation,
     });

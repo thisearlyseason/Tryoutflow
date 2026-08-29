@@ -23,6 +23,7 @@ export type VersionedRosterOutcome<TSuccess extends string> =
     };
 export type ReviseRosterOutcome =
   | { outcome: 'revised'; rosterVersionId: string; version: number }
+  | { outcome: 'conflict'; version: number }
   | {
       outcome:
         | 'forbidden'
@@ -30,7 +31,6 @@ export type ReviseRosterOutcome =
         | 'invalid_reason'
         | 'invalid_roster'
         | 'invalid_state'
-        | 'conflict'
         | 'capacity'
         | 'unexpected';
     };
@@ -79,6 +79,7 @@ export interface ReviseRosterGateway {
   revise(
     input: RosterScope & {
       rosterVersionId: string;
+      expectedVersion: number;
       reason: string;
       confirmation: string;
     },

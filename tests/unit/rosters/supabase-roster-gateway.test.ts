@@ -56,6 +56,7 @@ describe('SupabaseRosterGateway', () => {
     await gateway.revise({
       ...scope,
       rosterVersionId,
+      expectedVersion: 4,
       reason: 'Correcting the final roster.',
       confirmation: 'REVISE ROSTER',
     });
@@ -77,6 +78,11 @@ describe('SupabaseRosterGateway', () => {
       'finalize_roster_version',
       expect.objectContaining({ p_confirmation: 'FINALIZE ROSTER', p_expected_version: 3 }),
     );
+    expect(rpc).toHaveBeenNthCalledWith(
+      5,
+      'revise_roster_version',
+      expect.objectContaining({ p_expected_version: 4 }),
+    );
   });
 
   it('fails closed on malformed, unknown, or incomplete RPC results', () => {
@@ -92,5 +98,14 @@ describe('SupabaseRosterGateway', () => {
     expect(mapCreateRosterResponse([{ outcome: 'invented', version: 1 }], null)).toEqual({
       outcome: 'unexpected',
     });
+    expect(
+      mapReviseRosterResponse([{ outcome: 'conflict', roster_version_id: null, version: 7 }], null),
+    ).toEqual({ outcome: 'conflict', version: 7 });
+    expect(
+      mapReviseRosterResponse(
+        [{ outcome: 'conflict', roster_version_id: null, version: null }],
+        null,
+      ),
+    ).toEqual({ outcome: 'unexpected' });
   });
 });

@@ -141,7 +141,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','b0000000-0000-4000-8000-000000000001',true);
 create temporary table revised as select * from public.revise_roster_version(
   'b1000000-0000-4000-8000-000000000001','b2000000-0000-4000-8000-000000000001','b3000000-0000-4000-8000-000000000001',(select roster_version_id from created),
-  'Correcting the final roster after director review.','REVISE ROSTER'
+  4,'Correcting the final roster after director review.','REVISE ROSTER'
 );
 select is((select outcome from revised),'revised','revision creates a new draft');
 select is((select count(*) from public.roster_assignments where roster_version_id=(select roster_version_id from revised)),1::bigint,'revision clones placements');
@@ -181,17 +181,17 @@ select function_privs_are('public','move_roster_athlete',array['uuid','uuid','uu
 select function_privs_are('public','create_roster_draft',array['uuid','uuid','uuid','jsonb'],'authenticated',array['EXECUTE'],'authenticated uses the guarded create RPC');
 select function_privs_are('public','change_roster_decisions',array['uuid','uuid','uuid','uuid','jsonb','bigint','text'],'authenticated',array['EXECUTE'],'authenticated uses the guarded decision RPC');
 select function_privs_are('public','finalize_roster_version',array['uuid','uuid','uuid','uuid','bigint','text'],'authenticated',array['EXECUTE'],'authenticated uses the guarded finalize RPC');
-select function_privs_are('public','revise_roster_version',array['uuid','uuid','uuid','uuid','text','text'],'authenticated',array['EXECUTE'],'authenticated uses the guarded revision RPC');
+select function_privs_are('public','revise_roster_version',array['uuid','uuid','uuid','uuid','bigint','text','text'],'authenticated',array['EXECUTE'],'authenticated uses the guarded revision RPC');
 select function_privs_are('public','move_roster_athlete',array['uuid','uuid','uuid','uuid','uuid','uuid','bigint'],'service_role',array[]::text[],'service role cannot bypass actor-scoped writes');
 select function_privs_are('public','create_roster_draft',array['uuid','uuid','uuid','jsonb'],'service_role',array[]::text[],'service role cannot create rosters');
 select function_privs_are('public','change_roster_decisions',array['uuid','uuid','uuid','uuid','jsonb','bigint','text'],'service_role',array[]::text[],'service role cannot change decisions');
 select function_privs_are('public','finalize_roster_version',array['uuid','uuid','uuid','uuid','bigint','text'],'service_role',array[]::text[],'service role cannot finalize rosters');
-select function_privs_are('public','revise_roster_version',array['uuid','uuid','uuid','uuid','text','text'],'service_role',array[]::text[],'service role cannot revise rosters');
+select function_privs_are('public','revise_roster_version',array['uuid','uuid','uuid','uuid','bigint','text','text'],'service_role',array[]::text[],'service role cannot revise rosters');
 select function_privs_are('public','move_roster_athlete',array['uuid','uuid','uuid','uuid','uuid','uuid','bigint'],'anon',array[]::text[],'anonymous cannot move roster athletes');
 select function_privs_are('public','create_roster_draft',array['uuid','uuid','uuid','jsonb'],'anon',array[]::text[],'anonymous cannot create rosters');
 select function_privs_are('public','change_roster_decisions',array['uuid','uuid','uuid','uuid','jsonb','bigint','text'],'anon',array[]::text[],'anonymous cannot change decisions');
 select function_privs_are('public','finalize_roster_version',array['uuid','uuid','uuid','uuid','bigint','text'],'anon',array[]::text[],'anonymous cannot finalize rosters');
-select function_privs_are('public','revise_roster_version',array['uuid','uuid','uuid','uuid','text','text'],'anon',array[]::text[],'anonymous cannot revise rosters');
+select function_privs_are('public','revise_roster_version',array['uuid','uuid','uuid','uuid','bigint','text','text'],'anon',array[]::text[],'anonymous cannot revise rosters');
 select function_privs_are('private','lock_and_can_manage_roster',array['uuid','uuid','uuid'],'authenticated',array[]::text[],'authenticated cannot execute the write authorization helper');
 select function_privs_are('private','can_read_roster',array['uuid','uuid','uuid','boolean'],'authenticated',array['EXECUTE'],'the RLS read helper has only the required authenticated grant');
 select table_privs_are('public','roster_assignments','authenticated',array['SELECT'],'authenticated receives read-only table access');

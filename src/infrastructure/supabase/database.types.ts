@@ -1353,6 +1353,13 @@ export type Database = {
             referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
           },
           {
+            foreignKeyName: 'roster_assignments_snapshot_member_fkey';
+            columns: ['organization_id', 'roster_version_id', 'registration_id'];
+            isOneToOne: true;
+            referencedRelation: 'roster_decisions';
+            referencedColumns: ['organization_id', 'roster_version_id', 'registration_id'];
+          },
+          {
             foreignKeyName: 'roster_assignments_team_fkey';
             columns: ['organization_id', 'tryout_id', 'division_id', 'team_id'];
             isOneToOne: false;
@@ -3247,6 +3254,7 @@ export type Database = {
         Args: {
           p_confirmation: string;
           p_division_id: string;
+          p_expected_version: number;
           p_organization_id: string;
           p_reason: string;
           p_roster_version_id: string;

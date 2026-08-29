@@ -144,11 +144,11 @@ describe('real roster finalization concurrency', () => {
       expect(finalized.stdout.trim()).toBe('finalized|3');
       const revisions = await Promise.all([
         asOwner(
-          `select outcome from public.revise_roster_version('${organization}','${tryout}','${division}','${rosterId}','First simultaneous correction request.','REVISE ROSTER')`,
+          `select outcome from public.revise_roster_version('${organization}','${tryout}','${division}','${rosterId}',3,'First simultaneous correction request.','REVISE ROSTER')`,
           `roster-revise-a-${suffix}`,
         ),
         asOwner(
-          `select outcome from public.revise_roster_version('${organization}','${tryout}','${division}','${rosterId}','Second simultaneous correction request.','REVISE ROSTER')`,
+          `select outcome from public.revise_roster_version('${organization}','${tryout}','${division}','${rosterId}',3,'Second simultaneous correction request.','REVISE ROSTER')`,
           `roster-revise-b-${suffix}`,
         ),
       ]);
@@ -170,18 +170,41 @@ describe('real roster finalization concurrency', () => {
           )
         ).stdout.trim(),
       ).toBe('1');
+      expect(
+        (
+          await psql(
+            `select based_on_roster_version_id||'|'||(select count(*) from public.roster_assignments assignment where assignment.roster_version_id=version.id)||'|'||(select count(*) from public.roster_decisions decision where decision.roster_version_id=version.id)||'|'||version.version from public.roster_versions version where organization_id='${organization}' and state='draft'`,
+          )
+        ).stdout.trim(),
+      ).toBe(`${rosterId}|1|2|1`);
     } finally {
       if (holder.exitCode === null && holder.signalCode === null) {
         holder.stdin?.write(`select pg_advisory_unlock(${gateKey});\n\\q\n`);
         holder.kill('SIGTERM');
       }
       await psql(`
+        begin;
+        alter table public.roster_assignments disable trigger guard_roster_assignments_snapshot;
+        alter table public.roster_decisions disable trigger guard_roster_decisions_snapshot;
+        alter table public.decision_history disable trigger guard_decision_history_snapshot_insert;
+        alter table public.decision_history disable trigger prevent_decision_history_update;
+        alter table public.decision_history disable trigger prevent_decision_history_delete;
+        alter table public.roster_versions disable trigger prevent_finalized_roster_version_mutation;
+        alter table public.tryout_teams disable trigger prevent_finalized_roster_team_mutation;
         set session_replication_role=replica;
         do $cleanup$ declare target record; begin for target in select distinct table_name from information_schema.columns where table_schema='public' and column_name='organization_id' and table_name<>'organizations' loop execute format('delete from public.%I where organization_id=$1',target.table_name) using '${organization}'::uuid; end loop; end $cleanup$;
         delete from public.organizations where id='${organization}';
         delete from auth.users where id='${owner}';
         set session_replication_role=origin;
-      `).catch(() => undefined);
+        alter table public.roster_assignments enable always trigger guard_roster_assignments_snapshot;
+        alter table public.roster_decisions enable always trigger guard_roster_decisions_snapshot;
+        alter table public.decision_history enable always trigger guard_decision_history_snapshot_insert;
+        alter table public.decision_history enable always trigger prevent_decision_history_update;
+        alter table public.decision_history enable always trigger prevent_decision_history_delete;
+        alter table public.roster_versions enable always trigger prevent_finalized_roster_version_mutation;
+        alter table public.tryout_teams enable always trigger prevent_finalized_roster_team_mutation;
+        commit;
+      `);
     }
   }, 30_000);
 });

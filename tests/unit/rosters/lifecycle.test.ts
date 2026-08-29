@@ -164,6 +164,7 @@ describe('roster lifecycle', () => {
           tryoutId: ids.tryout,
           divisionId: ids.division,
           rosterVersionId: ids.roster,
+          expectedVersion: 4,
           reason: 'short',
           confirmation: REVISE_ROSTER_CONFIRMATION,
         },
@@ -178,6 +179,7 @@ describe('roster lifecycle', () => {
           tryoutId: ids.tryout,
           divisionId: ids.division,
           rosterVersionId: ids.roster,
+          expectedVersion: 4,
           reason: 'A sufficiently detailed correction reason.',
           confirmation: REVISE_ROSTER_CONFIRMATION,
         },
@@ -223,6 +225,7 @@ describe('roster lifecycle', () => {
           tryoutId: ids.tryout,
           divisionId: ids.division,
           rosterVersionId: ids.roster,
+          expectedVersion: 4,
           reason: 'A sufficiently detailed correction reason.',
           confirmation: 'yes',
         },
@@ -230,5 +233,64 @@ describe('roster lifecycle', () => {
         { gateway: { revise: vi.fn() } },
       ),
     ).resolves.toEqual({ ok: false, error: { code: 'confirmation_required' } });
+  });
+
+  it('requires and forwards the exact finalized source version when revising', async () => {
+    const revise = vi
+      .fn()
+      .mockResolvedValue({ outcome: 'revised', rosterVersionId: ids.roster, version: 1 });
+    await expect(
+      reviseRoster(
+        {
+          organizationId: ids.organization,
+          tryoutId: ids.tryout,
+          divisionId: ids.division,
+          rosterVersionId: ids.roster,
+          expectedVersion: 4,
+          reason: 'Correcting the finalized roster snapshot.',
+          confirmation: REVISE_ROSTER_CONFIRMATION,
+        },
+        director(),
+        { gateway: { revise } },
+      ),
+    ).resolves.toEqual({
+      ok: true,
+      value: { rosterVersionId: ids.roster, state: 'draft', version: 1 },
+    });
+    expect(revise).toHaveBeenCalledWith(expect.objectContaining({ expectedVersion: 4 }));
+
+    await expect(
+      reviseRoster(
+        {
+          organizationId: ids.organization,
+          tryoutId: ids.tryout,
+          divisionId: ids.division,
+          rosterVersionId: ids.roster,
+          expectedVersion: 0,
+          reason: 'Correcting the finalized roster snapshot.',
+          confirmation: REVISE_ROSTER_CONFIRMATION,
+        },
+        director(),
+        { gateway: { revise } },
+      ),
+    ).resolves.toEqual({ ok: false, error: { code: 'invalid_roster' } });
+    expect(revise).toHaveBeenCalledTimes(1);
+
+    revise.mockResolvedValueOnce({ outcome: 'conflict', version: 7 });
+    await expect(
+      reviseRoster(
+        {
+          organizationId: ids.organization,
+          tryoutId: ids.tryout,
+          divisionId: ids.division,
+          rosterVersionId: ids.roster,
+          expectedVersion: 4,
+          reason: 'Correcting the finalized roster snapshot.',
+          confirmation: REVISE_ROSTER_CONFIRMATION,
+        },
+        director(),
+        { gateway: { revise } },
+      ),
+    ).resolves.toEqual({ ok: false, error: { code: 'conflict', currentVersion: 7 } });
   });
 });

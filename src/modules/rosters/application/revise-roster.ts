@@ -9,6 +9,7 @@ import { defaultRosterGateway } from './roster-dependencies';
 
 const inputSchema = rosterScopeSchema.extend({
   rosterVersionId: z.uuid(),
+  expectedVersion: z.number().int().safe().positive(),
   reason: z.string().trim().min(10).max(500),
   confirmation: z.literal(REVISE_ROSTER_CONFIRMATION),
 });
@@ -18,7 +19,10 @@ export async function reviseRoster(
   actor: AuthorizationContext,
   dependencies: { gateway?: ReviseRosterGateway } = {},
 ): Promise<
-  AppResult<{ rosterVersionId: string; state: 'draft'; version: number }, { code: string }>
+  AppResult<
+    { rosterVersionId: string; state: 'draft'; version: number },
+    { code: string; currentVersion?: number }
+  >
 > {
   if (
     typeof input !== 'object' ||
@@ -53,7 +57,9 @@ export async function reviseRoster(
           state: 'draft',
           version: result.version,
         })
-      : failure({ code: result.outcome });
+      : result.outcome === 'conflict'
+        ? failure({ code: result.outcome, currentVersion: result.version })
+        : failure({ code: result.outcome });
   } catch {
     return failure({ code: 'unexpected' });
   }
