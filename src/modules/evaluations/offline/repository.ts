@@ -231,6 +231,8 @@ export type RepositoryOptions = {
 
 type EvaluationOfflineClock = {
   now(): Date;
+  /** Test-runtime phase hook used to prove time cannot cross a quota await before a write. */
+  beforeByteQuota?(): Promise<void>;
 };
 
 const systemUtcClock: EvaluationOfflineClock = Object.freeze({
@@ -379,6 +381,7 @@ export class EvaluationOfflineRepository {
   readonly databaseName: string;
   private readonly quotas: EvaluationOfflineQuotas;
   private readonly readClock: () => Date;
+  private readonly beforeByteQuota?: () => Promise<void>;
 
   constructor(
     private readonly database: EvaluationOfflineDatabase,
@@ -396,6 +399,7 @@ export class EvaluationOfflineRepository {
     this.databaseName = database.name;
     this.quotas = { ...DEFAULT_QUOTAS, ...quotas };
     this.readClock = clock.now.bind(clock);
+    this.beforeByteQuota = clock.beforeByteQuota?.bind(clock);
   }
 
   close(): void {
@@ -478,6 +482,7 @@ export class EvaluationOfflineRepository {
     transaction: AllTablesTransaction,
     candidate: unknown,
   ): Promise<void> {
+    await this.beforeByteQuota?.();
     const usage = await this.allUsage(transaction);
     if (encodedBytes(usage) + encodedBytes(candidate) > this.quotas.maxBytes)
       throw quotaError('bytes');
@@ -996,6 +1001,37 @@ export class EvaluationOfflineRepository {
     };
   }
 
+  private assertExactReceiptTerminalTriple(
+    mutation: StoredEvaluationMutation | undefined,
+    receipt: StoredEvaluationReceipt,
+    tombstone: StoredEvaluationReceiptTombstone | undefined,
+  ): void {
+    const mutationMatches =
+      !mutation ||
+      (mutation.storageKey === receipt.storageKey &&
+        mutation.clientMutationId === receipt.clientMutationId &&
+        mutation.scopeKey === receipt.scopeKey &&
+        mutation.evaluationId === receipt.evaluationId &&
+        mutation.expectedVersion === receipt.expectedVersion &&
+        mutation.payloadDigest === receipt.payloadDigest);
+    const mutationIsTerminal =
+      !mutation ||
+      (mutation.status === 'acknowledged' &&
+        mutation.syncState === 'synced' &&
+        mutation.acknowledgedAt === receipt.acknowledgedAt);
+    const fenceMatches =
+      tombstone !== undefined &&
+      tombstone.reason === 'receipt_authority' &&
+      this.tombstoneMatchesMutation(tombstone, receipt) &&
+      tombstone.serverVersion === receipt.serverVersion &&
+      tombstone.acknowledgedAt === receipt.acknowledgedAt;
+    if (!mutationMatches || !mutationIsTerminal || !fenceMatches)
+      throw new EvaluationOfflineError(
+        'corrupt_record',
+        'Target receipt requires an exact acknowledged mutation and terminal authority fence.',
+      );
+  }
+
   private async validateQueueLineage(
     transaction: AllTablesTransaction,
     scope: EvaluationStorageScope,
@@ -1077,11 +1113,13 @@ export class EvaluationOfflineRepository {
       .equals(scopeKey(scope))
       .toArray();
     const rows: StoredEvaluationMutation[] = [];
+    const scopedMutationsByStorageKey = new Map<string, StoredEvaluationMutation>();
     for (const raw of rawRows) {
       const row = await this.validateMutationRecord(raw);
       if (row.scopeKey !== scopeKey(scope)) {
         throw new EvaluationOfflineError('corrupt_record', 'Target queue scope is invalid.');
       }
+      scopedMutationsByStorageKey.set(row.storageKey, row);
       if (row.queueKey === queueKey) rows.push(row);
     }
     const physicalPrefix = `${scopeKey(scope)}|`;
@@ -1112,17 +1150,22 @@ export class EvaluationOfflineRepository {
     }
     for (const [storageKey, receipt] of receipts) {
       const tombstone = tombstones.get(storageKey);
-      if (!tombstone) continue;
-      if (
-        tombstone.reason !== 'receipt_authority' ||
-        !this.tombstoneMatchesMutation(tombstone, receipt) ||
-        tombstone.serverVersion !== receipt.serverVersion ||
-        tombstone.acknowledgedAt !== receipt.acknowledgedAt
-      )
+      this.assertExactReceiptTerminalTriple(
+        scopedMutationsByStorageKey.get(storageKey),
+        receipt,
+        tombstone,
+      );
+    }
+    for (const row of rows) {
+      if (row.status !== 'acknowledged') continue;
+      const receipt = receipts.get(row.storageKey);
+      const tombstone = tombstones.get(row.storageKey);
+      if (!receipt || !tombstone)
         throw new EvaluationOfflineError(
           'corrupt_record',
-          'Target terminal receipt and tombstone lineage diverge.',
+          'Acknowledged target mutation is missing its exact terminal triple.',
         );
+      this.assertExactReceiptTerminalTriple(row, receipt, tombstone);
     }
     const rawQuarantines = await this.database.quarantines
       .where('scopeKey')
@@ -1352,6 +1395,7 @@ export class EvaluationOfflineRepository {
       );
 
     const relatedIds = new Set(seedEvaluationIds);
+    const relatedClientIds = new Set<string>();
     let expanded = true;
     while (expanded) {
       expanded = false;
@@ -1359,12 +1403,35 @@ export class EvaluationOfflineRepository {
         const linked = [mutation.evaluationId, mutation.conflictServerEvaluationId].filter(
           (value): value is string => value !== undefined,
         );
-        if (!linked.some((value) => relatedIds.has(value))) continue;
+        if (
+          !relatedClientIds.has(mutation.clientMutationId) &&
+          !linked.some((value) => relatedIds.has(value))
+        )
+          continue;
+        if (!relatedClientIds.has(mutation.clientMutationId)) {
+          relatedClientIds.add(mutation.clientMutationId);
+          expanded = true;
+        }
         for (const value of linked)
           if (!relatedIds.has(value)) {
             relatedIds.add(value);
             expanded = true;
           }
+      }
+      for (const receipt of receipts) {
+        if (
+          !relatedClientIds.has(receipt.clientMutationId) &&
+          !relatedIds.has(receipt.evaluationId)
+        )
+          continue;
+        if (!relatedClientIds.has(receipt.clientMutationId)) {
+          relatedClientIds.add(receipt.clientMutationId);
+          expanded = true;
+        }
+        if (!relatedIds.has(receipt.evaluationId)) {
+          relatedIds.add(receipt.evaluationId);
+          expanded = true;
+        }
       }
       for (const tombstone of tombstones) {
         const linked = [
@@ -1373,9 +1440,24 @@ export class EvaluationOfflineRepository {
           tombstone.resolutionServerEvaluationId,
           tombstone.resolutionRetiredEvaluationId,
         ].filter((value): value is string => value !== undefined);
-        if (!linked.some((value) => relatedIds.has(value))) continue;
+        if (
+          !relatedClientIds.has(tombstone.clientMutationId) &&
+          !linked.some((value) => relatedIds.has(value))
+        )
+          continue;
+        if (!relatedClientIds.has(tombstone.clientMutationId)) {
+          relatedClientIds.add(tombstone.clientMutationId);
+          expanded = true;
+        }
         if (tombstone.resolutionId)
           for (const sibling of tombstones) {
+            if (
+              sibling.resolutionId === tombstone.resolutionId &&
+              !relatedClientIds.has(sibling.clientMutationId)
+            ) {
+              relatedClientIds.add(sibling.clientMutationId);
+              expanded = true;
+            }
             if (
               sibling.resolutionId === tombstone.resolutionId &&
               sibling.resolutionRetiredEvaluationId &&
@@ -1393,15 +1475,23 @@ export class EvaluationOfflineRepository {
       }
     }
 
-    const relatedMutations = mutations.filter((record) => relatedIds.has(record.evaluationId));
-    const relatedReceipts = receipts.filter((record) => relatedIds.has(record.evaluationId));
-    const relatedTombstones = tombstones.filter((record) =>
-      [
-        record.evaluationId,
-        record.resolutionOriginalEvaluationId,
-        record.resolutionServerEvaluationId,
-        record.resolutionRetiredEvaluationId,
-      ].some((value) => value !== undefined && relatedIds.has(value)),
+    const relatedMutations = mutations.filter(
+      (record) =>
+        relatedClientIds.has(record.clientMutationId) || relatedIds.has(record.evaluationId),
+    );
+    const relatedReceipts = receipts.filter(
+      (record) =>
+        relatedClientIds.has(record.clientMutationId) || relatedIds.has(record.evaluationId),
+    );
+    const relatedTombstones = tombstones.filter(
+      (record) =>
+        relatedClientIds.has(record.clientMutationId) ||
+        [
+          record.evaluationId,
+          record.resolutionOriginalEvaluationId,
+          record.resolutionServerEvaluationId,
+          record.resolutionRetiredEvaluationId,
+        ].some((value) => value !== undefined && relatedIds.has(value)),
     );
 
     const mutationsByClient = new Map(
@@ -1410,11 +1500,12 @@ export class EvaluationOfflineRepository {
     const tombstonesByClient = new Map(
       relatedTombstones.map((record) => [record.clientMutationId, record]),
     );
-    const relatedClientIds = new Set([
+    for (const clientMutationId of [
       ...mutationsByClient.keys(),
       ...relatedReceipts.map((record) => record.clientMutationId),
       ...tombstonesByClient.keys(),
-    ]);
+    ])
+      relatedClientIds.add(clientMutationId);
     for (const raw of await transaction
       .table<unknown, IndexableType>('quarantines')
       .toCollection()
@@ -1438,31 +1529,8 @@ export class EvaluationOfflineRepository {
     }
     for (const receipt of relatedReceipts) {
       const mutation = mutationsByClient.get(receipt.clientMutationId);
-      if (
-        mutation &&
-        (mutation.storageKey !== receipt.storageKey ||
-          mutation.evaluationId !== receipt.evaluationId ||
-          mutation.expectedVersion !== receipt.expectedVersion ||
-          mutation.payloadDigest !== receipt.payloadDigest)
-      )
-        throw new EvaluationOfflineError(
-          'corrupt_record',
-          'Target mutation and receipt lineage diverge.',
-        );
       const tombstone = tombstonesByClient.get(receipt.clientMutationId);
-      if (
-        tombstone &&
-        (tombstone.reason !== 'receipt_authority' ||
-          !this.tombstoneMatchesMutation(tombstone, receipt) ||
-          tombstone.serverVersion !== receipt.serverVersion ||
-          tombstone.acknowledgedAt !== receipt.acknowledgedAt)
-      )
-        throw new EvaluationOfflineError(
-          'corrupt_record',
-          'Target receipt and terminal fence lineage diverge.',
-        );
-      if (!mutation && !tombstone)
-        throw new EvaluationOfflineError('corrupt_record', 'Target receipt is orphaned.');
+      this.assertExactReceiptTerminalTriple(mutation, receipt, tombstone);
     }
     for (const tombstone of relatedTombstones) {
       const mutation = mutationsByClient.get(tombstone.clientMutationId);
@@ -1471,6 +1539,17 @@ export class EvaluationOfflineRepository {
           'corrupt_record',
           'Resolved target mutation still has live queue lineage.',
         );
+      if (mutation?.status === 'acknowledged') {
+        const receipt = relatedReceipts.find(
+          (candidate) => candidate.clientMutationId === tombstone.clientMutationId,
+        );
+        if (!receipt)
+          throw new EvaluationOfflineError(
+            'corrupt_record',
+            'Acknowledged target mutation is missing its exact terminal receipt.',
+          );
+        this.assertExactReceiptTerminalTriple(mutation, receipt, tombstone);
+      }
     }
 
     const conflictGroups = new Map<string, StoredEvaluationReceiptTombstone[]>();
@@ -1815,6 +1894,7 @@ export class EvaluationOfflineRepository {
                 'invalid_transition',
                 'The render nonce is already bound to another server snapshot.',
               );
+            this.assertCurrentSnapshotProof(proof, this.clockNow());
             return;
           }
           if (sameSnapshot) {
@@ -1846,9 +1926,10 @@ export class EvaluationOfflineRepository {
                   : {}),
               },
             });
-            this.assertCurrentSnapshotProof(proof, this.clockNow());
             await this.assertByteQuota(transaction, next);
+            this.assertCurrentSnapshotProof(proof, this.clockNow());
             await this.database.sessionContexts.put(next);
+            this.assertCurrentSnapshotProof(proof, this.clockNow());
             return;
           }
           if (Date.parse(current.issuedAt) > issuedAt)
@@ -1861,9 +1942,10 @@ export class EvaluationOfflineRepository {
           ...context,
           authoritativeSnapshotProof: proof,
         });
-        this.assertCurrentSnapshotProof(proof, this.clockNow());
         await this.assertByteQuota(transaction, next);
+        this.assertCurrentSnapshotProof(proof, this.clockNow());
         await this.database.sessionContexts.put(next);
+        this.assertCurrentSnapshotProof(proof, this.clockNow());
       });
     } catch (error) {
       throw mapStorageError(error, 'write');
@@ -3438,19 +3520,19 @@ export class EvaluationOfflineRepository {
               'The server-render proof was consumed by another resolution.',
             );
           if (!proof.consumedResolutionId) {
-            const consumptionTime = this.clockNow();
-            this.assertCurrentSnapshotProof(boundRequestedProof, consumptionTime);
-            await this.database.sessionContexts.put(
-              storedSessionContextSchema.parse({
-                ...context,
-                authoritativeSnapshotProof: {
-                  ...proof,
-                  consumedAt: consumptionTime.toISOString(),
-                  consumedResolutionId: tombstone.resolutionId,
-                },
-              }),
-            );
+            const consumedContext = storedSessionContextSchema.parse({
+              ...context,
+              authoritativeSnapshotProof: {
+                ...proof,
+                consumedAt: this.clockNow().toISOString(),
+                consumedResolutionId: tombstone.resolutionId,
+              },
+            });
+            await this.assertByteQuota(transaction, consumedContext);
+            this.assertCurrentSnapshotProof(boundRequestedProof, this.clockNow());
+            await this.database.sessionContexts.put(consumedContext);
           }
+          this.assertCurrentSnapshotProof(boundRequestedProof, this.clockNow());
           return {
             action: input.action,
             evaluationId: tombstone.resolutionServerEvaluationId,
@@ -3580,9 +3662,8 @@ export class EvaluationOfflineRepository {
             evaluationPayload(scope, input.server.evaluationId, input.server.version, chosenDraft),
           ),
         );
-        const writeTime = this.clockNow();
-        this.assertCurrentSnapshotProof(boundRequestedProof, writeTime);
-        const timestamp = writeTime.toISOString();
+        const phaseTime = this.clockNow();
+        const timestamp = phaseTime.toISOString();
         const draftRecord: StoredEvaluationDraft = {
           scopeKey: scopeKey(scope),
           scope,
@@ -3592,10 +3673,8 @@ export class EvaluationOfflineRepository {
           payloadDigest: resultPayloadDigest,
           syncState: 'synced',
           updatedAt: timestamp,
-          expiresAt: addMilliseconds(writeTime, DRAFT_TTL_MS),
+          expiresAt: addMilliseconds(phaseTime, DRAFT_TTL_MS),
         };
-        await this.assertByteQuota(transaction, draftRecord);
-        await this.database.drafts.put(draftRecord);
 
         const resolutionId = crypto.randomUUID();
         const retiredRows: {
@@ -3633,59 +3712,78 @@ export class EvaluationOfflineRepository {
               ),
           }),
         );
-        const retirementTime = this.clockNow();
-        this.assertCurrentSnapshotProof(boundRequestedProof, retirementTime);
+        const tombstoneRecords: StoredEvaluationReceiptTombstone[] = [];
         for (const { row, retiredDraftDigest } of retiredRows) {
-          await this.database.mutations.delete(row.storageKey);
-          await this.ensureConflictResolutionTombstone(
-            transaction,
-            scope,
-            row.clientMutationId,
-            row.storageKey === head.storageKey ? 'conflict_use_server' : 'conflict_dependent',
-            retirementTime,
-            {
-              resolutionId,
-              resolutionAction: input.action,
-              resolutionHeadMutationId: head.clientMutationId,
-              resolutionInputDigest: requestedLocalDraftDigest,
-              resolutionOutputDigest: resultDraftDigest,
-              resolutionRetiredEvaluationId: row.evaluationId,
-              resolutionRetiredQueueKey: row.queueKey,
-              resolutionRetiredQueueSequence: row.queueSequence,
-              resolutionRetiredExpectedVersion: row.expectedVersion,
-              resolutionRetiredPayloadDigest: row.payloadDigest,
-              resolutionRetiredDraftDigest: retiredDraftDigest,
-              resolutionGroupSize: retiredRows.length,
-              resolutionGroupDigest,
-              ...(row.storageKey === head.storageKey
-                ? {
-                    resolutionOriginalEvaluationId: head.evaluationId,
-                    resolutionOriginalPayloadDigest: head.payloadDigest,
-                    resolutionOriginalQueueSequence: head.queueSequence,
-                    resolutionServerEvaluationId: input.server.evaluationId,
-                    resolutionServerVersion: input.server.version,
-                    resolutionServerSnapshotDigest: serverSnapshotDigest,
-                    resolutionInputLocalDraftDigest: requestedLocalDraftDigest,
-                    resolutionResultDraftDigest: resultDraftDigest,
-                    resolutionResultPayloadDigest: draftRecord.payloadDigest,
-                    resolutionResultMarker: 'use_server_discarded',
-                  }
-                : {}),
-            },
+          const reason =
+            row.storageKey === head.storageKey ? 'conflict_use_server' : 'conflict_dependent';
+          const withoutDigest: Omit<StoredEvaluationReceiptTombstone, 'tombstoneDigest'> = {
+            storageKey: row.storageKey,
+            scopeKey: scopeKey(scope),
+            clientMutationId: row.clientMutationId,
+            reason,
+            createdAt: timestamp,
+            resolutionId,
+            resolutionAction: input.action,
+            resolutionHeadMutationId: head.clientMutationId,
+            resolutionInputDigest: requestedLocalDraftDigest,
+            resolutionOutputDigest: resultDraftDigest,
+            resolutionRetiredEvaluationId: row.evaluationId,
+            resolutionRetiredQueueKey: row.queueKey,
+            resolutionRetiredQueueSequence: row.queueSequence,
+            resolutionRetiredExpectedVersion: row.expectedVersion,
+            resolutionRetiredPayloadDigest: row.payloadDigest,
+            resolutionRetiredDraftDigest: retiredDraftDigest,
+            resolutionGroupSize: retiredRows.length,
+            resolutionGroupDigest,
+            ...(row.storageKey === head.storageKey
+              ? {
+                  resolutionOriginalEvaluationId: head.evaluationId,
+                  resolutionOriginalPayloadDigest: head.payloadDigest,
+                  resolutionOriginalQueueSequence: head.queueSequence,
+                  resolutionServerEvaluationId: input.server.evaluationId,
+                  resolutionServerVersion: input.server.version,
+                  resolutionServerSnapshotDigest: serverSnapshotDigest,
+                  resolutionInputLocalDraftDigest: requestedLocalDraftDigest,
+                  resolutionResultDraftDigest: resultDraftDigest,
+                  resolutionResultPayloadDigest: draftRecord.payloadDigest,
+                  resolutionResultMarker: 'use_server_discarded' as const,
+                }
+              : {}),
+          };
+          tombstoneRecords.push(
+            storedReceiptTombstoneSchema.parse({
+              ...withoutDigest,
+              tombstoneDigest: await Dexie.waitFor(
+                digestValue(receiptTombstonePayload(withoutDigest)),
+              ),
+            }),
           );
         }
-        const consumptionTime = this.clockNow();
-        this.assertCurrentSnapshotProof(boundRequestedProof, consumptionTime);
-        await this.database.sessionContexts.put(
-          storedSessionContextSchema.parse({
-            ...context,
-            authoritativeSnapshotProof: {
-              ...proof,
-              consumedAt: consumptionTime.toISOString(),
-              consumedResolutionId: resolutionId,
-            },
-          }),
-        );
+        const consumedContext = storedSessionContextSchema.parse({
+          ...context,
+          authoritativeSnapshotProof: {
+            ...proof,
+            consumedAt: timestamp,
+            consumedResolutionId: resolutionId,
+          },
+        });
+
+        // Quota scans, crypto, and all full-store validation are complete before the repository's
+        // final clock check. The four Dexie operations are then issued synchronously as one phase;
+        // a post-write check still rolls the transaction back if IndexedDB itself crosses expiry.
+        await this.assertByteQuota(transaction, draftRecord);
+        for (const tombstone of tombstoneRecords)
+          await this.assertByteQuota(transaction, tombstone);
+        await this.assertByteQuota(transaction, consumedContext);
+        this.assertCurrentSnapshotProof(boundRequestedProof, this.clockNow());
+        const writePromises = [
+          this.database.drafts.put(draftRecord),
+          this.database.mutations.bulkDelete(retiredRows.map(({ row }) => row.storageKey)),
+          this.database.receiptTombstones.bulkPut(tombstoneRecords),
+          this.database.sessionContexts.put(consumedContext),
+        ];
+        await Promise.all(writePromises);
+        this.assertCurrentSnapshotProof(boundRequestedProof, this.clockNow());
         return {
           action: input.action,
           evaluationId: input.server.evaluationId,

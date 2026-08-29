@@ -238,6 +238,92 @@ async function resolveVerified(
   }>;
 }
 
+async function prepareConflictAfterAcknowledgedPredecessor(label: string) {
+  const issuedAt = new Date('2026-08-29T19:00:00.000Z');
+  const time = fakeClock(issuedAt);
+  const baseName = databaseBase(label);
+  const physicalName = trackUserDatabase(baseName);
+  const target = await prepare(
+    createEvaluationOfflineRepository(
+      { authenticatedUserId: scope.userId, databaseName: baseName },
+      time.clock,
+    ),
+  );
+  const predecessorId = '30000000-0000-4000-8000-000000000230';
+  await target.saveDraftAndEnqueueMutation(mutation({ clientMutationId: predecessorId }), {
+    now: issuedAt,
+  });
+  const predecessor = (await target.nextPendingMutation(scope, { now: issuedAt }))!;
+  await target.acknowledgeMutation({
+    scope,
+    evaluationId: predecessor.evaluationId,
+    clientMutationId: predecessorId,
+    claimToken: predecessor.claimToken!,
+    expectedVersion: predecessor.expectedVersion,
+    payloadDigest: predecessor.payloadDigest,
+    serverVersion: predecessor.expectedVersion + 1,
+    acknowledgedAt: '2026-08-29T19:00:01.000Z',
+    now: new Date('2026-08-29T19:00:01.000Z'),
+  });
+
+  const clientMutationId = '30000000-0000-4000-8000-000000000231';
+  const localDraft = { ...draft, note: 'newest conflicted local bytes' };
+  await target.saveDraftAndEnqueueMutation(
+    mutation({
+      clientMutationId,
+      expectedVersion: 3,
+      draft: localDraft,
+    }),
+    { now: new Date('2026-08-29T19:00:02.000Z') },
+  );
+  const head = (await target.nextPendingMutation(scope, {
+    now: new Date('2026-08-29T19:00:02.000Z'),
+  }))!;
+  await target.markNeedsAttention({
+    scope,
+    evaluationId: head.evaluationId,
+    clientMutationId,
+    claimToken: head.claimToken!,
+    category: 'conflict',
+    message: 'server advanced',
+    conflictServerEvaluationId: head.evaluationId,
+    conflictServerVersion: 7,
+    now: new Date('2026-08-29T19:00:03.000Z'),
+  });
+  const serverDraft = { ...draft, note: 'authoritative server bytes' };
+  const proof = await issueTestSnapshotProof({
+    scope,
+    evaluationId: head.evaluationId,
+    version: 7,
+    draft: serverDraft,
+    now: issuedAt,
+  });
+  await target.registerAuthoritativeSnapshotProof(proof);
+  return {
+    target,
+    physicalName,
+    predecessor,
+    predecessorStorageKey: `${Object.values(scope).join('|')}|${predecessorId}`,
+    input: {
+      scope,
+      clientMutationId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: {
+        evaluationId: head.evaluationId,
+        expectedVersion: head.expectedVersion,
+        draft: localDraft,
+      },
+      server: { scope, evaluationId: head.evaluationId, version: 7, draft: serverDraft },
+      snapshotProofNonce: proof.renderNonce,
+    },
+  };
+}
+
 const v3Stores = {
   sessionContexts: '&scopeKey,expiresAt',
   drafts: '&scopeKey,updatedAt,expiresAt',
@@ -1108,6 +1194,386 @@ describe('evaluation offline outbox', () => {
     expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
     after.close();
     target.close();
+  });
+
+  it('does not register a proof that expires while the final quota scan is awaiting IndexedDB', async () => {
+    const issuedAt = new Date('2026-08-29T12:00:00.000Z');
+    const time = fakeClock(issuedAt);
+    let phase: 'setup' | 'register' = 'setup';
+    const clock = {
+      now: time.clock.now,
+      async beforeByteQuota() {
+        if (phase === 'register') {
+          await Promise.resolve();
+          time.advance(120_001);
+        }
+      },
+    };
+    const baseName = databaseBase('proof-expires-during-registration-quota');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository(
+        { authenticatedUserId: scope.userId, databaseName: baseName },
+        clock,
+      ),
+    );
+    const proof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: mutation().evaluationId,
+      version: 3,
+      draft,
+      now: issuedAt,
+    });
+
+    phase = 'register';
+    await expect(target.registerAuthoritativeSnapshotProof(proof)).rejects.toMatchObject({
+      code: 'invalid_transition',
+    });
+
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const storedContext = await raw.table('sessionContexts').get(Object.values(scope).join('|'));
+    expect(storedContext).not.toHaveProperty('authoritativeSnapshotProof');
+    raw.close();
+    target.close();
+  });
+
+  it('rolls back destructive recovery when its proof expires during the last quota phase', async () => {
+    const issuedAt = new Date('2026-08-29T19:00:00.000Z');
+    const time = fakeClock(issuedAt);
+    let phase: 'setup' | 'resolve' = 'setup';
+    let advanced = false;
+    const clock = {
+      now: time.clock.now,
+      async beforeByteQuota() {
+        if (phase === 'resolve' && !advanced) {
+          await Promise.resolve();
+          advanced = true;
+          time.advance(120_001);
+        }
+      },
+    };
+    const baseName = databaseBase('proof-expires-during-resolution-quota');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository(
+        { authenticatedUserId: scope.userId, databaseName: baseName },
+        clock,
+      ),
+    );
+    const clientMutationId = '30000000-0000-4000-8000-000000000232';
+    await target.saveDraftAndEnqueueMutation(mutation({ clientMutationId }), { now: issuedAt });
+    const head = (await target.nextPendingMutation(scope, { now: issuedAt }))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'proof expires in quota phase',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 7,
+      now: new Date('2026-08-29T19:00:01.000Z'),
+    });
+    const serverDraft = { ...draft, note: 'server quota-race bytes' };
+    const proof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: head.evaluationId,
+      version: 7,
+      draft: serverDraft,
+      now: issuedAt,
+    });
+    await target.registerAuthoritativeSnapshotProof(proof);
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const before = await snapshotV5(raw, { includeProof: true });
+    raw.close();
+
+    phase = 'resolve';
+    await expect(
+      target.resolveConflict({
+        scope,
+        clientMutationId,
+        action: 'use_server',
+        original: {
+          evaluationId: head.evaluationId,
+          payloadDigest: head.payloadDigest,
+          queueSequence: head.queueSequence,
+        },
+        local: {
+          evaluationId: head.evaluationId,
+          expectedVersion: head.expectedVersion,
+          draft,
+        },
+        server: { scope, evaluationId: head.evaluationId, version: 7, draft: serverDraft },
+        snapshotProofNonce: proof.renderNonce,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_transition' });
+    expect(advanced).toBe(true);
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    const storedContext = await after.table('sessionContexts').get(Object.values(scope).join('|'));
+    expect(storedContext.authoritativeSnapshotProof).not.toHaveProperty('consumedAt');
+    after.close();
+    target.close();
+  });
+
+  it('rejects a conflict-head receipt without its exact terminal authority fence byte-equivalently', async () => {
+    const issuedAt = new Date('2026-08-29T12:00:00.000Z');
+    const time = fakeClock(issuedAt);
+    const baseName = databaseBase('use-server-terminal-triple');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository(
+        { authenticatedUserId: scope.userId, databaseName: baseName },
+        time.clock,
+      ),
+    );
+    const clientMutationId = '30000000-0000-4000-8000-000000000229';
+    await target.saveDraftAndEnqueueMutation(mutation({ clientMutationId }));
+    const claimed = (await target.nextPendingMutation(scope))!;
+    const claimToken = claimed.claimToken!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: claimed.evaluationId,
+      clientMutationId,
+      claimToken,
+      category: 'conflict',
+      message: 'receipt without authority fence',
+      conflictServerEvaluationId: claimed.evaluationId,
+      conflictServerVersion: 7,
+    });
+    const serverDraft = { ...draft, note: 'authoritative server bytes' };
+    const proof = await issueTestSnapshotProof({
+      scope,
+      evaluationId: claimed.evaluationId,
+      version: 7,
+      draft: serverDraft,
+      now: issuedAt,
+    });
+    await target.registerAuthoritativeSnapshotProof(proof);
+
+    const storageKey = `${Object.values(scope).join('|')}|${clientMutationId}`;
+    const acknowledgedAt = '2026-08-29T12:00:01.000Z';
+    const receiptWithoutDigest = {
+      storageKey,
+      clientMutationId,
+      scopeKey: Object.values(scope).join('|'),
+      scope,
+      evaluationId: claimed.evaluationId,
+      expectedVersion: claimed.expectedVersion,
+      payloadDigest: claimed.payloadDigest,
+      claimToken,
+      serverVersion: claimed.expectedVersion + 1,
+      acknowledgedAt,
+      expiresAt: '2026-09-29T12:00:01.000Z',
+    };
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('receipts').put({
+      ...receiptWithoutDigest,
+      receiptDigest: await digestValue(receiptWithoutDigest),
+    });
+    const before = await snapshotV5(raw, { includeProof: true });
+    raw.close();
+
+    await expect(
+      target.resolveConflict({
+        scope,
+        clientMutationId,
+        action: 'use_server',
+        original: {
+          evaluationId: claimed.evaluationId,
+          payloadDigest: claimed.payloadDigest,
+          queueSequence: claimed.queueSequence,
+        },
+        local: {
+          evaluationId: claimed.evaluationId,
+          expectedVersion: claimed.expectedVersion,
+          draft,
+        },
+        server: { scope, evaluationId: claimed.evaluationId, version: 7, draft: serverDraft },
+        snapshotProofNonce: proof.renderNonce,
+      }),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    after.close();
+    target.close();
+  });
+
+  it.each([
+    ['acknowledged live triple', false],
+    ['compacted receipt and authority fence', true],
+  ] as const)(
+    'accepts an exact %s before destructive server recovery',
+    async (_label, compacted) => {
+      const scenario = await prepareConflictAfterAcknowledgedPredecessor(
+        `use-server-valid-terminal-${compacted ? 'compacted' : 'live'}`,
+      );
+      if (compacted) {
+        const raw = new Dexie(scenario.physicalName);
+        raw.version(5).stores(v5Stores);
+        await raw.open();
+        await raw.table('mutations').delete(scenario.predecessorStorageKey);
+        raw.close();
+      }
+
+      await expect(scenario.target.resolveConflict(scenario.input)).resolves.toMatchObject({
+        action: 'use_server',
+        expectedVersion: 7,
+      });
+      scenario.target.close();
+    },
+  );
+
+  it.each(['pending', 'leased'] as const)(
+    'rejects a %s mutation that falsely carries a receipt and authority fence',
+    async (status) => {
+      const scenario = await prepareConflictAfterAcknowledgedPredecessor(
+        `use-server-nonterminal-triple-${status}`,
+      );
+      const raw = new Dexie(scenario.physicalName);
+      raw.version(5).stores(v5Stores);
+      await raw.open();
+      const mutationChanges =
+        status === 'pending'
+          ? {
+              status,
+              syncState: 'saved_device',
+              acknowledgedAt: undefined,
+            }
+          : {
+              status,
+              syncState: 'syncing',
+              acknowledgedAt: undefined,
+              claimToken: crypto.randomUUID(),
+              leaseUntil: '2026-08-29T19:01:00.000Z',
+            };
+      await raw.table('mutations').update(scenario.predecessorStorageKey, mutationChanges);
+      const before = await snapshotV5(raw, { includeProof: true });
+      raw.close();
+
+      await expect(scenario.target.resolveConflict(scenario.input)).rejects.toMatchObject({
+        code: 'corrupt_record',
+      });
+      const after = new Dexie(scenario.physicalName);
+      after.version(5).stores(v5Stores);
+      await after.open();
+      expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+      after.close();
+      scenario.target.close();
+    },
+  );
+
+  it('rejects a receipt with a wrong-reason fence before live resolution or exact replay', async () => {
+    const live = await prepareConflictAfterAcknowledgedPredecessor(
+      'use-server-wrong-receipt-fence-live',
+    );
+    const corruptLive = new Dexie(live.physicalName);
+    corruptLive.version(5).stores(v5Stores);
+    await corruptLive.open();
+    const liveFence = await corruptLive.table('receiptTombstones').get(live.predecessorStorageKey);
+    const { tombstoneDigest: _liveDigest, ...liveFencePayload } = liveFence;
+    const wrongLivePayload = {
+      storageKey: liveFencePayload.storageKey,
+      scopeKey: liveFencePayload.scopeKey,
+      clientMutationId: liveFencePayload.clientMutationId,
+      reason: 'corrupt_receipt',
+      createdAt: liveFencePayload.createdAt,
+    };
+    await corruptLive.table('receiptTombstones').put({
+      ...wrongLivePayload,
+      tombstoneDigest: await digestValue(receiptTombstonePayload(wrongLivePayload as never)),
+    });
+    const liveBefore = await snapshotV5(corruptLive, { includeProof: true });
+    corruptLive.close();
+    await expect(live.target.resolveConflict(live.input)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    const liveAfter = new Dexie(live.physicalName);
+    liveAfter.version(5).stores(v5Stores);
+    await liveAfter.open();
+    expect(await snapshotV5(liveAfter, { includeProof: true })).toEqual(liveBefore);
+    liveAfter.close();
+    live.target.close();
+
+    const replay = await prepareConflictAfterAcknowledgedPredecessor(
+      'use-server-wrong-receipt-fence-replay',
+    );
+    await replay.target.resolveConflict(replay.input);
+    const corruptReplay = new Dexie(replay.physicalName);
+    corruptReplay.version(5).stores(v5Stores);
+    await corruptReplay.open();
+    const replayFence = await corruptReplay
+      .table('receiptTombstones')
+      .get(replay.predecessorStorageKey);
+    const { tombstoneDigest: _replayDigest, ...replayFencePayload } = replayFence;
+    const wrongReplayPayload = {
+      storageKey: replayFencePayload.storageKey,
+      scopeKey: replayFencePayload.scopeKey,
+      clientMutationId: replayFencePayload.clientMutationId,
+      reason: 'corrupt_receipt',
+      createdAt: replayFencePayload.createdAt,
+    };
+    await corruptReplay.table('receiptTombstones').put({
+      ...wrongReplayPayload,
+      tombstoneDigest: await digestValue(receiptTombstonePayload(wrongReplayPayload as never)),
+    });
+    const replayBefore = await snapshotV5(corruptReplay, { includeProof: true });
+    corruptReplay.close();
+    await expect(replay.target.resolveConflict(replay.input)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    const replayAfter = new Dexie(replay.physicalName);
+    replayAfter.version(5).stores(v5Stores);
+    await replayAfter.open();
+    expect(await snapshotV5(replayAfter, { includeProof: true })).toEqual(replayBefore);
+    replayAfter.close();
+    replay.target.close();
+  });
+
+  it('rejects a digest-valid client-ID collision that points its receipt triple at another evaluation', async () => {
+    const scenario = await prepareConflictAfterAcknowledgedPredecessor(
+      'use-server-terminal-client-id-collision',
+    );
+    const raw = new Dexie(scenario.physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const receipt = await raw.table('receipts').get(scenario.predecessorStorageKey);
+    const { receiptDigest: _receiptDigest, ...receiptPayload } = receipt;
+    const collidedReceipt = { ...receiptPayload, evaluationId: secondEvaluationId };
+    await raw.table('receipts').put({
+      ...collidedReceipt,
+      receiptDigest: await digestValue(collidedReceipt),
+    });
+    const fence = await raw.table('receiptTombstones').get(scenario.predecessorStorageKey);
+    const { tombstoneDigest: _tombstoneDigest, ...fencePayload } = fence;
+    const collidedFence = { ...fencePayload, evaluationId: secondEvaluationId };
+    await raw.table('receiptTombstones').put({
+      ...collidedFence,
+      tombstoneDigest: await digestValue(receiptTombstonePayload(collidedFence)),
+    });
+    const before = await snapshotV5(raw, { includeProof: true });
+    raw.close();
+
+    await expect(scenario.target.resolveConflict(scenario.input)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    const after = new Dexie(scenario.physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    after.close();
+    scenario.target.close();
   });
 
   it('requires the exact stored queue-tail draft before consuming a destructive proof', async () => {

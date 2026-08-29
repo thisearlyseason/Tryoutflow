@@ -644,3 +644,69 @@ git diff --check                                                  PASS
 - Tombstones and local-authority metadata contain bounded identifiers, counters, versions, markers, and SHA-256 digests only; raw evaluator content is not copied into terminal records.
 - All destructive conflict paths validate inside the all-store transaction before draft replacement, deletion, tombstone/counter mutation, or replay return. Rejection tests assert full byte-equivalent rollback.
 - `progress.md` and Task 18 were not changed.
+
+## Revised-scope fix round 3 — exact terminal triples and pre-write freshness
+
+### Status
+
+DONE — live resolution, exact replay, and future append now accept receipts only through an exact
+terminal triple, while proof registration and destructive recovery cannot cross expiry during quota
+or IndexedDB work. Task 18 was not started. The authenticated production-cookie browser traversal
+remains the documented release-environment gate.
+
+### RED evidence
+
+- A `needs_attention` conflict mutation with a valid receipt but no `receipt_authority` tombstone
+  passed natural-lineage validation and destructively resolved with `use_server`.
+- Proof registration checked repository time immediately before an awaited full-store quota scan;
+  an injected delay advanced the clock beyond expiry and the proof still persisted.
+
+### Delivered
+
+- Related natural lineage closes over both evaluation identity and client mutation ID. A receipt is
+  accepted only with matching scope/storage/client/evaluation/version/payload lineage, an exact
+  acknowledged mutation (when the mutation remains live), matching acknowledgment time, exact
+  successor server version, and one matching `receipt_authority` tombstone. Missing, wrong-reason,
+  divergent, pending, leased, attention, duplicate/collision, and conflicting conflict tombstones
+  fail before proof consumption or any write.
+- Valid acknowledged mutation/receipt/tombstone triples remain accepted. After mutation compaction,
+  the exact receipt/tombstone pair remains accepted; after receipt TTL compaction, the permanent
+  authority fence remains the last terminal boundary.
+- Strict future append uses the same terminal-triple validator. Live and replay probes assert that a
+  rejected relationship leaves all seven stores and the proof byte-equivalent. `use_server` never
+  replaces receipt authority with a conflict fence for the same mutation ID.
+- Signature verification, crypto/digest construction, full-store scans, and byte-quota checks all
+  precede the final repository-clock check. Live draft replacement, mutation retirement, terminal
+  insertion, and proof consumption are issued as one synchronous Dexie transaction phase, followed
+  by a final clock check that rolls the transaction back if IndexedDB itself crossed expiry.
+- Proof registration and exact replay similarly recheck after their final quota/write await and
+  immediately before returning. The test-only clock phase hook is constructor-captured and remains
+  unavailable through the authenticated production wrapper.
+
+### Verification
+
+```text
+Focused terminal-triple and quota-race probes                    RED (2 failures), then GREEN
+Focused/full offline outbox                                      PASS (363 total unit tests)
+npm run verify                                                    PASS (format, lint, types, 363 unit tests, build)
+npm run test:integration, repeated                               PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                           PASS (47 migrations)
+npx supabase test db --local                                      PASS (29 files / 847 tests)
+npm run test:e2e:evaluation                                       PASS (8/8; Mobile Chrome + Mobile Safari)
+Mobile Safari offline/conflict + durable-resolution --repeat=10   PASS (20/20)
+npm audit --audit-level=high                                      PASS (0 vulnerabilities)
+git diff --check                                                  PASS
+```
+
+### Self-review
+
+- Receipt validation derives authority from validated durable mutation/receipt/tombstone bytes; no
+  caller flag, broad sync state, event, or proof registration can substitute for the exact triple.
+- The mutation's validated payload digest binds its complete draft (scores, note, tags, and flags),
+  while terminal metadata continues to contain only bounded opaque IDs, counters, timestamps, and
+  SHA-256 digests. No raw evaluator content or PII was added to tombstones or recovery records.
+- Expiry is still exclusive (`expiresAt <= now` rejects) and exact future skew remains unchanged.
+  Every rejection test snapshots session context, draft, queue, receipt, tombstone, quarantine, and
+  counter stores including proof consumption metadata.
+- No migration, IndexedDB version change, public conflict action, or proof-crypto/export contract
+  changed. `progress.md` and Task 18 were not changed.
