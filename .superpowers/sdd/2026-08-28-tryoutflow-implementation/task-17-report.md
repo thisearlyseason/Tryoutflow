@@ -774,3 +774,68 @@ git diff --check                                                  PASS
 - No raw draft, note, score, athlete identity, or contact data was added to terminal metadata. No
   migration, IndexedDB version, public API, cross-tab protocol, or conflict action changed.
 - `progress.md` and Task 18 were not changed.
+
+## Revised-scope fix round 5 — claim and acknowledgment terminal-state closure
+
+### Status
+
+DONE — claim selection and acknowledgment replay now use the same exact physical terminal-state
+classifier as append and conflict recovery. No receipt or authority proof is synthesized, upgraded,
+consumed, deleted, or returned before the complete mutation/receipt/tombstone state is validated.
+Task 18 was not started.
+
+### RED evidence
+
+- Claim scanning previously converted a nonterminal mutation carrying a receipt or authority fence
+  into acknowledged work, and synthesized missing authority metadata before deciding whether the
+  durable state was contradictory.
+- Acknowledgment replay returned an existing receipt without loading its mutation and permanent
+  authority fence; receipt-only and nonterminal-plus-receipt states could therefore bypass the
+  terminal truth table.
+
+### Delivered
+
+- `loadExactMutationTerminalState` reads the exact physical mutation, receipt, and receipt tombstone
+  in one seven-store transaction, validates their embedded scope/client/storage identities and
+  digests, and invokes the shared terminal-state classifier before any proof-changing operation.
+- `nextPendingMutation` no longer creates fences or upgrades/deletes rows during claim scanning.
+  Ordinary nonterminal work remains claimable subject to FIFO/conflict rules; an exact live
+  acknowledged triple and exact compacted receipt/fence pair remain terminal and unclaimable; every
+  partial or contradictory live combination fails closed with byte-identical storage.
+- `acknowledgeMutation` classifies before both replay and first acknowledgment. Exact replay accepts
+  only a live acknowledged triple or compacted receipt plus authority fence matching every caller
+  identity/version/digest/time field. First acknowledgment requires the exact unexpired lease and
+  ordinary artifact-free pre-state, writes receipt/fence/acknowledged mutation atomically, reloads
+  and validates the stored triple, and only then updates the matching draft and returns success.
+- The literal 4 status × 2 receipt × 4 tombstone truth table now runs through all four paths: future
+  append, use-server resolution, claim, and acknowledgment (128 matrix cases). All 28 invalid cells
+  per path reject without changing session, draft, mutation, receipt, tombstone, quarantine, counter,
+  or proof bytes. Existing first-ack, compacted replay, multi-instance lease, and stale-worker tests
+  remain green.
+- Legacy tests that expected unsafe terminal auto-repair now assert fail-closed byte equivalence.
+  No raw draft content or PII was added to terminal metadata, diagnostics, or errors.
+
+### Verification
+
+```text
+Focused offline outbox / four-path truth table                   PASS (494 unit tests total)
+npm run test:integration, repeated                               PASS twice (19 files / 137 tests)
+npm run verify                                                    PASS (format, lint, types, 494 unit tests, build)
+npx supabase db reset --local --no-seed                           PASS (47 migrations)
+npx supabase test db --local                                      PASS (29 files / 847 tests)
+npm run test:e2e:evaluation                                       PASS (8/8; Mobile Chrome + Mobile Safari)
+npm audit --audit-level=high                                      PASS (0 vulnerabilities)
+git diff --check                                                  PASS
+```
+
+### Self-review
+
+- The exact physical key is derived only from the authenticated user-bound scope and caller client
+  mutation ID. Validated embedded storage keys must match it; the classifier receives no omitted or
+  converted row.
+- All first-ack receipt, authority, and mutation writes are inside one Dexie transaction and are
+  re-read before success. Any validation failure rolls back the complete transition and draft update.
+- Cross-tab IndexedDB serialization, lease owner/token fencing, immutable payload digests, FIFO
+  counters, and stopped-generation synchronizer behavior are unchanged and remain covered.
+- No migration, database version, public API, cross-tab protocol, conflict action, Task 18 file, or
+  `progress.md` entry changed.

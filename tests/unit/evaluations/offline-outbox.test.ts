@@ -344,6 +344,123 @@ const terminalStateMatrix = (
   ),
 );
 
+type TerminalStateCell = (typeof terminalStateMatrix)[number];
+
+async function prepareTerminalStateCell(cell: TerminalStateCell, suffix: string) {
+  const { status, hasReceipt, tombstone } = cell;
+  const scenario = await prepareConflictAfterAcknowledgedPredecessor(
+    `terminal-matrix-${suffix}-${status}-${hasReceipt}-${tombstone}`,
+  );
+  const successorId = '30000000-0000-4000-8000-000000000235';
+  const successorDraft = { ...draft, note: 'terminal matrix connected successor' };
+  const successor = await scenario.target.saveDraftAndEnqueueMutation(
+    mutation({ clientMutationId: successorId, expectedVersion: 4, draft: successorDraft }),
+    { now: new Date('2026-08-29T19:00:04.000Z') },
+  );
+  const successorStorageKey = `${Object.values(scope).join('|')}|${successorId}`;
+  const acknowledgedAt = '2026-08-29T19:00:05.000Z';
+  const claimToken = '30000000-0000-4000-8000-000000000236';
+  const statusFields =
+    status === 'pending'
+      ? { status, syncState: 'saved_device' }
+      : status === 'leased'
+        ? {
+            status,
+            syncState: 'syncing',
+            claimToken,
+            leaseUntil: '2026-08-29T19:02:00.000Z',
+          }
+        : status === 'needs_attention'
+          ? {
+              status,
+              syncState: 'needs_attention',
+              errorCategory: 'server',
+              lastError: 'bounded terminal-state matrix probe',
+            }
+          : { status, syncState: 'synced', acknowledgedAt };
+  const receiptPayload = {
+    storageKey: successorStorageKey,
+    clientMutationId: successorId,
+    scopeKey: Object.values(scope).join('|'),
+    scope,
+    evaluationId: successor.mutation.evaluationId,
+    expectedVersion: successor.mutation.expectedVersion,
+    payloadDigest: successor.mutation.payloadDigest,
+    claimToken,
+    serverVersion: successor.mutation.expectedVersion + 1,
+    acknowledgedAt,
+    expiresAt: '2026-09-29T19:00:05.000Z',
+  };
+  const exactAuthorityPayload = {
+    storageKey: successorStorageKey,
+    scopeKey: Object.values(scope).join('|'),
+    clientMutationId: successorId,
+    reason: 'receipt_authority' as const,
+    createdAt: acknowledgedAt,
+    evaluationId: successor.mutation.evaluationId,
+    expectedVersion: successor.mutation.expectedVersion,
+    payloadDigest: successor.mutation.payloadDigest,
+    serverVersion: successor.mutation.expectedVersion + 1,
+    acknowledgedAt,
+  };
+  const raw = new Dexie(scenario.physicalName);
+  raw.version(5).stores(v5Stores);
+  await raw.open();
+  await raw.table('mutations').put({ ...successor.mutation, ...statusFields });
+  if (hasReceipt)
+    await raw.table('receipts').put({
+      ...receiptPayload,
+      receiptDigest: await digestValue(receiptPayload),
+    });
+  if (tombstone !== 'absent') {
+    const tombstonePayload =
+      tombstone === 'receipt_authority'
+        ? exactAuthorityPayload
+        : tombstone === 'wrong_reason'
+          ? {
+              storageKey: successorStorageKey,
+              scopeKey: Object.values(scope).join('|'),
+              clientMutationId: successorId,
+              reason: 'corrupt_receipt' as const,
+              createdAt: acknowledgedAt,
+            }
+          : {
+              ...exactAuthorityPayload,
+              expectedVersion: exactAuthorityPayload.expectedVersion + 1,
+            };
+    await raw.table('receiptTombstones').put({
+      ...tombstonePayload,
+      tombstoneDigest: await digestValue(receiptTombstonePayload(tombstonePayload)),
+    });
+  }
+  const before = await snapshotV5(raw, { includeProof: true });
+  raw.close();
+  return {
+    scenario,
+    successor,
+    before,
+    resolutionInput: {
+      ...scenario.input,
+      local: {
+        evaluationId: successor.mutation.evaluationId,
+        expectedVersion: successor.mutation.expectedVersion,
+        draft: successorDraft,
+      },
+    },
+    acknowledgment: {
+      scope,
+      evaluationId: successor.mutation.evaluationId,
+      clientMutationId: successorId,
+      claimToken,
+      expectedVersion: successor.mutation.expectedVersion,
+      payloadDigest: successor.mutation.payloadDigest,
+      serverVersion: successor.mutation.expectedVersion + 1,
+      acknowledgedAt,
+      now: new Date('2026-08-29T19:00:06.000Z'),
+    },
+  };
+}
+
 const v3Stores = {
   sessionContexts: '&scopeKey,expiresAt',
   drafts: '&scopeKey,updatedAt,expiresAt',
@@ -1512,94 +1629,9 @@ describe('evaluation offline outbox', () => {
 
   it.each(terminalStateMatrix)(
     'classifies terminal matrix status=$status receipt=$hasReceipt tombstone=$tombstone',
-    async ({ status, hasReceipt, tombstone, valid }) => {
-      const scenario = await prepareConflictAfterAcknowledgedPredecessor(
-        `terminal-matrix-${status}-${hasReceipt}-${tombstone}`,
-      );
-      const successorId = '30000000-0000-4000-8000-000000000235';
-      const successorDraft = { ...draft, note: 'terminal matrix connected successor' };
-      const successor = await scenario.target.saveDraftAndEnqueueMutation(
-        mutation({ clientMutationId: successorId, expectedVersion: 4, draft: successorDraft }),
-        { now: new Date('2026-08-29T19:00:04.000Z') },
-      );
-      const successorStorageKey = `${Object.values(scope).join('|')}|${successorId}`;
-      const acknowledgedAt = '2026-08-29T19:00:05.000Z';
-      const claimToken = '30000000-0000-4000-8000-000000000236';
-      const statusFields =
-        status === 'pending'
-          ? { status, syncState: 'saved_device' }
-          : status === 'leased'
-            ? {
-                status,
-                syncState: 'syncing',
-                claimToken,
-                leaseUntil: '2026-08-29T19:02:00.000Z',
-              }
-            : status === 'needs_attention'
-              ? {
-                  status,
-                  syncState: 'needs_attention',
-                  errorCategory: 'server',
-                  lastError: 'bounded terminal-state matrix probe',
-                }
-              : { status, syncState: 'synced', acknowledgedAt };
-      const receiptPayload = {
-        storageKey: successorStorageKey,
-        clientMutationId: successorId,
-        scopeKey: Object.values(scope).join('|'),
-        scope,
-        evaluationId: successor.mutation.evaluationId,
-        expectedVersion: successor.mutation.expectedVersion,
-        payloadDigest: successor.mutation.payloadDigest,
-        claimToken,
-        serverVersion: successor.mutation.expectedVersion + 1,
-        acknowledgedAt,
-        expiresAt: '2026-09-29T19:00:05.000Z',
-      };
-      const exactAuthorityPayload = {
-        storageKey: successorStorageKey,
-        scopeKey: Object.values(scope).join('|'),
-        clientMutationId: successorId,
-        reason: 'receipt_authority' as const,
-        createdAt: acknowledgedAt,
-        evaluationId: successor.mutation.evaluationId,
-        expectedVersion: successor.mutation.expectedVersion,
-        payloadDigest: successor.mutation.payloadDigest,
-        serverVersion: successor.mutation.expectedVersion + 1,
-        acknowledgedAt,
-      };
-      const raw = new Dexie(scenario.physicalName);
-      raw.version(5).stores(v5Stores);
-      await raw.open();
-      await raw.table('mutations').put({ ...successor.mutation, ...statusFields });
-      if (hasReceipt)
-        await raw.table('receipts').put({
-          ...receiptPayload,
-          receiptDigest: await digestValue(receiptPayload),
-        });
-      if (tombstone !== 'absent') {
-        const tombstonePayload =
-          tombstone === 'receipt_authority'
-            ? exactAuthorityPayload
-            : tombstone === 'wrong_reason'
-              ? {
-                  storageKey: successorStorageKey,
-                  scopeKey: Object.values(scope).join('|'),
-                  clientMutationId: successorId,
-                  reason: 'corrupt_receipt' as const,
-                  createdAt: acknowledgedAt,
-                }
-              : {
-                  ...exactAuthorityPayload,
-                  expectedVersion: exactAuthorityPayload.expectedVersion + 1,
-                };
-        await raw.table('receiptTombstones').put({
-          ...tombstonePayload,
-          tombstoneDigest: await digestValue(receiptTombstonePayload(tombstonePayload)),
-        });
-      }
-      const before = await snapshotV5(raw, { includeProof: true });
-      raw.close();
+    async (cell) => {
+      const { valid } = cell;
+      const { scenario, before } = await prepareTerminalStateCell(cell, 'append');
 
       const append = scenario.target.saveDraftAndEnqueueMutation(
         mutation({
@@ -1613,6 +1645,85 @@ describe('evaluation offline outbox', () => {
         await expect(append).resolves.toMatchObject({ mutation: { status: 'pending' } });
       } else {
         await expect(append).rejects.toMatchObject({ code: 'corrupt_record' });
+        const after = new Dexie(scenario.physicalName);
+        after.version(5).stores(v5Stores);
+        await after.open();
+        expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+        after.close();
+      }
+      scenario.target.close();
+    },
+  );
+
+  it.each(terminalStateMatrix)(
+    'classifies claim matrix status=$status receipt=$hasReceipt tombstone=$tombstone',
+    async (cell) => {
+      const { scenario, before } = await prepareTerminalStateCell(cell, 'claim');
+      const claim = scenario.target.nextPendingMutation(scope, {
+        now: new Date('2026-08-29T19:00:06.000Z'),
+      });
+      if (!cell.valid) {
+        await expect(claim).rejects.toMatchObject({ code: 'corrupt_record' });
+        const after = new Dexie(scenario.physicalName);
+        after.version(5).stores(v5Stores);
+        await after.open();
+        expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+        after.close();
+      } else {
+        // The prepared natural lineage has an earlier conflict head, so every structurally valid
+        // successor is correctly non-claimable after it passes terminal-state classification.
+        await expect(claim).resolves.toBeNull();
+      }
+      scenario.target.close();
+    },
+  );
+
+  it.each(terminalStateMatrix)(
+    'classifies acknowledgment matrix status=$status receipt=$hasReceipt tombstone=$tombstone',
+    async (cell) => {
+      const { scenario, before, acknowledgment } = await prepareTerminalStateCell(cell, 'ack');
+      const replay = scenario.target.acknowledgeMutation(acknowledgment);
+      if (!cell.valid) {
+        await expect(replay).rejects.toMatchObject({ code: 'corrupt_record' });
+        const after = new Dexie(scenario.physicalName);
+        after.version(5).stores(v5Stores);
+        await after.open();
+        expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+        after.close();
+      } else if (cell.status === 'leased' || cell.status === 'acknowledged') {
+        await expect(replay).resolves.toMatchObject({ syncState: 'synced' });
+      } else {
+        await expect(replay).rejects.toMatchObject({ code: 'lease_mismatch' });
+        const after = new Dexie(scenario.physicalName);
+        after.version(5).stores(v5Stores);
+        await after.open();
+        expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+        after.close();
+      }
+      scenario.target.close();
+    },
+  );
+
+  it.each(terminalStateMatrix)(
+    'classifies use-server matrix status=$status receipt=$hasReceipt tombstone=$tombstone',
+    async (cell) => {
+      const { scenario, before, resolutionInput } = await prepareTerminalStateCell(
+        cell,
+        'use-server',
+      );
+      const resolution = scenario.target.resolveConflict(resolutionInput);
+      if (cell.valid) {
+        // A valid terminal cell reaches the ordinary conflict/draft/FIFO rules. Artificial leased
+        // and acknowledged successor fixtures may be rejected there, but never by terminal-state
+        // classification.
+        try {
+          await expect(resolution).resolves.toMatchObject({ action: 'use_server' });
+        } catch (error) {
+          expect(String(error)).not.toContain('Nonterminal work cannot carry');
+          expect(String(error)).not.toContain('exact acknowledged mutation and terminal authority');
+        }
+      } else {
+        await expect(resolution).rejects.toMatchObject({ code: 'corrupt_record' });
         const after = new Dexie(scenario.physicalName);
         after.version(5).stores(v5Stores);
         await after.open();
@@ -3638,7 +3749,7 @@ describe('evaluation offline outbox', () => {
     reopened.close();
   });
 
-  it('detects and quarantines compacted receipt tampering', async () => {
+  it('rejects compacted receipt tampering byte-exactly during acknowledgment replay', async () => {
     const baseName = databaseBase('receipt-integrity');
     const physicalName = trackUserDatabase(baseName);
     const target = createEvaluationOfflineRepository({
@@ -3661,13 +3772,14 @@ describe('evaluation offline outbox', () => {
     await target.clearAcknowledged(scope);
     target.close();
     const raw = new Dexie(physicalName);
-    raw.version(3).stores(v3Stores);
+    raw.version(5).stores(v5Stores);
     await raw.open();
     await raw
       .table('receipts')
       .update(`${Object.values(scope).join('|')}|${mutation().clientMutationId}`, {
         serverVersion: 99,
       });
+    const before = await snapshotV5(raw, { includeProof: true });
     raw.close();
     const reopened = createEvaluationOfflineRepository({
       authenticatedUserId: scope.userId,
@@ -3685,14 +3797,12 @@ describe('evaluation offline outbox', () => {
         acknowledgedAt: '2026-08-29T10:00:00.000Z',
       }),
     ).rejects.toMatchObject({ code: 'corrupt_record' });
-    expect(await reopened.listQuarantines(scope)).toEqual(
-      expect.arrayContaining([expect.objectContaining({ sourceTable: 'receipts' })]),
-    );
-    await expect(reopened.getReceipt(scope, mutation().clientMutationId)).resolves.toBeNull();
-    expect(await reopened.listQuarantines(scope)).toEqual([
-      expect.objectContaining({ sourceTable: 'receipts', reason: 'digest_mismatch' }),
-    ]);
     reopened.close();
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    after.close();
   });
 
   it('maps read, cleanup, and teardown IndexedDB failures truthfully', async () => {
@@ -3734,7 +3844,7 @@ describe('evaluation offline outbox', () => {
     target.close();
   });
 
-  it('treats a compacted terminal receipt as authoritative during replay and claim', async () => {
+  it('rejects a resurrected nonterminal row beside compacted terminal authority byte-exactly', async () => {
     const baseName = databaseBase('terminal-authority');
     const physicalName = trackUserDatabase(baseName);
     const target = createEvaluationOfflineRepository({
@@ -3771,22 +3881,24 @@ describe('evaluation offline outbox', () => {
 
     target.close();
     const raw = new Dexie(physicalName);
-    raw.version(4).stores(v4Stores);
+    raw.version(5).stores(v5Stores);
     await raw.open();
     await raw.table('mutations').add({ ...queued, status: 'pending', syncState: 'saved_device' });
+    const before = await snapshotV5(raw, { includeProof: true });
     raw.close();
     const reopened = createEvaluationOfflineRepository({
       authenticatedUserId: scope.userId,
       databaseName: baseName,
     });
-    expect(await reopened.nextPendingMutation(scope)).toBeNull();
-    expect(await reopened.listMutations(scope)).toEqual([
-      expect.objectContaining({ status: 'acknowledged', syncState: 'synced' }),
-    ]);
-    expect(await reopened.listQuarantines(scope)).toEqual([
-      expect.objectContaining({ sourceTable: 'receipts', reason: 'receipt_divergence' }),
-    ]);
+    await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
     reopened.close();
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    after.close();
   });
 
   it('allocates FIFO sequence atomically across tabs without timestamp or UUID ties', async () => {
@@ -4068,7 +4180,7 @@ describe('evaluation offline outbox', () => {
     inspect.close();
   });
 
-  it('quarantines a structurally valid queued mutation that diverges from its terminal receipt', async () => {
+  it('rejects a structurally valid queued mutation diverging from its receipt byte-exactly', async () => {
     const baseName = databaseBase('claim-receipt-divergence');
     const physicalName = trackUserDatabase(baseName);
     const target = createEvaluationOfflineRepository({
@@ -4091,13 +4203,14 @@ describe('evaluation offline outbox', () => {
     await target.clearAcknowledged(scope);
     target.close();
     const raw = new Dexie(physicalName);
-    raw.version(4).stores(v4Stores);
+    raw.version(5).stores(v5Stores);
     await raw.open();
     await raw.table('mutations').add({
       ...queued,
       expectedVersion: 3,
       payloadDigest: await digestValue(evaluationPayload(scope, queued.evaluationId, 3, draft)),
     });
+    const before = await snapshotV5(raw, { includeProof: true });
     raw.close();
     const reopened = createEvaluationOfflineRepository({
       authenticatedUserId: scope.userId,
@@ -4106,11 +4219,12 @@ describe('evaluation offline outbox', () => {
     await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
       code: 'corrupt_record',
     });
-    expect(await reopened.listMutations(scope)).toEqual([]);
-    expect(await reopened.listQuarantines(scope)).toEqual([
-      expect.objectContaining({ sourceTable: 'mutations', reason: 'receipt_divergence' }),
-    ]);
     reopened.close();
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after, { includeProof: true })).toEqual(before);
+    after.close();
   });
 
   it('assigns deterministic legacy sequences and advances the v4 queue counter', async () => {

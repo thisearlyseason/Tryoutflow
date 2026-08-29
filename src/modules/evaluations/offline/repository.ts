@@ -1070,6 +1070,41 @@ export class EvaluationOfflineRepository {
     // fence remains. That tombstone-only state blocks identity reuse but is not a live triple.
   }
 
+  /** Load and classify the exact physical terminal cells before any proof is changed. */
+  private async loadExactMutationTerminalState(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    clientMutationId: string,
+  ): Promise<{
+    mutation: StoredEvaluationMutation | undefined;
+    receipt: StoredEvaluationReceipt | undefined;
+    tombstone: StoredEvaluationReceiptTombstone | undefined;
+  }> {
+    const storageKey = `${scopeKey(scope)}|${clientMutationId}`;
+    const [rawMutation, rawReceipt, rawTombstone] = await Promise.all([
+      transaction.table('mutations').get(storageKey),
+      transaction.table('receipts').get(storageKey),
+      transaction.table('receiptTombstones').get(storageKey),
+    ]);
+    try {
+      const mutation = rawMutation ? await this.validateMutationRecord(rawMutation) : undefined;
+      const receipt = rawReceipt
+        ? await this.validateReceiptRecord(rawReceipt, { scope, clientMutationId })
+        : undefined;
+      const tombstone = rawTombstone
+        ? await this.validateReceiptTombstone(rawTombstone, scope, clientMutationId)
+        : undefined;
+      this.assertSupportedMutationTerminalState(mutation, receipt, tombstone);
+      return { mutation, receipt, tombstone };
+    } catch (error) {
+      if (error instanceof EvaluationOfflineError && error.code === 'corrupt_record') throw error;
+      throw new EvaluationOfflineError(
+        'corrupt_record',
+        'Mutation terminal state is malformed or internally contradictory.',
+      );
+    }
+  }
+
   private async validateQueueLineage(
     transaction: AllTablesTransaction,
     scope: EvaluationStorageScope,
@@ -2777,143 +2812,32 @@ export class EvaluationOfflineRepository {
             .toArray();
           const records: StoredEvaluationMutation[] = [];
           for (const raw of rawRecords) {
+            let record: StoredEvaluationMutation;
             try {
-              const record = await this.validateMutationRecord(raw);
-              let receipt: StoredEvaluationReceipt | null = null;
-              const rawReceipt = await this.database.receipts.get(record.storageKey);
-              if (rawReceipt) {
-                try {
-                  receipt = await this.validateReceiptRecord(rawReceipt, {
-                    scope,
-                    clientMutationId: record.clientMutationId,
-                  });
-                  await this.ensureReceiptTombstone(
-                    transaction,
-                    scope,
-                    record.clientMutationId,
-                    now,
-                    receipt,
-                  );
-                } catch {
-                  await this.ensureReceiptTombstone(
-                    transaction,
-                    scope,
-                    record.clientMutationId,
-                    now,
-                  );
-                  await this.moveToQuarantine(
-                    transaction,
-                    'receipts',
-                    rawReceipt,
-                    'digest_mismatch',
-                    'Claim scan found an invalid authoritative receipt.',
-                    now,
-                  );
-                  corruptCount += 1;
-                  continue;
-                }
-              }
-              let tombstone: StoredEvaluationReceiptTombstone | null = null;
-              const rawTombstone = await this.database.receiptTombstones.get(record.storageKey);
-              if (rawTombstone) {
-                try {
-                  tombstone = await this.validateReceiptTombstone(
-                    rawTombstone,
-                    scope,
-                    record.clientMutationId,
-                  );
-                } catch {
-                  await this.ensureReceiptTombstone(
-                    transaction,
-                    scope,
-                    record.clientMutationId,
-                    now,
-                  );
-                  corruptCount += 1;
-                  continue;
-                }
-              }
-              if (receipt) {
-                const exact =
-                  receipt.scopeKey === record.scopeKey &&
-                  receipt.evaluationId === record.evaluationId &&
-                  receipt.clientMutationId === record.clientMutationId &&
-                  receipt.expectedVersion === record.expectedVersion &&
-                  receipt.payloadDigest === record.payloadDigest &&
-                  receipt.serverVersion === record.expectedVersion + 1;
-                if (!exact) {
-                  await this.moveToQuarantine(
-                    transaction,
-                    'mutations',
-                    raw,
-                    'receipt_divergence',
-                    'Claim scan retained work diverging from its terminal receipt.',
-                    now,
-                  );
-                  corruptCount += 1;
-                  continue;
-                }
-                if (record.status !== 'acknowledged') {
-                  await this.database.mutations.put({
-                    ...record,
-                    status: 'acknowledged',
-                    syncState: 'synced',
-                    acknowledgedAt: receipt.acknowledgedAt,
-                    updatedAt:
-                      record.updatedAt < receipt.acknowledgedAt
-                        ? receipt.acknowledgedAt
-                        : record.updatedAt,
-                    claimToken: undefined,
-                    leaseUntil: undefined,
-                    errorCategory: undefined,
-                    lastError: undefined,
-                  });
-                }
-                continue;
-              }
-              if (tombstone) {
-                if (!this.tombstoneMatchesMutation(tombstone, record)) {
-                  await this.addToQuarantine(
-                    transaction,
-                    'mutations',
-                    raw,
-                    'receipt_divergence',
-                    'Claim scan found work fenced by terminal receipt recovery.',
-                    now,
-                  );
-                  corruptCount += 1;
-                  continue;
-                }
-                if (record.status !== 'acknowledged') {
-                  await this.database.mutations.put({
-                    ...record,
-                    status: 'acknowledged',
-                    syncState: 'synced',
-                    acknowledgedAt: tombstone.acknowledgedAt,
-                    updatedAt:
-                      record.updatedAt < tombstone.acknowledgedAt!
-                        ? tombstone.acknowledgedAt!
-                        : record.updatedAt,
-                    claimToken: undefined,
-                    leaseUntil: undefined,
-                    errorCategory: undefined,
-                    lastError: undefined,
-                  });
-                }
-                continue;
-              }
-              if (record.status === 'acknowledged') {
-                await this.moveToQuarantine(
-                  transaction,
-                  'mutations',
-                  raw,
-                  'terminal_pair_inconsistent',
-                  'Claim scan found acknowledged work without a terminal receipt.',
-                  now,
-                );
-                corruptCount += 1;
-                continue;
-              }
+              record = await this.validateMutationRecord(raw);
+            } catch {
+              await this.moveToQuarantine(
+                transaction,
+                'mutations',
+                raw,
+                'digest_mismatch',
+                'Claim scan found malformed or digest-mismatched work.',
+                now,
+              );
+              corruptCount += 1;
+              continue;
+            }
+
+            // Classify the exact live/receipt/fence cells before filtering or claiming. In
+            // particular, never upgrade a nonterminal row merely because a receipt or fence exists.
+            const terminalState = await this.loadExactMutationTerminalState(
+              transaction,
+              scope,
+              record.clientMutationId,
+            );
+            if (terminalState.receipt) continue;
+
+            try {
               if (!context) {
                 throw new EvaluationOfflineError(
                   'corrupt_record',
@@ -3875,39 +3799,19 @@ export class EvaluationOfflineRepository {
     ) {
       throw new EvaluationOfflineError('invalid_input', 'Invalid evaluation receipt.');
     }
-    let corruption = false;
     try {
       const result = await this.database.transaction(
         'rw',
         this.allTables(),
         async (transaction) => {
           const storageKey = `${scopeKey(transition.scope)}|${rawInput.clientMutationId}`;
-          const existingRaw = await this.database.receipts.get(storageKey);
-          if (existingRaw) {
-            let existing: StoredEvaluationReceipt;
-            try {
-              existing = await this.validateReceiptRecord(existingRaw, {
-                scope: transition.scope,
-                clientMutationId: rawInput.clientMutationId,
-              });
-            } catch {
-              await this.ensureReceiptTombstone(
-                transaction,
-                transition.scope,
-                rawInput.clientMutationId,
-                transition.now,
-              );
-              await this.moveToQuarantine(
-                transaction,
-                'receipts',
-                existingRaw,
-                'digest_mismatch',
-                'Acknowledgment replay found an invalid terminal receipt.',
-                transition.now,
-              );
-              corruption = true;
-              return null;
-            }
+          const terminalState = await this.loadExactMutationTerminalState(
+            transaction,
+            transition.scope,
+            rawInput.clientMutationId,
+          );
+          const existing = terminalState.receipt;
+          if (existing) {
             const exact =
               existing.scopeKey === scopeKey(transition.scope) &&
               existing.evaluationId === rawInput.evaluationId &&
@@ -3924,13 +3828,14 @@ export class EvaluationOfflineRepository {
               );
             return { ...structuredClone(existing), syncState: 'synced' as const };
           }
-          const raw = await this.database.mutations.get(storageKey);
-          if (!raw)
+          const mutation = terminalState.mutation;
+          if (!mutation)
             throw new EvaluationOfflineError(
               'mutation_not_found',
               'Evaluation mutation not found.',
             );
-          const mutation = await this.validateMutationRecord(raw);
+          // First acknowledgment is valid only from the ordinary leased state already classified
+          // above: no receipt and no authority fence may predate this transition.
           this.assertExactLease(mutation, transition);
           if (
             mutation.expectedVersion !== rawInput.expectedVersion ||
@@ -3970,7 +3875,7 @@ export class EvaluationOfflineRepository {
             receiptDigest: await Dexie.waitFor(digestValue(receiptPayload(receiptWithoutDigest))),
           };
           await this.assertByteQuota(transaction, receipt);
-          await this.ensureReceiptTombstone(
+          const authority = await this.ensureReceiptTombstone(
             transaction,
             transition.scope,
             mutation.clientMutationId,
@@ -3988,6 +3893,20 @@ export class EvaluationOfflineRepository {
             leaseUntil: undefined,
           };
           await this.database.mutations.put(acknowledged);
+          const storedTerminalState = await this.loadExactMutationTerminalState(
+            transaction,
+            transition.scope,
+            mutation.clientMutationId,
+          );
+          if (
+            storedTerminalState.mutation?.storageKey !== acknowledged.storageKey ||
+            storedTerminalState.receipt?.receiptDigest !== receipt.receiptDigest ||
+            storedTerminalState.tombstone?.tombstoneDigest !== authority.tombstoneDigest
+          )
+            throw new EvaluationOfflineError(
+              'corrupt_record',
+              'Acknowledgment triple did not persist as one exact terminal state.',
+            );
           const rawDraft = await this.database.drafts.get(mutation.scopeKey);
           if (rawDraft) {
             const storedDraft = await this.validateDraftRecord(rawDraft, mutation.scope);
@@ -4015,7 +3934,7 @@ export class EvaluationOfflineRepository {
           return { ...structuredClone(receipt), syncState: 'synced' as const };
         },
       );
-      if (corruption || !result) {
+      if (!result) {
         throw new EvaluationOfflineError(
           'corrupt_record',
           'Invalid terminal receipt was retained in quarantine.',
