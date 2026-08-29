@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { evaluationSyncStates, type EvaluationSyncState } from './sync-state';
 
-export const EVALUATION_OFFLINE_DATABASE_VERSION = 3;
+export const EVALUATION_OFFLINE_DATABASE_VERSION = 4;
 export const DEFAULT_EVALUATION_OFFLINE_DATABASE = 'tryoutflow-evaluations';
 
 export type EvaluationStorageScope = {
@@ -23,6 +23,17 @@ export type EvaluationDraftPayload = {
   flags: string[];
 };
 
+export type EvaluationStoredFailureCategory =
+  | 'network'
+  | 'server'
+  | 'conflict'
+  | 'forbidden'
+  | 'invalid_rubric'
+  | 'retry_exhausted'
+  | 'corrupt_record'
+  | 'migration_review_required'
+  | 'migration_context_required';
+
 export type StoredEvaluationDraft = {
   scopeKey: string;
   scope: EvaluationStorageScope;
@@ -40,6 +51,7 @@ export type StoredEvaluationMutation = {
   clientMutationId: string;
   scopeKey: string;
   queueKey: string;
+  queueSequence: number;
   scope: EvaluationStorageScope;
   evaluationId: string;
   expectedVersion: number;
@@ -53,9 +65,15 @@ export type StoredEvaluationMutation = {
   attemptCount: number;
   claimToken?: string;
   leaseUntil?: string;
-  errorCategory?: string;
+  errorCategory?: EvaluationStoredFailureCategory;
   lastError?: string;
   acknowledgedAt?: string;
+};
+
+export type StoredEvaluationQueueCounter = {
+  queueKey: string;
+  scopeKey: string;
+  nextSequence: number;
 };
 
 export type StoredEvaluationReceipt = {
@@ -86,9 +104,27 @@ export type StoredSessionContext = {
   expiresAt: string;
 };
 
-export type QuarantineSource = 'sessionContexts' | 'drafts' | 'mutations' | 'receipts';
+export type QuarantineSource =
+  'sessionContexts' | 'drafts' | 'mutations' | 'receipts' | 'queueCounters';
 export type QuarantineReason =
-  'invalid_record' | 'digest_mismatch' | 'physical_key_collision' | 'user_mismatch';
+  | 'invalid_record'
+  | 'digest_mismatch'
+  | 'physical_key_collision'
+  | 'user_mismatch'
+  | 'receipt_divergence'
+  | 'terminal_pair_inconsistent';
+
+export type EvaluationRecoveryEnvelope = {
+  scopeKey?: string;
+  clientMutationId?: string;
+  evaluationId?: string;
+  status?: string;
+  expectedVersion?: number;
+  serverVersion?: number;
+  queueSequence?: number;
+  payloadDigest?: string;
+  receiptDigest?: string;
+};
 
 export type StoredEvaluationQuarantine = {
   quarantineKey: string;
@@ -99,12 +135,32 @@ export type StoredEvaluationQuarantine = {
   diagnostic: string;
   status: 'needs_attention';
   createdAt: string;
-  originalRecord: unknown;
+  recoveryEnvelope: EvaluationRecoveryEnvelope;
 };
 
 const uuid = z.uuid();
 const isoDate = z.iso.datetime({ offset: true });
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
+function isSafeRecoveryKey(value: string): boolean {
+  if (!value) return true;
+  return value.split('|').every((part, index) => {
+    if (index > 0 && part.startsWith('evaluation:')) {
+      return uuid.safeParse(part.slice('evaluation:'.length)).success;
+    }
+    return uuid.safeParse(part).success;
+  });
+}
+export const evaluationMutationFailureCategorySchema = z.enum([
+  'network',
+  'server',
+  'conflict',
+  'forbidden',
+  'invalid_rubric',
+  'retry_exhausted',
+  'corrupt_record',
+  'migration_review_required',
+  'migration_context_required',
+]);
 
 export const evaluationScopeSchema = z.strictObject({
   userId: uuid,
@@ -175,6 +231,7 @@ export const storedMutationSchema = z
     clientMutationId: uuid,
     scopeKey: z.string().min(1).max(512),
     queueKey: z.string().min(1).max(600),
+    queueSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
     scope: evaluationScopeSchema,
     evaluationId: uuid,
     expectedVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
@@ -188,8 +245,12 @@ export const storedMutationSchema = z
     attemptCount: z.number().int().min(0).max(100),
     claimToken: uuid.optional(),
     leaseUntil: isoDate.optional(),
-    errorCategory: z.string().min(1).max(80).optional(),
-    lastError: z.string().max(500).optional(),
+    errorCategory: evaluationMutationFailureCategorySchema.optional(),
+    lastError: z
+      .string()
+      .max(500)
+      .refine((value) => new TextEncoder().encode(value).byteLength <= 500)
+      .optional(),
     acknowledgedAt: isoDate.optional(),
   })
   .superRefine((record, context) => {
@@ -254,16 +315,60 @@ export const storedReceiptSchema = z
     message: 'Receipt expiry must follow acknowledgment.',
   });
 
-export const storedQuarantineSchema = z.strictObject({
-  quarantineKey: uuid,
-  scopeKey: z.string().min(1).max(512).optional(),
-  sourceTable: z.enum(['sessionContexts', 'drafts', 'mutations', 'receipts']),
-  sourceKey: z.string().max(600),
-  reason: z.enum(['invalid_record', 'digest_mismatch', 'physical_key_collision', 'user_mismatch']),
-  diagnostic: z.string().min(1).max(500),
-  status: z.literal('needs_attention'),
-  createdAt: isoDate,
-  originalRecord: z.unknown(),
+const safeRecoveryKey = z.string().max(600).refine(isSafeRecoveryKey);
+const recoveryStatus = z.enum([
+  'pending',
+  'leased',
+  'acknowledged',
+  'needs_attention',
+  'saving_local',
+  'saved_device',
+  'syncing',
+  'synced',
+]);
+
+export const storedQuarantineSchema = z
+  .strictObject({
+    quarantineKey: uuid,
+    scopeKey: safeRecoveryKey.min(1).max(512).optional(),
+    sourceTable: z.enum(['sessionContexts', 'drafts', 'mutations', 'receipts', 'queueCounters']),
+    sourceKey: safeRecoveryKey,
+    reason: z.enum([
+      'invalid_record',
+      'digest_mismatch',
+      'physical_key_collision',
+      'user_mismatch',
+      'receipt_divergence',
+      'terminal_pair_inconsistent',
+    ]),
+    diagnostic: z
+      .string()
+      .min(1)
+      .max(500)
+      .refine((value) => new TextEncoder().encode(value).byteLength <= 500),
+    status: z.literal('needs_attention'),
+    createdAt: isoDate,
+    recoveryEnvelope: z.strictObject({
+      scopeKey: safeRecoveryKey.min(1).max(512).optional(),
+      clientMutationId: uuid.optional(),
+      evaluationId: uuid.optional(),
+      status: recoveryStatus.optional(),
+      expectedVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+      serverVersion: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+      queueSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+      payloadDigest: sha256.optional(),
+      receiptDigest: sha256.optional(),
+    }),
+  })
+  .refine(
+    (record) => new TextEncoder().encode(JSON.stringify(record)).byteLength <= 4_096,
+    'Quarantine recovery metadata exceeds its byte budget.',
+  );
+
+export const storedQueueCounterSchema = z.strictObject({
+  queueKey: z.string().min(1).max(600),
+  scopeKey: z.string().min(1).max(512),
+  nextSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
 });
 
 type IndexedDbFactory = IDBFactory;
@@ -274,6 +379,7 @@ export class EvaluationOfflineDatabase extends Dexie {
   mutations!: EntityTable<StoredEvaluationMutation, 'storageKey'>;
   receipts!: EntityTable<StoredEvaluationReceipt, 'storageKey'>;
   quarantines!: EntityTable<StoredEvaluationQuarantine, 'quarantineKey'>;
+  queueCounters!: EntityTable<StoredEvaluationQueueCounter, 'queueKey'>;
 
   constructor(
     name: string,
@@ -298,7 +404,7 @@ export class EvaluationOfflineDatabase extends Dexie {
       receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
     });
 
-    this.version(EVALUATION_OFFLINE_DATABASE_VERSION)
+    this.version(3)
       .stores({
         sessionContexts: '&scopeKey,expiresAt',
         drafts: '&scopeKey,updatedAt,expiresAt',
@@ -308,6 +414,18 @@ export class EvaluationOfflineDatabase extends Dexie {
         quarantines: '&quarantineKey,scopeKey,sourceTable,status,createdAt',
       })
       .upgrade((transaction) => migrateToVersionThree(transaction, authenticatedUserId));
+
+    this.version(EVALUATION_OFFLINE_DATABASE_VERSION)
+      .stores({
+        sessionContexts: '&scopeKey,expiresAt',
+        drafts: '&scopeKey,updatedAt,expiresAt',
+        mutations:
+          '&storageKey,&clientMutationId,scopeKey,queueKey,[queueKey+queueSequence],status,[scopeKey+status],createdAt,nextAttemptAt',
+        receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+        quarantines: '&quarantineKey,scopeKey,sourceTable,status,createdAt',
+        queueCounters: '&queueKey,scopeKey,nextSequence',
+      })
+      .upgrade((transaction) => migrateToVersionFour(transaction, authenticatedUserId));
   }
 }
 
@@ -368,8 +486,66 @@ function sourceKey(sourceTable: QuarantineSource, record: unknown): string {
   const candidate =
     sourceTable === 'mutations' || sourceTable === 'receipts'
       ? (item.storageKey ?? item.clientMutationId)
-      : item.scopeKey;
-  return typeof candidate === 'string' ? candidate.slice(0, 600) : '';
+      : sourceTable === 'queueCounters'
+        ? item.queueKey
+        : item.scopeKey;
+  const bounded = typeof candidate === 'string' ? candidate.slice(0, 600) : '';
+  return isSafeRecoveryKey(bounded) ? bounded : '';
+}
+
+function safeString(value: unknown, maximum: number): string | undefined {
+  return typeof value === 'string' ? value.slice(0, maximum) : undefined;
+}
+
+function boundedUtf8(value: string, maximumBytes: number): string {
+  let result = '';
+  let bytes = 0;
+  const encoder = new TextEncoder();
+  for (const character of value) {
+    const size = encoder.encode(character).byteLength;
+    if (bytes + size > maximumBytes) break;
+    result += character;
+    bytes += size;
+  }
+  return result;
+}
+
+export function recoveryEnvelope(record: unknown): EvaluationRecoveryEnvelope {
+  const item = record && typeof record === 'object' ? (record as Record<string, unknown>) : {};
+  const parsedScope = evaluationScopeSchema.safeParse(item.scope);
+  const parsedClientMutationId = uuid.safeParse(item.clientMutationId);
+  const parsedEvaluationId = uuid.safeParse(item.evaluationId);
+  const parsedPayloadDigest = sha256.safeParse(item.payloadDigest);
+  const parsedReceiptDigest = sha256.safeParse(item.receiptDigest);
+  const parsedStatus = recoveryStatus.safeParse(item.status);
+  const rawScopeKey = safeString(item.scopeKey, 512);
+  const safeScopeKey = rawScopeKey && isSafeRecoveryKey(rawScopeKey) ? rawScopeKey : undefined;
+  const expectedVersion = Number.isSafeInteger(item.expectedVersion)
+    ? (item.expectedVersion as number)
+    : undefined;
+  const serverVersion =
+    Number.isSafeInteger(item.serverVersion) && Number(item.serverVersion) >= 1
+      ? (item.serverVersion as number)
+      : undefined;
+  const queueSequence =
+    Number.isSafeInteger(item.queueSequence) && Number(item.queueSequence) >= 1
+      ? (item.queueSequence as number)
+      : undefined;
+  return {
+    ...(parsedScope.success
+      ? { scopeKey: scopeKey(parsedScope.data) }
+      : safeScopeKey
+        ? { scopeKey: safeScopeKey }
+        : {}),
+    ...(parsedClientMutationId.success ? { clientMutationId: parsedClientMutationId.data } : {}),
+    ...(parsedEvaluationId.success ? { evaluationId: parsedEvaluationId.data } : {}),
+    ...(parsedStatus.success ? { status: parsedStatus.data } : {}),
+    ...(expectedVersion === undefined ? {} : { expectedVersion }),
+    ...(serverVersion === undefined ? {} : { serverVersion }),
+    ...(queueSequence === undefined ? {} : { queueSequence }),
+    ...(parsedPayloadDigest.success ? { payloadDigest: parsedPayloadDigest.data } : {}),
+    ...(parsedReceiptDigest.success ? { receiptDigest: parsedReceiptDigest.data } : {}),
+  };
 }
 
 function quarantine(
@@ -393,10 +569,10 @@ function quarantine(
     sourceTable,
     sourceKey: sourceKey(sourceTable, record),
     reason,
-    diagnostic: diagnostic.slice(0, 500),
+    diagnostic: boundedUtf8(diagnostic, 500),
     status: 'needs_attention',
     createdAt: now,
-    originalRecord: structuredClone(record),
+    recoveryEnvelope: recoveryEnvelope(record),
   };
 }
 
@@ -424,6 +600,14 @@ async function migrateToVersionThree(
   const drafts: StoredEvaluationDraft[] = [];
   const mutations: StoredEvaluationMutation[] = [];
   const receipts: StoredEvaluationReceipt[] = [];
+  const legacyReceiptsByMutationId = new Map<string, unknown>();
+  const consumedLegacyReceiptIds = new Set<string>();
+  for (const raw of rawByTable.get('receipts') ?? []) {
+    const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    if (typeof item.clientMutationId === 'string') {
+      legacyReceiptsByMutationId.set(item.clientMutationId, raw);
+    }
+  }
 
   for (const raw of rawByTable.get('sessionContexts') ?? []) {
     const item = raw as Record<string, unknown>;
@@ -642,6 +826,7 @@ async function migrateToVersionThree(
       clientMutationId: item.clientMutationId,
       scopeKey: fullScopeKey,
       queueKey: evaluationQueueKey(parsedScope.data, item.evaluationId as string),
+      queueSequence: 1,
       scope: parsedScope.data,
       evaluationId: item.evaluationId,
       expectedVersion: item.expectedVersion,
@@ -679,11 +864,142 @@ async function migrateToVersionThree(
           now,
         ),
       );
-    else mutations.push(parsed.data);
+    else {
+      const legacyReceipt = legacyReceiptsByMutationId.get(parsed.data.clientMutationId);
+      if (parsed.data.status === 'acknowledged' || legacyReceipt) {
+        const receiptItem =
+          legacyReceipt && typeof legacyReceipt === 'object'
+            ? (legacyReceipt as Record<string, unknown>)
+            : null;
+        const parsedReceiptScope = evaluationScopeSchema.safeParse(receiptItem?.scope);
+        const legacyPairIsConsistent =
+          parsed.data.status === 'acknowledged' &&
+          receiptItem !== null &&
+          parsedReceiptScope.success &&
+          scopeKey(parsedReceiptScope.data) === parsed.data.scopeKey &&
+          receiptItem.storageKey === parsed.data.storageKey &&
+          receiptItem.scopeKey === parsed.data.scopeKey &&
+          receiptItem.clientMutationId === parsed.data.clientMutationId &&
+          receiptItem.evaluationId === parsed.data.evaluationId &&
+          receiptItem.serverVersion === parsed.data.expectedVersion + 1 &&
+          receiptItem.acknowledgedAt === parsed.data.acknowledgedAt;
+        if (!legacyPairIsConsistent) {
+          quarantines.push(
+            quarantine(
+              'mutations',
+              raw,
+              'terminal_pair_inconsistent',
+              'Legacy terminal mutation and receipt are not jointly consistent.',
+              authenticatedUserId,
+              now,
+            ),
+          );
+          if (legacyReceipt) {
+            consumedLegacyReceiptIds.add(parsed.data.clientMutationId);
+            quarantines.push(
+              quarantine(
+                'receipts',
+                legacyReceipt,
+                'terminal_pair_inconsistent',
+                'Legacy terminal receipt and mutation are not jointly consistent.',
+                authenticatedUserId,
+                now,
+              ),
+            );
+          }
+          continue;
+        }
+        consumedLegacyReceiptIds.add(parsed.data.clientMutationId);
+        const strictExisting = storedReceiptSchema.safeParse({
+          ...receiptItem,
+          scope: parsedReceiptScope.data,
+          scopeKey: parsed.data.scopeKey,
+          storageKey: parsed.data.storageKey,
+        });
+        if (strictExisting.success) {
+          const { receiptDigest, ...payload } = strictExisting.data;
+          const recomputedReceiptDigest = await Dexie.waitFor(digestValue(payload));
+          if (
+            receiptDigest !== recomputedReceiptDigest ||
+            strictExisting.data.payloadDigest !== parsed.data.payloadDigest ||
+            strictExisting.data.expectedVersion !== parsed.data.expectedVersion
+          ) {
+            quarantines.push(
+              quarantine(
+                'mutations',
+                raw,
+                'terminal_pair_inconsistent',
+                'Legacy terminal integrity lineage does not match.',
+                authenticatedUserId,
+                now,
+              ),
+              quarantine(
+                'receipts',
+                legacyReceipt,
+                'terminal_pair_inconsistent',
+                'Legacy terminal integrity lineage does not match.',
+                authenticatedUserId,
+                now,
+              ),
+            );
+            continue;
+          }
+          receipts.push(strictExisting.data);
+        } else {
+          const claimToken = crypto.randomUUID();
+          const withoutDigest: Omit<StoredEvaluationReceipt, 'receiptDigest'> = {
+            storageKey: parsed.data.storageKey,
+            clientMutationId: parsed.data.clientMutationId,
+            scopeKey: parsed.data.scopeKey,
+            scope: parsed.data.scope,
+            evaluationId: parsed.data.evaluationId,
+            expectedVersion: parsed.data.expectedVersion,
+            payloadDigest: parsed.data.payloadDigest,
+            claimToken,
+            serverVersion: receiptItem!.serverVersion as number,
+            acknowledgedAt: receiptItem!.acknowledgedAt as string,
+            expiresAt: receiptItem!.expiresAt as string,
+          };
+          const synthesized = storedReceiptSchema.safeParse({
+            ...withoutDigest,
+            receiptDigest: await Dexie.waitFor(digestValue(withoutDigest)),
+          });
+          if (!synthesized.success) {
+            quarantines.push(
+              quarantine(
+                'mutations',
+                raw,
+                'terminal_pair_inconsistent',
+                'Legacy terminal pair could not be synthesized safely.',
+                authenticatedUserId,
+                now,
+              ),
+              quarantine(
+                'receipts',
+                legacyReceipt,
+                'terminal_pair_inconsistent',
+                'Legacy terminal pair could not be synthesized safely.',
+                authenticatedUserId,
+                now,
+              ),
+            );
+            continue;
+          }
+          receipts.push(synthesized.data);
+        }
+      }
+      mutations.push(parsed.data);
+    }
   }
 
   for (const raw of rawByTable.get('receipts') ?? []) {
     const item = raw as Record<string, unknown>;
+    if (
+      typeof item.clientMutationId === 'string' &&
+      consumedLegacyReceiptIds.has(item.clientMutationId)
+    ) {
+      continue;
+    }
     const parsedScope = evaluationScopeSchema.safeParse(item.scope);
     if (!parsedScope.success || parsedScope.data.userId !== authenticatedUserId) {
       quarantines.push(
@@ -742,10 +1058,248 @@ async function migrateToVersionThree(
   const validMutations = resolveCollisions('mutations', mutations, (value) => value.storageKey);
   const validReceipts = resolveCollisions('receipts', receipts, (value) => value.storageKey);
 
+  const mutationsByQueue = new Map<string, StoredEvaluationMutation[]>();
+  for (const mutation of validMutations) {
+    const queue = mutationsByQueue.get(mutation.queueKey) ?? [];
+    queue.push(mutation);
+    mutationsByQueue.set(mutation.queueKey, queue);
+  }
+  for (const queue of mutationsByQueue.values()) {
+    queue
+      .sort(
+        (left, right) =>
+          left.createdAt.localeCompare(right.createdAt) ||
+          left.storageKey.localeCompare(right.storageKey),
+      )
+      .forEach((mutation, index) => {
+        mutation.queueSequence = index + 1;
+      });
+  }
+
+  if (
+    quarantines.length > 500 ||
+    new TextEncoder().encode(JSON.stringify(quarantines)).byteLength > 2 * 1_024 * 1_024
+  ) {
+    throw new Error('Legacy evaluation recovery metadata exceeds the bounded migration budget.');
+  }
+
   for (const sourceTable of sourceTables) await transaction.table(sourceTable).clear();
   if (validContexts.length) await transaction.table('sessionContexts').bulkPut(validContexts);
   if (validDrafts.length) await transaction.table('drafts').bulkPut(validDrafts);
   if (validMutations.length) await transaction.table('mutations').bulkPut(validMutations);
   if (validReceipts.length) await transaction.table('receipts').bulkPut(validReceipts);
   if (quarantines.length) await transaction.table('quarantines').bulkPut(quarantines);
+}
+
+async function migrateToVersionFour(
+  transaction: Transaction,
+  authenticatedUserId: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const rawMutations = await transaction.table('mutations').toArray();
+  const rawReceipts = await transaction.table('receipts').toArray();
+  const rawQuarantines = await transaction.table('quarantines').toArray();
+  const quarantines: StoredEvaluationQuarantine[] = [];
+
+  for (const raw of rawQuarantines) {
+    const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const sourceTable = [
+      'sessionContexts',
+      'drafts',
+      'mutations',
+      'receipts',
+      'queueCounters',
+    ].includes(String(item.sourceTable))
+      ? (item.sourceTable as QuarantineSource)
+      : 'mutations';
+    const reason = [
+      'invalid_record',
+      'digest_mismatch',
+      'physical_key_collision',
+      'user_mismatch',
+      'receipt_divergence',
+      'terminal_pair_inconsistent',
+    ].includes(String(item.reason))
+      ? (item.reason as QuarantineReason)
+      : 'invalid_record';
+    const migrated = storedQuarantineSchema.safeParse({
+      quarantineKey: uuid.safeParse(item.quarantineKey).success
+        ? item.quarantineKey
+        : crypto.randomUUID(),
+      ...(typeof item.scopeKey === 'string' &&
+      item.scopeKey.length > 0 &&
+      isSafeRecoveryKey(item.scopeKey.slice(0, 512))
+        ? { scopeKey: item.scopeKey.slice(0, 512) }
+        : {}),
+      sourceTable,
+      sourceKey:
+        typeof item.sourceKey === 'string' && isSafeRecoveryKey(item.sourceKey.slice(0, 600))
+          ? item.sourceKey.slice(0, 600)
+          : sourceKey(sourceTable, item.originalRecord ?? item).slice(0, 600),
+      reason,
+      diagnostic:
+        typeof item.diagnostic === 'string' && item.diagnostic.length
+          ? boundedUtf8(item.diagnostic, 500)
+          : 'Legacy recovery metadata was normalized.',
+      status: 'needs_attention',
+      createdAt: isoDate.safeParse(item.createdAt).success ? item.createdAt : now,
+      recoveryEnvelope: recoveryEnvelope(item.originalRecord ?? item.recoveryEnvelope ?? item),
+    });
+    if (!migrated.success) {
+      throw new Error('Legacy quarantine metadata cannot be migrated without data loss.');
+    }
+    quarantines.push(migrated.data);
+  }
+
+  const receipts = new Map<string, StoredEvaluationReceipt>();
+  for (const raw of rawReceipts) {
+    const parsed = storedReceiptSchema.safeParse(raw);
+    if (parsed.success) {
+      const { receiptDigest, ...payload } = parsed.data;
+      const expected = await Dexie.waitFor(digestValue(payload));
+      if (receiptDigest === expected && parsed.data.scope.userId === authenticatedUserId) {
+        receipts.set(parsed.data.storageKey, parsed.data);
+        continue;
+      }
+    }
+    quarantines.push(
+      quarantine(
+        'receipts',
+        raw,
+        'digest_mismatch',
+        'Version-three receipt failed strict terminal integrity validation.',
+        authenticatedUserId,
+        now,
+      ),
+    );
+  }
+
+  const preliminary: StoredEvaluationMutation[] = [];
+  for (const raw of rawMutations) {
+    const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const candidate = storedMutationSchema.safeParse({ ...item, queueSequence: 1 });
+    if (!candidate.success || candidate.data.scope.userId !== authenticatedUserId) {
+      quarantines.push(
+        quarantine(
+          'mutations',
+          raw,
+          'invalid_record',
+          'Version-three mutation failed strict migration validation.',
+          authenticatedUserId,
+          now,
+        ),
+      );
+      continue;
+    }
+    const computedPayloadDigest = await Dexie.waitFor(
+      digestValue(
+        evaluationPayload(
+          candidate.data.scope,
+          candidate.data.evaluationId,
+          candidate.data.expectedVersion,
+          candidate.data.draft,
+        ),
+      ),
+    );
+    if (computedPayloadDigest !== candidate.data.payloadDigest) {
+      quarantines.push(
+        quarantine(
+          'mutations',
+          raw,
+          'digest_mismatch',
+          'Version-three mutation payload integrity does not match.',
+          authenticatedUserId,
+          now,
+        ),
+      );
+      continue;
+    }
+    const receipt = receipts.get(candidate.data.storageKey);
+    if (receipt) {
+      const exact =
+        receipt.scopeKey === candidate.data.scopeKey &&
+        receipt.evaluationId === candidate.data.evaluationId &&
+        receipt.clientMutationId === candidate.data.clientMutationId &&
+        receipt.expectedVersion === candidate.data.expectedVersion &&
+        receipt.payloadDigest === candidate.data.payloadDigest &&
+        receipt.serverVersion === candidate.data.expectedVersion + 1;
+      if (!exact) {
+        quarantines.push(
+          quarantine(
+            'mutations',
+            raw,
+            'receipt_divergence',
+            'Mutation diverges from its authoritative terminal receipt.',
+            authenticatedUserId,
+            now,
+          ),
+        );
+        continue;
+      }
+      preliminary.push({
+        ...candidate.data,
+        status: 'acknowledged',
+        syncState: 'synced',
+        acknowledgedAt: receipt.acknowledgedAt,
+        updatedAt:
+          candidate.data.updatedAt < receipt.acknowledgedAt
+            ? receipt.acknowledgedAt
+            : candidate.data.updatedAt,
+        claimToken: undefined,
+        leaseUntil: undefined,
+        errorCategory: undefined,
+        lastError: undefined,
+      });
+      continue;
+    }
+    if (candidate.data.status === 'acknowledged') {
+      quarantines.push(
+        quarantine(
+          'mutations',
+          raw,
+          'terminal_pair_inconsistent',
+          'Acknowledged version-three work has no authoritative receipt.',
+          authenticatedUserId,
+          now,
+        ),
+      );
+      continue;
+    }
+    preliminary.push(candidate.data);
+  }
+
+  const byQueue = new Map<string, StoredEvaluationMutation[]>();
+  for (const mutation of preliminary) {
+    const queue = byQueue.get(mutation.queueKey) ?? [];
+    queue.push(mutation);
+    byQueue.set(mutation.queueKey, queue);
+  }
+  const mutations: StoredEvaluationMutation[] = [];
+  const counters: StoredEvaluationQueueCounter[] = [];
+  for (const [queueKey, queue] of byQueue) {
+    queue.sort(
+      (left, right) =>
+        left.createdAt.localeCompare(right.createdAt) ||
+        left.storageKey.localeCompare(right.storageKey),
+    );
+    queue.forEach((mutation, index) => {
+      mutations.push({ ...mutation, queueSequence: index + 1 });
+    });
+    counters.push({ queueKey, scopeKey: queue[0]!.scopeKey, nextSequence: queue.length + 1 });
+  }
+
+  if (
+    quarantines.length > 500 ||
+    new TextEncoder().encode(JSON.stringify(quarantines)).byteLength > 2 * 1_024 * 1_024
+  ) {
+    throw new Error('Evaluation recovery metadata exceeds the bounded migration budget.');
+  }
+  await transaction.table('mutations').clear();
+  await transaction.table('receipts').clear();
+  await transaction.table('quarantines').clear();
+  await transaction.table('queueCounters').clear();
+  if (mutations.length) await transaction.table('mutations').bulkPut(mutations);
+  if (receipts.size) await transaction.table('receipts').bulkPut([...receipts.values()]);
+  if (quarantines.length) await transaction.table('quarantines').bulkPut(quarantines);
+  if (counters.length) await transaction.table('queueCounters').bulkPut(counters);
 }

@@ -11,10 +11,12 @@ import {
   evaluationQueueKey,
   evaluationScopeSchema,
   scopeKey,
+  recoveryEnvelope,
   storedDraftSchema,
   storedMutationSchema,
   storedQuarantineSchema,
   storedReceiptSchema,
+  storedQueueCounterSchema,
   storedSessionContextSchema,
   type EvaluationDraftPayload,
   type EvaluationStorageScope,
@@ -34,6 +36,15 @@ const LEASE_MS = 30_000;
 const MAX_DRAFT_BYTES = 64 * 1_024;
 const MAX_RETRY_ATTEMPTS = 5;
 const uuid = z.uuid();
+const publicFailureCategorySchema = z.enum([
+  'network',
+  'server',
+  'conflict',
+  'forbidden',
+  'invalid_rubric',
+  'retry_exhausted',
+  'corrupt_record',
+]);
 
 export type EvaluationMutationInput = {
   scope: EvaluationStorageScope;
@@ -51,6 +62,21 @@ export type EvaluationMutationFailureCategory =
   | 'invalid_rubric'
   | 'retry_exhausted'
   | 'corrupt_record';
+
+export type AcknowledgedEvaluationEnqueueResult = {
+  storageKey: string;
+  clientMutationId: string;
+  scopeKey: string;
+  scope: EvaluationStorageScope;
+  evaluationId: string;
+  expectedVersion: number;
+  payloadDigest: string;
+  status: 'acknowledged';
+  syncState: 'synced';
+  serverVersion: number;
+  acknowledgedAt: string;
+  queueSequence?: never;
+};
 
 export type EvaluationQuotaName =
   | 'contexts'
@@ -209,7 +235,28 @@ function safeDate(value: Date): Date {
 }
 
 function safeDiagnostic(value: string): string {
-  return value.slice(0, 500);
+  let result = '';
+  let bytes = 0;
+  const encoder = new TextEncoder();
+  for (const character of value) {
+    const size = encoder.encode(character).byteLength;
+    if (bytes + size > 500) break;
+    result += character;
+    bytes += size;
+  }
+  return result;
+}
+
+function safeRecoverySourceKey(value: unknown, maximum: number): string {
+  if (typeof value !== 'string') return '';
+  const bounded = value.slice(0, maximum);
+  const safe = bounded.split('|').every((part, index) => {
+    if (index > 0 && part.startsWith('evaluation:')) {
+      return uuid.safeParse(part.slice('evaluation:'.length)).success;
+    }
+    return uuid.safeParse(part).success;
+  });
+  return safe ? bounded : '';
 }
 
 function receiptPayload(receipt: Omit<StoredEvaluationReceipt, 'receiptDigest'>) {
@@ -273,14 +320,15 @@ export class EvaluationOfflineRepository {
   }
 
   private async allUsage(transaction: AllTablesTransaction) {
-    const [contexts, drafts, mutations, receipts, quarantines] = await Promise.all([
+    const [contexts, drafts, mutations, receipts, quarantines, queueCounters] = await Promise.all([
       transaction.table('sessionContexts').toArray(),
       transaction.table('drafts').toArray(),
       transaction.table('mutations').toArray(),
       transaction.table('receipts').toArray(),
       transaction.table('quarantines').toArray(),
+      transaction.table('queueCounters').toArray(),
     ]);
-    return { contexts, drafts, mutations, receipts, quarantines };
+    return { contexts, drafts, mutations, receipts, quarantines, queueCounters };
   }
 
   private async assertByteQuota(
@@ -301,24 +349,35 @@ export class EvaluationOfflineRepository {
   ): StoredEvaluationQuarantine {
     const rawObject = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     const parsedScope = evaluationScopeSchema.safeParse(rawObject.scope);
-    const trustedScopeKey =
+    const parsedScopeKey =
       parsedScope.success && parsedScope.data.userId === this.authenticatedUserId
         ? scopeKey(parsedScope.data)
         : undefined;
+    const rawCounterScopeKey =
+      sourceTable === 'queueCounters' &&
+      typeof rawObject.scopeKey === 'string' &&
+      rawObject.scopeKey.startsWith(`${this.authenticatedUserId}|`) &&
+      safeRecoverySourceKey(rawObject.scopeKey, 512)
+        ? safeRecoverySourceKey(rawObject.scopeKey, 512)
+        : undefined;
+    const trustedScopeKey = parsedScopeKey ?? rawCounterScopeKey;
     const sourceKeyCandidate =
       sourceTable === 'mutations' || sourceTable === 'receipts'
         ? (rawObject.storageKey ?? rawObject.clientMutationId)
-        : rawObject.scopeKey;
+        : sourceTable === 'queueCounters'
+          ? rawObject.queueKey
+          : rawObject.scopeKey;
+    const boundedSourceKey = safeRecoverySourceKey(sourceKeyCandidate, 600);
     return {
       quarantineKey: crypto.randomUUID(),
       ...(trustedScopeKey ? { scopeKey: trustedScopeKey } : {}),
       sourceTable,
-      sourceKey: typeof sourceKeyCandidate === 'string' ? sourceKeyCandidate.slice(0, 600) : '',
+      sourceKey: boundedSourceKey,
       reason,
       diagnostic: safeDiagnostic(diagnostic),
       status: 'needs_attention',
       createdAt: now.toISOString(),
-      originalRecord: structuredClone(raw),
+      recoveryEnvelope: recoveryEnvelope(raw),
     };
   }
 
@@ -333,9 +392,16 @@ export class EvaluationOfflineRepository {
     const quarantineRecord = this.makeQuarantine(sourceTable, raw, reason, diagnostic, now);
     const quarantineCount = await transaction.table('quarantines').count();
     if (quarantineCount >= this.quotas.maxQuarantines) throw quotaError('quarantines');
+    const rawObject = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const deletionKey =
+      sourceTable === 'mutations' || sourceTable === 'receipts'
+        ? (rawObject.storageKey ?? rawObject.clientMutationId)
+        : sourceTable === 'queueCounters'
+          ? rawObject.queueKey
+          : rawObject.scopeKey;
+    if (typeof deletionKey === 'string') await transaction.table(sourceTable).delete(deletionKey);
+    await this.assertByteQuota(transaction, quarantineRecord);
     await transaction.table('quarantines').add(quarantineRecord);
-    const key = quarantineRecord.sourceKey;
-    if (key) await transaction.table(sourceTable).delete(key);
   }
 
   private async addToQuarantine(
@@ -347,9 +413,22 @@ export class EvaluationOfflineRepository {
     now: Date,
   ): Promise<void> {
     const quarantineRecord = this.makeQuarantine(sourceTable, raw, reason, diagnostic, now);
+    const duplicate = await transaction
+      .table('quarantines')
+      .filter(
+        (record) =>
+          record.sourceTable === sourceTable &&
+          record.sourceKey === quarantineRecord.sourceKey &&
+          record.reason === reason &&
+          JSON.stringify(record.recoveryEnvelope) ===
+            JSON.stringify(quarantineRecord.recoveryEnvelope),
+      )
+      .first();
+    if (duplicate) return;
     if ((await transaction.table('quarantines').count()) >= this.quotas.maxQuarantines) {
       throw quotaError('quarantines');
     }
+    await this.assertByteQuota(transaction, quarantineRecord);
     await transaction.table('quarantines').add(quarantineRecord);
   }
 
@@ -480,6 +559,7 @@ export class EvaluationOfflineRepository {
       this.database.mutations,
       this.database.receipts,
       this.database.quarantines,
+      this.database.queueCounters,
     ] as const;
   }
 
@@ -500,7 +580,7 @@ export class EvaluationOfflineRepository {
     try {
       const result = await this.database.transaction(
         'rw',
-        ...this.allTables(),
+        this.allTables(),
         async (transaction) => {
           const exists = await this.database.sessionContexts.get(candidate.data.scopeKey);
           if (exists) {
@@ -565,7 +645,7 @@ export class EvaluationOfflineRepository {
     notify(options, 'saving_local');
     let result: StoredEvaluationDraft;
     try {
-      result = await this.database.transaction('rw', ...this.allTables(), async (transaction) => {
+      result = await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const context = await this.requireContext(transaction, scope);
         this.assertDraftMatchesContext(draft, context);
         const exists = await this.database.drafts.get(record.scopeKey);
@@ -588,7 +668,7 @@ export class EvaluationOfflineRepository {
     try {
       const result = await this.database.transaction(
         'rw',
-        ...this.allTables(),
+        this.allTables(),
         async (transaction) => {
           const raw = await this.database.drafts.get(scopeKey(scope));
           if (!raw) return null;
@@ -633,7 +713,7 @@ export class EvaluationOfflineRepository {
   async enqueueEvaluationMutation(
     input: EvaluationMutationInput,
     options: OperationTime = {},
-  ): Promise<StoredEvaluationMutation> {
+  ): Promise<StoredEvaluationMutation | AcknowledgedEvaluationEnqueueResult> {
     const scope = this.parseScope(input.scope);
     const draft = this.parseDraft(input.draft);
     const now = safeDate(options.now ?? new Date());
@@ -650,7 +730,7 @@ export class EvaluationOfflineRepository {
       evaluationPayload(scope, input.evaluationId, input.expectedVersion, draft),
     );
     const timestamp = now.toISOString();
-    const record: StoredEvaluationMutation = {
+    const baseRecord = {
       storageKey: `${scopeKey(scope)}|${clientMutationId}`,
       clientMutationId,
       scopeKey: scopeKey(scope),
@@ -660,19 +740,87 @@ export class EvaluationOfflineRepository {
       expectedVersion: input.expectedVersion,
       draft,
       payloadDigest,
-      status: 'pending',
-      syncState: 'saved_device',
+      status: 'pending' as const,
+      syncState: 'saved_device' as const,
       createdAt: timestamp,
       updatedAt: timestamp,
       nextAttemptAt: timestamp,
       attemptCount: 0,
     };
     let corruption = false;
+    let receiptMismatch = false;
     try {
       const result = await this.database.transaction(
         'rw',
-        ...this.allTables(),
+        this.allTables(),
         async (transaction) => {
+          const existingReceiptRaw = await this.database.receipts
+            .where('clientMutationId')
+            .equals(clientMutationId)
+            .first();
+          if (existingReceiptRaw) {
+            try {
+              const existingReceipt = await this.validateReceiptRecord(existingReceiptRaw);
+              const exact =
+                existingReceipt.storageKey === baseRecord.storageKey &&
+                existingReceipt.scopeKey === baseRecord.scopeKey &&
+                existingReceipt.evaluationId === baseRecord.evaluationId &&
+                existingReceipt.expectedVersion === baseRecord.expectedVersion &&
+                existingReceipt.payloadDigest === baseRecord.payloadDigest;
+              if (exact) {
+                return {
+                  storageKey: existingReceipt.storageKey,
+                  clientMutationId: existingReceipt.clientMutationId,
+                  scopeKey: existingReceipt.scopeKey,
+                  scope: existingReceipt.scope,
+                  evaluationId: existingReceipt.evaluationId,
+                  expectedVersion: existingReceipt.expectedVersion,
+                  payloadDigest: existingReceipt.payloadDigest,
+                  status: 'acknowledged' as const,
+                  syncState: 'synced' as const,
+                  serverVersion: existingReceipt.serverVersion,
+                  acknowledgedAt: existingReceipt.acknowledgedAt,
+                };
+              }
+              await this.addToQuarantine(
+                transaction,
+                'receipts',
+                existingReceipt,
+                'receipt_divergence',
+                'A replay diverged from an authoritative terminal receipt.',
+                now,
+              );
+              receiptMismatch = true;
+              return null;
+            } catch (error) {
+              if (error instanceof EvaluationOfflineError && error.code === 'corrupt_record') {
+                await this.moveToQuarantine(
+                  transaction,
+                  'receipts',
+                  existingReceiptRaw,
+                  'digest_mismatch',
+                  'A terminal receipt failed replay integrity validation.',
+                  now,
+                );
+                corruption = true;
+                return null;
+              }
+              throw error;
+            }
+          }
+          const receiptRecovery = await this.database.quarantines
+            .where('scopeKey')
+            .equals(baseRecord.scopeKey)
+            .filter(
+              (record) =>
+                record.sourceTable === 'receipts' &&
+                record.recoveryEnvelope.clientMutationId === clientMutationId,
+            )
+            .first();
+          if (receiptRecovery) {
+            corruption = true;
+            return null;
+          }
           const context = await this.requireContext(transaction, scope);
           this.assertDraftMatchesContext(draft, context);
           const existingRaw = await this.database.mutations
@@ -684,7 +832,7 @@ export class EvaluationOfflineRepository {
               const existing = await this.validateMutationRecord(existingRaw);
               if (
                 existing.payloadDigest === payloadDigest &&
-                existing.storageKey === record.storageKey
+                existing.storageKey === baseRecord.storageKey
               )
                 return structuredClone(existing);
               throw new EvaluationOfflineError(
@@ -717,11 +865,70 @@ export class EvaluationOfflineRepository {
             throw quotaError('unacknowledged_mutations');
           if (acknowledged > this.quotas.maxAcknowledgedMutations)
             throw quotaError('acknowledged_mutations');
+          const rawCounter = await this.database.queueCounters.get(baseRecord.queueKey);
+          const parsedCounter = rawCounter ? storedQueueCounterSchema.safeParse(rawCounter) : null;
+          const queueMutations = allMutations.filter(
+            (candidate) => candidate.queueKey === baseRecord.queueKey,
+          );
+          const maximumSequence = queueMutations.reduce(
+            (maximum, candidate) =>
+              Number.isSafeInteger(candidate.queueSequence)
+                ? Math.max(maximum, candidate.queueSequence)
+                : maximum,
+            0,
+          );
+          if (
+            parsedCounter &&
+            (!parsedCounter.success ||
+              parsedCounter.data.scopeKey !== baseRecord.scopeKey ||
+              parsedCounter.data.nextSequence <= maximumSequence ||
+              parsedCounter.data.nextSequence >= Number.MAX_SAFE_INTEGER)
+          ) {
+            await this.addToQuarantine(
+              transaction,
+              'queueCounters',
+              rawCounter,
+              'invalid_record',
+              'Queue sequence counter failed strict validation.',
+              now,
+            );
+            corruption = true;
+            return null;
+          }
+          if (!rawCounter && maximumSequence > 0) {
+            await this.addToQuarantine(
+              transaction,
+              'queueCounters',
+              {
+                queueKey: baseRecord.queueKey,
+                scopeKey: baseRecord.scopeKey,
+                nextSequence: maximumSequence,
+                status: 'needs_attention',
+              },
+              'invalid_record',
+              'Queue sequence lineage is missing for existing work.',
+              now,
+            );
+            corruption = true;
+            return null;
+          }
+          const queueSequence = parsedCounter?.success ? parsedCounter.data.nextSequence : 1;
+          const record: StoredEvaluationMutation = { ...baseRecord, queueSequence };
           await this.assertByteQuota(transaction, record);
+          await this.database.queueCounters.put({
+            queueKey: record.queueKey,
+            scopeKey: record.scopeKey,
+            nextSequence: queueSequence + 1,
+          });
           await this.database.mutations.add(record);
           return structuredClone(record);
         },
       );
+      if (receiptMismatch)
+        throw new EvaluationOfflineError(
+          'receipt_mismatch',
+          'The client mutation ID is terminally bound to a different payload.',
+        );
       if (corruption || !result)
         throw new EvaluationOfflineError(
           'corrupt_record',
@@ -747,9 +954,46 @@ export class EvaluationOfflineRepository {
     try {
       const result = await this.database.transaction(
         'rw',
-        ...this.allTables(),
+        this.allTables(),
         async (transaction) => {
-          const context = await this.requireContext(transaction, scope);
+          const rawReceipts = await this.database.receipts
+            .where('scopeKey')
+            .equals(scopeKey(scope))
+            .toArray();
+          const receipts = new Map<string, StoredEvaluationReceipt>();
+          for (const rawReceipt of rawReceipts) {
+            try {
+              const receipt = await this.validateReceiptRecord(rawReceipt);
+              receipts.set(receipt.storageKey, receipt);
+            } catch {
+              await this.moveToQuarantine(
+                transaction,
+                'receipts',
+                rawReceipt,
+                'digest_mismatch',
+                'Claim scan found an invalid authoritative receipt.',
+                now,
+              );
+              corruptCount += 1;
+            }
+          }
+          let context: StoredSessionContext | null = null;
+          const rawContext = await this.database.sessionContexts.get(scopeKey(scope));
+          if (rawContext) {
+            try {
+              context = await this.validateContext(rawContext, scope);
+            } catch {
+              await this.moveToQuarantine(
+                transaction,
+                'sessionContexts',
+                rawContext,
+                'invalid_record',
+                'Claim scan found invalid rubric context.',
+                now,
+              );
+              corruptCount += 1;
+            }
+          }
           const rawRecords = await this.database.mutations
             .where('scopeKey')
             .equals(scopeKey(scope))
@@ -758,8 +1002,64 @@ export class EvaluationOfflineRepository {
           for (const raw of rawRecords) {
             try {
               const record = await this.validateMutationRecord(raw);
-              if (record.status !== 'acknowledged')
-                this.assertDraftMatchesContext(record.draft, context);
+              const receipt = receipts.get(record.storageKey);
+              if (receipt) {
+                const exact =
+                  receipt.scopeKey === record.scopeKey &&
+                  receipt.evaluationId === record.evaluationId &&
+                  receipt.clientMutationId === record.clientMutationId &&
+                  receipt.expectedVersion === record.expectedVersion &&
+                  receipt.payloadDigest === record.payloadDigest &&
+                  receipt.serverVersion === record.expectedVersion + 1;
+                if (!exact) {
+                  await this.moveToQuarantine(
+                    transaction,
+                    'mutations',
+                    raw,
+                    'receipt_divergence',
+                    'Claim scan retained work diverging from its terminal receipt.',
+                    now,
+                  );
+                  corruptCount += 1;
+                  continue;
+                }
+                if (record.status !== 'acknowledged') {
+                  await this.database.mutations.put({
+                    ...record,
+                    status: 'acknowledged',
+                    syncState: 'synced',
+                    acknowledgedAt: receipt.acknowledgedAt,
+                    updatedAt:
+                      record.updatedAt < receipt.acknowledgedAt
+                        ? receipt.acknowledgedAt
+                        : record.updatedAt,
+                    claimToken: undefined,
+                    leaseUntil: undefined,
+                    errorCategory: undefined,
+                    lastError: undefined,
+                  });
+                }
+                continue;
+              }
+              if (record.status === 'acknowledged') {
+                await this.moveToQuarantine(
+                  transaction,
+                  'mutations',
+                  raw,
+                  'terminal_pair_inconsistent',
+                  'Claim scan found acknowledged work without a terminal receipt.',
+                  now,
+                );
+                corruptCount += 1;
+                continue;
+              }
+              if (!context) {
+                throw new EvaluationOfflineError(
+                  'corrupt_record',
+                  'Syncable work has no exact rubric context.',
+                );
+              }
+              this.assertDraftMatchesContext(record.draft, context);
               records.push(record);
             } catch {
               await this.moveToQuarantine(
@@ -773,14 +1073,24 @@ export class EvaluationOfflineRepository {
               corruptCount += 1;
             }
           }
-          const ordered = records
-            .filter((record) => record.status !== 'acknowledged')
-            .sort(
-              (left, right) =>
-                left.createdAt.localeCompare(right.createdAt) ||
-                left.clientMutationId.localeCompare(right.clientMutationId),
-            );
-          const seenQueues = new Set<string>();
+          if (corruptCount > 0) return null;
+          const ordered = records.sort(
+            (left, right) =>
+              left.queueSequence - right.queueSequence ||
+              left.createdAt.localeCompare(right.createdAt) ||
+              left.storageKey.localeCompare(right.storageKey),
+          );
+          const quarantines = await this.database.quarantines
+            .where('scopeKey')
+            .equals(scopeKey(scope))
+            .toArray();
+          const seenQueues = new Set(
+            quarantines.flatMap((record) =>
+              record.sourceTable === 'mutations' && record.recoveryEnvelope.evaluationId
+                ? [evaluationQueueKey(scope, record.recoveryEnvelope.evaluationId)]
+                : [],
+            ),
+          );
           const heads: StoredEvaluationMutation[] = [];
           for (const record of ordered) {
             if (!seenQueues.has(record.queueKey)) {
@@ -799,7 +1109,8 @@ export class EvaluationOfflineRepository {
             .sort(
               (left, right) =>
                 left.createdAt.localeCompare(right.createdAt) ||
-                left.clientMutationId.localeCompare(right.clientMutationId),
+                left.queueSequence - right.queueSequence ||
+                left.storageKey.localeCompare(right.storageKey),
             )[0];
           if (!candidate) return null;
           const claimed: StoredEvaluationMutation = {
@@ -814,7 +1125,7 @@ export class EvaluationOfflineRepository {
           return structuredClone(claimed);
         },
       );
-      if (!result && corruptCount > 0)
+      if (corruptCount > 0)
         throw new EvaluationOfflineError(
           'corrupt_record',
           'Malformed work was retained in quarantine.',
@@ -913,10 +1224,14 @@ export class EvaluationOfflineRepository {
     forceAttention: boolean,
   ): Promise<StoredEvaluationMutation> {
     const input = this.validateTransitionInput(rawInput);
-    if (!rawInput.message || rawInput.message.length > 500)
+    if (
+      !publicFailureCategorySchema.safeParse(rawInput.category).success ||
+      !rawInput.message ||
+      new TextEncoder().encode(rawInput.message).byteLength > 500
+    )
       throw new EvaluationOfflineError('invalid_input', 'Invalid bounded failure details.');
     try {
-      return await this.database.transaction('rw', ...this.allTables(), async (transaction) => {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const raw = await this.database.mutations.get(
           `${scopeKey(input.scope)}|${input.clientMutationId}`,
         );
@@ -969,7 +1284,7 @@ export class EvaluationOfflineRepository {
     )
       throw new EvaluationOfflineError('invalid_input', 'Invalid attention resolution.');
     try {
-      return await this.database.transaction('rw', ...this.allTables(), async (transaction) => {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const raw = await this.database.mutations.get(
           `${scopeKey(scope)}|${input.clientMutationId}`,
         );
@@ -1024,7 +1339,7 @@ export class EvaluationOfflineRepository {
       throw new EvaluationOfflineError('invalid_input', 'Invalid evaluation receipt.');
     }
     try {
-      return await this.database.transaction('rw', ...this.allTables(), async (transaction) => {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const storageKey = `${scopeKey(transition.scope)}|${rawInput.clientMutationId}`;
         const existingRaw = await this.database.receipts.get(storageKey);
         if (existingRaw) {
@@ -1136,12 +1451,19 @@ export class EvaluationOfflineRepository {
     try {
       const records = await this.database.transaction(
         'rw',
-        ...this.allTables(),
+        this.allTables(),
         async (transaction) => {
           const rawRecords = await this.database.mutations
             .where('scopeKey')
             .equals(scopeKey(scope))
-            .sortBy('createdAt');
+            .toArray();
+          rawRecords.sort(
+            (left, right) =>
+              Number((left as StoredEvaluationMutation).queueSequence) -
+                Number((right as StoredEvaluationMutation).queueSequence) ||
+              String(left.createdAt).localeCompare(String(right.createdAt)) ||
+              String(left.storageKey).localeCompare(String(right.storageKey)),
+          );
           const rawContext = await this.database.sessionContexts.get(scopeKey(scope));
           let context: StoredSessionContext | null = null;
           if (rawContext) {
@@ -1197,9 +1519,7 @@ export class EvaluationOfflineRepository {
     }
   }
 
-  async listQuarantines(
-    scopeInput: EvaluationStorageScope,
-  ): Promise<Omit<StoredEvaluationQuarantine, 'originalRecord'>[]> {
+  async listQuarantines(scopeInput: EvaluationStorageScope): Promise<StoredEvaluationQuarantine[]> {
     const scope = this.parseScope(scopeInput);
     try {
       const rawRecords = await this.database.quarantines
@@ -1213,8 +1533,7 @@ export class EvaluationOfflineRepository {
             'corrupt_record',
             'Stored quarantine metadata is malformed.',
           );
-        const { originalRecord: _originalRecord, ...safe } = parsed.data;
-        return structuredClone(safe);
+        return structuredClone(parsed.data);
       });
     } catch (error) {
       throw mapStorageError(error, 'read');
@@ -1232,7 +1551,7 @@ export class EvaluationOfflineRepository {
     try {
       const result = await this.database.transaction(
         'rw',
-        ...this.allTables(),
+        this.allTables(),
         async (transaction) => {
           const raw = await this.database.receipts.get(`${scopeKey(scope)}|${clientMutationId}`);
           if (!raw) return null;
@@ -1266,19 +1585,197 @@ export class EvaluationOfflineRepository {
 
   async getSyncState(scopeInput: EvaluationStorageScope): Promise<EvaluationSyncState | null> {
     const scope = this.parseScope(scopeInput);
+    const key = scopeKey(scope);
+    const now = new Date().toISOString();
+    let corruption = false;
     try {
-      const draft = await this.loadDraft(scope);
-      if (draft) return draft.syncState;
-      const receipts = await this.database.receipts
-        .where('scopeKey')
-        .equals(scopeKey(scope))
-        .toArray();
-      for (const receipt of receipts) {
-        await this.getReceipt(scope, receipt.clientMutationId);
+      const state = await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        const rawQuarantines = await this.database.quarantines
+          .where('scopeKey')
+          .equals(key)
+          .toArray();
+        for (const raw of rawQuarantines) {
+          if (!storedQuarantineSchema.safeParse(raw).success) {
+            corruption = true;
+          }
+        }
+
+        let context: StoredSessionContext | null = null;
+        const rawContext = await this.database.sessionContexts.get(key);
+        if (rawContext) {
+          try {
+            context = await this.validateContext(rawContext, scope);
+          } catch {
+            await this.moveToQuarantine(
+              transaction,
+              'sessionContexts',
+              rawContext,
+              'invalid_record',
+              'Sync-state snapshot found invalid rubric context.',
+              new Date(),
+            );
+            corruption = true;
+          }
+        }
+
+        let draftRecord: StoredEvaluationDraft | null = null;
+        const rawDraft = await this.database.drafts.get(key);
+        if (rawDraft) {
+          try {
+            draftRecord = await this.validateDraftRecord(rawDraft, scope);
+            if (!context) throw new Error('Draft has no exact rubric context.');
+            this.assertDraftMatchesContext(draftRecord.draft, context);
+          } catch {
+            await this.moveToQuarantine(
+              transaction,
+              'drafts',
+              rawDraft,
+              'digest_mismatch',
+              'Sync-state snapshot found invalid draft data.',
+              new Date(),
+            );
+            draftRecord = null;
+            corruption = true;
+          }
+        }
+
+        const receipts = new Map<string, StoredEvaluationReceipt>();
+        const rawReceipts = await this.database.receipts.where('scopeKey').equals(key).toArray();
+        for (const raw of rawReceipts) {
+          try {
+            const receipt = await this.validateReceiptRecord(raw);
+            receipts.set(receipt.storageKey, receipt);
+          } catch {
+            await this.moveToQuarantine(
+              transaction,
+              'receipts',
+              raw,
+              'digest_mismatch',
+              'Sync-state snapshot found an invalid terminal receipt.',
+              new Date(),
+            );
+            corruption = true;
+          }
+        }
+
+        const mutations: StoredEvaluationMutation[] = [];
+        const rawMutations = await this.database.mutations.where('scopeKey').equals(key).toArray();
+        for (const raw of rawMutations) {
+          try {
+            let mutation = await this.validateMutationRecord(raw);
+            const receipt = receipts.get(mutation.storageKey);
+            if (receipt) {
+              const exact =
+                receipt.evaluationId === mutation.evaluationId &&
+                receipt.clientMutationId === mutation.clientMutationId &&
+                receipt.expectedVersion === mutation.expectedVersion &&
+                receipt.payloadDigest === mutation.payloadDigest &&
+                receipt.serverVersion === mutation.expectedVersion + 1;
+              if (!exact) throw new Error('Mutation diverges from terminal receipt.');
+              if (mutation.status !== 'acknowledged') {
+                mutation = {
+                  ...mutation,
+                  status: 'acknowledged',
+                  syncState: 'synced',
+                  acknowledgedAt: receipt.acknowledgedAt,
+                  updatedAt:
+                    mutation.updatedAt < receipt.acknowledgedAt
+                      ? receipt.acknowledgedAt
+                      : mutation.updatedAt,
+                  claimToken: undefined,
+                  leaseUntil: undefined,
+                  errorCategory: undefined,
+                  lastError: undefined,
+                };
+                await this.database.mutations.put(mutation);
+              }
+            } else if (mutation.status === 'acknowledged') {
+              throw new Error('Acknowledged mutation has no terminal receipt.');
+            } else {
+              if (!context) throw new Error('Syncable mutation has no rubric context.');
+              this.assertDraftMatchesContext(mutation.draft, context);
+            }
+            mutations.push(mutation);
+          } catch {
+            await this.moveToQuarantine(
+              transaction,
+              'mutations',
+              raw,
+              'receipt_divergence',
+              'Sync-state snapshot found invalid or terminally divergent work.',
+              new Date(),
+            );
+            corruption = true;
+          }
+        }
+
+        const rawCounters = await this.database.queueCounters
+          .where('scopeKey')
+          .equals(key)
+          .toArray();
+        for (const raw of rawCounters) {
+          const parsed = storedQueueCounterSchema.safeParse(raw);
+          if (!parsed.success || parsed.data.scopeKey !== key) {
+            await this.moveToQuarantine(
+              transaction,
+              'queueCounters',
+              raw,
+              'invalid_record',
+              'Sync-state snapshot found an invalid FIFO counter.',
+              new Date(),
+            );
+            corruption = true;
+          }
+        }
+
+        const quarantineCount = await this.database.quarantines
+          .where('scopeKey')
+          .equals(key)
+          .count();
+        if (corruption) return 'needs_attention' as const;
+        if (
+          quarantineCount > 0 ||
+          mutations.some((mutation) => mutation.status === 'needs_attention')
+        ) {
+          return 'needs_attention' as const;
+        }
+        if (
+          mutations.some(
+            (mutation) =>
+              mutation.status === 'leased' &&
+              Boolean(mutation.leaseUntil) &&
+              mutation.leaseUntil! > now,
+          )
+        ) {
+          return 'syncing' as const;
+        }
+        if (
+          mutations.some(
+            (mutation) =>
+              mutation.status === 'pending' ||
+              (mutation.status === 'leased' &&
+                (!mutation.leaseUntil || mutation.leaseUntil <= now)),
+          ) ||
+          draftRecord?.syncState === 'saved_device'
+        ) {
+          return 'saved_device' as const;
+        }
+        if (
+          receipts.size > 0 ||
+          mutations.some((mutation) => mutation.status === 'acknowledged') ||
+          draftRecord?.syncState === 'synced'
+        ) {
+          return 'synced' as const;
+        }
+        return null;
+      });
+      if (corruption) {
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Sync-state validation retained corrupt work for recovery.',
+        );
       }
-      if (receipts.length) return 'synced';
-      const mutations = await this.listMutations(scope);
-      return mutations[0]?.syncState ?? null;
+      return state;
     } catch (error) {
       throw mapStorageError(error, 'read');
     }
@@ -1289,7 +1786,7 @@ export class EvaluationOfflineRepository {
     try {
       const result = await this.database.transaction(
         'rw',
-        ...this.allTables(),
+        this.allTables(),
         async (transaction) => {
           const records = await this.database.mutations
             .where('scopeKey')
@@ -1348,11 +1845,15 @@ export class EvaluationOfflineRepository {
     const scope = this.parseScope(scopeInput);
     const key = scopeKey(scope);
     try {
-      return await this.database.transaction('rw', ...this.allTables(), async (transaction) => {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const rawMutations = await this.database.mutations.where('scopeKey').equals(key).toArray();
         const rawReceipts = await this.database.receipts.where('scopeKey').equals(key).toArray();
         const rawDraft = await this.database.drafts.get(key);
         const rawContext = await this.database.sessionContexts.get(key);
+        const rawCounters = await this.database.queueCounters
+          .where('scopeKey')
+          .equals(key)
+          .toArray();
         const existingQuarantines = await this.database.quarantines
           .where('scopeKey')
           .equals(key)
@@ -1440,6 +1941,23 @@ export class EvaluationOfflineRepository {
             newlyQuarantined += 1;
           }
         }
+        const counterKeys: string[] = [];
+        for (const raw of rawCounters) {
+          const parsed = storedQueueCounterSchema.safeParse(raw);
+          if (!parsed.success || parsed.data.scopeKey !== key) {
+            await this.moveToQuarantine(
+              transaction,
+              'queueCounters',
+              raw,
+              'invalid_record',
+              'Teardown retained an invalid FIFO counter for review.',
+              new Date(),
+            );
+            newlyQuarantined += 1;
+          } else {
+            counterKeys.push(parsed.data.queueKey);
+          }
+        }
         const retained =
           mutations.filter((record) => record.status !== 'acknowledged').length +
           existingQuarantines.length +
@@ -1449,6 +1967,7 @@ export class EvaluationOfflineRepository {
         await this.database.drafts.delete(key);
         await this.database.sessionContexts.delete(key);
         await this.database.receipts.where('scopeKey').equals(key).delete();
+        await this.database.queueCounters.bulkDelete(counterKeys);
         return { cleared: true, retainedUnacknowledged: 0 };
       });
     } catch (error) {
@@ -1469,7 +1988,7 @@ export class EvaluationOfflineRepository {
     const timestamp = safeDate(now).toISOString();
     const key = scopeKey(scope);
     try {
-      return await this.database.transaction('rw', ...this.allTables(), async (transaction) => {
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const rawMutations = await this.database.mutations.where('scopeKey').equals(key).toArray();
         const rawReceipts = await this.database.receipts.where('scopeKey').equals(key).toArray();
         const rawDraft = await this.database.drafts.get(key);
@@ -1620,7 +2139,7 @@ export class EvaluationOfflineRepository {
     let imported = 0;
     let quarantined = 0;
     try {
-      await this.database.transaction('rw', ...this.allTables(), async (transaction) => {
+      await this.database.transaction('rw', this.allTables(), async (transaction) => {
         for (const raw of matching.get('sessionContexts') ?? []) {
           const item = raw as Record<string, unknown>;
           const parsedScope = evaluationScopeSchema.safeParse(item.scope);
@@ -1686,6 +2205,18 @@ export class EvaluationOfflineRepository {
               ),
             ),
           );
+          if (item.payloadDigest !== undefined && item.payloadDigest !== digest) {
+            await this.addToQuarantine(
+              transaction,
+              'drafts',
+              raw,
+              'digest_mismatch',
+              'Shared legacy draft digest does not match its payload.',
+              new Date(),
+            );
+            quarantined += 1;
+            continue;
+          }
           const candidate = storedDraftSchema.safeParse({
             scopeKey: fullKey,
             scope: parsedScope.data,
@@ -1753,11 +2284,42 @@ export class EvaluationOfflineRepository {
               ),
             ),
           );
+          if (item.payloadDigest !== undefined && item.payloadDigest !== payloadDigest) {
+            await this.addToQuarantine(
+              transaction,
+              'mutations',
+              raw,
+              'digest_mismatch',
+              'Shared legacy mutation digest does not match its payload.',
+              new Date(),
+            );
+            quarantined += 1;
+            continue;
+          }
+          const queueKey = evaluationQueueKey(parsedScope.data, item.evaluationId as string);
+          const rawCounter = await this.database.queueCounters.get(queueKey);
+          const parsedCounter = rawCounter ? storedQueueCounterSchema.safeParse(rawCounter) : null;
+          if (parsedCounter && !parsedCounter.success) {
+            await this.moveToQuarantine(
+              transaction,
+              'queueCounters',
+              rawCounter,
+              'invalid_record',
+              'Shared import found an invalid FIFO counter.',
+              new Date(),
+            );
+            throw new EvaluationOfflineError(
+              'corrupt_record',
+              'Shared import cannot allocate from a corrupt FIFO counter.',
+            );
+          }
+          const queueSequence = parsedCounter?.success ? parsedCounter.data.nextSequence : 1;
           const candidate: StoredEvaluationMutation = {
             storageKey,
             clientMutationId: item.clientMutationId as string,
             scopeKey: fullKey,
-            queueKey: evaluationQueueKey(parsedScope.data, item.evaluationId as string),
+            queueKey,
+            queueSequence,
             scope: parsedScope.data,
             evaluationId: item.evaluationId as string,
             expectedVersion: item.expectedVersion as number,
@@ -1795,6 +2357,11 @@ export class EvaluationOfflineRepository {
               throw quotaError('unacknowledged_mutations');
             }
             await this.assertByteQuota(transaction, parsed.data);
+            await this.database.queueCounters.put({
+              queueKey,
+              scopeKey: fullKey,
+              nextSequence: queueSequence + 1,
+            });
             await this.database.mutations.add(parsed.data);
             imported += 1;
           }
@@ -1839,9 +2406,59 @@ export class EvaluationOfflineRepository {
             acknowledgedAt: item.acknowledgedAt as string,
             expiresAt: item.expiresAt as string,
           };
+          const sourceMutation = (matching.get('mutations') ?? []).find((candidate) => {
+            const mutationItem =
+              candidate && typeof candidate === 'object'
+                ? (candidate as Record<string, unknown>)
+                : {};
+            return mutationItem.clientMutationId === item.clientMutationId;
+          });
+          if (sourceMutation) {
+            const mutationItem = sourceMutation as Record<string, unknown>;
+            const sourceDraft = evaluationDraftSchema.safeParse(mutationItem.draft);
+            if (sourceDraft.success && Number.isSafeInteger(mutationItem.expectedVersion)) {
+              const recomputedPayloadDigest = await Dexie.waitFor(
+                digestValue(
+                  evaluationPayload(
+                    parsedScope.data,
+                    mutationItem.evaluationId as string,
+                    mutationItem.expectedVersion as number,
+                    sourceDraft.data,
+                  ),
+                ),
+              );
+              if (item.payloadDigest !== recomputedPayloadDigest) {
+                await this.addToQuarantine(
+                  transaction,
+                  'receipts',
+                  raw,
+                  'digest_mismatch',
+                  'Shared legacy receipt payload digest does not match its mutation.',
+                  new Date(),
+                );
+                quarantined += 1;
+                continue;
+              }
+            }
+          }
+          const recomputedReceiptDigest = await Dexie.waitFor(
+            digestValue(receiptPayload(withoutDigest)),
+          );
+          if (item.receiptDigest !== undefined && item.receiptDigest !== recomputedReceiptDigest) {
+            await this.addToQuarantine(
+              transaction,
+              'receipts',
+              raw,
+              'digest_mismatch',
+              'Shared legacy receipt integrity digest does not match.',
+              new Date(),
+            );
+            quarantined += 1;
+            continue;
+          }
           const candidate = storedReceiptSchema.safeParse({
             ...withoutDigest,
-            receiptDigest: await Dexie.waitFor(digestValue(receiptPayload(withoutDigest))),
+            receiptDigest: recomputedReceiptDigest,
           });
           if (!candidate.success) {
             await this.addToQuarantine(

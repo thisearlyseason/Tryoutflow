@@ -4,6 +4,12 @@ import Dexie from 'dexie';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  digestValue,
+  evaluationPayload,
+  evaluationQueueKey,
+} from '../../../src/modules/evaluations/offline/database';
+
+import {
   EvaluationOfflineError,
   bindEvaluationOfflineUser,
   createEvaluationOfflineRepository,
@@ -95,6 +101,16 @@ const v3Stores = {
     '&storageKey,&clientMutationId,scopeKey,queueKey,status,[scopeKey+status],createdAt,nextAttemptAt',
   receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
   quarantines: '&quarantineKey,scopeKey,sourceTable,status,createdAt',
+};
+
+const v4Stores = {
+  sessionContexts: '&scopeKey,expiresAt',
+  drafts: '&scopeKey,updatedAt,expiresAt',
+  mutations:
+    '&storageKey,&clientMutationId,scopeKey,queueKey,[queueKey+queueSequence],status,[scopeKey+status],createdAt,nextAttemptAt',
+  receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+  quarantines: '&quarantineKey,scopeKey,sourceTable,status,createdAt',
+  queueCounters: '&queueKey,scopeKey,nextSequence',
 };
 
 beforeEach(() => {
@@ -641,7 +657,6 @@ describe('evaluation offline outbox', () => {
       scopeKey: Object.values(targetScope).join('|'),
       status: 'pending',
       syncState: 'saved_device',
-      payloadDigest: 'legacy-recomputed-during-import',
       createdAt: '2026-08-29T09:00:00.000Z',
       updatedAt: '2026-08-29T09:00:00.000Z',
       nextAttemptAt: '2026-08-29T09:00:00.000Z',
@@ -878,5 +893,530 @@ describe('evaluation offline outbox', () => {
     expect(exported).not.toContain('email');
     expect(exported.length).toBeLessThan(4_000);
     target.close();
+  });
+
+  it('treats a compacted terminal receipt as authoritative during replay and claim', async () => {
+    const baseName = databaseBase('terminal-authority');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    const queued = await target.enqueueEvaluationMutation(mutation());
+    const claim = await target.nextPendingMutation(scope);
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      expectedVersion: claim!.expectedVersion,
+      payloadDigest: claim!.payloadDigest,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T10:00:00.000Z',
+    });
+    await target.clearAcknowledged(scope);
+
+    await expect(target.enqueueEvaluationMutation(mutation())).resolves.toMatchObject({
+      clientMutationId: mutation().clientMutationId,
+      status: 'acknowledged',
+      syncState: 'synced',
+      serverVersion: 3,
+    });
+    expect(await target.listMutations(scope)).toEqual([]);
+    await expect(
+      target.enqueueEvaluationMutation(
+        mutation({ draft: { ...draft, note: 'divergent private replay' } }),
+      ),
+    ).rejects.toMatchObject({ code: 'receipt_mismatch' });
+
+    target.close();
+    const raw = new Dexie(physicalName);
+    raw.version(4).stores(v4Stores);
+    await raw.open();
+    await raw.table('mutations').add({ ...queued, status: 'pending', syncState: 'saved_device' });
+    raw.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    expect(await reopened.nextPendingMutation(scope)).toBeNull();
+    expect(await reopened.listMutations(scope)).toEqual([
+      expect.objectContaining({ status: 'acknowledged', syncState: 'synced' }),
+    ]);
+    expect(await reopened.listQuarantines(scope)).toEqual([
+      expect.objectContaining({ sourceTable: 'receipts', reason: 'receipt_divergence' }),
+    ]);
+    reopened.close();
+  });
+
+  it('allocates FIFO sequence atomically across tabs without timestamp or UUID ties', async () => {
+    const baseName = databaseBase('atomic-sequence');
+    trackUserDatabase(baseName);
+    const first = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    const second = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(first);
+    const sameMillisecond = new Date('2026-08-29T10:00:00.000Z');
+    const firstInput = mutation({
+      clientMutationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      expectedVersion: 2,
+    });
+    const secondInput = mutation({
+      clientMutationId: '00000000-0000-4000-8000-000000000001',
+      expectedVersion: 3,
+    });
+    const firstPromise = first.enqueueEvaluationMutation(firstInput, { now: sameMillisecond });
+    const secondPromise = second.enqueueEvaluationMutation(secondInput, { now: sameMillisecond });
+    const [firstCommitted, secondCommitted] = await Promise.all([firstPromise, secondPromise]);
+    expect([firstCommitted.queueSequence, secondCommitted.queueSequence]).toEqual([1, 2]);
+    expect((await first.nextPendingMutation(scope))?.expectedVersion).toBe(2);
+    const ordered = await first.listMutations(scope);
+    expect(ordered.map((item) => item.expectedVersion)).toEqual([2, 3]);
+    first.close();
+    second.close();
+  });
+
+  it('computes sync state from one validated scope snapshot with explicit precedence', async () => {
+    const target = await prepare(repository('state-precedence'));
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 2,
+      draft,
+    });
+    await target.enqueueEvaluationMutation(mutation());
+    expect(await target.getSyncState(scope)).toBe('saved_device');
+    const claim = await target.nextPendingMutation(scope);
+    expect(await target.getSyncState(scope)).toBe('syncing');
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      category: 'conflict',
+      message: 'requires review',
+    });
+    expect(await target.getSyncState(scope)).toBe('needs_attention');
+    target.close();
+  });
+
+  it('never lets a synced draft hide corruption discovered later in the same state read', async () => {
+    const baseName = databaseBase('state-corruption');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 2,
+      draft,
+    });
+    await target.enqueueEvaluationMutation(mutation());
+    const claim = await target.nextPendingMutation(scope);
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      expectedVersion: claim!.expectedVersion,
+      payloadDigest: claim!.payloadDigest,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T10:00:00.000Z',
+    });
+    target.close();
+    const raw = new Dexie(physicalName);
+    raw.version(4).stores(v4Stores);
+    await raw.open();
+    await raw
+      .table('receipts')
+      .update(`${Object.values(scope).join('|')}|${mutation().clientMutationId}`, {
+        receiptDigest: '0'.repeat(64),
+      });
+    raw.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.getSyncState(scope)).rejects.toMatchObject({ code: 'corrupt_record' });
+    expect(await reopened.listQuarantines(scope)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceTable: 'receipts' }),
+        expect.objectContaining({ sourceTable: 'mutations' }),
+      ]),
+    );
+    reopened.close();
+  });
+
+  it('jointly upgrades the shipped v2 acknowledged mutation and minimal receipt shapes', async () => {
+    const baseName = databaseBase('v2-terminal-pair');
+    const physicalName = trackUserDatabase(baseName);
+    const legacy = new Dexie(physicalName);
+    legacy.version(2).stores({
+      sessionContexts: '&scopeKey,userId,expiresAt',
+      drafts: '&scopeKey,updatedAt,expiresAt',
+      mutations:
+        '&storageKey,&clientMutationId,scopeKey,status,[status+nextAttemptAt],[scopeKey+status],createdAt',
+      receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+    });
+    await legacy.open();
+    const key = Object.values(scope).join('|');
+    await legacy.table('sessionContexts').add({
+      scopeKey: key,
+      scope,
+      userId: scope.userId,
+      tryoutNumber: 42,
+      categories: context().categories,
+      expiresAt: '2026-09-29T09:00:00.000Z',
+    });
+    await legacy.table('mutations').add({
+      ...mutation(),
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      scopeKey: key,
+      status: 'acknowledged',
+      syncState: 'synced',
+      createdAt: '2026-08-29T09:00:00.000Z',
+      updatedAt: '2026-08-29T09:01:00.000Z',
+      nextAttemptAt: '2026-08-29T09:00:00.000Z',
+      attemptCount: 0,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+    });
+    await legacy.table('receipts').add({
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      clientMutationId: mutation().clientMutationId,
+      scopeKey: key,
+      scope,
+      evaluationId: mutation().evaluationId,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+      expiresAt: '2026-09-29T09:01:00.000Z',
+    });
+    legacy.close();
+
+    const migrated = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    expect(await migrated.listMutations(scope)).toEqual([
+      expect.objectContaining({ status: 'acknowledged', queueSequence: 1 }),
+    ]);
+    expect(await migrated.getReceipt(scope, mutation().clientMutationId)).toMatchObject({
+      expectedVersion: 2,
+      serverVersion: 3,
+      payloadDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      claimToken: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      receiptDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
+    migrated.close();
+  });
+
+  it('rejects digest-changing shared imports while leaving the source untouched', async () => {
+    const legacyName = databaseBase('shared-digest-mismatch');
+    databaseNames.push(legacyName);
+    const shared = new Dexie(legacyName);
+    shared.version(2).stores({
+      sessionContexts: '&scopeKey,userId,expiresAt',
+      drafts: '&scopeKey,updatedAt,expiresAt',
+      mutations:
+        '&storageKey,&clientMutationId,scopeKey,status,[status+nextAttemptAt],[scopeKey+status],createdAt',
+      receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+    });
+    await shared.open();
+    const key = Object.values(scope).join('|');
+    await shared.table('mutations').add({
+      ...mutation(),
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      scopeKey: key,
+      status: 'pending',
+      syncState: 'saved_device',
+      payloadDigest: '0'.repeat(64),
+      createdAt: '2026-08-29T09:00:00.000Z',
+      updatedAt: '2026-08-29T09:00:00.000Z',
+      nextAttemptAt: '2026-08-29T09:00:00.000Z',
+      attemptCount: 0,
+    });
+    shared.close();
+    const target = repository('shared-digest-target');
+    await expect(
+      target.migrateLegacySharedDatabase({ legacyDatabaseName: legacyName }),
+    ).resolves.toEqual({ imported: 0, quarantined: 1 });
+    expect(await target.listMutations(scope)).toEqual([]);
+    target.close();
+    const source = new Dexie(legacyName);
+    await source.open();
+    expect(await source.table('mutations').count()).toBe(1);
+    source.close();
+  });
+
+  it('validates failure category and UTF-8 bytes before mutating a leased record', async () => {
+    const target = await prepare(repository('failure-validation'));
+    await target.enqueueEvaluationMutation(mutation());
+    const claim = await target.nextPendingMutation(scope);
+    const base = {
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      now: new Date(),
+    };
+    await expect(
+      target.recordMutationFailure({ ...base, category: 'not-real' as never, message: 'bad' }),
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(
+      target.recordMutationFailure({ ...base, category: 'network', message: '🚀'.repeat(200) }),
+    ).rejects.toMatchObject({ code: 'invalid_input' });
+    expect(await target.listMutations(scope)).toEqual([
+      expect.objectContaining({ status: 'leased', attemptCount: 0 }),
+    ]);
+    target.close();
+  });
+
+  it('stores only a bounded redacted recovery envelope for injected corrupt records', async () => {
+    const baseName = databaseBase('bounded-quarantine');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    const queued = await target.enqueueEvaluationMutation(mutation());
+    target.close();
+    const raw = new Dexie(physicalName);
+    raw.version(4).stores(v4Stores);
+    await raw.open();
+    await raw.table('mutations').put({
+      ...queued,
+      guardian: { email: 'guardian-secret@example.com', phone: '+15555555555' },
+      contact: 'private-contact',
+      hugeBlob: 'x'.repeat(2_000_000),
+      payloadDigest: '0'.repeat(64),
+    });
+    raw.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    reopened.close();
+    const inspect = new Dexie(physicalName);
+    inspect.version(4).stores(v4Stores);
+    await inspect.open();
+    const quarantines = await inspect.table('quarantines').toArray();
+    const serialized = JSON.stringify(quarantines);
+    expect(quarantines).toHaveLength(1);
+    expect(serialized).not.toContain('originalRecord');
+    expect(serialized).not.toContain('guardian-secret');
+    expect(serialized).not.toContain('private-contact');
+    expect(serialized).not.toContain('hugeBlob');
+    expect(new TextEncoder().encode(serialized).byteLength).toBeLessThan(4_096);
+    inspect.close();
+  });
+
+  it('quarantines a structurally valid queued mutation that diverges from its terminal receipt', async () => {
+    const baseName = databaseBase('claim-receipt-divergence');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    const queued = await target.enqueueEvaluationMutation(mutation());
+    const claim = await target.nextPendingMutation(scope);
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      expectedVersion: claim!.expectedVersion,
+      payloadDigest: claim!.payloadDigest,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T10:00:00.000Z',
+    });
+    await target.clearAcknowledged(scope);
+    target.close();
+    const raw = new Dexie(physicalName);
+    raw.version(4).stores(v4Stores);
+    await raw.open();
+    await raw.table('mutations').add({
+      ...queued,
+      expectedVersion: 3,
+      payloadDigest: await digestValue(evaluationPayload(scope, queued.evaluationId, 3, draft)),
+    });
+    raw.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    expect(await reopened.listMutations(scope)).toEqual([]);
+    expect(await reopened.listQuarantines(scope)).toEqual([
+      expect.objectContaining({ sourceTable: 'mutations', reason: 'receipt_divergence' }),
+    ]);
+    reopened.close();
+  });
+
+  it('assigns deterministic legacy sequences and advances the v4 queue counter', async () => {
+    const baseName = databaseBase('v3-sequence-migration');
+    const physicalName = trackUserDatabase(baseName);
+    const legacy = new Dexie(physicalName);
+    legacy.version(3).stores(v3Stores);
+    await legacy.open();
+    const key = Object.values(scope).join('|');
+    const queueKey = evaluationQueueKey(scope, mutation().evaluationId);
+    await legacy.table('sessionContexts').add({
+      scopeKey: key,
+      scope,
+      tryoutNumber: 42,
+      categories: context().categories,
+      expiresAt: '2026-09-29T09:00:00.000Z',
+    });
+    const legacyMutation = async (clientMutationId: string, expectedVersion: number) => ({
+      ...mutation({ clientMutationId, expectedVersion }),
+      storageKey: `${key}|${clientMutationId}`,
+      scopeKey: key,
+      queueKey,
+      payloadDigest: await digestValue(
+        evaluationPayload(scope, mutation().evaluationId, expectedVersion, draft),
+      ),
+      status: 'pending',
+      syncState: 'saved_device',
+      createdAt: '2026-08-29T09:00:00.000Z',
+      updatedAt: '2026-08-29T09:00:00.000Z',
+      nextAttemptAt: '2026-08-29T09:00:00.000Z',
+      attemptCount: 0,
+    });
+    await legacy
+      .table('mutations')
+      .bulkAdd([
+        await legacyMutation('ffffffff-ffff-4fff-8fff-ffffffffffff', 3),
+        await legacyMutation('00000000-0000-4000-8000-000000000001', 2),
+      ]);
+    legacy.close();
+    const migrated = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    expect(
+      (await migrated.listMutations(scope)).map((item) => [
+        item.clientMutationId,
+        item.queueSequence,
+      ]),
+    ).toEqual([
+      ['00000000-0000-4000-8000-000000000001', 1],
+      ['ffffffff-ffff-4fff-8fff-ffffffffffff', 2],
+    ]);
+    await expect(
+      migrated.enqueueEvaluationMutation(
+        mutation({
+          clientMutationId: '30000000-0000-4000-8000-000000000099',
+          expectedVersion: 4,
+        }),
+      ),
+    ).resolves.toMatchObject({ queueSequence: 3 });
+    migrated.close();
+  });
+
+  it('quarantines both sides of an inconsistent shipped-v2 terminal pair', async () => {
+    const baseName = databaseBase('v2-inconsistent-terminal');
+    const physicalName = trackUserDatabase(baseName);
+    const legacy = new Dexie(physicalName);
+    legacy.version(2).stores({
+      sessionContexts: '&scopeKey,userId,expiresAt',
+      drafts: '&scopeKey,updatedAt,expiresAt',
+      mutations:
+        '&storageKey,&clientMutationId,scopeKey,status,[status+nextAttemptAt],[scopeKey+status],createdAt',
+      receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+    });
+    await legacy.open();
+    const key = Object.values(scope).join('|');
+    await legacy.table('sessionContexts').add({
+      scopeKey: key,
+      scope,
+      userId: scope.userId,
+      tryoutNumber: 42,
+      categories: context().categories,
+      expiresAt: '2026-09-29T09:00:00.000Z',
+    });
+    await legacy.table('mutations').add({
+      ...mutation(),
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      scopeKey: key,
+      status: 'acknowledged',
+      syncState: 'synced',
+      createdAt: '2026-08-29T09:00:00.000Z',
+      updatedAt: '2026-08-29T09:01:00.000Z',
+      nextAttemptAt: '2026-08-29T09:00:00.000Z',
+      attemptCount: 0,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+    });
+    await legacy.table('receipts').add({
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      clientMutationId: mutation().clientMutationId,
+      scopeKey: key,
+      scope,
+      evaluationId: mutation().evaluationId,
+      serverVersion: 99,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+      expiresAt: '2026-09-29T09:01:00.000Z',
+    });
+    legacy.close();
+    const migrated = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    expect(await migrated.listMutations(scope)).toEqual([]);
+    expect(await migrated.getReceipt(scope, mutation().clientMutationId)).toBeNull();
+    expect(await migrated.listQuarantines(scope)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceTable: 'mutations', reason: 'terminal_pair_inconsistent' }),
+        expect.objectContaining({ sourceTable: 'receipts', reason: 'terminal_pair_inconsistent' }),
+      ]),
+    );
+    migrated.close();
+  });
+
+  it('quarantines a shared receipt digest mismatch and leaves the source receipt untouched', async () => {
+    const legacyName = databaseBase('shared-receipt-digest');
+    databaseNames.push(legacyName);
+    const shared = new Dexie(legacyName);
+    shared.version(3).stores(v3Stores);
+    await shared.open();
+    const key = Object.values(scope).join('|');
+    await shared.table('receipts').add({
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      clientMutationId: mutation().clientMutationId,
+      scopeKey: key,
+      scope,
+      evaluationId: mutation().evaluationId,
+      expectedVersion: 2,
+      payloadDigest: 'a'.repeat(64),
+      claimToken: '30000000-0000-4000-8000-000000000099',
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+      expiresAt: '2026-09-29T09:01:00.000Z',
+      receiptDigest: '0'.repeat(64),
+    });
+    shared.close();
+    const target = repository('shared-receipt-target');
+    await expect(
+      target.migrateLegacySharedDatabase({ legacyDatabaseName: legacyName }),
+    ).resolves.toEqual({ imported: 0, quarantined: 1 });
+    target.close();
+    const source = new Dexie(legacyName);
+    await source.open();
+    expect(await source.table('receipts').count()).toBe(1);
+    source.close();
   });
 });
