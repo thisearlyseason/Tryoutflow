@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { AthletePager } from '../../../../../src/modules/evaluations/ui/athlete-pager';
 import { EvaluationForm } from '../../../../../src/modules/evaluations/ui/evaluation-form';
 
@@ -98,6 +100,7 @@ export default async function EvaluationFixturePage({
         ]}
         onComplete={onComplete}
         onSave={onSave}
+        serverSnapshotToken={randomUUID()}
       />
       <AthletePager
         ariaLabel="Athlete navigation below scoring"

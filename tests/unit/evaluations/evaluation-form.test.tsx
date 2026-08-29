@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -52,6 +52,7 @@ function deferred<T>() {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   window.sessionStorage.clear();
 });
 
@@ -274,6 +275,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="navigation-draft"
+        serverSnapshotToken="navigation-render-one"
         initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [], note: '' }}
         onComplete={vi.fn()}
         onSave={vi.fn()}
@@ -292,6 +294,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="navigation-draft"
+        serverSnapshotToken="navigation-render-two"
         initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [], note: '' }}
         onComplete={vi.fn()}
         onSave={onSave}
@@ -382,6 +385,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="queue-drain"
+        serverSnapshotToken="queue-drain-render"
         initialDraft={{
           evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
           version: 1,
@@ -451,6 +455,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="server-lock"
+        serverSnapshotToken="server-lock-before"
         initialDraft={{
           evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
           version: 1,
@@ -480,6 +485,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="server-lock"
+        serverSnapshotToken="server-lock-after"
         initialDraft={{
           evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
           version: 2,
@@ -525,6 +531,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="later-edit"
+        serverSnapshotToken="later-edit-render"
         initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
         onComplete={vi.fn()}
         onSave={onSave}
@@ -568,6 +575,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="confirmed-return"
+        serverSnapshotToken="confirmed-return-one"
         initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
         onComplete={vi.fn()}
         onSave={firstSave}
@@ -584,6 +592,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="confirmed-return"
+        serverSnapshotToken="confirmed-return-two"
         initialDraft={{
           evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
           version: 1,
@@ -608,6 +617,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="conflict-reload"
+        serverSnapshotToken="snapshot-before-conflict"
         initialDraft={{
           evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
           version: 1,
@@ -636,6 +646,7 @@ describe('EvaluationForm', () => {
         athlete={athlete}
         categories={categories}
         draftCacheKey="conflict-reload"
+        serverSnapshotToken="snapshot-before-conflict"
         initialDraft={{
           evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
           version: 2,
@@ -656,13 +667,37 @@ describe('EvaluationForm', () => {
       ),
     ).toBeVisible();
     expect(
-      within(screen.getByRole('article', { name: 'Server draft loaded after reload' })).getByText(
+      within(screen.getByRole('article', { name: 'Server draft from page load' })).getByText(
         'New server copy',
       ),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Copy local draft' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Download local draft' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save now' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
+
+    cleanup();
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="conflict-reload"
+        serverSnapshotToken="snapshot-after-reload"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 2,
+          state: 'draft',
+          scores: [],
+          note: 'New server copy',
+        }}
+        onComplete={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    expect(
+      await screen.findByRole('article', { name: 'Server draft loaded after reload' }),
+    ).toHaveTextContent('New server copy');
 
     await user.click(screen.getByRole('button', { name: 'Keep my local draft' }));
     await user.click(screen.getByRole('button', { name: 'Save now' }));
@@ -670,6 +705,241 @@ describe('EvaluationForm', () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ note: 'Local sensitive note', expectedVersion: 2 }),
     );
+  });
+
+  it.each(['conflict', 'unexpected'] as const)(
+    'preserves the newest queued edit when a deferred %s response arrives',
+    async (outcome) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const pending = deferred<{ outcome: typeof outcome }>();
+      const onSave = vi.fn(() => pending.promise);
+      const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+      const createObjectUrl = vi
+        .spyOn(URL, 'createObjectURL')
+        .mockReturnValue('blob:queued-recovery');
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+      render(
+        <EvaluationForm
+          athlete={athlete}
+          categories={categories}
+          draftCacheKey={`queued-${outcome}`}
+          serverSnapshotToken={`snapshot-${outcome}`}
+          initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+          onComplete={vi.fn()}
+          onSave={onSave}
+        />,
+      );
+      const note = screen.getByLabelText('Private evaluator note');
+      await user.type(note, 'Sent request');
+      await act(async () => vi.advanceTimersByTime(700));
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ note: 'Sent request' }));
+
+      await user.type(note, ' plus queued edit');
+      await act(async () => pending.resolve({ outcome }));
+
+      expect(
+        within(await screen.findByRole('article', { name: 'Local draft' })).getByText(
+          'Sent request plus queued edit',
+        ),
+      ).toBeVisible();
+      const stored = JSON.parse(
+        window.sessionStorage.getItem(`tryoutflow:evaluation-draft:v1:queued-${outcome}`) ?? '{}',
+      ) as { draft?: { note?: string }; lastRequest?: { note?: string } };
+      expect(stored.draft?.note).toBe('Sent request plus queued edit');
+      expect(stored.lastRequest?.note).toBe('Sent request');
+
+      await user.click(screen.getByRole('button', { name: 'Copy local draft' }));
+      expect(JSON.parse(clipboard.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({
+        note: 'Sent request plus queued edit',
+        request: { note: 'Sent request', expectedVersion: 0 },
+      });
+      await user.click(screen.getByRole('button', { name: 'Download local draft' }));
+      const exported = createObjectUrl.mock.calls.at(-1)?.[0];
+      expect(exported).toBeInstanceOf(Blob);
+      expect(JSON.parse(await (exported as Blob).text())).toMatchObject({
+        note: 'Sent request plus queued edit',
+        request: { note: 'Sent request', expectedVersion: 0 },
+      });
+      vi.useRealTimers();
+    },
+  );
+
+  it('keeps the newest queued edit visible and exportable when sessionStorage is unavailable', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const pending = deferred<{ outcome: 'unexpected' }>();
+    const onSave = vi.fn(() => pending.promise);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('storage denied', 'SecurityError');
+    });
+    const clipboard = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    const createObjectUrl = vi
+      .spyOn(URL, 'createObjectURL')
+      .mockReturnValue('blob:no-storage-recovery');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="unavailable-storage"
+        serverSnapshotToken="storage-failure-snapshot"
+        initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+        onComplete={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    const note = screen.getByLabelText('Private evaluator note');
+    await user.type(note, 'Request snapshot');
+    await act(async () => vi.advanceTimersByTime(700));
+    await user.type(note, ' newest edit');
+    await act(async () => pending.resolve({ outcome: 'unexpected' }));
+
+    expect(await screen.findByRole('article', { name: 'Local draft' })).toHaveTextContent(
+      'Request snapshot newest edit',
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Reload and compare safely' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('exists on this page only');
+    await user.click(screen.getByRole('button', { name: 'Copy local draft' }));
+    expect(JSON.parse(clipboard.mock.calls.at(-1)?.[0] ?? '{}')).toMatchObject({
+      note: 'Request snapshot newest edit',
+      request: { note: 'Request snapshot' },
+    });
+    await user.click(screen.getByRole('button', { name: 'Download local draft' }));
+    const exported = createObjectUrl.mock.calls.at(-1)?.[0];
+    expect(JSON.parse(await (exported as Blob).text())).toMatchObject({
+      note: 'Request snapshot newest edit',
+      request: { note: 'Request snapshot' },
+    });
+    vi.useRealTimers();
+  });
+
+  it('does not trust a changed snapshot token when the server version went backwards', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const first = render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="stale-server-snapshot"
+        serverSnapshotToken="snapshot-v2"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 2,
+          state: 'draft',
+          scores: [],
+        }}
+        onComplete={vi.fn()}
+        onSave={async () => ({ outcome: 'unexpected' })}
+      />,
+    );
+    await user.type(screen.getByLabelText('Private evaluator note'), 'Keep newest');
+    await act(async () => vi.advanceTimersByTime(700));
+    first.unmount();
+
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="stale-server-snapshot"
+        serverSnapshotToken="snapshot-v1-new-render"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 1,
+          state: 'draft',
+          scores: [],
+        }}
+        onComplete={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Copy local draft' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Download local draft' })).toBeEnabled();
+    vi.useRealTimers();
+  });
+
+  it('migrates a tokenless browser-session recovery without losing or prematurely trusting it', async () => {
+    window.sessionStorage.setItem(
+      'tryoutflow:evaluation-draft:v1:legacy-tokenless-recovery',
+      JSON.stringify({
+        draft: {
+          scores: [],
+          note: 'Legacy local draft',
+          noteTagIds: [],
+          flags: [],
+        },
+        baseVersion: 1,
+        evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        revision: 1,
+        recovery: 'conflict',
+        lastRequest: {
+          scores: [],
+          note: 'Legacy local draft',
+          noteTagIds: [],
+          flags: [],
+          expectedVersion: 1,
+          revision: 1,
+        },
+      }),
+    );
+    const first = render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="legacy-tokenless-recovery"
+        serverSnapshotToken="legacy-baseline-render"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 2,
+          state: 'draft',
+          scores: [],
+          note: 'Server draft',
+        }}
+        onComplete={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(await screen.findByRole('article', { name: 'Local draft' })).toHaveTextContent(
+      'Legacy local draft',
+    );
+    expect(screen.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
+    expect(
+      JSON.parse(
+        window.sessionStorage.getItem('tryoutflow:evaluation-draft:v1:legacy-tokenless-recovery') ??
+          '{}',
+      ),
+    ).toMatchObject({
+      draft: { note: 'Legacy local draft' },
+      serverSnapshotToken: 'legacy-baseline-render',
+    });
+    first.unmount();
+
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="legacy-tokenless-recovery"
+        serverSnapshotToken="legacy-fresh-render"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 2,
+          state: 'draft',
+          scores: [],
+          note: 'Server draft',
+        }}
+        onComplete={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(await screen.findByRole('button', { name: 'Use server draft' })).toBeEnabled();
   });
 
   it.each([
@@ -690,6 +960,7 @@ describe('EvaluationForm', () => {
           athlete={athlete}
           categories={categories}
           draftCacheKey={`outcome-${outcome}`}
+          serverSnapshotToken={`outcome-${outcome}-render`}
           initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
           onComplete={vi.fn()}
           onSave={async () => ({ outcome })}
@@ -720,6 +991,7 @@ describe('EvaluationForm', () => {
           athlete={athlete}
           categories={categories}
           draftCacheKey={`completion-${outcome}`}
+          serverSnapshotToken={`completion-${outcome}-render`}
           initialDraft={{
             evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
             version: 2,

@@ -92,6 +92,7 @@ type CachedDraft = {
   draft: EditableDraft;
   baseVersion: number;
   evaluationId: string | null;
+  serverSnapshotToken: string | null;
   revision: number;
   recovery: 'dirty' | RecoveryKind;
   lastRequest?: SaveRequest & { revision: number };
@@ -111,6 +112,7 @@ const cachedDraftSchema = z.strictObject({
   draft: editableDraftSchema,
   baseVersion: z.number().int().min(0),
   evaluationId: z.uuid().nullable(),
+  serverSnapshotToken: z.string().min(1).max(200).nullable().default(null),
   revision: z.number().int().positive(),
   recovery: z.enum(['dirty', 'conflict', 'unconfirmed']),
   lastRequest: saveRequestSchema.extend({ revision: z.number().int().positive() }).optional(),
@@ -163,10 +165,10 @@ export function EvaluationForm({
   noteTags = [],
   onComplete,
   onSave,
+  serverSnapshotToken,
 }: {
   athlete: EvaluatorAthlete;
   categories: EvaluatorCategory[];
-  draftCacheKey?: string;
   initialDraft: EvaluationDraftInput;
   noteTags?: { id: string; label: string }[];
   onComplete: (input: {
@@ -180,7 +182,10 @@ export function EvaluationForm({
     flags: string[];
     expectedVersion: number;
   }) => Promise<EvaluationSaveResult>;
-}) {
+} & (
+  | { draftCacheKey: string; serverSnapshotToken: string }
+  | { draftCacheKey?: undefined; serverSnapshotToken?: never }
+)) {
   const serverDraft = editableDraft(initialDraft);
   const [draft, setDraft] = useState<EditableDraft>(serverDraft);
   const [saveState, setSaveState] = useState<EvaluationSaveStatus>(
@@ -235,6 +240,7 @@ export function EvaluationForm({
       draft: latestDraftRef.current,
       baseVersion: versionRef.current,
       evaluationId: evaluationIdRef.current,
+      serverSnapshotToken: serverSnapshotToken ?? null,
       revision: Math.max(1, revisionRef.current),
       recovery: recoveryState,
       lastRequest: lastRequestRef.current,
@@ -259,6 +265,12 @@ export function EvaluationForm({
     setDraft(cached.draft);
     lastRequestRef.current = cached.lastRequest;
     lastCompletionRef.current = cached.lastCompletion;
+    if (cached.serverSnapshotToken === null) {
+      storageAvailableRef.current = writeCachedDraft(draftCacheKey, {
+        ...cached,
+        serverSnapshotToken,
+      });
+    }
     const needsReview =
       !editable ||
       cached.recovery === 'conflict' ||
@@ -267,13 +279,19 @@ export function EvaluationForm({
       cached.evaluationId !== initialDraft.evaluationId;
     if (needsReview) {
       const kind: RecoveryKind = cached.recovery === 'unconfirmed' ? 'unconfirmed' : 'conflict';
+      const serverFresh =
+        Boolean(serverSnapshotToken) &&
+        Boolean(cached.serverSnapshotToken) &&
+        cached.serverSnapshotToken !== serverSnapshotToken &&
+        initialDraft.version >= cached.baseVersion &&
+        (cached.evaluationId === null || cached.evaluationId === initialDraft.evaluationId);
       blockedRef.current = true;
       recoveryKindRef.current = kind;
       setRecovery({
         kind,
         local: cached.draft,
         server: serverDraft,
-        serverFresh: true,
+        serverFresh,
         durable: true,
         lastRequest: cached.lastRequest,
         lastCompletion: cached.lastCompletion,
@@ -305,18 +323,14 @@ export function EvaluationForm({
     persistDraft('dirty');
   }
 
-  function requireRecovery(
-    kind: RecoveryKind,
-    local: EditableDraft,
-    request: CachedDraft['lastRequest'],
-  ) {
+  function requireRecovery(kind: RecoveryKind, request: CachedDraft['lastRequest']) {
     blockedRef.current = true;
     recoveryKindRef.current = kind;
     lastRequestRef.current = request;
     const durable = persistDraft(kind);
     setRecovery({
       kind,
-      local,
+      local: latestDraftRef.current,
       server: serverDraft,
       serverFresh: false,
       durable,
@@ -328,7 +342,6 @@ export function EvaluationForm({
 
   function handleSaveFailure(
     result: Exclude<EvaluationSaveResult, { outcome: 'saved' }>,
-    snapshot: EditableDraft,
     request: SaveRequest & { revision: number },
   ) {
     switch (result.outcome) {
@@ -345,10 +358,10 @@ export function EvaluationForm({
         persistDraft('dirty');
         return;
       case 'conflict':
-        requireRecovery('conflict', snapshot, request);
+        requireRecovery('conflict', request);
         return;
       case 'unexpected':
-        requireRecovery('unconfirmed', snapshot, request);
+        requireRecovery('unconfirmed', request);
     }
   }
 
@@ -388,7 +401,7 @@ export function EvaluationForm({
       }
       lastResult = result;
       if (result.outcome !== 'saved') {
-        handleSaveFailure(result, snapshot, request);
+        handleSaveFailure(result, request);
         return result;
       }
       versionRef.current = result.version;
@@ -513,7 +526,7 @@ export function EvaluationForm({
       }
       const evaluationId = evaluationIdRef.current;
       if (!evaluationId) {
-        requireRecovery('unconfirmed', latestDraftRef.current, lastRequestRef.current);
+        requireRecovery('unconfirmed', lastRequestRef.current);
         return;
       }
       setSaveState('completing');
@@ -548,10 +561,10 @@ export function EvaluationForm({
         return;
       }
       if (result.outcome === 'conflict') {
-        requireRecovery('conflict', latestDraftRef.current, lastRequestRef.current);
+        requireRecovery('conflict', lastRequestRef.current);
         return;
       }
-      requireRecovery('unconfirmed', latestDraftRef.current, lastRequestRef.current);
+      requireRecovery('unconfirmed', lastRequestRef.current);
     })().finally(() => {
       if (completionState !== 'completed') {
         completionGateRef.current = false;
@@ -599,10 +612,10 @@ export function EvaluationForm({
   function localRecoveryText(): string {
     return JSON.stringify(
       {
-        scores: recovery?.local.scores ?? draft.scores,
-        note: recovery?.local.note ?? draft.note,
-        noteTagIds: recovery?.local.noteTagIds ?? draft.noteTagIds,
-        flags: recovery?.local.flags ?? draft.flags,
+        scores: latestDraftRef.current.scores,
+        note: latestDraftRef.current.note,
+        noteTagIds: latestDraftRef.current.noteTagIds,
+        flags: latestDraftRef.current.flags,
         request: recovery?.lastRequest,
         completionRequest: recovery?.lastCompletion,
       },

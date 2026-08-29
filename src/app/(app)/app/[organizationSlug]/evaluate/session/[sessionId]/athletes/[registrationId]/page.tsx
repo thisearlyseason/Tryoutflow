@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { z } from 'zod';
 
 import { completeEvaluationRecord } from '@/modules/evaluations/application/complete-evaluation';
@@ -150,6 +152,7 @@ export default async function AthleteEvaluationPage({
         noteTags={loaded.value.noteTags}
         onComplete={onComplete}
         onSave={onSave}
+        serverSnapshotToken={randomUUID()}
       />
       <AthletePager
         ariaLabel="Athlete navigation below scoring"
