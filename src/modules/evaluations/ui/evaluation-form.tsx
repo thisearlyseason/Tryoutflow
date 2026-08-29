@@ -272,6 +272,7 @@ export function EvaluationForm({
   const serverConfirmedRef = useRef(serverInitiallyConfirmed);
   const debounceTimerRef = useRef<number | null>(null);
   const recoveryKindRef = useRef<RecoveryKind | null>(null);
+  const recoveryOpenedAtRevisionRef = useRef<number | null>(null);
   const lastRequestRef = useRef<CachedDraft['lastRequest']>(undefined);
   const lastCompletionRef = useRef<CachedDraft['lastCompletion']>(undefined);
   const storageAvailableRef = useRef(Boolean(draftCacheKey));
@@ -297,19 +298,32 @@ export function EvaluationForm({
   useEffect(() => {
     if (!backgroundSaveResult || !hydrated) return;
     if (backgroundSaveResult.outcome === 'resolved_elsewhere') {
+      const editedAfterRecoveryOpened =
+        recoveryOpenedAtRevisionRef.current !== null &&
+        revisionRef.current > recoveryOpenedAtRevisionRef.current;
+      evaluationIdRef.current = backgroundSaveResult.evaluationId;
+      versionRef.current = backgroundSaveResult.version;
+      blockedRef.current = false;
+      recoveryKindRef.current = null;
+      recoveryOpenedAtRevisionRef.current = null;
+      lastRequestRef.current = undefined;
+      lastCompletionRef.current = undefined;
+      setRecovery(null);
+      if (editedAfterRecoveryOpened) {
+        serverConfirmedRef.current = false;
+        confirmedRevisionRef.current = 0;
+        drainGoalRef.current = 0;
+        setRecoveryNotice('A newer edit was preserved after another tab resolved the conflict.');
+        setSaveState(navigator.onLine ? 'editing' : 'offline');
+        persistDraft('dirty');
+        return;
+      }
       latestDraftRef.current = backgroundSaveResult.draft;
       revisionRef.current = 0;
       confirmedRevisionRef.current = 0;
       drainGoalRef.current = 0;
-      evaluationIdRef.current = backgroundSaveResult.evaluationId;
-      versionRef.current = backgroundSaveResult.version;
       serverConfirmedRef.current = true;
-      blockedRef.current = false;
-      recoveryKindRef.current = null;
-      lastRequestRef.current = undefined;
-      lastCompletionRef.current = undefined;
       setDraft(backgroundSaveResult.draft);
-      setRecovery(null);
       setRecoveryNotice('This evaluation was resolved and saved in another tab.');
       setSaveState('saved');
       clearCachedDraft(draftCacheKey);
@@ -394,6 +408,7 @@ export function EvaluationForm({
           (allowVerifiedIdentityRemap && Boolean(onResolveRecovery)));
       blockedRef.current = true;
       recoveryKindRef.current = kind;
+      recoveryOpenedAtRevisionRef.current = revisionRef.current;
       setRecovery({
         kind,
         local: cached.draft,
@@ -437,6 +452,7 @@ export function EvaluationForm({
   ) {
     blockedRef.current = true;
     recoveryKindRef.current = kind;
+    recoveryOpenedAtRevisionRef.current = revisionRef.current;
     lastRequestRef.current = request;
     const durable = persistDraft(kind);
     setRecovery({

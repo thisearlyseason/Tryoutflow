@@ -1,6 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
+test.beforeEach(async ({ context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'x-tryoutflow-fixture-run': `${testInfo.project.name}:${testInfo.testId}:${testInfo.retry}:${testInfo.repeatEachIndex}`,
+  });
+});
+
 test('scores assigned athletes one-handed without losing an in-page draft', async ({ page }) => {
   await page.goto('/cccccccc-cccc-4ccc-8ccc-cccccccccccc');
   await expect(page.getByRole('heading', { name: 'Athlete A1B2C3' })).toBeVisible();

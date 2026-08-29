@@ -66,7 +66,9 @@ export default async function EvaluationFixturePage({
   params: Promise<{ registrationId: string }>;
 }) {
   const { registrationId } = await params;
-  const engine = (await headers()).get('user-agent')?.includes('Chrome') ? 'chromium' : 'webkit';
+  const requestHeaders = await headers();
+  const engine = requestHeaders.get('user-agent')?.includes('Chrome') ? 'chromium' : 'webkit';
+  const fixtureRun = requestHeaders.get('x-tryoutflow-fixture-run') ?? 'isolated-default';
   const index = athletes.findIndex((athlete) => athlete.registrationId === registrationId);
   const athlete = athletes[index] ?? athletes[0]!;
   const previous = athletes[index - 1];
@@ -80,7 +82,7 @@ export default async function EvaluationFixturePage({
           ? 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc'
           : 'fdfdfdfd-fdfd-4dfd-8dfd-fdfdfdfdfdfd';
   const authoritativeEvaluationId =
-    readAuthoritativeEvaluationId(registrationId, engine) ?? provisionalEvaluationId;
+    readAuthoritativeEvaluationId(registrationId, engine, fixtureRun) ?? provisionalEvaluationId;
 
   async function onSave(input: { note?: string; expectedVersion: number }) {
     'use server';

@@ -118,6 +118,20 @@ const v5Stores = {
   receiptTombstones: '&storageKey,scopeKey,createdAt',
 };
 
+async function snapshotV5(database: Dexie) {
+  return Promise.all(
+    Object.keys(v5Stores).map(async (tableName) => {
+      const table = database.table(tableName);
+      const keys = await table.toCollection().primaryKeys();
+      return [
+        tableName,
+        keys.map((key, index) => [key, undefined] as const),
+        await table.bulkGet(keys),
+      ] as const;
+    }),
+  );
+}
+
 beforeEach(() => {
   databaseNames = [];
   resetEvaluationOfflineUser();
@@ -805,33 +819,46 @@ describe('evaluation offline outbox', () => {
     },
   );
 
-  it.each([
-    ['sessionContexts', 'shadow-context', (key: unknown) => ({ scopeKey: key, scope })],
-    ['drafts', 'shadow-draft', (key: unknown) => ({ scopeKey: key, scope })],
-    [
-      'mutations',
-      new Date('2026-08-29T01:02:03.000Z'),
-      (key: unknown) => ({ storageKey: key, scopeKey: 99, scope }),
-    ],
-    ['receipts', [scope.userId, 17], (key: unknown) => ({ storageKey: key, scopeKey: 99, scope })],
-    ['receiptTombstones', 42, (key: unknown) => ({ storageKey: key, scopeKey: 99, scope })],
-    [
-      'queueCounters',
-      [scope.userId, new Date('2026-08-29T01:02:03.000Z')],
-      (key: unknown) => ({ queueKey: key, scopeKey: Object.values(scope).join('|') }),
-    ],
-    [
-      'quarantines',
-      new Date('2026-08-29T03:02:01.000Z'),
-      (key: unknown) => ({
-        quarantineKey: key,
-        scopeKey: 99,
-        recoveryEnvelope: { scopeKey: Object.values(scope).join('|') },
-      }),
-    ],
-  ] as const)(
-    'fails closed on a target-attributable %s record hidden behind typed physical key %s',
-    async (tableName, physicalKey, rawRecord) => {
+  it.each(
+    (['keep_local', 'use_server'] as const).flatMap((action) =>
+      (
+        [
+          ['sessionContexts', 'shadow-context', (key: unknown) => ({ scopeKey: key, scope })],
+          ['drafts', 'shadow-draft', (key: unknown) => ({ scopeKey: key, scope })],
+          [
+            'mutations',
+            new Date('2026-08-29T01:02:03.000Z'),
+            (key: unknown) => ({ storageKey: key, scopeKey: 99, scope }),
+          ],
+          [
+            'receipts',
+            [scope.userId, 17],
+            (key: unknown) => ({ storageKey: key, scopeKey: 99, scope }),
+          ],
+          ['receiptTombstones', 42, (key: unknown) => ({ storageKey: key, scopeKey: 99, scope })],
+          [
+            'queueCounters',
+            [scope.userId, new Date('2026-08-29T01:02:03.000Z')],
+            (key: unknown) => ({ queueKey: key, scopeKey: Object.values(scope).join('|') }),
+          ],
+          [
+            'quarantines',
+            new Date('2026-08-29T03:02:01.000Z'),
+            (key: unknown) => ({
+              quarantineKey: key,
+              scopeKey: 99,
+              recoveryEnvelope: { scopeKey: Object.values(scope).join('|') },
+            }),
+          ],
+        ] as const
+      ).map(
+        ([tableName, physicalKey, rawRecord]) =>
+          [action, tableName, physicalKey, rawRecord] as const,
+      ),
+    ),
+  )(
+    '%s fails closed on a target-attributable %s record hidden behind typed physical key %s',
+    async (action, tableName, physicalKey, rawRecord) => {
       const baseName = databaseBase(`strict-union-${tableName}`);
       const physicalName = trackUserDatabase(baseName);
       const target = await prepare(
@@ -858,13 +885,14 @@ describe('evaluation offline outbox', () => {
       raw.version(5).stores(v5Stores);
       await raw.open();
       await raw.table(tableName).put(rawRecord(physicalKey));
+      const beforeResolution = await snapshotV5(raw);
       raw.close();
 
       await expect(
         target.resolveConflict({
           scope,
           clientMutationId: originalId,
-          action: 'keep_local',
+          action,
           original: {
             evaluationId: head.evaluationId,
             payloadDigest: head.payloadDigest,
@@ -874,12 +902,57 @@ describe('evaluation offline outbox', () => {
           server: { scope, evaluationId: authoritativeId, version: 7, draft },
         }),
       ).rejects.toMatchObject({ code: 'corrupt_record' });
+      const after = new Dexie(physicalName);
+      after.version(5).stores(v5Stores);
+      await after.open();
+      expect(await snapshotV5(after)).toEqual(beforeResolution);
+      after.close();
       expect(await target.listMutations(scope)).toEqual([
         expect.objectContaining({ clientMutationId: originalId, status: 'needs_attention' }),
       ]);
       target.close();
     },
   );
+
+  it('binds use-server replay to the exact explicitly discarded local draft', async () => {
+    const target = await prepare(repository('conflict-use-server-local-input'));
+    const originalId = crypto.randomUUID();
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: originalId }));
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: originalId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'exact local input',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 3,
+    });
+    const input = {
+      scope,
+      clientMutationId: originalId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: draft,
+      server: { scope, evaluationId: head.evaluationId, version: 3, draft },
+    };
+    const first = await target.resolveConflict(input);
+    expect(await target.resolveConflict(input)).toEqual(first);
+    const before = await target.loadDraft(scope);
+    await expect(
+      target.resolveConflict({
+        ...input,
+        local: { ...draft, note: 'new edit after the original discard' },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_transition' });
+    expect(await target.loadDraft(scope)).toEqual(before);
+    target.close();
+  });
 
   it('does not let valid unrelated physical records block strict conflict append', async () => {
     const target = await prepare(repository('strict-union-unrelated'));
@@ -1265,6 +1338,11 @@ describe('evaluation offline outbox', () => {
       expectedVersion: 8,
       syncState: 'synced',
       draft: { note: 'authoritative server draft' },
+    });
+    await expect(reopened.reconcileDraftLineage(scope)).resolves.toMatchObject({
+      state: 'synced',
+      confirmation: { clientMutationId: firstId, evaluationId: authoritativeId, serverVersion: 8 },
+      resolution: { action: 'use_server', inputLocalDraftDigest: await digestValue(draft) },
     });
     await expect(
       reopened.enqueueEvaluationMutation(mutation({ clientMutationId: firstId })),

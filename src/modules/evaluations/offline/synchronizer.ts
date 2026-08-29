@@ -29,6 +29,7 @@ export type EvaluationSynchronizerEvent = {
   clientMutationId: string;
   state: 'saved_device' | 'synced' | 'needs_attention';
   category?: EvaluationStoredFailureCategory;
+  origin?: 'remote' | 'poll';
 };
 export type EvaluationSynchronizerOptions = {
   repository: SynchronizerRepository;
@@ -43,6 +44,8 @@ export type EvaluationSynchronizerOptions = {
   poll?: (callback: () => void, delayMs: number) => unknown;
   cancelPoll?: (timer: unknown) => void;
   pollIntervalMs?: number;
+  /** Test seam; production instances always use a fresh cryptographically random UUID. */
+  sourceInstanceId?: string;
 };
 export type EvaluationChangeChannel = {
   postMessage(message: unknown): void;
@@ -74,7 +77,10 @@ const attentionCategory = {
 } as const;
 
 const synchronizerEventSchema = z.strictObject({
-  protocol: z.literal('tryoutflow-evaluation-change-v1'),
+  protocol: z.literal('tryoutflow-evaluation-change-v2'),
+  userBinding: z.uuid(),
+  sourceInstanceId: z.uuid(),
+  sequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
   scopeKey: z.string().min(1).max(512),
   evaluationId: z.uuid(),
   clientMutationId: z.uuid(),
@@ -89,20 +95,53 @@ export class EvaluationSynchronizer {
   private retryTimer: unknown = null;
   private changeChannel: EvaluationChangeChannel | null = null;
   private pollTimer: unknown = null;
+  private readonly sourceInstanceId: string;
+  private outgoingSequence = 0;
+  private readonly receivedSequences = new Map<string, number>();
   private readonly subscribers = new Set<(event: EvaluationSynchronizerEvent) => void>();
   private readonly onlineListener = () => void this.flush();
   private readonly channelListener = (event: { data: unknown }) => {
     const parsed = synchronizerEventSchema.safeParse(event.data);
-    if (!parsed.success || parsed.data.scopeKey !== scopeKey(this.options.scope)) return;
-    const { protocol: _protocol, ...change } = parsed.data;
-    this.emitLocal(change);
+    if (
+      !parsed.success ||
+      parsed.data.userBinding !== this.options.scope.userId ||
+      parsed.data.scopeKey !== scopeKey(this.options.scope) ||
+      parsed.data.sourceInstanceId === this.sourceInstanceId
+    )
+      return;
+    const previous = this.receivedSequences.get(parsed.data.sourceInstanceId) ?? 0;
+    if (parsed.data.sequence <= previous) return;
+    if (
+      !this.receivedSequences.has(parsed.data.sourceInstanceId) &&
+      this.receivedSequences.size >= 64
+    )
+      return;
+    this.receivedSequences.set(parsed.data.sourceInstanceId, parsed.data.sequence);
+    const {
+      protocol: _protocol,
+      userBinding: _userBinding,
+      sourceInstanceId: _sourceInstanceId,
+      sequence: _sequence,
+      ...change
+    } = parsed.data;
+    this.emitLocal({ ...change, origin: 'remote' });
   };
 
-  constructor(private readonly options: EvaluationSynchronizerOptions) {}
+  constructor(private readonly options: EvaluationSynchronizerOptions) {
+    this.sourceInstanceId = options.sourceInstanceId ?? crypto.randomUUID();
+    if (!z.uuid().safeParse(this.sourceInstanceId).success)
+      throw new TypeError('sourceInstanceId must be a UUID.');
+  }
 
   subscribe(listener: (event: EvaluationSynchronizerEvent) => void): () => void {
     this.subscribers.add(listener);
     return () => this.subscribers.delete(listener);
+  }
+
+  /** Publish only a bounded re-query pulse after another durable local transaction commits. */
+  signalDurableChange(event: EvaluationSynchronizerEvent): void {
+    if (!this.running) return;
+    this.broadcast(event);
   }
 
   start(): void {
@@ -331,10 +370,18 @@ export class EvaluationSynchronizer {
   }
   private emit(event: EvaluationSynchronizerEvent): void {
     this.emitLocal(event);
+    this.broadcast(event);
+  }
+  private broadcast(event: EvaluationSynchronizerEvent): void {
     if (!this.changeChannel) return;
     try {
+      if (this.outgoingSequence >= Number.MAX_SAFE_INTEGER) return;
+      this.outgoingSequence += 1;
       this.changeChannel.postMessage({
-        protocol: 'tryoutflow-evaluation-change-v1',
+        protocol: 'tryoutflow-evaluation-change-v2',
+        userBinding: this.options.scope.userId,
+        sourceInstanceId: this.sourceInstanceId,
+        sequence: this.outgoingSequence,
         scopeKey: event.scopeKey,
         evaluationId: event.evaluationId,
         clientMutationId: event.clientMutationId,
@@ -384,6 +431,7 @@ export class EvaluationSynchronizer {
         evaluationId: '00000000-0000-4000-8000-000000000000',
         clientMutationId: '00000000-0000-4000-8000-000000000000',
         state: 'saved_device',
+        origin: 'poll',
       });
     }, this.options.pollIntervalMs ?? 1_000);
   }

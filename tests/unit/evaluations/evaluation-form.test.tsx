@@ -307,7 +307,7 @@ describe('EvaluationForm', () => {
 
     await user.type(screen.getByLabelText('Private evaluator note'), 'Strong edge control');
     await user.click(screen.getByRole('radio', { name: 'Skating score 4 of 5' }));
-    expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes on this page');
+    expect(screen.getByText('Unsaved changes on this page')).toBeVisible();
 
     await act(async () => vi.advanceTimersByTime(700));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
@@ -1031,6 +1031,57 @@ describe('EvaluationForm', () => {
     expect(
       window.sessionStorage.getItem('tryoutflow:evaluation-draft:v1:sibling-resolution'),
     ).toBeNull();
+  });
+
+  it('does not overwrite an edit made after recovery opened when a sibling resolution arrives', async () => {
+    const user = userEvent.setup();
+    const evaluationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    window.sessionStorage.setItem(
+      'tryoutflow:evaluation-draft:v1:sibling-resolution-new-edit',
+      JSON.stringify({
+        draft: { scores: [], note: 'conflicted local', noteTagIds: [], flags: [] },
+        baseVersion: 1,
+        evaluationId,
+        revision: 1,
+        recovery: 'conflict',
+        serverSnapshotToken: 'older-snapshot',
+      }),
+    );
+    const shared = {
+      athlete,
+      categories,
+      draftCacheKey: 'sibling-resolution-new-edit',
+      serverSnapshotToken: 'fresh-snapshot',
+      initialDraft: { evaluationId, version: 2, state: 'draft' as const, scores: [] },
+      onComplete: vi.fn(),
+      onSave: vi.fn(),
+    };
+    const view = render(<EvaluationForm {...shared} />);
+    const note = await screen.findByLabelText('Private evaluator note');
+    await user.type(note, ' newest edit while sibling resolves');
+    view.rerender(
+      <EvaluationForm
+        {...shared}
+        backgroundSaveResult={{
+          token: 2,
+          outcome: 'resolved_elsewhere',
+          draft: { scores: [], note: 'sibling winner', noteTagIds: [], flags: [] },
+          evaluationId,
+          version: 3,
+        }}
+        serverConfirmation={{ evaluationId, version: 3 }}
+      />,
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Review local and server drafts' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(note).toHaveValue('conflicted local newest edit while sibling resolves');
+    expect(screen.getByText('Unsaved changes on this page')).toBeVisible();
+    expect(
+      window.sessionStorage.getItem('tryoutflow:evaluation-draft:v1:sibling-resolution-new-edit'),
+    ).toContain('newest edit while sibling resolves');
   });
 
   it('does not trust a changed snapshot token when the server version went backwards', async () => {

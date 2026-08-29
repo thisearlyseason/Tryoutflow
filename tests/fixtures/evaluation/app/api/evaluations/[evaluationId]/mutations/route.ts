@@ -20,11 +20,13 @@ export async function POST(
     evaluationId: (await params).evaluationId,
   });
   if (!mutation.success) return NextResponse.json({ error: 'invalid' }, { status: 400 });
-  const prior = receipts.get(mutation.data.clientMutationId);
+  const fixtureRun = request.headers.get('x-tryoutflow-fixture-run') ?? 'isolated-default';
+  const receiptKey = `${fixtureRun}:${mutation.data.clientMutationId}`;
+  const prior = receipts.get(receiptKey);
   if (prior) return NextResponse.json({ receipt: prior });
   const engine = request.headers.get('user-agent')?.includes('Chrome') ? 'chromium' : 'webkit';
-  const serverKey = `${mutation.data.evaluationId}:${engine}`;
-  const forcedKey = `${mutation.data.scope.registrationId}:${engine}`;
+  const serverKey = `${fixtureRun}:${mutation.data.evaluationId}:${engine}`;
+  const forcedKey = `${fixtureRun}:${mutation.data.scope.registrationId}:${engine}`;
   const payloadDigest = await digestValue(
     evaluationPayload(
       mutation.data.scope,
@@ -58,6 +60,7 @@ export async function POST(
     recordAuthoritativeEvaluationId(
       mutation.data.scope.registrationId,
       engine,
+      fixtureRun,
       remappedEvaluationId,
     );
   }
@@ -81,6 +84,6 @@ export async function POST(
     serverVersion,
     acknowledgedAt: new Date().toISOString(),
   };
-  receipts.set(mutation.data.clientMutationId, receipt);
+  receipts.set(receiptKey, receipt);
   return NextResponse.json({ receipt });
 }

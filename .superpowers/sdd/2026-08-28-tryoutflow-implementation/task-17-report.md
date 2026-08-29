@@ -284,3 +284,48 @@ git diff --check                                                   PASS
 ### Release gate
 
 Authenticated production cookies, live membership lookup, the production Next route, PostgREST, and PostgreSQL in one browser traversal still require the documented staging/local authenticated release run. The fixture imports the real production client components and persistence/synchronization paths; no stronger end-to-end authentication claim is made.
+
+## User-authorized exceptional remediation
+
+### Status
+
+DONE — the four parked findings are addressed without starting Task 18. The authenticated production-browser traversal remains the documented release-environment gate.
+
+### RED evidence
+
+- Seven typed-key fake-IndexedDB cases proved `use_server` could replace the draft and retire conflict lineage while target-attributable corruption existed in each of session contexts, drafts, mutations, receipts, tombstones, counters, and quarantine.
+- A use-server replay with a changed local draft returned the prior successful result because the tombstone bound only the server/result draft digest.
+- The cross-tab protocol accepted duplicate and non-increasing messages, and UI fallback logic could derive recovery from an event payload after durable lineage no longer contained a blocker.
+- A receipt-bound sibling resolution overwrote an edit made after the local recovery panel opened.
+- The fixture kept authoritative IDs, receipts, versions, and forced-conflict markers in user-agent-global maps, allowing Mobile Safari runs to inherit prior tests.
+
+### Delivered
+
+- Both conflict actions and their replay path enter the same seven-store physical-plus-embedded union validator before reading or changing resolution lineage. Live resolutions additionally validate terminal pairs, all scoped queue/counter lineage, target counters, duplicates, gaps, and quarantine integrity before replacing a draft or retiring predecessors. Every failure rolls the all-store transaction back with the original blocker, newest draft, dependents, counters, fences, and resolution records unchanged.
+- Conflict tombstones now store a separate canonical `resolutionInputLocalDraftDigest` for both actions. Exact replay requires the same action, original lineage, authoritative snapshot, and exact local input digest; changed/newer local input fails without mutation. Resolution metadata remains bounded UUID/version/sequence/SHA-256 data only—no note, score, tag, flag, athlete identity, or contact content.
+- Durable reconciliation exposes exact keep-local receipt/tombstone lineage and exact use-server tombstone authority. The form preserves edits made after recovery opened instead of replacing them with a sibling winner, while unchanged recovery state still accepts the exact durable sibling result.
+- Cross-tab protocol v2 uses a random per-instance UUID, authenticated user binding, strict exact-scope schema, and monotonic per-source sequence. It ignores self, duplicate, non-increasing, malformed, wrong-user, and wrong-scope messages; source tracking is bounded. Remote messages and polling are re-query pulses only. UI reconciliation is serialized and derives exclusively from current durable lineage, so stale attention cannot recreate recovery after a receipt/resolution.
+- Fixture state is namespaced by project, test ID, retry, and repeat index rather than user agent. Browser gates use explicit durable request/receipt/reload assertions and retain exact successor bodies.
+
+### Verification
+
+```text
+Focused use-server physical-union and replay probes               RED (8 failures), then GREEN
+Focused outbox/synchronizer/form suites                           PASS (166 tests)
+npm run test:integration, repeated                                PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                           PASS (47 migrations)
+npx supabase test db --local                                      PASS (29 files / 847 tests)
+npm run verify                                                    PASS (format, lint, types, 351 unit tests, build)
+npm run test:e2e:evaluation                                       PASS (8/8; Mobile Chrome + Mobile Safari)
+Mobile Safari reconnect + durable-conflict --repeat-each=10       PASS (20/20; ten each)
+npm audit --audit-level=high                                      PASS (0 vulnerabilities)
+git diff --check                                                  PASS
+```
+
+### Self-review
+
+- The destructive boundary is one Dexie all-store transaction. Validation precedes draft replacement, predecessor deletion, tombstone insertion, counter mutation, and successor append; rejected probes retain byte-equivalent durable snapshots.
+- Receipt/tombstone authority remains exact identity/version/payload/draft-digest lineage. A broad `synced` flag or event state is never enough to confirm, discard, or overwrite a draft.
+- Broadcast and resolution records contain only bounded opaque identifiers, state, counters, protocol metadata, and digests. Raw evaluator content never enters them.
+- No migration or IndexedDB version rewrite was needed. Existing valid v5 records remain readable; newly written conflict-resolution tombstones use the strengthened complete-resolution schema.
+- `progress.md` and Task 18 were not changed.

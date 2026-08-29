@@ -120,6 +120,7 @@ export type StoredEvaluationReceiptTombstone = {
   resolutionServerEvaluationId?: string;
   resolutionServerVersion?: number;
   resolutionServerSnapshotDigest?: string;
+  resolutionInputLocalDraftDigest?: string;
   resolutionResultMutationId?: string;
   resolutionResultQueueSequence?: number;
   resolutionResultDraftDigest?: string;
@@ -402,6 +403,7 @@ export const storedReceiptTombstoneSchema = z
     resolutionServerEvaluationId: uuid.optional(),
     resolutionServerVersion: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
     resolutionServerSnapshotDigest: sha256.optional(),
+    resolutionInputLocalDraftDigest: sha256.optional(),
     resolutionResultMutationId: uuid.optional(),
     resolutionResultQueueSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
     resolutionResultDraftDigest: sha256.optional(),
@@ -437,6 +439,7 @@ export const storedReceiptTombstoneSchema = z
       record.resolutionServerEvaluationId,
       record.resolutionServerVersion,
       record.resolutionServerSnapshotDigest,
+      record.resolutionInputLocalDraftDigest,
       record.resolutionResultDraftDigest,
       record.resolutionResultPayloadDigest,
       record.resolutionResultMarker,

@@ -98,6 +98,10 @@ export type EvaluationDraftLineage = {
     serverVersion: number;
     payloadDigest: string;
   };
+  resolution?: {
+    action: 'keep_local' | 'use_server';
+    inputLocalDraftDigest: string;
+  };
 };
 
 export type EvaluationQuotaName =
@@ -725,6 +729,7 @@ export class EvaluationOfflineRepository {
       | 'resolutionServerEvaluationId'
       | 'resolutionServerVersion'
       | 'resolutionServerSnapshotDigest'
+      | 'resolutionInputLocalDraftDigest'
       | 'resolutionResultMutationId'
       | 'resolutionResultQueueSequence'
       | 'resolutionResultDraftDigest'
@@ -1532,6 +1537,29 @@ export class EvaluationOfflineRepository {
               receipt.serverVersion === storedDraft.expectedVersion &&
               receipt.payloadDigest === draftDigestAtReceiptVersion
             ) {
+              let resolution: EvaluationDraftLineage['resolution'];
+              for (const terminal of await this.physicallyScopedTombstones(transaction, scope)) {
+                const tombstone = await this.validateReceiptTombstone(
+                  terminal.raw,
+                  scope,
+                  terminal.clientMutationId,
+                );
+                if (
+                  tombstone.reason === 'conflict_keep_local' &&
+                  tombstone.resolutionResultMarker === 'keep_local_rebased' &&
+                  tombstone.resolutionResultMutationId === receipt.clientMutationId &&
+                  tombstone.resolutionServerEvaluationId === receipt.evaluationId &&
+                  tombstone.resolutionServerVersion === receipt.expectedVersion &&
+                  tombstone.resolutionResultPayloadDigest === receipt.payloadDigest &&
+                  tombstone.resolutionInputLocalDraftDigest
+                ) {
+                  resolution = {
+                    action: 'keep_local',
+                    inputLocalDraftDigest: tombstone.resolutionInputLocalDraftDigest,
+                  };
+                  break;
+                }
+              }
               if (storedDraft.syncState !== 'synced') {
                 storedDraft = { ...storedDraft, syncState: 'synced' };
                 await this.database.drafts.put(storedDraft);
@@ -1547,6 +1575,7 @@ export class EvaluationOfflineRepository {
                   serverVersion: receipt.serverVersion,
                   payloadDigest: receipt.payloadDigest,
                 },
+                ...(resolution ? { resolution } : {}),
               };
             }
           }
@@ -1555,6 +1584,36 @@ export class EvaluationOfflineRepository {
             scope,
           )) {
             const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
+            if (
+              tombstone.reason === 'conflict_use_server' &&
+              tombstone.resolutionResultMarker === 'use_server_discarded' &&
+              tombstone.resolutionServerEvaluationId === storedDraft.evaluationId &&
+              tombstone.resolutionServerVersion === storedDraft.expectedVersion &&
+              tombstone.resolutionResultPayloadDigest === storedDraft.payloadDigest &&
+              tombstone.resolutionResultDraftDigest ===
+                (await Dexie.waitFor(digestValue(storedDraft.draft))) &&
+              tombstone.resolutionInputLocalDraftDigest
+            ) {
+              if (storedDraft.syncState !== 'synced') {
+                storedDraft = { ...storedDraft, syncState: 'synced' };
+                await this.database.drafts.put(storedDraft);
+              }
+              return {
+                state: 'synced',
+                repaired: false,
+                draft: structuredClone(storedDraft),
+                confirmation: {
+                  clientMutationId: tombstone.clientMutationId,
+                  evaluationId: storedDraft.evaluationId!,
+                  serverVersion: storedDraft.expectedVersion,
+                  payloadDigest: storedDraft.payloadDigest,
+                },
+                resolution: {
+                  action: 'use_server',
+                  inputLocalDraftDigest: tombstone.resolutionInputLocalDraftDigest,
+                },
+              };
+            }
             if (
               tombstone.reason !== 'receipt_authority' ||
               tombstone.evaluationId !== storedDraft.evaluationId ||
@@ -2514,6 +2573,9 @@ export class EvaluationOfflineRepository {
 
     try {
       return await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        // Both destructive choices share the same physical+embedded seven-store trust boundary.
+        // This must run before reading a replay tombstone or changing any conflict lineage.
+        await this.validateStrictTargetStorageUnion(transaction, scope);
         const storageKey = `${scopeKey(scope)}|${input.clientMutationId}`;
         const rawHead = await this.database.mutations.get(storageKey);
         if (!rawHead) {
@@ -2542,8 +2604,7 @@ export class EvaluationOfflineRepository {
             tombstone.resolutionServerEvaluationId !== input.server.evaluationId ||
             tombstone.resolutionServerVersion !== input.server.version ||
             tombstone.resolutionServerSnapshotDigest !== serverSnapshotDigest ||
-            (input.action === 'keep_local' &&
-              tombstone.resolutionResultDraftDigest !== requestedLocalDraftDigest) ||
+            tombstone.resolutionInputLocalDraftDigest !== requestedLocalDraftDigest ||
             !tombstone.resolutionResultDraftDigest ||
             !tombstone.resolutionResultPayloadDigest ||
             !tombstone.resolutionResultMarker
@@ -2664,6 +2725,10 @@ export class EvaluationOfflineRepository {
             'invalid_transition',
             'Only the exact conflicted queue head can be reconciled.',
           );
+        // Validate global terminal pairs plus every scoped queue/counter lineage before either
+        // action can replace the draft or retire predecessors. The return value is intentionally
+        // unused here; keep-local revalidates the authoritative target immediately before append.
+        await this.validateQueueForStrictAppend(transaction, scope, head.queueKey, now);
         const context = await this.requireContext(transaction, scope);
         this.assertDraftMatchesContext(requestedLocalDraft, context);
         this.assertDraftMatchesContext(serverDraft, context);
@@ -2808,6 +2873,7 @@ export class EvaluationOfflineRepository {
                   resolutionServerEvaluationId: input.server.evaluationId,
                   resolutionServerVersion: input.server.version,
                   resolutionServerSnapshotDigest: serverSnapshotDigest,
+                  resolutionInputLocalDraftDigest: requestedLocalDraftDigest,
                   resolutionResultDraftDigest: resultDraftDigest,
                   resolutionResultPayloadDigest: draftRecord.payloadDigest,
                   resolutionResultMarker:

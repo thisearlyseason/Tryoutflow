@@ -118,6 +118,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
     const activeRepository = repository;
     const activeSynchronizer = synchronizer;
     let cancelled = false;
+    let reconciliation = Promise.resolve();
     function rememberLineage(
       active: StoredEvaluationMutation | undefined,
       blocking: StoredEvaluationMutation | undefined,
@@ -183,7 +184,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       // A sibling tab can discover an earlier blocker unknown when this form mounted. Every
       // same-scope signal therefore re-queries the durable natural lineage instead of filtering
       // by the mutation IDs this instance happened to know already.
-      void (async () => {
+      reconciliation = reconciliation.then(async () => {
         try {
           const lineage = await activeRepository.reconcileDraftLineage(storageScope);
           if (cancelled) return;
@@ -214,8 +215,10 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
             return;
           }
           if (
-            priorBlocker?.status === 'needs_attention' &&
-            priorBlocker.errorCategory === 'conflict' &&
+            event.origin === 'remote' &&
+            ((priorBlocker?.status === 'needs_attention' &&
+              priorBlocker.errorCategory === 'conflict') ||
+              lineage.resolution) &&
             lineage.confirmation &&
             lineage.draft
           ) {
@@ -238,27 +241,16 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
             });
             return;
           }
-          if (event.state === 'synced') await refreshConfirmation();
-          else if (event.state === 'needs_attention') {
-            const outcome =
-              event.category === 'forbidden'
-                ? 'forbidden'
-                : event.category === 'invalid_input'
-                  ? 'invalid_input'
-                  : event.category === 'invalid_rubric'
-                    ? 'invalid_context'
-                    : event.category === 'conflict'
-                      ? 'conflict'
-                      : 'unexpected';
-            setBackgroundSaveResult({ token: Date.now(), outcome });
-          }
+          // The event is only a bounded re-query pulse. Durable lineage above is the sole UI
+          // authority, so stale or reordered payload state can never recreate recovery.
+          if (lineage.confirmation) await refreshConfirmation();
         } catch {
           if (!cancelled) {
             setServerConfirmation(null);
             setBackgroundSaveResult({ token: Date.now(), outcome: 'unexpected' });
           }
         }
-      })();
+      });
     });
     const online = () => void refreshConfirmation();
     async function initialize() {
@@ -518,6 +510,12 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         version: props.initialDraft.version,
         draft: serverDraft,
       },
+    });
+    synchronizer.signalDurableChange({
+      scopeKey: scopeKey(storageScope),
+      evaluationId: resolved.evaluationId,
+      clientMutationId: head.clientMutationId,
+      state: input.action === 'keep_local' ? 'saved_device' : 'synced',
     });
     evaluationIdRef.current = resolved.evaluationId;
     if (input.action === 'keep_local') {

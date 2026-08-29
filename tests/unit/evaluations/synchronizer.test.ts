@@ -619,6 +619,7 @@ describe('EvaluationSynchronizer', () => {
       send: async () => {
         throw new Error('offline');
       },
+      sourceInstanceId: '72000000-0000-4000-8000-000000000090',
       channelFactory: () => ({
         postMessage: vi.fn(),
         addEventListener(_type, next) {
@@ -634,7 +635,10 @@ describe('EvaluationSynchronizer', () => {
     synchronizer.subscribe((event) => events.push(event.state));
     synchronizer.start();
     const message = {
-      protocol: 'tryoutflow-evaluation-change-v1',
+      protocol: 'tryoutflow-evaluation-change-v2',
+      userBinding: scope.userId,
+      sourceInstanceId: '72000000-0000-4000-8000-000000000091',
+      sequence: 2,
       scopeKey: Object.values(scope).join('|'),
       evaluationId,
       clientMutationId: crypto.randomUUID(),
@@ -650,10 +654,21 @@ describe('EvaluationSynchronizer', () => {
     });
     deliver({ data: message });
     deliver({ data: message });
-    expect(events).toEqual(['needs_attention', 'needs_attention']);
+    deliver({ data: { ...message, sequence: 1 } });
+    deliver({ data: { ...message, sourceInstanceId: '72000000-0000-4000-8000-000000000090' } });
+    deliver({ data: { ...message, userBinding: crypto.randomUUID(), sequence: 3 } });
+    deliver({
+      data: {
+        ...message,
+        sourceInstanceId: '72000000-0000-4000-8000-000000000092',
+        sequence: 1,
+        state: 'synced',
+      },
+    });
+    expect(events).toEqual(['needs_attention', 'synced']);
     synchronizer.stop();
     deliver({ data: message });
-    expect(events).toEqual(['needs_attention', 'needs_attention']);
+    expect(events).toEqual(['needs_attention', 'synced']);
     expect(close).toHaveBeenCalledOnce();
     repository.close();
   });
@@ -676,13 +691,15 @@ describe('EvaluationSynchronizer', () => {
       },
       cancelPoll,
     });
-    const events: { scopeKey: string; state: string }[] = [];
+    const events: { scopeKey: string; state: string; origin?: string }[] = [];
     synchronizer.subscribe((event) =>
-      events.push({ scopeKey: event.scopeKey, state: event.state }),
+      events.push({ scopeKey: event.scopeKey, state: event.state, origin: event.origin }),
     );
     synchronizer.start();
     pulse!();
-    expect(events).toEqual([{ scopeKey: Object.values(scope).join('|'), state: 'saved_device' }]);
+    expect(events).toEqual([
+      { scopeKey: Object.values(scope).join('|'), state: 'saved_device', origin: 'poll' },
+    ]);
     synchronizer.stop();
     expect(cancelPoll).toHaveBeenCalledWith('poll-token');
     repository.close();
