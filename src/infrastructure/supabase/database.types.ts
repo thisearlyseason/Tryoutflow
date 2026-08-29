@@ -1730,6 +1730,15 @@ export type Database = {
       };
       is_valid_registration_email: { Args: { value: string }; Returns: boolean };
       is_valid_registration_phone: { Args: { value: string }; Returns: boolean };
+      lock_canonical_athlete_identity: {
+        Args: {
+          p_birth_date: string;
+          p_family_name: string;
+          p_given_name: string;
+          p_organization_id: string;
+        };
+        Returns: undefined;
+      };
       normalize_registration_text: { Args: { value: string }; Returns: string };
       public_registration_tryout: {
         Args: { p_tryout_slug: string };

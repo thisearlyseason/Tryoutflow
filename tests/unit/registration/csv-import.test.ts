@@ -138,6 +138,48 @@ describe('two-stage athlete import', () => {
     ]);
   });
 
+  it('uses one sorted unique candidate set for every later same-identity row', async () => {
+    const preview = await previewAthleteImport(
+      {
+        organizationId,
+        content: 'First,Last,DOB\nAva,Smith,2013-05-01\nAva,Smith,2013-05-01\nAva,Smith,2013-05-01',
+        mapping: { givenName: 'First', familyName: 'Last', birthDate: 'DOB' },
+        actor,
+      },
+      {
+        findExistingAthletes: async () => [
+          {
+            athleteId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+            givenName: 'Ava',
+            familyName: 'Smith',
+            birthDate: '2013-05-01',
+          },
+          {
+            athleteId: '11111111-1111-4111-8111-111111111111',
+            givenName: 'Ava',
+            familyName: 'Smith',
+            birthDate: '2013-05-01',
+          },
+        ],
+        savePreview: async (candidate) => ({ ...candidate, id: 'preview-candidates' }),
+      },
+    );
+    expect(preview.rows.map((row) => row.duplicateCandidateIds)).toEqual([
+      ['11111111-1111-4111-8111-111111111111', 'ffffffff-ffff-4fff-8fff-ffffffffffff'],
+      [
+        '11111111-1111-4111-8111-111111111111',
+        'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        'preview-row:2',
+      ],
+      [
+        '11111111-1111-4111-8111-111111111111',
+        'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        'preview-row:2',
+        'preview-row:3',
+      ],
+    ]);
+  });
+
   it('does not expose parsed PII when authorization fails', async () => {
     const denied = { ...actor, organizationRole: 'member' as const };
     const findExistingAthletes = vi.fn();

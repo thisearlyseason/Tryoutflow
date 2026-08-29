@@ -50,6 +50,18 @@ export type PreviewAthleteImportGateway = {
   savePreview(preview: Omit<AthleteImportPreview, 'id'>): Promise<AthleteImportPreview>;
 };
 
+/**
+ * Candidate identifiers are an ASCII-only wire contract (UUIDs and
+ * `preview-row:<integer>`). Keep this comparison in sync with the database's
+ * `C` collation so previews and commit-time revalidation produce byte-for-byte
+ * identical JSON arrays.
+ */
+function canonicalCandidateIds(candidateIds: string[]): string[] {
+  return [...new Set(candidateIds)].sort((left, right) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  );
+}
+
 function identityErrors(input: ImportPreviewRow['athlete']): ImportPreviewError[] {
   const errors: ImportPreviewError[] = [];
   const identity = AthleteIdentitySchema.safeParse(input);
@@ -115,7 +127,7 @@ export async function previewAthleteImport(
   }
   const parsed = parseAthleteCsv(input.content, input.mapping);
   const existing = await gateway.findExistingAthletes(input.organizationId);
-  const acceptedInFile: DuplicateAthlete[] = [];
+  const eligiblePriorRows: DuplicateAthlete[] = [];
   const rows = parsed.rows.map((row): ImportPreviewRow => {
     const athlete = normalizedAthlete({
       givenName: mappedValue(row, input.mapping.givenName) ?? '',
@@ -134,15 +146,15 @@ export async function previewAthleteImport(
     const errors = identityErrors(athlete);
     const canDetect = errors.length === 0;
     const duplicates = canDetect
-      ? findDuplicateCandidates([...existing, ...acceptedInFile], {
+      ? findDuplicateCandidates([...existing, ...eligiblePriorRows], {
           givenName: athlete.givenName,
           familyName: athlete.familyName,
           birthDate: athlete.birthDate,
           guardianEmail: athlete.guardianEmail,
         })
       : [];
-    if (errors.length === 0 && duplicates.length === 0) {
-      acceptedInFile.push({
+    if (errors.length === 0) {
+      eligiblePriorRows.push({
         athleteId: `preview-row:${row.row}`,
         givenName: athlete.givenName,
         familyName: athlete.familyName,
@@ -156,7 +168,9 @@ export async function previewAthleteImport(
         errors.length > 0 ? 'invalid' : duplicates.length > 0 ? 'duplicate_candidate' : 'valid',
       errors,
       athlete,
-      duplicateCandidateIds: duplicates.map((candidate) => candidate.athleteId),
+      duplicateCandidateIds: canonicalCandidateIds(
+        duplicates.map((candidate) => candidate.athleteId),
+      ),
     };
   });
   const contentHash = createHash('sha256').update(input.content, 'utf8').digest('hex');
