@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(19);
 
 select has_table('public', 'registration_form_versions', 'registration form versions are persisted');
 select has_table('public', 'rubrics', 'rubric identities are persisted');
@@ -69,6 +69,10 @@ reset role;
 select throws_ok($$update public.registration_form_versions set schema = '{"fields":[]}' where id = '77777777-7777-4777-8777-777777777777'$$, '23514', null, 'published registration schemas are immutable');
 select throws_ok($$update public.rubric_categories set weight = 40.00 where id = '80808080-8080-4080-8080-808080808080'$$, '23514', null, 'published rubric categories are immutable immediately');
 select throws_ok($$delete from public.rubric_categories where id = '81818181-8181-4181-8181-818181818181'$$, '23514', null, 'published rubric categories cannot be deleted directly');
+select throws_ok(
+  $$insert into public.rubric_categories (organization_id, tryout_id, rubric_version_id, name, sort_order, weight, scale_min, scale_max) values ('72727272-7272-4272-8272-727272727272', '73737373-7373-4373-8373-737373737373', '89898989-8989-4989-8989-898989898989', 'Late category', 2, 1.00, 1, 5)$$,
+  '23514', null, 'published rubric categories cannot be inserted directly'
+);
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
