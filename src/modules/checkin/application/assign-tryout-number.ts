@@ -4,9 +4,19 @@ import { requireCapability } from '../../organizations/application/require-capab
 import { scopeMatchesPlacement, type NumberScope } from '../domain/number-scope';
 
 export type NumberAssignmentResult =
-  | { outcome: 'assigned' | 'replayed'; number: number }
+  | { outcome: 'assigned' | 'replayed' | 'corrected'; number: number }
   | { outcome: 'number_conflict'; number: null; nextAvailable: number }
-  | { outcome: 'forbidden' | 'invalid_registration' | 'withdrawn'; number: null };
+  | {
+      outcome:
+        | 'forbidden'
+        | 'invalid_registration'
+        | 'invalid_placement'
+        | 'invalid_request'
+        | 'withdrawn'
+        | 'cancelled'
+        | 'exhausted';
+      number: null;
+    };
 
 export type NumberAssignmentGateway = {
   assign(input: {

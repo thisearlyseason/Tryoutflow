@@ -104,4 +104,98 @@ describe('CheckinWorkspace', () => {
     await user.click(screen.getByRole('button', { name: /search/i }));
     expect(await screen.findByText(/no matching registrations/i)).toBeInTheDocument();
   });
+
+  it('renders the explicit search throttling outcome', async () => {
+    const user = userEvent.setup();
+    render(
+      <CheckinWorkspace
+        search={vi.fn(async () => ({ outcome: 'rate_limited' as const, results: [] }))}
+        onCheckIn={vi.fn()}
+        placements={[{ sessionId: 'session-1', sessionName: 'Morning' }]}
+      />,
+    );
+    await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    expect(await screen.findByText(/too many searches/i)).toBeInTheDocument();
+  });
+
+  it.each([
+    ['capacity', 'That placement is at capacity.'],
+    ['withdrawn', 'This registration was withdrawn.'],
+    ['cancelled', 'This registration was cancelled.'],
+    ['missing_information', 'Required registration information is missing.'],
+    ['invalid_registration', 'That registration is not eligible for this placement.'],
+    ['invalid_placement', 'That session or group is no longer available.'],
+    ['forbidden', 'You are not authorized for that placement.'],
+    ['invalid_request', 'The check-in request is invalid.'],
+    ['exhausted', 'No tryout numbers are available in this scope.'],
+    ['conflict', 'This retry key belongs to a different check-in request.'],
+  ] as const)(
+    'renders the %s outcome without marking the athlete checked in',
+    async (outcome, message) => {
+      const user = userEvent.setup();
+      const search = vi.fn(async () => [
+        {
+          registrationId: 'REG-1042',
+          athleteName: 'Ava Smith',
+          guardianName: 'Taylor Smith',
+          divisionName: 'U13',
+          tryoutNumber: null,
+          status: 'ready' as const,
+        },
+      ]);
+      render(
+        <CheckinWorkspace
+          search={search}
+          onCheckIn={vi.fn(async () => ({ outcome }))}
+          placements={[{ sessionId: 'session-1', sessionName: 'Morning' }]}
+        />,
+      );
+      await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
+      await user.click(screen.getByRole('button', { name: /^search$/i }));
+      await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
+      expect(await screen.findByText(message)).toBeInTheDocument();
+      expect(screen.getByText(/number not assigned · ready/i)).toBeInTheDocument();
+    },
+  );
+
+  it('reuses one caller-stable request key across a lost-response retry', async () => {
+    const user = userEvent.setup();
+    const keys: string[] = [];
+    const onCheckIn = vi.fn(async (input: { requestKey: string }) => {
+      keys.push(input.requestKey);
+      if (keys.length === 1) throw new Error('lost response');
+      return {
+        outcome: 'already_checked_in',
+        receiptId: 'receipt-1',
+        checkedInAt: '2026-08-28T12:00:00.000Z',
+        assignedNumber: 17,
+      } as const;
+    });
+    render(
+      <CheckinWorkspace
+        search={vi.fn(async () => [
+          {
+            registrationId: 'REG-1042',
+            athleteName: 'Ava Smith',
+            guardianName: 'Taylor Smith',
+            divisionName: 'U13',
+            tryoutNumber: null,
+            status: 'ready' as const,
+          },
+        ])}
+        onCheckIn={onCheckIn}
+        placements={[{ sessionId: 'session-1', sessionName: 'Morning' }]}
+      />,
+    );
+    await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
+    await screen.findByText(/could not check in/i);
+    await user.click(screen.getByRole('button', { name: /check in Ava Smith/i }));
+    expect(await screen.findByText(/already checked in.*#17/i)).toBeInTheDocument();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/u);
+  });
 });

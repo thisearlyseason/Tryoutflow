@@ -258,6 +258,7 @@ export type Database = {
           attempts: number;
           expires_at: string;
           organization_id: string;
+          rate_key_hash: string;
           tryout_id: string;
           window_started_at: string;
         };
@@ -266,6 +267,7 @@ export type Database = {
           attempts: number;
           expires_at: string;
           organization_id: string;
+          rate_key_hash: string;
           tryout_id: string;
           window_started_at: string;
         };
@@ -274,6 +276,7 @@ export type Database = {
           attempts?: number;
           expires_at?: string;
           organization_id?: string;
+          rate_key_hash?: string;
           tryout_id?: string;
           window_started_at?: string;
         };
@@ -301,8 +304,10 @@ export type Database = {
           group_id: string | null;
           id: string;
           idempotency_key_digest: string;
+          initial_outcome: string;
           organization_id: string;
           registration_id: string;
+          request_payload_digest: string;
           reversed_at: string | null;
           session_id: string;
           tryout_id: string;
@@ -314,8 +319,10 @@ export type Database = {
           group_id?: string | null;
           id?: string;
           idempotency_key_digest: string;
+          initial_outcome?: string;
           organization_id: string;
           registration_id: string;
+          request_payload_digest: string;
           reversed_at?: string | null;
           session_id: string;
           tryout_id: string;
@@ -327,8 +334,10 @@ export type Database = {
           group_id?: string | null;
           id?: string;
           idempotency_key_digest?: string;
+          initial_outcome?: string;
           organization_id?: string;
           registration_id?: string;
+          request_payload_digest?: string;
           reversed_at?: string | null;
           session_id?: string;
           tryout_id?: string;
@@ -341,6 +350,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'session_groups';
             referencedColumns: ['organization_id', 'tryout_id', 'session_id', 'id'];
+          },
+          {
+            foreignKeyName: 'checkins_number_registration_fkey';
+            columns: ['organization_id', 'tryout_id', 'registration_id', 'tryout_number_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_numbers';
+            referencedColumns: ['organization_id', 'tryout_id', 'registration_id', 'id'];
           },
           {
             foreignKeyName: 'checkins_number_fkey';
@@ -1865,6 +1881,25 @@ export type Database = {
           receipt_id: string;
         }[];
       };
+      check_in_registration_v2: {
+        Args: {
+          p_group_id: string;
+          p_idempotency_key: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_requested: number;
+          p_scope_kind: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          assigned_number: number;
+          checked_in_at: string;
+          next_available: number;
+          outcome: string;
+          receipt_id: string;
+        }[];
+      };
       commit_athlete_import: {
         Args: {
           p_organization_id: string;
@@ -2163,6 +2198,37 @@ export type Database = {
           registration_id: string;
           tryout_number: number;
         }[];
+      };
+      search_checkin_registrations_v2: {
+        Args: {
+          p_group_id: string;
+          p_limit: number;
+          p_organization_id: string;
+          p_query: string;
+          p_rate_key_hash: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          athlete_name: string;
+          checkin_status: string;
+          division_name: string;
+          guardian_name: string;
+          outcome: string;
+          registration_id: string;
+          tryout_number: number;
+        }[];
+      };
+      release_tryout_number: {
+        Args: {
+          p_group_id: string;
+          p_organization_id: string;
+          p_reason: string;
+          p_registration_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: string;
       };
       select_tryout_registration_form_version: {
         Args: {

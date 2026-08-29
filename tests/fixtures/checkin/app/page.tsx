@@ -17,9 +17,10 @@ export default function CheckinFixture() {
   }
   async function checkIn(input: { requestedNumber?: number }) {
     'use server';
-    if (input.requestedNumber === 42) return { outcome: 'number_conflict', nextAvailable: 43 };
-    if (input.requestedNumber === 99) return { outcome: 'already_checked_in' };
-    return { outcome: 'checked_in' };
+    if (input.requestedNumber === 42)
+      return { outcome: 'number_conflict' as const, nextAvailable: 43 };
+    if (input.requestedNumber === 99) return { outcome: 'already_checked_in' as const };
+    return { outcome: 'checked_in' as const };
   }
   return (
     <main className="mx-auto min-w-0 max-w-3xl p-4">

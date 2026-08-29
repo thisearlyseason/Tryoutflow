@@ -6,14 +6,24 @@ export type CheckinReceipt = {
   outcome: 'checked_in' | 'already_checked_in';
   receiptId: string;
   checkedInAt: string;
-  number: number;
+  assignedNumber: number;
 };
 
 export type CheckinResult =
   | CheckinReceipt
   | {
       outcome:
-        'withdrawn' | 'cancelled' | 'missing_information' | 'number_conflict' | 'invalid_placement';
+        | 'withdrawn'
+        | 'cancelled'
+        | 'missing_information'
+        | 'invalid_registration'
+        | 'number_conflict'
+        | 'capacity'
+        | 'invalid_placement'
+        | 'forbidden'
+        | 'invalid_request'
+        | 'exhausted'
+        | 'conflict';
       nextAvailable?: number;
     };
 

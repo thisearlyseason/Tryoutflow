@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 
 export type CheckinSearchResult = {
   registrationId: string;
@@ -8,7 +8,54 @@ export type CheckinSearchResult = {
   guardianName: string;
   divisionName: string;
   tryoutNumber: number | null;
-  status: 'ready' | 'checked_in' | 'withdrawn' | 'missing_information';
+  status: 'ready' | 'checked_in' | 'withdrawn' | 'cancelled' | 'missing_information';
+};
+
+export type CheckinOutcome =
+  | 'checked_in'
+  | 'already_checked_in'
+  | 'number_conflict'
+  | 'capacity'
+  | 'withdrawn'
+  | 'cancelled'
+  | 'missing_information'
+  | 'invalid_registration'
+  | 'invalid_placement'
+  | 'forbidden'
+  | 'invalid_request'
+  | 'exhausted'
+  | 'conflict';
+
+export type CheckinActionResult = {
+  outcome: CheckinOutcome;
+  receiptId?: string;
+  checkedInAt?: string;
+  assignedNumber?: number;
+  nextAvailable?: number;
+};
+
+export type CheckinSearchResponse =
+  | CheckinSearchResult[]
+  | {
+      outcome: 'ok' | 'rate_limited' | 'forbidden' | 'invalid_request';
+      results: CheckinSearchResult[];
+    };
+
+const failureMessages: Record<
+  Exclude<CheckinOutcome, 'checked_in' | 'already_checked_in'>,
+  string
+> = {
+  number_conflict: 'That number is already active.',
+  capacity: 'That placement is at capacity.',
+  withdrawn: 'This registration was withdrawn.',
+  cancelled: 'This registration was cancelled.',
+  missing_information: 'Required registration information is missing.',
+  invalid_registration: 'That registration is not eligible for this placement.',
+  invalid_placement: 'That session or group is no longer available.',
+  forbidden: 'You are not authorized for that placement.',
+  invalid_request: 'The check-in request is invalid.',
+  exhausted: 'No tryout numbers are available in this scope.',
+  conflict: 'This retry key belongs to a different check-in request.',
 };
 
 export function CheckinWorkspace({
@@ -16,18 +63,24 @@ export function CheckinWorkspace({
   onCheckIn,
   placements = [],
 }: {
-  search: (query: string) => Promise<CheckinSearchResult[]>;
+  search: (
+    query: string,
+    placement?: { sessionId: string; groupId?: string },
+  ) => Promise<CheckinSearchResponse>;
   onCheckIn: (input: {
     registrationId: string;
     sessionId?: string;
     groupId?: string;
     requestedNumber?: number;
-  }) => Promise<{ outcome: string; nextAvailable?: number }>;
+    requestKey: string;
+    numberScope: 'session' | 'group';
+  }) => Promise<CheckinActionResult>;
   placements?: {
     sessionId: string;
     sessionName: string;
     groupId?: string;
     groupName?: string;
+    numberScope?: 'session' | 'group';
   }[];
 }) {
   const [query, setQuery] = useState('');
@@ -36,6 +89,7 @@ export function CheckinWorkspace({
   const [placementIndex, setPlacementIndex] = useState(0);
   const [requestedNumber, setRequestedNumber] = useState('');
   const [pending, startTransition] = useTransition();
+  const requestKeys = useRef(new Map<string, string>());
 
   function runSearch() {
     const bounded = query.trim();
@@ -45,7 +99,24 @@ export function CheckinWorkspace({
     }
     startTransition(async () => {
       try {
-        const matches = await search(bounded);
+        const placement = placements[placementIndex];
+        const response = await search(
+          bounded,
+          placement ? { sessionId: placement.sessionId, groupId: placement.groupId } : undefined,
+        );
+        const outcome = Array.isArray(response) ? 'ok' : response.outcome;
+        const matches = Array.isArray(response) ? response : response.results;
+        if (outcome !== 'ok') {
+          setResults(null);
+          setMessage(
+            outcome === 'rate_limited'
+              ? 'Too many searches. Wait a minute and try again.'
+              : outcome === 'forbidden'
+                ? 'You are not authorized for that placement.'
+                : 'Search request is invalid.',
+          );
+          return;
+        }
         setResults(matches);
         setMessage(
           matches.length === 0 ? 'No matching registrations.' : `${matches.length} found.`,
@@ -61,23 +132,39 @@ export function CheckinWorkspace({
     startTransition(async () => {
       try {
         const placement = placements[placementIndex];
+        const requestPayload = JSON.stringify([
+          result.registrationId,
+          placement?.sessionId ?? null,
+          placement?.groupId ?? null,
+          requestedNumber === '' ? null : Number(requestedNumber),
+        ]);
+        let requestKey = requestKeys.current.get(requestPayload);
+        if (!requestKey) {
+          requestKey = crypto.randomUUID();
+          requestKeys.current.set(requestPayload, requestKey);
+        }
         const receipt = await onCheckIn({
           registrationId: result.registrationId,
           sessionId: placement?.sessionId,
           groupId: placement?.groupId,
           requestedNumber: requestedNumber === '' ? undefined : Number(requestedNumber),
+          requestKey,
+          numberScope: placement?.numberScope ?? (placement?.groupId ? 'group' : 'session'),
         });
-        if (receipt.outcome === 'number_conflict') {
-          setMessage(
-            `That number is already active.${receipt.nextAvailable ? ` Try #${receipt.nextAvailable}.` : ''}`,
-          );
+        if (receipt.outcome !== 'checked_in' && receipt.outcome !== 'already_checked_in') {
+          const suffix =
+            receipt.outcome === 'number_conflict' && receipt.nextAvailable
+              ? ` Try #${receipt.nextAvailable}.`
+              : '';
+          setMessage(`${failureMessages[receipt.outcome]}${suffix}`);
           return;
         }
         const repeat = receipt.outcome === 'already_checked_in';
+        const number = receipt.assignedNumber ? ` #${receipt.assignedNumber}.` : '';
         setMessage(
           repeat
-            ? `${result.athleteName} was already checked in.`
-            : `${result.athleteName} checked in.`,
+            ? `${result.athleteName} was already checked in.${number}`
+            : `${result.athleteName} checked in.${number}`,
         );
         setResults(
           (current) =>
@@ -179,6 +266,7 @@ export function CheckinWorkspace({
                 disabled={
                   pending ||
                   result.status === 'withdrawn' ||
+                  result.status === 'cancelled' ||
                   result.status === 'missing_information'
                 }
                 onClick={() => checkIn(result)}
