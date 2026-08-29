@@ -113,6 +113,44 @@ describe('public registration validation', () => {
     expect(() => validateRegistrationSubmission({ ...validSubmission, ...patch }, form)).toThrow();
   });
 
+  const nonStringJsonValues: ReadonlyArray<readonly [string, unknown]> = [
+    ['number', 42],
+    ['boolean', true],
+    ['array', ['Ava']],
+    ['object', { value: 'Ava' }],
+    ['null', null],
+  ];
+  const requiredIdentityFields = [
+    'givenName',
+    'familyName',
+    'birthDate',
+    'guardianName',
+    'guardianEmail',
+  ] as const;
+
+  it.each(
+    requiredIdentityFields.flatMap((field) =>
+      nonStringJsonValues.map(([typeName, value]) => [field, typeName, value] as const),
+    ),
+  )('rejects a %s value with JSON type %s', (field, _typeName, value) => {
+    expect(() =>
+      validateRegistrationSubmission({ ...validSubmission, [field]: value }, form),
+    ).toThrow();
+  });
+
+  it.each([...nonStringJsonValues, ['empty string', ''] as const])(
+    'rejects a present guardian phone with JSON type/value %s',
+    (_caseName, guardianPhone) => {
+      expect(() =>
+        validateRegistrationSubmission({ ...validSubmission, guardianPhone }, form),
+      ).toThrow();
+    },
+  );
+
+  it('accepts an omitted guardian phone', () => {
+    expect(() => validateRegistrationSubmission(validSubmission, form)).not.toThrow();
+  });
+
   it.each([
     ['email syntax', { email: 'not-an-email' }],
     ['email length', { email: `${'a'.repeat(245)}@example.com` }],

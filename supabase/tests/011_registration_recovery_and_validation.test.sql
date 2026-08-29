@@ -19,6 +19,35 @@ select ok(public.is_valid_registration_calendar_date('0001-01-01'), 'calendar va
 select ok(not public.is_valid_registration_calendar_date('0000-01-01'), 'calendar validator rejects year zero');
 select ok(public.is_valid_registration_calendar_date('9999-12-31'), 'calendar validator accepts the maximum exact year');
 
+select is(
+  (
+    select coalesce(bool_or(expanded.grantee = 0 and expanded.privilege_type = 'EXECUTE'), false)
+    from pg_proc as routine
+    cross join lateral aclexplode(coalesce(routine.proacl, acldefault('f', routine.proowner))) as expanded
+    where routine.oid = 'public.registration_whitespace_characters()'::regprocedure
+  ),
+  false,
+  'PUBLIC cannot execute the internal whitespace helper'
+);
+select function_privs_are('public', 'registration_whitespace_characters', array[]::text[], 'anon', array[]::text[], 'anonymous cannot execute the internal whitespace helper');
+select function_privs_are('public', 'registration_whitespace_characters', array[]::text[], 'authenticated', array[]::text[], 'authenticated clients cannot execute the internal whitespace helper');
+select function_privs_are('public', 'registration_whitespace_characters', array[]::text[], 'service_role', array[]::text[], 'service role uses the internal whitespace helper only through trusted functions');
+select function_privs_are('public', 'registration_whitespace_characters', array[]::text[], 'postgres', array['EXECUTE'], 'the owner can execute the internal whitespace helper');
+select is(
+  (
+    select coalesce(bool_or(expanded.grantee = 0 and expanded.privilege_type = 'EXECUTE'), false)
+    from pg_proc as routine
+    cross join lateral aclexplode(coalesce(routine.proacl, acldefault('f', routine.proowner))) as expanded
+    where routine.oid = 'public.canonical_registration_text(text)'::regprocedure
+  ),
+  false,
+  'PUBLIC cannot execute the internal canonical-text helper'
+);
+select function_privs_are('public', 'canonical_registration_text', array['text'], 'anon', array[]::text[], 'anonymous cannot execute the internal canonical-text helper');
+select function_privs_are('public', 'canonical_registration_text', array['text'], 'authenticated', array[]::text[], 'authenticated clients cannot execute the internal canonical-text helper');
+select function_privs_are('public', 'canonical_registration_text', array['text'], 'service_role', array[]::text[], 'service role uses the internal canonical-text helper only through trusted functions');
+select function_privs_are('public', 'canonical_registration_text', array['text'], 'postgres', array['EXECUTE'], 'the owner can execute the internal canonical-text helper');
+
 select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'anon', array[]::text[], 'anonymous cannot invoke the base public write');
 select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'authenticated', array[]::text[], 'authenticated clients cannot invoke the base public write');
 select function_privs_are('public', 'submit_public_registration', array['text', 'jsonb', 'text', 'text'], 'service_role', array[]::text[], 'base transaction remains internal to the trusted wrapper');
@@ -99,6 +128,71 @@ insert into recovery_payload values (
     'responses',jsonb_build_object('short_text','Forward','email','player@example.com','phone','+1 (403) 555-0101','date','2024-02-29','position','Goalie','checked',false,'notes',repeat('🥅',5000),'consent',true)
   )
 );
+
+create temporary table invalid_registration_json_values(label text primary key, value jsonb not null);
+insert into invalid_registration_json_values(label, value) values
+  ('number', '42'::jsonb),
+  ('boolean', 'true'::jsonb),
+  ('array', '["Ava"]'::jsonb),
+  ('object', '{"value":"Ava"}'::jsonb),
+  ('null', 'null'::jsonb);
+
+select throws_ok(
+  format(
+    'select * from public.submit_public_registration_with_phone(%L, %L::jsonb, %L, %L)',
+    'recovery-camp',
+    jsonb_set((select payload from recovery_payload), array[identity_field.field_name], invalid.value),
+    format('invalid-%s-%s-identity-value', identity_field.field_name, invalid.label),
+    repeat('5', 64)
+  ),
+  '22023',
+  null,
+  format('SQL rejects %s when %s has the wrong JSON type', invalid.label, identity_field.field_name)
+)
+from (values ('givenName'), ('familyName'), ('birthDate'), ('guardianName'), ('guardianEmail')) as identity_field(field_name)
+cross join invalid_registration_json_values as invalid;
+
+select throws_ok(
+  format(
+    'select * from public.submit_public_registration_with_phone(%L, %L::jsonb, %L, %L)',
+    'recovery-camp',
+    jsonb_set((select payload from recovery_payload), '{guardianPhone}', invalid.value),
+    format('invalid-guardian-phone-%s-value', invalid.label),
+    repeat('6', 64)
+  ),
+  '22023',
+  null,
+  format('SQL rejects %s when guardianPhone has the wrong JSON type', invalid.label)
+)
+from invalid_registration_json_values as invalid;
+select throws_ok(
+  $$select * from public.submit_public_registration_with_phone(
+    'recovery-camp',
+    jsonb_set((select payload from recovery_payload), '{guardianPhone}', '""'::jsonb),
+    'invalid-guardian-phone-empty-value',
+    repeat('7', 64)
+  )$$,
+  '22023',
+  null,
+  'SQL rejects a present empty guardianPhone string'
+);
+savepoint omitted_guardian_phone;
+select lives_ok(
+  $$select * from public.submit_public_registration_with_phone(
+    'recovery-camp',
+    (select payload - 'guardianPhone' from recovery_payload),
+    'valid-omitted-guardian-phone-value',
+    repeat('8', 64)
+  )$$,
+  'SQL accepts an omitted optional guardianPhone'
+);
+rollback to savepoint omitted_guardian_phone;
+select is((select count(*) from public.athletes), 0::bigint, 'invalid identity/contact types roll back athlete creation');
+select is((select count(*) from public.guardians), 0::bigint, 'invalid identity/contact types roll back guardian creation');
+select is((select count(*) from public.tryout_registrations), 0::bigint, 'invalid identity/contact types roll back registration creation');
+select is((select count(*) from public.session_enrollments), 0::bigint, 'invalid identity/contact types roll back enrollment creation');
+select is((select count(*) from public.registration_confirmation_tokens), 0::bigint, 'invalid identity/contact types roll back confirmation-token creation');
+
 create temporary table first_registration as
 select * from public.submit_public_registration_with_phone('recovery-camp',(select payload from recovery_payload),'recovery-idempotency-key-000001',repeat('a',64));
 select is((select outcome from first_registration),'submitted','strict SQL accepts the valid leap-day and 5,000-code-point payload');
