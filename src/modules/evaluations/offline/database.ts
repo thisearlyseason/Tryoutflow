@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 import { evaluationSyncStates, type EvaluationSyncState } from './sync-state';
 
-export const EVALUATION_OFFLINE_DATABASE_VERSION = 4;
+export const EVALUATION_OFFLINE_DATABASE_VERSION = 5;
 export const DEFAULT_EVALUATION_OFFLINE_DATABASE = 'tryoutflow-evaluations';
 
 export type EvaluationStorageScope = {
@@ -91,6 +91,20 @@ export type StoredEvaluationReceipt = {
   receiptDigest: string;
 };
 
+export type StoredEvaluationReceiptTombstone = {
+  storageKey: string;
+  scopeKey: string;
+  clientMutationId: string;
+  reason: 'receipt_authority' | 'corrupt_receipt';
+  createdAt: string;
+  evaluationId?: string;
+  expectedVersion?: number;
+  payloadDigest?: string;
+  serverVersion?: number;
+  acknowledgedAt?: string;
+  tombstoneDigest: string;
+};
+
 export type StoredSessionContext = {
   scopeKey: string;
   scope: EvaluationStorageScope;
@@ -105,7 +119,7 @@ export type StoredSessionContext = {
 };
 
 export type QuarantineSource =
-  'sessionContexts' | 'drafts' | 'mutations' | 'receipts' | 'queueCounters';
+  'sessionContexts' | 'drafts' | 'mutations' | 'receipts' | 'receiptTombstones' | 'queueCounters';
 export type QuarantineReason =
   | 'invalid_record'
   | 'digest_mismatch'
@@ -313,6 +327,46 @@ export const storedReceiptSchema = z
   })
   .refine((receipt) => Date.parse(receipt.acknowledgedAt) < Date.parse(receipt.expiresAt), {
     message: 'Receipt expiry must follow acknowledgment.',
+  })
+  .refine((receipt) => receipt.serverVersion === receipt.expectedVersion + 1, {
+    message: 'Receipt server version must be the exact expected successor.',
+  });
+
+export const storedReceiptTombstoneSchema = z
+  .strictObject({
+    storageKey: z.string().min(1).max(600),
+    scopeKey: z.string().min(1).max(512),
+    clientMutationId: uuid,
+    reason: z.enum(['receipt_authority', 'corrupt_receipt']),
+    createdAt: isoDate,
+    evaluationId: uuid.optional(),
+    expectedVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    payloadDigest: sha256.optional(),
+    serverVersion: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+    acknowledgedAt: isoDate.optional(),
+    tombstoneDigest: sha256,
+  })
+  .superRefine((record, context) => {
+    const lineage = [
+      record.evaluationId,
+      record.expectedVersion,
+      record.payloadDigest,
+      record.serverVersion,
+      record.acknowledgedAt,
+    ];
+    const present = lineage.filter((value) => value !== undefined).length;
+    if (present !== 0 && present !== lineage.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Terminal lineage must be complete or omitted.',
+      });
+    }
+    if (
+      record.expectedVersion !== undefined &&
+      record.serverVersion !== record.expectedVersion + 1
+    ) {
+      context.addIssue({ code: 'custom', message: 'Terminal lineage version is not exact.' });
+    }
   });
 
 const safeRecoveryKey = z.string().max(600).refine(isSafeRecoveryKey);
@@ -331,7 +385,14 @@ export const storedQuarantineSchema = z
   .strictObject({
     quarantineKey: uuid,
     scopeKey: safeRecoveryKey.min(1).max(512).optional(),
-    sourceTable: z.enum(['sessionContexts', 'drafts', 'mutations', 'receipts', 'queueCounters']),
+    sourceTable: z.enum([
+      'sessionContexts',
+      'drafts',
+      'mutations',
+      'receipts',
+      'receiptTombstones',
+      'queueCounters',
+    ]),
     sourceKey: safeRecoveryKey,
     reason: z.enum([
       'invalid_record',
@@ -378,6 +439,7 @@ export class EvaluationOfflineDatabase extends Dexie {
   drafts!: EntityTable<StoredEvaluationDraft, 'scopeKey'>;
   mutations!: EntityTable<StoredEvaluationMutation, 'storageKey'>;
   receipts!: EntityTable<StoredEvaluationReceipt, 'storageKey'>;
+  receiptTombstones!: EntityTable<StoredEvaluationReceiptTombstone, 'storageKey'>;
   quarantines!: EntityTable<StoredEvaluationQuarantine, 'quarantineKey'>;
   queueCounters!: EntityTable<StoredEvaluationQueueCounter, 'queueKey'>;
 
@@ -415,7 +477,7 @@ export class EvaluationOfflineDatabase extends Dexie {
       })
       .upgrade((transaction) => migrateToVersionThree(transaction, authenticatedUserId));
 
-    this.version(EVALUATION_OFFLINE_DATABASE_VERSION)
+    this.version(4)
       .stores({
         sessionContexts: '&scopeKey,expiresAt',
         drafts: '&scopeKey,updatedAt,expiresAt',
@@ -426,6 +488,19 @@ export class EvaluationOfflineDatabase extends Dexie {
         queueCounters: '&queueKey,scopeKey,nextSequence',
       })
       .upgrade((transaction) => migrateToVersionFour(transaction, authenticatedUserId));
+
+    this.version(EVALUATION_OFFLINE_DATABASE_VERSION)
+      .stores({
+        sessionContexts: '&scopeKey,expiresAt',
+        drafts: '&scopeKey,updatedAt,expiresAt',
+        mutations:
+          '&storageKey,&clientMutationId,scopeKey,queueKey,[queueKey+queueSequence],status,[scopeKey+status],createdAt,nextAttemptAt',
+        receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+        receiptTombstones: '&storageKey,scopeKey,createdAt',
+        quarantines: '&quarantineKey,scopeKey,sourceTable,status,createdAt',
+        queueCounters: '&queueKey,scopeKey,nextSequence',
+      })
+      .upgrade((transaction) => migrateToVersionFive(transaction, authenticatedUserId));
   }
 }
 
@@ -480,11 +555,17 @@ export function evaluationPayload(
   return { scope, evaluationId, expectedVersion, draft };
 }
 
+export function receiptTombstonePayload(
+  tombstone: Omit<StoredEvaluationReceiptTombstone, 'tombstoneDigest'>,
+) {
+  return tombstone;
+}
+
 function sourceKey(sourceTable: QuarantineSource, record: unknown): string {
   if (!record || typeof record !== 'object') return '';
   const item = record as Record<string, unknown>;
   const candidate =
-    sourceTable === 'mutations' || sourceTable === 'receipts'
+    sourceTable === 'mutations' || sourceTable === 'receipts' || sourceTable === 'receiptTombstones'
       ? (item.storageKey ?? item.clientMutationId)
       : sourceTable === 'queueCounters'
         ? item.queueKey
@@ -520,9 +601,10 @@ export function recoveryEnvelope(record: unknown): EvaluationRecoveryEnvelope {
   const parsedStatus = recoveryStatus.safeParse(item.status);
   const rawScopeKey = safeString(item.scopeKey, 512);
   const safeScopeKey = rawScopeKey && isSafeRecoveryKey(rawScopeKey) ? rawScopeKey : undefined;
-  const expectedVersion = Number.isSafeInteger(item.expectedVersion)
-    ? (item.expectedVersion as number)
-    : undefined;
+  const expectedVersion =
+    Number.isSafeInteger(item.expectedVersion) && Number(item.expectedVersion) >= 0
+      ? (item.expectedVersion as number)
+      : undefined;
   const serverVersion =
     Number.isSafeInteger(item.serverVersion) && Number(item.serverVersion) >= 1
       ? (item.serverVersion as number)
@@ -563,7 +645,7 @@ function quarantine(
     parsedScope.success && parsedScope.data.userId === authenticatedUserId
       ? scopeKey(parsedScope.data)
       : undefined;
-  return {
+  const candidate = {
     quarantineKey: crypto.randomUUID(),
     ...(trustedScopeKey ? { scopeKey: trustedScopeKey } : {}),
     sourceTable,
@@ -574,6 +656,18 @@ function quarantine(
     createdAt: now,
     recoveryEnvelope: recoveryEnvelope(record),
   };
+  const parsed = storedQuarantineSchema.safeParse(candidate);
+  if (parsed.success) return parsed.data;
+  return storedQuarantineSchema.parse({
+    quarantineKey: crypto.randomUUID(),
+    sourceTable,
+    sourceKey: '',
+    reason,
+    diagnostic: 'Recovery metadata was reduced to a safe minimal record.',
+    status: 'needs_attention',
+    createdAt: isoDate.safeParse(now).success ? now : new Date().toISOString(),
+    recoveryEnvelope: {},
+  });
 }
 
 function commonMigrationFields(record: Record<string, unknown>, now: string) {
@@ -1108,6 +1202,7 @@ async function migrateToVersionFour(
       'drafts',
       'mutations',
       'receipts',
+      'receiptTombstones',
       'queueCounters',
     ].includes(String(item.sourceTable))
       ? (item.sourceTable as QuarantineSource)
@@ -1302,4 +1397,135 @@ async function migrateToVersionFour(
   if (receipts.size) await transaction.table('receipts').bulkPut([...receipts.values()]);
   if (quarantines.length) await transaction.table('quarantines').bulkPut(quarantines);
   if (counters.length) await transaction.table('queueCounters').bulkPut(counters);
+}
+
+function parseReceiptStorageKey(
+  storageKey: unknown,
+  authenticatedUserId: string,
+): { scope: EvaluationStorageScope; scopeKey: string; clientMutationId: string } | null {
+  if (typeof storageKey !== 'string') return null;
+  const parts = storageKey.split('|');
+  if (parts.length !== 8) return null;
+  const parsedScope = evaluationScopeSchema.safeParse({
+    userId: parts[0],
+    evaluatorId: parts[1],
+    organizationId: parts[2],
+    tryoutId: parts[3],
+    sessionId: parts[4],
+    registrationId: parts[5],
+    rubricVersionId: parts[6],
+  });
+  const parsedMutationId = uuid.safeParse(parts[7]);
+  if (
+    !parsedScope.success ||
+    parsedScope.data.userId !== authenticatedUserId ||
+    !parsedMutationId.success
+  ) {
+    return null;
+  }
+  return {
+    scope: parsedScope.data,
+    scopeKey: scopeKey(parsedScope.data),
+    clientMutationId: parsedMutationId.data,
+  };
+}
+
+async function migrateToVersionFive(
+  transaction: Transaction,
+  authenticatedUserId: string,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const rawReceipts = await transaction.table('receipts').toArray();
+  const retainedReceipts: StoredEvaluationReceipt[] = [];
+  const tombstones: StoredEvaluationReceiptTombstone[] = [];
+  const quarantines: StoredEvaluationQuarantine[] = [];
+
+  for (const raw of rawReceipts) {
+    const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+    const physical = parseReceiptStorageKey(item.storageKey, authenticatedUserId);
+    if (!physical) {
+      quarantines.push(
+        quarantine(
+          'receipts',
+          raw,
+          'invalid_record',
+          'Version-four receipt has no trusted deterministic physical identity.',
+          authenticatedUserId,
+          now,
+        ),
+      );
+      continue;
+    }
+
+    const parsed = storedReceiptSchema.safeParse(raw);
+    let validReceipt: StoredEvaluationReceipt | null = null;
+    if (
+      parsed.success &&
+      parsed.data.storageKey === item.storageKey &&
+      parsed.data.scopeKey === physical.scopeKey &&
+      parsed.data.clientMutationId === physical.clientMutationId &&
+      scopeKey(parsed.data.scope) === physical.scopeKey
+    ) {
+      const { receiptDigest, ...payload } = parsed.data;
+      if (receiptDigest === (await Dexie.waitFor(digestValue(payload)))) {
+        validReceipt = parsed.data;
+      }
+    }
+
+    const withoutDigest: Omit<StoredEvaluationReceiptTombstone, 'tombstoneDigest'> = validReceipt
+      ? {
+          storageKey: item.storageKey as string,
+          scopeKey: physical.scopeKey,
+          clientMutationId: physical.clientMutationId,
+          reason: 'receipt_authority',
+          createdAt: validReceipt.acknowledgedAt,
+          evaluationId: validReceipt.evaluationId,
+          expectedVersion: validReceipt.expectedVersion,
+          payloadDigest: validReceipt.payloadDigest,
+          serverVersion: validReceipt.serverVersion,
+          acknowledgedAt: validReceipt.acknowledgedAt,
+        }
+      : {
+          storageKey: item.storageKey as string,
+          scopeKey: physical.scopeKey,
+          clientMutationId: physical.clientMutationId,
+          reason: 'corrupt_receipt',
+          createdAt: now,
+        };
+    tombstones.push({
+      ...withoutDigest,
+      tombstoneDigest: await Dexie.waitFor(digestValue(receiptTombstonePayload(withoutDigest))),
+    });
+    if (validReceipt) {
+      retainedReceipts.push(validReceipt);
+    } else {
+      quarantines.push(
+        quarantine(
+          'receipts',
+          {
+            ...raw,
+            scope: physical.scope,
+            scopeKey: physical.scopeKey,
+            clientMutationId: physical.clientMutationId,
+          },
+          'digest_mismatch',
+          'Version-four receipt was fenced by a deterministic recovery tombstone.',
+          authenticatedUserId,
+          now,
+        ),
+      );
+    }
+  }
+
+  if (
+    (await transaction.table('quarantines').count()) + quarantines.length > 500 ||
+    new TextEncoder().encode(JSON.stringify(quarantines)).byteLength > 2 * 1_024 * 1_024
+  ) {
+    throw new Error('Receipt recovery metadata exceeds the bounded migration budget.');
+  }
+
+  await transaction.table('receipts').clear();
+  if (retainedReceipts.length) await transaction.table('receipts').bulkPut(retainedReceipts);
+  if (tombstones.length) await transaction.table('receiptTombstones').bulkPut(tombstones);
+  if (quarantines.length) await transaction.table('quarantines').bulkPut(quarantines);
 }

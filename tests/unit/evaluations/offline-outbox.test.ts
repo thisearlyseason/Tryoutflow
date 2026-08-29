@@ -113,6 +113,11 @@ const v4Stores = {
   queueCounters: '&queueKey,scopeKey,nextSequence',
 };
 
+const v5Stores = {
+  ...v4Stores,
+  receiptTombstones: '&storageKey,scopeKey,createdAt',
+};
+
 beforeEach(() => {
   databaseNames = [];
   resetEvaluationOfflineUser();
@@ -847,9 +852,22 @@ describe('evaluation offline outbox', () => {
       authenticatedUserId: scope.userId,
       databaseName: baseName,
     });
-    await expect(reopened.getReceipt(scope, mutation().clientMutationId)).rejects.toMatchObject({
-      code: 'corrupt_record',
-    });
+    await expect(
+      reopened.acknowledgeMutation({
+        scope,
+        evaluationId: claim!.evaluationId,
+        clientMutationId: claim!.clientMutationId,
+        claimToken: claim!.claimToken!,
+        expectedVersion: claim!.expectedVersion,
+        payloadDigest: claim!.payloadDigest,
+        serverVersion: 3,
+        acknowledgedAt: '2026-08-29T10:00:00.000Z',
+      }),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+    expect(await reopened.listQuarantines(scope)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceTable: 'receipts' })]),
+    );
+    await expect(reopened.getReceipt(scope, mutation().clientMutationId)).resolves.toBeNull();
     expect(await reopened.listQuarantines(scope)).toEqual([
       expect.objectContaining({ sourceTable: 'receipts', reason: 'digest_mismatch' }),
     ]);
@@ -1173,6 +1191,13 @@ describe('evaluation offline outbox', () => {
     await expect(
       target.recordMutationFailure({ ...base, category: 'network', message: '🚀'.repeat(200) }),
     ).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(
+      target.recordMutationFailure({
+        ...base,
+        category: 'network',
+        message: { toString: () => 'coerced' } as never,
+      }),
+    ).rejects.toMatchObject({ code: 'invalid_input' });
     expect(await target.listMutations(scope)).toEqual([
       expect.objectContaining({ status: 'leased', attemptCount: 0 }),
     ]);
@@ -1418,5 +1443,386 @@ describe('evaluation offline outbox', () => {
     await source.open();
     expect(await source.table('receipts').count()).toBe(1);
     source.close();
+  });
+
+  it('jointly imports a real unsuffixed shipped-v2 terminal pair and leaves its source intact', async () => {
+    const legacyName = databaseBase('real-shared-v2-terminal');
+    databaseNames.push(legacyName);
+    const shared = new Dexie(legacyName);
+    shared.version(2).stores({
+      sessionContexts: '&scopeKey,userId,expiresAt',
+      drafts: '&scopeKey,updatedAt,expiresAt',
+      mutations:
+        '&storageKey,&clientMutationId,scopeKey,status,[status+nextAttemptAt],[scopeKey+status],createdAt',
+      receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+    });
+    await shared.open();
+    const key = Object.values(scope).join('|');
+    const payloadDigest = await digestValue(
+      evaluationPayload(scope, mutation().evaluationId, mutation().expectedVersion, draft),
+    );
+    await shared.table('mutations').add({
+      ...mutation(),
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      scopeKey: key,
+      payloadDigest,
+      status: 'acknowledged',
+      syncState: 'synced',
+      createdAt: '2026-08-29T09:00:00.000Z',
+      updatedAt: '2026-08-29T09:01:00.000Z',
+      nextAttemptAt: '2026-08-29T09:00:00.000Z',
+      attemptCount: 0,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+    });
+    await shared.table('receipts').add({
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      clientMutationId: mutation().clientMutationId,
+      scopeKey: key,
+      scope,
+      evaluationId: mutation().evaluationId,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+      expiresAt: '2026-09-29T09:01:00.000Z',
+    });
+    shared.close();
+
+    const target = repository('real-shared-v2-target');
+    await expect(
+      target.migrateLegacySharedDatabase({ legacyDatabaseName: legacyName }),
+    ).resolves.toEqual({ imported: 2, quarantined: 0 });
+    expect(await target.listMutations(scope)).toEqual([
+      expect.objectContaining({ status: 'acknowledged', syncState: 'synced' }),
+    ]);
+    expect(await target.getReceipt(scope, mutation().clientMutationId)).toMatchObject({
+      expectedVersion: 2,
+      serverVersion: 3,
+      payloadDigest,
+    });
+    target.close();
+
+    const source = new Dexie(legacyName);
+    await source.open();
+    expect(await source.table('mutations').count()).toBe(1);
+    expect(await source.table('receipts').count()).toBe(1);
+    source.close();
+  });
+
+  it('quarantines both shared-v2 terminal sides atomically instead of importing retryable work', async () => {
+    const legacyName = databaseBase('real-shared-v2-inconsistent');
+    databaseNames.push(legacyName);
+    const shared = new Dexie(legacyName);
+    shared.version(2).stores({
+      mutations:
+        '&storageKey,&clientMutationId,scopeKey,status,[status+nextAttemptAt],[scopeKey+status],createdAt',
+      receipts: '&storageKey,&clientMutationId,scopeKey,acknowledgedAt,expiresAt',
+    });
+    await shared.open();
+    const key = Object.values(scope).join('|');
+    await shared.table('mutations').add({
+      ...mutation(),
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      scopeKey: key,
+      status: 'acknowledged',
+      syncState: 'synced',
+      createdAt: '2026-08-29T09:00:00.000Z',
+      updatedAt: '2026-08-29T09:01:00.000Z',
+      nextAttemptAt: '2026-08-29T09:00:00.000Z',
+      attemptCount: 0,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+    });
+    await shared.table('receipts').add({
+      storageKey: `${key}|${mutation().clientMutationId}`,
+      clientMutationId: mutation().clientMutationId,
+      scopeKey: key,
+      scope,
+      evaluationId: secondEvaluationId,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T09:01:00.000Z',
+      expiresAt: '2026-09-29T09:01:00.000Z',
+    });
+    shared.close();
+
+    const target = repository('real-shared-v2-inconsistent-target');
+    await expect(
+      target.migrateLegacySharedDatabase({ legacyDatabaseName: legacyName }),
+    ).resolves.toEqual({ imported: 0, quarantined: 2 });
+    expect(await target.listMutations(scope)).toEqual([]);
+    expect(await target.getReceipt(scope, mutation().clientMutationId)).toBeNull();
+    expect(await target.listQuarantines(scope)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceTable: 'mutations', reason: 'terminal_pair_inconsistent' }),
+        expect.objectContaining({ sourceTable: 'receipts', reason: 'terminal_pair_inconsistent' }),
+      ]),
+    );
+    target.close();
+  });
+
+  it('uses the deterministic physical key to fence a receipt whose embedded scope and id corrupt', async () => {
+    const baseName = databaseBase('deterministic-receipt-tombstone');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    const queued = await target.enqueueEvaluationMutation(mutation());
+    const claim = await target.nextPendingMutation(scope);
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      expectedVersion: claim!.expectedVersion,
+      payloadDigest: claim!.payloadDigest,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T10:00:00.000Z',
+    });
+    await target.clearAcknowledged(scope);
+    target.close();
+
+    const key = `${Object.values(scope).join('|')}|${mutation().clientMutationId}`;
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('receiptTombstones').delete(key);
+    await raw.table('receipts').update(key, {
+      scopeKey: Object.values(otherScope).join('|'),
+      scope: otherScope,
+      clientMutationId: '30000000-0000-4000-8000-000000000099',
+    });
+    await raw.table('sessionContexts').delete(Object.values(scope).join('|'));
+    await raw.table('mutations').add(queued);
+    raw.close();
+
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.getReceipt(scope, mutation().clientMutationId)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    await expect(reopened.enqueueEvaluationMutation(mutation())).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    reopened.close();
+
+    const inspect = new Dexie(physicalName);
+    inspect.version(5).stores(v5Stores);
+    await inspect.open();
+    expect(await inspect.table('receiptTombstones').get(key)).toMatchObject({
+      storageKey: key,
+      scopeKey: Object.values(scope).join('|'),
+      clientMutationId: mutation().clientMutationId,
+      reason: 'corrupt_receipt',
+    });
+    inspect.close();
+  });
+
+  it('rejects a digest-valid terminal receipt whose server version skips the exact successor', async () => {
+    const baseName = databaseBase('receipt-version-lineage');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    await target.enqueueEvaluationMutation(mutation());
+    const claim = await target.nextPendingMutation(scope);
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      expectedVersion: claim!.expectedVersion,
+      payloadDigest: claim!.payloadDigest,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T10:00:00.000Z',
+    });
+    target.close();
+
+    const key = `${Object.values(scope).join('|')}|${mutation().clientMutationId}`;
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const receipt = await raw.table('receipts').get(key);
+    const { receiptDigest: _oldDigest, ...withoutDigest } = receipt;
+    const changed = { ...withoutDigest, serverVersion: 4 };
+    await raw.table('receipts').put({
+      ...changed,
+      receiptDigest: await digestValue(changed),
+    });
+    await raw.table('receiptTombstones').delete(key);
+    raw.close();
+
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.getReceipt(scope, mutation().clientMutationId)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    reopened.close();
+  });
+
+  it.each([
+    [
+      'missing',
+      async (raw: Dexie, queueKey: string) => raw.table('queueCounters').delete(queueKey),
+    ],
+    [
+      'behind',
+      async (raw: Dexie, queueKey: string) =>
+        raw.table('queueCounters').update(queueKey, { nextSequence: 1 }),
+    ],
+    [
+      'wrong scope',
+      async (raw: Dexie, queueKey: string) =>
+        raw.table('queueCounters').update(queueKey, {
+          scopeKey: Object.values(otherScope).join('|'),
+        }),
+    ],
+  ])(
+    'quarantines %s queue-counter lineage before claim or sync-state trust',
+    async (_, corrupt) => {
+      const baseName = databaseBase(`queue-counter-${_.replaceAll(' ', '-')}`);
+      const physicalName = trackUserDatabase(baseName);
+      const target = createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      });
+      await prepare(target);
+      await target.enqueueEvaluationMutation(mutation());
+      target.close();
+      const queueKey = evaluationQueueKey(scope, mutation().evaluationId);
+      const raw = new Dexie(physicalName);
+      raw.version(5).stores(v5Stores);
+      await raw.open();
+      await corrupt(raw, queueKey);
+      raw.close();
+      const reopened = createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      });
+      await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
+        code: 'corrupt_record',
+      });
+      await expect(reopened.getSyncState(scope)).rejects.toMatchObject({ code: 'corrupt_record' });
+      expect(await reopened.listQuarantines(scope)).toEqual(
+        expect.arrayContaining([expect.objectContaining({ sourceTable: 'queueCounters' })]),
+      );
+      reopened.close();
+    },
+  );
+
+  it('quarantines duplicate positive queue sequences before claim', async () => {
+    const baseName = databaseBase('duplicate-queue-sequence');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    await target.enqueueEvaluationMutation(mutation());
+    const second = await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: '30000000-0000-4000-8000-000000000099',
+        expectedVersion: 3,
+      }),
+    );
+    target.close();
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('mutations').update(second.storageKey, { queueSequence: 1 });
+    raw.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    expect(await reopened.listQuarantines(scope)).toEqual(
+      expect.arrayContaining([expect.objectContaining({ sourceTable: 'mutations' })]),
+    );
+    reopened.close();
+  });
+
+  it('omits bizarre recovery metadata and always stores a readable bounded quarantine record', async () => {
+    const baseName = databaseBase('self-validating-quarantine');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    const queued = await target.enqueueEvaluationMutation(mutation());
+    target.close();
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('mutations').put({
+      ...queued,
+      expectedVersion: -999,
+      queueSequence: -123,
+      serverVersion: Number.MAX_VALUE,
+      hugeBlob: 'x'.repeat(2_000_000),
+    });
+    raw.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.nextPendingMutation(scope)).rejects.toMatchObject({
+      code: 'corrupt_record',
+    });
+    const quarantines = await reopened.listQuarantines(scope);
+    expect(quarantines).toHaveLength(1);
+    expect(quarantines[0]!.recoveryEnvelope).not.toHaveProperty('expectedVersion');
+    expect(quarantines[0]!.recoveryEnvelope).not.toHaveProperty('queueSequence');
+    expect(new TextEncoder().encode(JSON.stringify(quarantines[0])).byteLength).toBeLessThan(4_096);
+    reopened.close();
+  });
+
+  it('repairs malformed stored quarantine metadata into a minimal readable attention record', async () => {
+    const baseName = databaseBase('repair-quarantine-read');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    target.close();
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    await raw.table('quarantines').add({
+      quarantineKey: 'not-a-uuid',
+      scopeKey: Object.values(scope).join('|'),
+      sourceTable: 'anything',
+      sourceKey: 'unsafe|contact@example.com',
+      reason: 'anything',
+      diagnostic: 'x'.repeat(20_000),
+      status: 'needs_attention',
+      createdAt: 'bizarre',
+      recoveryEnvelope: { expectedVersion: -1, guardian: 'secret' },
+    });
+    raw.close();
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.listQuarantines(scope)).resolves.toEqual([
+      expect.objectContaining({
+        sourceTable: 'mutations',
+        reason: 'invalid_record',
+        status: 'needs_attention',
+        recoveryEnvelope: { scopeKey: Object.values(scope).join('|') },
+      }),
+    ]);
+    reopened.close();
   });
 });

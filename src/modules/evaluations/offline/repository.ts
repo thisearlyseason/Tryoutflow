@@ -12,10 +12,12 @@ import {
   evaluationScopeSchema,
   scopeKey,
   recoveryEnvelope,
+  receiptTombstonePayload,
   storedDraftSchema,
   storedMutationSchema,
   storedQuarantineSchema,
   storedReceiptSchema,
+  storedReceiptTombstoneSchema,
   storedQueueCounterSchema,
   storedSessionContextSchema,
   type EvaluationDraftPayload,
@@ -26,6 +28,7 @@ import {
   type StoredEvaluationMutation,
   type StoredEvaluationQuarantine,
   type StoredEvaluationReceipt,
+  type StoredEvaluationReceiptTombstone,
   type StoredSessionContext,
 } from './database';
 import type { EvaluationSyncState } from './sync-state';
@@ -85,6 +88,7 @@ export type EvaluationQuotaName =
   | 'unacknowledged_mutations'
   | 'acknowledged_mutations'
   | 'receipts'
+  | 'receipt_tombstones'
   | 'quarantines'
   | 'bytes';
 
@@ -320,15 +324,17 @@ export class EvaluationOfflineRepository {
   }
 
   private async allUsage(transaction: AllTablesTransaction) {
-    const [contexts, drafts, mutations, receipts, quarantines, queueCounters] = await Promise.all([
-      transaction.table('sessionContexts').toArray(),
-      transaction.table('drafts').toArray(),
-      transaction.table('mutations').toArray(),
-      transaction.table('receipts').toArray(),
-      transaction.table('quarantines').toArray(),
-      transaction.table('queueCounters').toArray(),
-    ]);
-    return { contexts, drafts, mutations, receipts, quarantines, queueCounters };
+    const [contexts, drafts, mutations, receipts, receiptTombstones, quarantines, queueCounters] =
+      await Promise.all([
+        transaction.table('sessionContexts').toArray(),
+        transaction.table('drafts').toArray(),
+        transaction.table('mutations').toArray(),
+        transaction.table('receipts').toArray(),
+        transaction.table('receiptTombstones').toArray(),
+        transaction.table('quarantines').toArray(),
+        transaction.table('queueCounters').toArray(),
+      ]);
+    return { contexts, drafts, mutations, receipts, receiptTombstones, quarantines, queueCounters };
   }
 
   private async assertByteQuota(
@@ -362,13 +368,15 @@ export class EvaluationOfflineRepository {
         : undefined;
     const trustedScopeKey = parsedScopeKey ?? rawCounterScopeKey;
     const sourceKeyCandidate =
-      sourceTable === 'mutations' || sourceTable === 'receipts'
+      sourceTable === 'mutations' ||
+      sourceTable === 'receipts' ||
+      sourceTable === 'receiptTombstones'
         ? (rawObject.storageKey ?? rawObject.clientMutationId)
         : sourceTable === 'queueCounters'
           ? rawObject.queueKey
           : rawObject.scopeKey;
     const boundedSourceKey = safeRecoverySourceKey(sourceKeyCandidate, 600);
-    return {
+    const candidate = {
       quarantineKey: crypto.randomUUID(),
       ...(trustedScopeKey ? { scopeKey: trustedScopeKey } : {}),
       sourceTable,
@@ -379,6 +387,18 @@ export class EvaluationOfflineRepository {
       createdAt: now.toISOString(),
       recoveryEnvelope: recoveryEnvelope(raw),
     };
+    const parsed = storedQuarantineSchema.safeParse(candidate);
+    if (parsed.success) return parsed.data;
+    return storedQuarantineSchema.parse({
+      quarantineKey: crypto.randomUUID(),
+      sourceTable,
+      sourceKey: '',
+      reason,
+      diagnostic: 'Recovery metadata was reduced to a safe minimal record.',
+      status: 'needs_attention',
+      createdAt: now.toISOString(),
+      recoveryEnvelope: {},
+    });
   }
 
   private async moveToQuarantine(
@@ -394,14 +414,16 @@ export class EvaluationOfflineRepository {
     if (quarantineCount >= this.quotas.maxQuarantines) throw quotaError('quarantines');
     const rawObject = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     const deletionKey =
-      sourceTable === 'mutations' || sourceTable === 'receipts'
+      sourceTable === 'mutations' ||
+      sourceTable === 'receipts' ||
+      sourceTable === 'receiptTombstones'
         ? (rawObject.storageKey ?? rawObject.clientMutationId)
         : sourceTable === 'queueCounters'
           ? rawObject.queueKey
           : rawObject.scopeKey;
     if (typeof deletionKey === 'string') await transaction.table(sourceTable).delete(deletionKey);
     await this.assertByteQuota(transaction, quarantineRecord);
-    await transaction.table('quarantines').add(quarantineRecord);
+    await transaction.table('quarantines').add(storedQuarantineSchema.parse(quarantineRecord));
   }
 
   private async addToQuarantine(
@@ -429,7 +451,7 @@ export class EvaluationOfflineRepository {
       throw quotaError('quarantines');
     }
     await this.assertByteQuota(transaction, quarantineRecord);
-    await transaction.table('quarantines').add(quarantineRecord);
+    await transaction.table('quarantines').add(storedQuarantineSchema.parse(quarantineRecord));
   }
 
   private async validateContext(
@@ -515,13 +537,20 @@ export class EvaluationOfflineRepository {
     return parsed.data;
   }
 
-  private async validateReceiptRecord(raw: unknown): Promise<StoredEvaluationReceipt> {
+  private async validateReceiptRecord(
+    raw: unknown,
+    expected?: { scope: EvaluationStorageScope; clientMutationId: string },
+  ): Promise<StoredEvaluationReceipt> {
     const parsed = storedReceiptSchema.safeParse(raw);
     if (
       !parsed.success ||
       parsed.data.scope.userId !== this.authenticatedUserId ||
       parsed.data.scopeKey !== scopeKey(parsed.data.scope) ||
-      parsed.data.storageKey !== `${scopeKey(parsed.data.scope)}|${parsed.data.clientMutationId}`
+      parsed.data.storageKey !== `${scopeKey(parsed.data.scope)}|${parsed.data.clientMutationId}` ||
+      (expected !== undefined &&
+        (parsed.data.scopeKey !== scopeKey(expected.scope) ||
+          parsed.data.clientMutationId !== expected.clientMutationId ||
+          parsed.data.storageKey !== `${scopeKey(expected.scope)}|${expected.clientMutationId}`))
     ) {
       throw new EvaluationOfflineError(
         'corrupt_record',
@@ -537,6 +566,87 @@ export class EvaluationOfflineRepository {
       );
     }
     return parsed.data;
+  }
+
+  private async validateReceiptTombstone(
+    raw: unknown,
+    scope: EvaluationStorageScope,
+    clientMutationId: string,
+  ): Promise<StoredEvaluationReceiptTombstone> {
+    const parsed = storedReceiptTombstoneSchema.safeParse(raw);
+    const storageKey = `${scopeKey(scope)}|${clientMutationId}`;
+    if (
+      !parsed.success ||
+      parsed.data.storageKey !== storageKey ||
+      parsed.data.scopeKey !== scopeKey(scope) ||
+      parsed.data.clientMutationId !== clientMutationId
+    ) {
+      throw new EvaluationOfflineError(
+        'corrupt_record',
+        'Stored terminal receipt tombstone failed validation.',
+      );
+    }
+    const { tombstoneDigest, ...payload } = parsed.data;
+    const expectedDigest = await Dexie.waitFor(digestValue(receiptTombstonePayload(payload)));
+    if (tombstoneDigest !== expectedDigest) {
+      throw new EvaluationOfflineError(
+        'corrupt_record',
+        'Stored terminal receipt tombstone digest does not match.',
+      );
+    }
+    return parsed.data;
+  }
+
+  private async ensureReceiptTombstone(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    clientMutationId: string,
+    now: Date,
+    receipt?: StoredEvaluationReceipt,
+  ): Promise<StoredEvaluationReceiptTombstone> {
+    const storageKey = `${scopeKey(scope)}|${clientMutationId}`;
+    const rawExisting = await this.database.receiptTombstones.get(storageKey);
+    if (rawExisting) {
+      try {
+        return await this.validateReceiptTombstone(rawExisting, scope, clientMutationId);
+      } catch {
+        await this.addToQuarantine(
+          transaction,
+          'receiptTombstones',
+          rawExisting,
+          'digest_mismatch',
+          'A corrupt terminal tombstone was replaced by a deterministic fence.',
+          now,
+        );
+      }
+    }
+    const withoutDigest: Omit<StoredEvaluationReceiptTombstone, 'tombstoneDigest'> = receipt
+      ? {
+          storageKey,
+          scopeKey: scopeKey(scope),
+          clientMutationId,
+          reason: 'receipt_authority',
+          createdAt: receipt.acknowledgedAt,
+          evaluationId: receipt.evaluationId,
+          expectedVersion: receipt.expectedVersion,
+          payloadDigest: receipt.payloadDigest,
+          serverVersion: receipt.serverVersion,
+          acknowledgedAt: receipt.acknowledgedAt,
+        }
+      : {
+          storageKey,
+          scopeKey: scopeKey(scope),
+          clientMutationId,
+          reason: 'corrupt_receipt',
+          createdAt: now.toISOString(),
+        };
+    const candidate = storedReceiptTombstoneSchema.parse({
+      ...withoutDigest,
+      tombstoneDigest: await Dexie.waitFor(digestValue(receiptTombstonePayload(withoutDigest))),
+    });
+    await this.assertByteQuota(transaction, candidate);
+    await this.database.receiptTombstones.put(candidate);
+    return candidate;
   }
 
   private async requireContext(
@@ -558,9 +668,127 @@ export class EvaluationOfflineRepository {
       this.database.drafts,
       this.database.mutations,
       this.database.receipts,
+      this.database.receiptTombstones,
       this.database.quarantines,
       this.database.queueCounters,
     ] as const;
+  }
+
+  private tombstoneMatchesMutation(
+    tombstone: StoredEvaluationReceiptTombstone,
+    mutation: Pick<
+      StoredEvaluationMutation,
+      'evaluationId' | 'expectedVersion' | 'payloadDigest' | 'clientMutationId' | 'storageKey'
+    >,
+  ): boolean {
+    return (
+      tombstone.reason === 'receipt_authority' &&
+      tombstone.storageKey === mutation.storageKey &&
+      tombstone.clientMutationId === mutation.clientMutationId &&
+      tombstone.evaluationId === mutation.evaluationId &&
+      tombstone.expectedVersion === mutation.expectedVersion &&
+      tombstone.payloadDigest === mutation.payloadDigest &&
+      tombstone.serverVersion === mutation.expectedVersion + 1 &&
+      tombstone.acknowledgedAt !== undefined
+    );
+  }
+
+  private acknowledgedFromTombstone(
+    tombstone: StoredEvaluationReceiptTombstone,
+    mutation: Pick<
+      StoredEvaluationMutation,
+      | 'scope'
+      | 'scopeKey'
+      | 'storageKey'
+      | 'clientMutationId'
+      | 'evaluationId'
+      | 'expectedVersion'
+      | 'payloadDigest'
+    >,
+  ): AcknowledgedEvaluationEnqueueResult | null {
+    if (!this.tombstoneMatchesMutation(tombstone, mutation)) return null;
+    return {
+      storageKey: mutation.storageKey,
+      clientMutationId: mutation.clientMutationId,
+      scopeKey: mutation.scopeKey,
+      scope: mutation.scope,
+      evaluationId: mutation.evaluationId,
+      expectedVersion: mutation.expectedVersion,
+      payloadDigest: mutation.payloadDigest,
+      status: 'acknowledged',
+      syncState: 'synced',
+      serverVersion: tombstone.serverVersion!,
+      acknowledgedAt: tombstone.acknowledgedAt!,
+    };
+  }
+
+  private async validateQueueLineage(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    mutations: StoredEvaluationMutation[],
+    now: Date,
+  ): Promise<boolean> {
+    const queues = new Map<string, StoredEvaluationMutation[]>();
+    for (const mutation of mutations) {
+      const queue = queues.get(mutation.queueKey) ?? [];
+      queue.push(mutation);
+      queues.set(mutation.queueKey, queue);
+    }
+    let valid = true;
+    for (const [queueKey, queue] of queues) {
+      const rawCounter = await this.database.queueCounters.get(queueKey);
+      if (!rawCounter) {
+        await this.addToQuarantine(
+          transaction,
+          'queueCounters',
+          { queueKey, scopeKey: scopeKey(scope), status: 'needs_attention' },
+          'invalid_record',
+          'Queue sequence lineage is missing for stored work.',
+          now,
+        );
+        valid = false;
+        continue;
+      }
+      const parsed = storedQueueCounterSchema.safeParse(rawCounter);
+      const maximumSequence = Math.max(...queue.map((mutation) => mutation.queueSequence));
+      if (
+        !parsed.success ||
+        parsed.data.queueKey !== queueKey ||
+        parsed.data.scopeKey !== scopeKey(scope) ||
+        parsed.data.nextSequence <= maximumSequence
+      ) {
+        await this.moveToQuarantine(
+          transaction,
+          'queueCounters',
+          rawCounter,
+          'invalid_record',
+          'Queue sequence counter does not exactly continue its stored lineage.',
+          now,
+        );
+        valid = false;
+      }
+      const bySequence = new Map<number, StoredEvaluationMutation[]>();
+      for (const mutation of queue) {
+        const sameSequence = bySequence.get(mutation.queueSequence) ?? [];
+        sameSequence.push(mutation);
+        bySequence.set(mutation.queueSequence, sameSequence);
+      }
+      for (const duplicates of bySequence.values()) {
+        if (duplicates.length < 2) continue;
+        valid = false;
+        for (const duplicate of duplicates) {
+          await this.addToQuarantine(
+            transaction,
+            'mutations',
+            duplicate,
+            'invalid_record',
+            'Multiple mutations claim the same queue sequence.',
+            now,
+          );
+        }
+      }
+    }
+    return valid;
   }
 
   async saveSessionContext(
@@ -754,13 +982,20 @@ export class EvaluationOfflineRepository {
         'rw',
         this.allTables(),
         async (transaction) => {
-          const existingReceiptRaw = await this.database.receipts
-            .where('clientMutationId')
-            .equals(clientMutationId)
-            .first();
+          const existingReceiptRaw = await this.database.receipts.get(baseRecord.storageKey);
           if (existingReceiptRaw) {
             try {
-              const existingReceipt = await this.validateReceiptRecord(existingReceiptRaw);
+              const existingReceipt = await this.validateReceiptRecord(existingReceiptRaw, {
+                scope,
+                clientMutationId,
+              });
+              await this.ensureReceiptTombstone(
+                transaction,
+                scope,
+                clientMutationId,
+                now,
+                existingReceipt,
+              );
               const exact =
                 existingReceipt.storageKey === baseRecord.storageKey &&
                 existingReceipt.scopeKey === baseRecord.scopeKey &&
@@ -794,6 +1029,7 @@ export class EvaluationOfflineRepository {
               return null;
             } catch (error) {
               if (error instanceof EvaluationOfflineError && error.code === 'corrupt_record') {
+                await this.ensureReceiptTombstone(transaction, scope, clientMutationId, now);
                 await this.moveToQuarantine(
                   transaction,
                   'receipts',
@@ -806,6 +1042,27 @@ export class EvaluationOfflineRepository {
                 return null;
               }
               throw error;
+            }
+          }
+          const rawTombstone = await this.database.receiptTombstones.get(baseRecord.storageKey);
+          if (rawTombstone) {
+            try {
+              const tombstone = await this.validateReceiptTombstone(
+                rawTombstone,
+                scope,
+                clientMutationId,
+              );
+              const terminal = this.acknowledgedFromTombstone(tombstone, {
+                ...baseRecord,
+              });
+              if (terminal) return terminal;
+              if (tombstone.reason === 'receipt_authority') receiptMismatch = true;
+              else corruption = true;
+              return null;
+            } catch {
+              await this.ensureReceiptTombstone(transaction, scope, clientMutationId, now);
+              corruption = true;
+              return null;
             }
           }
           const receiptRecovery = await this.database.quarantines
@@ -867,9 +1124,32 @@ export class EvaluationOfflineRepository {
             throw quotaError('acknowledged_mutations');
           const rawCounter = await this.database.queueCounters.get(baseRecord.queueKey);
           const parsedCounter = rawCounter ? storedQueueCounterSchema.safeParse(rawCounter) : null;
-          const queueMutations = allMutations.filter(
+          const rawQueueMutations = allMutations.filter(
             (candidate) => candidate.queueKey === baseRecord.queueKey,
           );
+          const queueMutations: StoredEvaluationMutation[] = [];
+          for (const candidate of rawQueueMutations) {
+            try {
+              queueMutations.push(await this.validateMutationRecord(candidate));
+            } catch {
+              await this.addToQuarantine(
+                transaction,
+                'mutations',
+                candidate,
+                'invalid_record',
+                'Enqueue found invalid existing queue lineage.',
+                now,
+              );
+              corruption = true;
+            }
+          }
+          if (
+            corruption ||
+            !(await this.validateQueueLineage(transaction, scope, queueMutations, now))
+          ) {
+            corruption = true;
+            return null;
+          }
           const maximumSequence = queueMutations.reduce(
             (maximum, candidate) =>
               Number.isSafeInteger(candidate.queueSequence)
@@ -956,27 +1236,6 @@ export class EvaluationOfflineRepository {
         'rw',
         this.allTables(),
         async (transaction) => {
-          const rawReceipts = await this.database.receipts
-            .where('scopeKey')
-            .equals(scopeKey(scope))
-            .toArray();
-          const receipts = new Map<string, StoredEvaluationReceipt>();
-          for (const rawReceipt of rawReceipts) {
-            try {
-              const receipt = await this.validateReceiptRecord(rawReceipt);
-              receipts.set(receipt.storageKey, receipt);
-            } catch {
-              await this.moveToQuarantine(
-                transaction,
-                'receipts',
-                rawReceipt,
-                'digest_mismatch',
-                'Claim scan found an invalid authoritative receipt.',
-                now,
-              );
-              corruptCount += 1;
-            }
-          }
           let context: StoredSessionContext | null = null;
           const rawContext = await this.database.sessionContexts.get(scopeKey(scope));
           if (rawContext) {
@@ -1002,7 +1261,60 @@ export class EvaluationOfflineRepository {
           for (const raw of rawRecords) {
             try {
               const record = await this.validateMutationRecord(raw);
-              const receipt = receipts.get(record.storageKey);
+              let receipt: StoredEvaluationReceipt | null = null;
+              const rawReceipt = await this.database.receipts.get(record.storageKey);
+              if (rawReceipt) {
+                try {
+                  receipt = await this.validateReceiptRecord(rawReceipt, {
+                    scope,
+                    clientMutationId: record.clientMutationId,
+                  });
+                  await this.ensureReceiptTombstone(
+                    transaction,
+                    scope,
+                    record.clientMutationId,
+                    now,
+                    receipt,
+                  );
+                } catch {
+                  await this.ensureReceiptTombstone(
+                    transaction,
+                    scope,
+                    record.clientMutationId,
+                    now,
+                  );
+                  await this.moveToQuarantine(
+                    transaction,
+                    'receipts',
+                    rawReceipt,
+                    'digest_mismatch',
+                    'Claim scan found an invalid authoritative receipt.',
+                    now,
+                  );
+                  corruptCount += 1;
+                  continue;
+                }
+              }
+              let tombstone: StoredEvaluationReceiptTombstone | null = null;
+              const rawTombstone = await this.database.receiptTombstones.get(record.storageKey);
+              if (rawTombstone) {
+                try {
+                  tombstone = await this.validateReceiptTombstone(
+                    rawTombstone,
+                    scope,
+                    record.clientMutationId,
+                  );
+                } catch {
+                  await this.ensureReceiptTombstone(
+                    transaction,
+                    scope,
+                    record.clientMutationId,
+                    now,
+                  );
+                  corruptCount += 1;
+                  continue;
+                }
+              }
               if (receipt) {
                 const exact =
                   receipt.scopeKey === record.scopeKey &&
@@ -1032,6 +1344,37 @@ export class EvaluationOfflineRepository {
                     updatedAt:
                       record.updatedAt < receipt.acknowledgedAt
                         ? receipt.acknowledgedAt
+                        : record.updatedAt,
+                    claimToken: undefined,
+                    leaseUntil: undefined,
+                    errorCategory: undefined,
+                    lastError: undefined,
+                  });
+                }
+                continue;
+              }
+              if (tombstone) {
+                if (!this.tombstoneMatchesMutation(tombstone, record)) {
+                  await this.addToQuarantine(
+                    transaction,
+                    'mutations',
+                    raw,
+                    'receipt_divergence',
+                    'Claim scan found work fenced by terminal receipt recovery.',
+                    now,
+                  );
+                  corruptCount += 1;
+                  continue;
+                }
+                if (record.status !== 'acknowledged') {
+                  await this.database.mutations.put({
+                    ...record,
+                    status: 'acknowledged',
+                    syncState: 'synced',
+                    acknowledgedAt: tombstone.acknowledgedAt,
+                    updatedAt:
+                      record.updatedAt < tombstone.acknowledgedAt!
+                        ? tombstone.acknowledgedAt!
                         : record.updatedAt,
                     claimToken: undefined,
                     leaseUntil: undefined,
@@ -1072,6 +1415,9 @@ export class EvaluationOfflineRepository {
               );
               corruptCount += 1;
             }
+          }
+          if (!(await this.validateQueueLineage(transaction, scope, records, now))) {
+            corruptCount += 1;
           }
           if (corruptCount > 0) return null;
           const ordered = records.sort(
@@ -1226,6 +1572,7 @@ export class EvaluationOfflineRepository {
     const input = this.validateTransitionInput(rawInput);
     if (
       !publicFailureCategorySchema.safeParse(rawInput.category).success ||
+      typeof rawInput.message !== 'string' ||
       !rawInput.message ||
       new TextEncoder().encode(rawInput.message).byteLength > 500
     )
@@ -1338,108 +1685,153 @@ export class EvaluationOfflineRepository {
     ) {
       throw new EvaluationOfflineError('invalid_input', 'Invalid evaluation receipt.');
     }
+    let corruption = false;
     try {
-      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
-        const storageKey = `${scopeKey(transition.scope)}|${rawInput.clientMutationId}`;
-        const existingRaw = await this.database.receipts.get(storageKey);
-        if (existingRaw) {
-          const existing = await this.validateReceiptRecord(existingRaw);
-          const exact =
-            existing.scopeKey === scopeKey(transition.scope) &&
-            existing.evaluationId === rawInput.evaluationId &&
-            existing.clientMutationId === rawInput.clientMutationId &&
-            existing.claimToken === rawInput.claimToken &&
-            existing.expectedVersion === rawInput.expectedVersion &&
-            existing.payloadDigest === rawInput.payloadDigest &&
-            existing.serverVersion === rawInput.serverVersion &&
-            existing.acknowledgedAt === acknowledgedAt.toISOString();
-          if (!exact)
+      const result = await this.database.transaction(
+        'rw',
+        this.allTables(),
+        async (transaction) => {
+          const storageKey = `${scopeKey(transition.scope)}|${rawInput.clientMutationId}`;
+          const existingRaw = await this.database.receipts.get(storageKey);
+          if (existingRaw) {
+            let existing: StoredEvaluationReceipt;
+            try {
+              existing = await this.validateReceiptRecord(existingRaw, {
+                scope: transition.scope,
+                clientMutationId: rawInput.clientMutationId,
+              });
+            } catch {
+              await this.ensureReceiptTombstone(
+                transaction,
+                transition.scope,
+                rawInput.clientMutationId,
+                transition.now,
+              );
+              await this.moveToQuarantine(
+                transaction,
+                'receipts',
+                existingRaw,
+                'digest_mismatch',
+                'Acknowledgment replay found an invalid terminal receipt.',
+                transition.now,
+              );
+              corruption = true;
+              return null;
+            }
+            const exact =
+              existing.scopeKey === scopeKey(transition.scope) &&
+              existing.evaluationId === rawInput.evaluationId &&
+              existing.clientMutationId === rawInput.clientMutationId &&
+              existing.claimToken === rawInput.claimToken &&
+              existing.expectedVersion === rawInput.expectedVersion &&
+              existing.payloadDigest === rawInput.payloadDigest &&
+              existing.serverVersion === rawInput.serverVersion &&
+              existing.acknowledgedAt === acknowledgedAt.toISOString();
+            if (!exact)
+              throw new EvaluationOfflineError(
+                'receipt_mismatch',
+                'Only an exact acknowledgment replay is idempotent.',
+              );
+            return { ...structuredClone(existing), syncState: 'synced' as const };
+          }
+          const raw = await this.database.mutations.get(storageKey);
+          if (!raw)
+            throw new EvaluationOfflineError(
+              'mutation_not_found',
+              'Evaluation mutation not found.',
+            );
+          const mutation = await this.validateMutationRecord(raw);
+          this.assertExactLease(mutation, transition);
+          if (
+            mutation.expectedVersion !== rawInput.expectedVersion ||
+            mutation.payloadDigest !== rawInput.payloadDigest ||
+            rawInput.serverVersion !== mutation.expectedVersion + 1
+          ) {
             throw new EvaluationOfflineError(
               'receipt_mismatch',
-              'Only an exact acknowledgment replay is idempotent.',
+              'Server receipt does not match the exact leased payload.',
             );
-          return { ...structuredClone(existing), syncState: 'synced' as const };
-        }
-        const raw = await this.database.mutations.get(storageKey);
-        if (!raw)
-          throw new EvaluationOfflineError('mutation_not_found', 'Evaluation mutation not found.');
-        const mutation = await this.validateMutationRecord(raw);
-        this.assertExactLease(mutation, transition);
-        if (
-          mutation.expectedVersion !== rawInput.expectedVersion ||
-          mutation.payloadDigest !== rawInput.payloadDigest ||
-          rawInput.serverVersion !== mutation.expectedVersion + 1
-        ) {
-          throw new EvaluationOfflineError(
-            'receipt_mismatch',
-            'Server receipt does not match the exact leased payload.',
+          }
+          const context = await this.requireContext(transaction, transition.scope);
+          this.assertDraftMatchesContext(mutation.draft, context);
+          const acknowledgedCount = await this.database.mutations
+            .filter((candidate) => candidate.status === 'acknowledged')
+            .count();
+          if (acknowledgedCount >= this.quotas.maxAcknowledgedMutations) {
+            throw quotaError('acknowledged_mutations');
+          }
+          if ((await this.database.receipts.count()) >= this.quotas.maxReceipts)
+            throw quotaError('receipts');
+          const receiptWithoutDigest: Omit<StoredEvaluationReceipt, 'receiptDigest'> = {
+            storageKey,
+            clientMutationId: mutation.clientMutationId,
+            scopeKey: mutation.scopeKey,
+            scope: mutation.scope,
+            evaluationId: mutation.evaluationId,
+            expectedVersion: mutation.expectedVersion,
+            payloadDigest: mutation.payloadDigest,
+            claimToken: rawInput.claimToken,
+            serverVersion: rawInput.serverVersion,
+            acknowledgedAt: acknowledgedAt.toISOString(),
+            expiresAt: addMilliseconds(acknowledgedAt, RECEIPT_TTL_MS),
+          };
+          const receipt: StoredEvaluationReceipt = {
+            ...receiptWithoutDigest,
+            receiptDigest: await Dexie.waitFor(digestValue(receiptPayload(receiptWithoutDigest))),
+          };
+          await this.assertByteQuota(transaction, receipt);
+          await this.ensureReceiptTombstone(
+            transaction,
+            transition.scope,
+            mutation.clientMutationId,
+            transition.now,
+            receipt,
           );
-        }
-        const context = await this.requireContext(transaction, transition.scope);
-        this.assertDraftMatchesContext(mutation.draft, context);
-        const acknowledgedCount = await this.database.mutations
-          .filter((candidate) => candidate.status === 'acknowledged')
-          .count();
-        if (acknowledgedCount >= this.quotas.maxAcknowledgedMutations) {
-          throw quotaError('acknowledged_mutations');
-        }
-        if ((await this.database.receipts.count()) >= this.quotas.maxReceipts)
-          throw quotaError('receipts');
-        const receiptWithoutDigest: Omit<StoredEvaluationReceipt, 'receiptDigest'> = {
-          storageKey,
-          clientMutationId: mutation.clientMutationId,
-          scopeKey: mutation.scopeKey,
-          scope: mutation.scope,
-          evaluationId: mutation.evaluationId,
-          expectedVersion: mutation.expectedVersion,
-          payloadDigest: mutation.payloadDigest,
-          claimToken: rawInput.claimToken,
-          serverVersion: rawInput.serverVersion,
-          acknowledgedAt: acknowledgedAt.toISOString(),
-          expiresAt: addMilliseconds(acknowledgedAt, RECEIPT_TTL_MS),
-        };
-        const receipt: StoredEvaluationReceipt = {
-          ...receiptWithoutDigest,
-          receiptDigest: await Dexie.waitFor(digestValue(receiptPayload(receiptWithoutDigest))),
-        };
-        await this.assertByteQuota(transaction, receipt);
-        await this.database.receipts.add(receipt);
-        const acknowledged: StoredEvaluationMutation = {
-          ...mutation,
-          status: 'acknowledged',
-          syncState: 'synced',
-          acknowledgedAt: acknowledgedAt.toISOString(),
-          updatedAt: transition.now.toISOString(),
-          claimToken: undefined,
-          leaseUntil: undefined,
-        };
-        await this.database.mutations.put(acknowledged);
-        const rawDraft = await this.database.drafts.get(mutation.scopeKey);
-        if (rawDraft) {
-          const storedDraft = await this.validateDraftRecord(rawDraft, mutation.scope);
-          if (storedDraft.payloadDigest === mutation.payloadDigest) {
-            const syncedDraft = {
-              ...storedDraft,
-              syncState: 'synced' as const,
-              expectedVersion: rawInput.serverVersion,
-              payloadDigest: await Dexie.waitFor(
-                digestValue(
-                  evaluationPayload(
-                    storedDraft.scope,
-                    storedDraft.evaluationId,
-                    rawInput.serverVersion,
-                    storedDraft.draft,
+          await this.database.receipts.add(receipt);
+          const acknowledged: StoredEvaluationMutation = {
+            ...mutation,
+            status: 'acknowledged',
+            syncState: 'synced',
+            acknowledgedAt: acknowledgedAt.toISOString(),
+            updatedAt: transition.now.toISOString(),
+            claimToken: undefined,
+            leaseUntil: undefined,
+          };
+          await this.database.mutations.put(acknowledged);
+          const rawDraft = await this.database.drafts.get(mutation.scopeKey);
+          if (rawDraft) {
+            const storedDraft = await this.validateDraftRecord(rawDraft, mutation.scope);
+            if (storedDraft.payloadDigest === mutation.payloadDigest) {
+              const syncedDraft = {
+                ...storedDraft,
+                syncState: 'synced' as const,
+                expectedVersion: rawInput.serverVersion,
+                payloadDigest: await Dexie.waitFor(
+                  digestValue(
+                    evaluationPayload(
+                      storedDraft.scope,
+                      storedDraft.evaluationId,
+                      rawInput.serverVersion,
+                      storedDraft.draft,
+                    ),
                   ),
                 ),
-              ),
-              updatedAt: transition.now.toISOString(),
-              expiresAt: addMilliseconds(transition.now, DRAFT_TTL_MS),
-            };
-            await this.database.drafts.put(syncedDraft);
+                updatedAt: transition.now.toISOString(),
+                expiresAt: addMilliseconds(transition.now, DRAFT_TTL_MS),
+              };
+              await this.database.drafts.put(syncedDraft);
+            }
           }
-        }
-        return { ...structuredClone(receipt), syncState: 'synced' as const };
-      });
+          return { ...structuredClone(receipt), syncState: 'synced' as const };
+        },
+      );
+      if (corruption || !result) {
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Invalid terminal receipt was retained in quarantine.',
+        );
+      }
+      return result;
     } catch (error) {
       throw mapStorageError(error, 'write');
     }
@@ -1485,8 +1877,39 @@ export class EvaluationOfflineRepository {
           for (const raw of rawRecords) {
             try {
               const record = await this.validateMutationRecord(raw);
-              if (context) this.assertDraftMatchesContext(record.draft, context);
-              else if (record.status !== 'needs_attention') {
+              if (context) {
+                this.assertDraftMatchesContext(record.draft, context);
+              } else if (record.status === 'acknowledged') {
+                const rawReceipt = await this.database.receipts.get(record.storageKey);
+                const rawTombstone = await this.database.receiptTombstones.get(record.storageKey);
+                const receipt = rawReceipt
+                  ? await this.validateReceiptRecord(rawReceipt, {
+                      scope,
+                      clientMutationId: record.clientMutationId,
+                    })
+                  : null;
+                const tombstone = rawTombstone
+                  ? await this.validateReceiptTombstone(
+                      rawTombstone,
+                      scope,
+                      record.clientMutationId,
+                    )
+                  : null;
+                const receiptMatches =
+                  receipt !== null &&
+                  receipt.evaluationId === record.evaluationId &&
+                  receipt.expectedVersion === record.expectedVersion &&
+                  receipt.payloadDigest === record.payloadDigest;
+                if (
+                  !receiptMatches &&
+                  (!tombstone || !this.tombstoneMatchesMutation(tombstone, record))
+                ) {
+                  throw new EvaluationOfflineError(
+                    'corrupt_record',
+                    'Terminal work has no exact receipt authority.',
+                  );
+                }
+              } else if (record.status !== 'needs_attention') {
                 throw new EvaluationOfflineError(
                   'corrupt_record',
                   'Syncable work has no exact rubric context.',
@@ -1522,18 +1945,34 @@ export class EvaluationOfflineRepository {
   async listQuarantines(scopeInput: EvaluationStorageScope): Promise<StoredEvaluationQuarantine[]> {
     const scope = this.parseScope(scopeInput);
     try {
-      const rawRecords = await this.database.quarantines
-        .where('scopeKey')
-        .equals(scopeKey(scope))
-        .sortBy('createdAt');
-      return rawRecords.map((raw) => {
-        const parsed = storedQuarantineSchema.safeParse(raw);
-        if (!parsed.success)
-          throw new EvaluationOfflineError(
-            'corrupt_record',
-            'Stored quarantine metadata is malformed.',
+      return await this.database.transaction('rw', this.allTables(), async () => {
+        const rawRecords = await this.database.quarantines
+          .where('scopeKey')
+          .equals(scopeKey(scope))
+          .sortBy('createdAt');
+        const readable: StoredEvaluationQuarantine[] = [];
+        for (const raw of rawRecords) {
+          const parsed = storedQuarantineSchema.safeParse(raw);
+          if (parsed.success) {
+            readable.push(structuredClone(parsed.data));
+            continue;
+          }
+          const replacement = this.makeQuarantine(
+            'mutations',
+            { scope, scopeKey: scopeKey(scope) },
+            'invalid_record',
+            'Stored quarantine metadata was reduced to a safe minimal record.',
+            new Date(),
           );
-        return structuredClone(parsed.data);
+          const rawKey =
+            raw && typeof raw === 'object'
+              ? (raw as Record<string, unknown>).quarantineKey
+              : undefined;
+          if (typeof rawKey === 'string') await this.database.quarantines.delete(rawKey);
+          await this.database.quarantines.add(replacement);
+          readable.push(structuredClone(replacement));
+        }
+        return readable;
       });
     } catch (error) {
       throw mapStorageError(error, 'read');
@@ -1553,11 +1992,43 @@ export class EvaluationOfflineRepository {
         'rw',
         this.allTables(),
         async (transaction) => {
-          const raw = await this.database.receipts.get(`${scopeKey(scope)}|${clientMutationId}`);
-          if (!raw) return null;
+          const storageKey = `${scopeKey(scope)}|${clientMutationId}`;
+          const rawTombstone = await this.database.receiptTombstones.get(storageKey);
+          let tombstone: StoredEvaluationReceiptTombstone | null = null;
+          if (rawTombstone) {
+            try {
+              tombstone = await this.validateReceiptTombstone(
+                rawTombstone,
+                scope,
+                clientMutationId,
+              );
+            } catch {
+              tombstone = await this.ensureReceiptTombstone(
+                transaction,
+                scope,
+                clientMutationId,
+                new Date(),
+              );
+              corrupt = true;
+            }
+          }
+          const raw = await this.database.receipts.get(storageKey);
+          if (!raw) {
+            if (tombstone?.reason === 'corrupt_receipt') corrupt = true;
+            return null;
+          }
           try {
-            return structuredClone(await this.validateReceiptRecord(raw));
+            const receipt = await this.validateReceiptRecord(raw, { scope, clientMutationId });
+            await this.ensureReceiptTombstone(
+              transaction,
+              scope,
+              clientMutationId,
+              new Date(),
+              receipt,
+            );
+            return structuredClone(receipt);
           } catch {
+            await this.ensureReceiptTombstone(transaction, scope, clientMutationId, new Date());
             await this.moveToQuarantine(
               transaction,
               'receipts',
@@ -1640,12 +2111,30 @@ export class EvaluationOfflineRepository {
         }
 
         const receipts = new Map<string, StoredEvaluationReceipt>();
-        const rawReceipts = await this.database.receipts.where('scopeKey').equals(key).toArray();
+        const rawReceipts = await this.database.receipts
+          .filter(
+            (record) =>
+              typeof record.storageKey === 'string' && record.storageKey.startsWith(`${key}|`),
+          )
+          .toArray();
         for (const raw of rawReceipts) {
           try {
-            const receipt = await this.validateReceiptRecord(raw);
+            const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+            if (!uuid.safeParse(clientMutationId).success) throw new Error('Invalid physical key.');
+            const receipt = await this.validateReceiptRecord(raw, { scope, clientMutationId });
             receipts.set(receipt.storageKey, receipt);
+            await this.ensureReceiptTombstone(
+              transaction,
+              scope,
+              clientMutationId,
+              new Date(),
+              receipt,
+            );
           } catch {
+            const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+            if (uuid.safeParse(clientMutationId).success) {
+              await this.ensureReceiptTombstone(transaction, scope, clientMutationId, new Date());
+            }
             await this.moveToQuarantine(
               transaction,
               'receipts',
@@ -1654,6 +2143,38 @@ export class EvaluationOfflineRepository {
               'Sync-state snapshot found an invalid terminal receipt.',
               new Date(),
             );
+            const relatedMutation = await this.database.mutations.get(raw.storageKey);
+            if (relatedMutation) {
+              await this.addToQuarantine(
+                transaction,
+                'mutations',
+                relatedMutation,
+                'receipt_divergence',
+                'A mutation remains terminally fenced by a corrupt receipt.',
+                new Date(),
+              );
+            }
+            corruption = true;
+          }
+        }
+
+        const tombstones = new Map<string, StoredEvaluationReceiptTombstone>();
+        const rawTombstones = await this.database.receiptTombstones
+          .filter(
+            (record) =>
+              typeof record.storageKey === 'string' && record.storageKey.startsWith(`${key}|`),
+          )
+          .toArray();
+        for (const raw of rawTombstones) {
+          const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+          try {
+            const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
+            tombstones.set(tombstone.storageKey, tombstone);
+            if (tombstone.reason === 'corrupt_receipt') corruption = true;
+          } catch {
+            if (uuid.safeParse(clientMutationId).success) {
+              await this.ensureReceiptTombstone(transaction, scope, clientMutationId, new Date());
+            }
             corruption = true;
           }
         }
@@ -1664,6 +2185,7 @@ export class EvaluationOfflineRepository {
           try {
             let mutation = await this.validateMutationRecord(raw);
             const receipt = receipts.get(mutation.storageKey);
+            const tombstone = tombstones.get(mutation.storageKey);
             if (receipt) {
               const exact =
                 receipt.evaluationId === mutation.evaluationId &&
@@ -1681,6 +2203,27 @@ export class EvaluationOfflineRepository {
                   updatedAt:
                     mutation.updatedAt < receipt.acknowledgedAt
                       ? receipt.acknowledgedAt
+                      : mutation.updatedAt,
+                  claimToken: undefined,
+                  leaseUntil: undefined,
+                  errorCategory: undefined,
+                  lastError: undefined,
+                };
+                await this.database.mutations.put(mutation);
+              }
+            } else if (tombstone) {
+              if (!this.tombstoneMatchesMutation(tombstone, mutation)) {
+                throw new Error('Mutation is fenced by terminal receipt recovery.');
+              }
+              if (mutation.status !== 'acknowledged') {
+                mutation = {
+                  ...mutation,
+                  status: 'acknowledged',
+                  syncState: 'synced',
+                  acknowledgedAt: tombstone.acknowledgedAt,
+                  updatedAt:
+                    mutation.updatedAt < tombstone.acknowledgedAt!
+                      ? tombstone.acknowledgedAt!
                       : mutation.updatedAt,
                   claimToken: undefined,
                   leaseUntil: undefined,
@@ -1707,6 +2250,10 @@ export class EvaluationOfflineRepository {
             );
             corruption = true;
           }
+        }
+
+        if (!(await this.validateQueueLineage(transaction, scope, mutations, new Date()))) {
+          corruption = true;
         }
 
         const rawCounters = await this.database.queueCounters
@@ -1762,6 +2309,7 @@ export class EvaluationOfflineRepository {
         }
         if (
           receipts.size > 0 ||
+          [...tombstones.values()].some((tombstone) => tombstone.reason === 'receipt_authority') ||
           mutations.some((mutation) => mutation.status === 'acknowledged') ||
           draftRecord?.syncState === 'synced'
         ) {
@@ -1799,7 +2347,12 @@ export class EvaluationOfflineRepository {
               const record = await this.validateMutationRecord(raw);
               if (record.status === 'acknowledged') {
                 const rawReceipt = await this.database.receipts.get(record.storageKey);
-                const receipt = rawReceipt ? await this.validateReceiptRecord(rawReceipt) : null;
+                const receipt = rawReceipt
+                  ? await this.validateReceiptRecord(rawReceipt, {
+                      scope,
+                      clientMutationId: record.clientMutationId,
+                    })
+                  : null;
                 if (
                   !receipt ||
                   receipt.payloadDigest !== record.payloadDigest ||
@@ -1847,7 +2400,16 @@ export class EvaluationOfflineRepository {
     try {
       return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const rawMutations = await this.database.mutations.where('scopeKey').equals(key).toArray();
-        const rawReceipts = await this.database.receipts.where('scopeKey').equals(key).toArray();
+        const rawReceipts = await this.database.receipts
+          .filter(
+            (record) =>
+              typeof record.storageKey === 'string' && record.storageKey.startsWith(`${key}|`),
+          )
+          .toArray();
+        const rawTombstones = await this.database.receiptTombstones
+          .where('scopeKey')
+          .equals(key)
+          .toArray();
         const rawDraft = await this.database.drafts.get(key);
         const rawContext = await this.database.sessionContexts.get(key);
         const rawCounters = await this.database.queueCounters
@@ -1867,7 +2429,8 @@ export class EvaluationOfflineRepository {
         let newlyQuarantined = 0;
         for (const raw of rawReceipts) {
           try {
-            const receipt = await this.validateReceiptRecord(raw);
+            const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+            const receipt = await this.validateReceiptRecord(raw, { scope, clientMutationId });
             receipts.set(receipt.storageKey, receipt);
           } catch {
             await this.moveToQuarantine(
@@ -1876,6 +2439,24 @@ export class EvaluationOfflineRepository {
               raw,
               'digest_mismatch',
               'Teardown retained an invalid receipt for review.',
+              new Date(),
+            );
+            newlyQuarantined += 1;
+          }
+        }
+        const tombstoneKeys: string[] = [];
+        for (const raw of rawTombstones) {
+          const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+          try {
+            const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
+            tombstoneKeys.push(tombstone.storageKey);
+          } catch {
+            await this.moveToQuarantine(
+              transaction,
+              'receiptTombstones',
+              raw,
+              'digest_mismatch',
+              'Teardown retained an invalid terminal tombstone for review.',
               new Date(),
             );
             newlyQuarantined += 1;
@@ -1966,7 +2547,8 @@ export class EvaluationOfflineRepository {
         await this.database.mutations.bulkDelete(mutations.map((record) => record.storageKey));
         await this.database.drafts.delete(key);
         await this.database.sessionContexts.delete(key);
-        await this.database.receipts.where('scopeKey').equals(key).delete();
+        await this.database.receipts.bulkDelete(rawReceipts.map((receipt) => receipt.storageKey));
+        await this.database.receiptTombstones.bulkDelete(tombstoneKeys);
         await this.database.queueCounters.bulkDelete(counterKeys);
         return { cleared: true, retainedUnacknowledged: 0 };
       });
@@ -1990,14 +2572,20 @@ export class EvaluationOfflineRepository {
     try {
       return await this.database.transaction('rw', this.allTables(), async (transaction) => {
         const rawMutations = await this.database.mutations.where('scopeKey').equals(key).toArray();
-        const rawReceipts = await this.database.receipts.where('scopeKey').equals(key).toArray();
+        const rawReceipts = await this.database.receipts
+          .filter(
+            (record) =>
+              typeof record.storageKey === 'string' && record.storageKey.startsWith(`${key}|`),
+          )
+          .toArray();
         const rawDraft = await this.database.drafts.get(key);
         const rawContext = await this.database.sessionContexts.get(key);
         let corrupt = false;
         const receipts: StoredEvaluationReceipt[] = [];
         for (const raw of rawReceipts) {
           try {
-            receipts.push(await this.validateReceiptRecord(raw));
+            const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+            receipts.push(await this.validateReceiptRecord(raw, { scope, clientMutationId }));
           } catch {
             await this.moveToQuarantine(
               transaction,
@@ -2124,6 +2712,7 @@ export class EvaluationOfflineRepository {
         matching.set(
           sourceTable,
           (await legacy.table(sourceTable).toArray()).filter((raw) => {
+            if (sourceTable === 'receipts') return true;
             const value =
               raw && typeof raw === 'object' ? (raw as Record<string, unknown>).scope : undefined;
             const parsed = evaluationScopeSchema.safeParse(value);
@@ -2248,6 +2837,7 @@ export class EvaluationOfflineRepository {
           }
         }
 
+        const consumedReceipts = new Set<unknown>();
         for (const raw of matching.get('mutations') ?? []) {
           const item = raw as Record<string, unknown>;
           const parsedScope = evaluationScopeSchema.safeParse(item.scope);
@@ -2257,7 +2847,8 @@ export class EvaluationOfflineRepository {
             !parsedDraft.success ||
             !uuid.safeParse(item.clientMutationId).success ||
             !uuid.safeParse(item.evaluationId).success ||
-            !Number.isSafeInteger(item.expectedVersion)
+            !Number.isSafeInteger(item.expectedVersion) ||
+            Number(item.expectedVersion) < 0
           ) {
             await this.addToQuarantine(
               transaction,
@@ -2272,8 +2863,14 @@ export class EvaluationOfflineRepository {
           }
           const fullKey = scopeKey(parsedScope.data);
           const storageKey = `${fullKey}|${item.clientMutationId as string}`;
-          if (await this.database.mutations.get(storageKey)) continue;
-          const now = new Date().toISOString();
+          if (
+            (await this.database.mutations.get(storageKey)) ||
+            (await this.database.receipts.get(storageKey))
+          ) {
+            continue;
+          }
+          const operationNow = new Date();
+          const now = operationNow.toISOString();
           const payloadDigest = await Dexie.waitFor(
             digestValue(
               evaluationPayload(
@@ -2294,6 +2891,195 @@ export class EvaluationOfflineRepository {
               new Date(),
             );
             quarantined += 1;
+            continue;
+          }
+          const joinedReceipts = (matching.get('receipts') ?? []).filter((candidate) => {
+            const receiptItem =
+              candidate && typeof candidate === 'object'
+                ? (candidate as Record<string, unknown>)
+                : {};
+            return (
+              receiptItem.storageKey === storageKey ||
+              receiptItem.clientMutationId === item.clientMutationId
+            );
+          });
+          const isTerminalPair = item.status === 'acknowledged' || joinedReceipts.length > 0;
+          if (isTerminalPair) {
+            for (const receipt of joinedReceipts) consumedReceipts.add(receipt);
+            const receiptRaw = joinedReceipts.length === 1 ? joinedReceipts[0] : null;
+            const receiptItem =
+              receiptRaw && typeof receiptRaw === 'object'
+                ? (receiptRaw as Record<string, unknown>)
+                : null;
+            const parsedReceiptScope = evaluationScopeSchema.safeParse(receiptItem?.scope);
+            const optionalScopeMatches =
+              receiptItem?.scope === undefined ||
+              (parsedReceiptScope.success && scopeKey(parsedReceiptScope.data) === fullKey);
+            const optionalEvaluationMatches =
+              receiptItem?.evaluationId === undefined ||
+              receiptItem.evaluationId === item.evaluationId;
+            const optionalExpectedMatches =
+              receiptItem?.expectedVersion === undefined ||
+              receiptItem.expectedVersion === item.expectedVersion;
+            const optionalPayloadMatches =
+              receiptItem?.payloadDigest === undefined ||
+              receiptItem.payloadDigest === payloadDigest;
+            const acknowledgedAt = receiptItem?.acknowledgedAt;
+            const pairShapeMatches =
+              item.status === 'acknowledged' &&
+              receiptItem !== null &&
+              receiptItem.storageKey === storageKey &&
+              receiptItem.clientMutationId === item.clientMutationId &&
+              optionalScopeMatches &&
+              optionalEvaluationMatches &&
+              optionalExpectedMatches &&
+              optionalPayloadMatches &&
+              receiptItem.serverVersion === Number(item.expectedVersion) + 1 &&
+              typeof acknowledgedAt === 'string' &&
+              acknowledgedAt === item.acknowledgedAt;
+            const claimToken = uuid.safeParse(receiptItem?.claimToken).success
+              ? (receiptItem!.claimToken as string)
+              : receiptItem?.claimToken === undefined
+                ? crypto.randomUUID()
+                : null;
+            let synthesizedReceipt: StoredEvaluationReceipt | null = null;
+            if (pairShapeMatches && claimToken) {
+              const withoutDigest: Omit<StoredEvaluationReceipt, 'receiptDigest'> = {
+                storageKey,
+                clientMutationId: item.clientMutationId as string,
+                scopeKey: fullKey,
+                scope: parsedScope.data,
+                evaluationId: item.evaluationId as string,
+                expectedVersion: item.expectedVersion as number,
+                payloadDigest,
+                claimToken,
+                serverVersion: receiptItem!.serverVersion as number,
+                acknowledgedAt: acknowledgedAt as string,
+                expiresAt: receiptItem!.expiresAt as string,
+              };
+              const receiptDigest = await Dexie.waitFor(digestValue(receiptPayload(withoutDigest)));
+              if (
+                receiptItem!.receiptDigest === undefined ||
+                receiptItem!.receiptDigest === receiptDigest
+              ) {
+                const parsedReceipt = storedReceiptSchema.safeParse({
+                  ...withoutDigest,
+                  receiptDigest,
+                });
+                if (parsedReceipt.success) synthesizedReceipt = parsedReceipt.data;
+              }
+            }
+            if (!synthesizedReceipt) {
+              await this.addToQuarantine(
+                transaction,
+                'mutations',
+                raw,
+                'terminal_pair_inconsistent',
+                'Shared terminal mutation and receipt are not jointly consistent.',
+                operationNow,
+              );
+              quarantined += 1;
+              for (const inconsistentReceipt of joinedReceipts) {
+                await this.addToQuarantine(
+                  transaction,
+                  'receipts',
+                  inconsistentReceipt,
+                  'terminal_pair_inconsistent',
+                  'Shared terminal receipt and mutation are not jointly consistent.',
+                  operationNow,
+                );
+                quarantined += 1;
+              }
+              continue;
+            }
+
+            const queueKey = evaluationQueueKey(parsedScope.data, item.evaluationId as string);
+            const rawCounter = await this.database.queueCounters.get(queueKey);
+            const parsedCounter = rawCounter
+              ? storedQueueCounterSchema.safeParse(rawCounter)
+              : null;
+            if (
+              parsedCounter &&
+              (!parsedCounter.success ||
+                parsedCounter.data.queueKey !== queueKey ||
+                parsedCounter.data.scopeKey !== fullKey)
+            ) {
+              await this.moveToQuarantine(
+                transaction,
+                'queueCounters',
+                rawCounter,
+                'invalid_record',
+                'Shared import found an invalid FIFO counter.',
+                operationNow,
+              );
+              throw new EvaluationOfflineError(
+                'corrupt_record',
+                'Shared import cannot allocate from a corrupt FIFO counter.',
+              );
+            }
+            const queueSequence = parsedCounter?.success ? parsedCounter.data.nextSequence : 1;
+            const terminalMutation = storedMutationSchema.safeParse({
+              storageKey,
+              clientMutationId: item.clientMutationId,
+              scopeKey: fullKey,
+              queueKey,
+              queueSequence,
+              scope: parsedScope.data,
+              evaluationId: item.evaluationId,
+              expectedVersion: item.expectedVersion,
+              draft: parsedDraft.data,
+              payloadDigest,
+              status: 'acknowledged',
+              syncState: 'synced',
+              createdAt: item.createdAt,
+              updatedAt: item.updatedAt,
+              nextAttemptAt: item.nextAttemptAt,
+              attemptCount: item.attemptCount,
+              acknowledgedAt,
+            });
+            if (!terminalMutation.success) {
+              await this.addToQuarantine(
+                transaction,
+                'mutations',
+                raw,
+                'terminal_pair_inconsistent',
+                'Shared terminal mutation cannot be represented safely.',
+                operationNow,
+              );
+              await this.addToQuarantine(
+                transaction,
+                'receipts',
+                receiptRaw,
+                'terminal_pair_inconsistent',
+                'Shared terminal receipt cannot be represented safely.',
+                operationNow,
+              );
+              quarantined += 2;
+              continue;
+            }
+            if ((await this.database.mutations.count()) >= this.quotas.maxMutations) {
+              throw quotaError('mutations');
+            }
+            if ((await this.database.receipts.count()) >= this.quotas.maxReceipts) {
+              throw quotaError('receipts');
+            }
+            await this.assertByteQuota(transaction, terminalMutation.data);
+            await this.assertByteQuota(transaction, synthesizedReceipt);
+            await this.database.queueCounters.put({
+              queueKey,
+              scopeKey: fullKey,
+              nextSequence: queueSequence + 1,
+            });
+            await this.database.mutations.add(terminalMutation.data);
+            await this.database.receipts.add(synthesizedReceipt);
+            await this.ensureReceiptTombstone(
+              transaction,
+              parsedScope.data,
+              item.clientMutationId as string,
+              operationNow,
+              synthesizedReceipt,
+            );
+            imported += 2;
             continue;
           }
           const queueKey = evaluationQueueKey(parsedScope.data, item.evaluationId as string);
@@ -2368,116 +3154,20 @@ export class EvaluationOfflineRepository {
         }
 
         for (const raw of matching.get('receipts') ?? []) {
+          if (consumedReceipts.has(raw)) continue;
           const item = raw as Record<string, unknown>;
           const parsedScope = evaluationScopeSchema.safeParse(item.scope);
-          if (
-            !parsedScope.success ||
-            !uuid.safeParse(item.clientMutationId).success ||
-            !uuid.safeParse(item.evaluationId).success ||
-            !uuid.safeParse(item.claimToken).success ||
-            !Number.isSafeInteger(item.expectedVersion) ||
-            !Number.isSafeInteger(item.serverVersion) ||
-            typeof item.payloadDigest !== 'string'
-          ) {
-            await this.addToQuarantine(
-              transaction,
-              'receipts',
-              raw,
-              'invalid_record',
-              'Shared legacy receipt failed strict import validation.',
-              new Date(),
-            );
-            quarantined += 1;
+          if (!parsedScope.success || parsedScope.data.userId !== this.authenticatedUserId)
             continue;
-          }
-          const fullKey = scopeKey(parsedScope.data);
-          const storageKey = `${fullKey}|${item.clientMutationId as string}`;
-          if (await this.database.receipts.get(storageKey)) continue;
-          const withoutDigest: Omit<StoredEvaluationReceipt, 'receiptDigest'> = {
-            storageKey,
-            clientMutationId: item.clientMutationId as string,
-            scopeKey: fullKey,
-            scope: parsedScope.data,
-            evaluationId: item.evaluationId as string,
-            expectedVersion: item.expectedVersion as number,
-            payloadDigest: item.payloadDigest,
-            claimToken: item.claimToken as string,
-            serverVersion: item.serverVersion as number,
-            acknowledgedAt: item.acknowledgedAt as string,
-            expiresAt: item.expiresAt as string,
-          };
-          const sourceMutation = (matching.get('mutations') ?? []).find((candidate) => {
-            const mutationItem =
-              candidate && typeof candidate === 'object'
-                ? (candidate as Record<string, unknown>)
-                : {};
-            return mutationItem.clientMutationId === item.clientMutationId;
-          });
-          if (sourceMutation) {
-            const mutationItem = sourceMutation as Record<string, unknown>;
-            const sourceDraft = evaluationDraftSchema.safeParse(mutationItem.draft);
-            if (sourceDraft.success && Number.isSafeInteger(mutationItem.expectedVersion)) {
-              const recomputedPayloadDigest = await Dexie.waitFor(
-                digestValue(
-                  evaluationPayload(
-                    parsedScope.data,
-                    mutationItem.evaluationId as string,
-                    mutationItem.expectedVersion as number,
-                    sourceDraft.data,
-                  ),
-                ),
-              );
-              if (item.payloadDigest !== recomputedPayloadDigest) {
-                await this.addToQuarantine(
-                  transaction,
-                  'receipts',
-                  raw,
-                  'digest_mismatch',
-                  'Shared legacy receipt payload digest does not match its mutation.',
-                  new Date(),
-                );
-                quarantined += 1;
-                continue;
-              }
-            }
-          }
-          const recomputedReceiptDigest = await Dexie.waitFor(
-            digestValue(receiptPayload(withoutDigest)),
+          await this.addToQuarantine(
+            transaction,
+            'receipts',
+            raw,
+            item.receiptDigest !== undefined ? 'digest_mismatch' : 'terminal_pair_inconsistent',
+            'Shared terminal receipt has no validated mutation lineage.',
+            new Date(),
           );
-          if (item.receiptDigest !== undefined && item.receiptDigest !== recomputedReceiptDigest) {
-            await this.addToQuarantine(
-              transaction,
-              'receipts',
-              raw,
-              'digest_mismatch',
-              'Shared legacy receipt integrity digest does not match.',
-              new Date(),
-            );
-            quarantined += 1;
-            continue;
-          }
-          const candidate = storedReceiptSchema.safeParse({
-            ...withoutDigest,
-            receiptDigest: recomputedReceiptDigest,
-          });
-          if (!candidate.success) {
-            await this.addToQuarantine(
-              transaction,
-              'receipts',
-              raw,
-              'invalid_record',
-              'Shared legacy receipt dates or state are invalid.',
-              new Date(),
-            );
-            quarantined += 1;
-          } else {
-            if ((await this.database.receipts.count()) >= this.quotas.maxReceipts) {
-              throw quotaError('receipts');
-            }
-            await this.assertByteQuota(transaction, candidate.data);
-            await this.database.receipts.add(candidate.data);
-            imported += 1;
-          }
+          quarantined += 1;
         }
       });
       return { imported, quarantined };
