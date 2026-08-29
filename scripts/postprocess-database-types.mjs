@@ -98,5 +98,17 @@ nullableFunctionArgs('save_evaluation_draft', {
   p_group_id: 'string',
   p_note: 'string',
 });
+nullableFunctionArgs('move_roster_athlete', { p_team_id: 'string' });
+nullableFunctionFields('create_roster_draft', {
+  roster_version_id: 'string',
+  version: 'number',
+});
+nullableFunctionFields('move_roster_athlete', { version: 'number' });
+nullableFunctionFields('change_roster_decisions', { version: 'number' });
+nullableFunctionFields('finalize_roster_version', { version: 'number' });
+nullableFunctionFields('revise_roster_version', {
+  roster_version_id: 'string',
+  version: 'number',
+});
 
 await writeFile(path, source);

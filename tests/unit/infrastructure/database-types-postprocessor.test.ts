@@ -57,6 +57,26 @@ describe('database type postprocessor', () => {
         Args: never;
         Returns: { division_id: string; expires_at: string; group_id: string; session_id: string }[];
       };
+      create_roster_draft: {
+        Args: never;
+        Returns: { outcome: string; roster_version_id: string; version: number }[];
+      };
+      move_roster_athlete: {
+        Args: { p_team_id: string };
+        Returns: { outcome: string; version: number }[];
+      };
+      change_roster_decisions: {
+        Args: never;
+        Returns: { outcome: string; version: number }[];
+      };
+      finalize_roster_version: {
+        Args: never;
+        Returns: { outcome: string; version: number }[];
+      };
+      revise_roster_version: {
+        Args: never;
+        Returns: { outcome: string; roster_version_id: string; version: number }[];
+      };
     };
   };
 };
@@ -83,6 +103,10 @@ describe('database type postprocessor', () => {
       expect(processed).toContain('Returns: { evaluation_id: string | null;');
       expect(processed).toContain('tryout_number: number | null }[];');
       expect(processed).toContain('expires_at: string | null;');
+      expect(processed).toContain('Args: { p_team_id: string | null };');
+      expect(processed).toContain(
+        'Returns: { outcome: string; roster_version_id: string | null; version: number | null }[];',
+      );
       expect(processedTwice).toBe(processed);
       expect(processedTwice).not.toContain('| null | null');
     } finally {

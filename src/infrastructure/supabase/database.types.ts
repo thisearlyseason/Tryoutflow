@@ -488,6 +488,60 @@ export type Database = {
           },
         ];
       };
+      decision_history: {
+        Row: {
+          actor_user_id: string;
+          changed_at: string;
+          division_id: string;
+          from_status: string;
+          id: string;
+          organization_id: string;
+          registration_id: string;
+          roster_version_id: string;
+          to_status: string;
+          tryout_id: string;
+        };
+        Insert: {
+          actor_user_id: string;
+          changed_at?: string;
+          division_id: string;
+          from_status: string;
+          id?: string;
+          organization_id: string;
+          registration_id: string;
+          roster_version_id: string;
+          to_status: string;
+          tryout_id: string;
+        };
+        Update: {
+          actor_user_id?: string;
+          changed_at?: string;
+          division_id?: string;
+          from_status?: string;
+          id?: string;
+          organization_id?: string;
+          registration_id?: string;
+          roster_version_id?: string;
+          to_status?: string;
+          tryout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'decision_history_decision_fkey';
+            columns: ['organization_id', 'roster_version_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_decisions';
+            referencedColumns: ['organization_id', 'roster_version_id', 'registration_id'];
+          },
+          {
+            foreignKeyName: 'decision_history_version_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
+        ];
+      };
       evaluation_mutations: {
         Row: {
           actor_user_id: string;
@@ -1258,6 +1312,175 @@ export type Database = {
           window_started_at?: string;
         };
         Relationships: [];
+      };
+      roster_assignments: {
+        Row: {
+          assigned_at: string;
+          assigned_by_user_id: string;
+          division_id: string;
+          organization_id: string;
+          registration_id: string;
+          roster_version_id: string;
+          team_id: string;
+          tryout_id: string;
+        };
+        Insert: {
+          assigned_at?: string;
+          assigned_by_user_id: string;
+          division_id: string;
+          organization_id: string;
+          registration_id: string;
+          roster_version_id: string;
+          team_id: string;
+          tryout_id: string;
+        };
+        Update: {
+          assigned_at?: string;
+          assigned_by_user_id?: string;
+          division_id?: string;
+          organization_id?: string;
+          registration_id?: string;
+          roster_version_id?: string;
+          team_id?: string;
+          tryout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'roster_assignments_registration_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
+          {
+            foreignKeyName: 'roster_assignments_team_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'team_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_teams';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
+          {
+            foreignKeyName: 'roster_assignments_version_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
+        ];
+      };
+      roster_decisions: {
+        Row: {
+          changed_at: string | null;
+          changed_by_user_id: string | null;
+          division_id: string;
+          organization_id: string;
+          registration_id: string;
+          roster_version_id: string;
+          status: string;
+          tryout_id: string;
+        };
+        Insert: {
+          changed_at?: string | null;
+          changed_by_user_id?: string | null;
+          division_id: string;
+          organization_id: string;
+          registration_id: string;
+          roster_version_id: string;
+          status?: string;
+          tryout_id: string;
+        };
+        Update: {
+          changed_at?: string | null;
+          changed_by_user_id?: string | null;
+          division_id?: string;
+          organization_id?: string;
+          registration_id?: string;
+          roster_version_id?: string;
+          status?: string;
+          tryout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'roster_decisions_registration_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'registration_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_registrations';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
+          {
+            foreignKeyName: 'roster_decisions_version_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
+        ];
+      };
+      roster_versions: {
+        Row: {
+          based_on_roster_version_id: string | null;
+          created_at: string;
+          created_by_user_id: string;
+          division_id: string;
+          finalized_at: string | null;
+          finalized_by_user_id: string | null;
+          id: string;
+          organization_id: string;
+          revision_number: number;
+          revision_reason: string | null;
+          state: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          based_on_roster_version_id?: string | null;
+          created_at?: string;
+          created_by_user_id: string;
+          division_id: string;
+          finalized_at?: string | null;
+          finalized_by_user_id?: string | null;
+          id?: string;
+          organization_id: string;
+          revision_number: number;
+          revision_reason?: string | null;
+          state?: string;
+          tryout_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          based_on_roster_version_id?: string | null;
+          created_at?: string;
+          created_by_user_id?: string;
+          division_id?: string;
+          finalized_at?: string | null;
+          finalized_by_user_id?: string | null;
+          id?: string;
+          organization_id?: string;
+          revision_number?: number;
+          revision_reason?: string | null;
+          state?: string;
+          tryout_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'roster_versions_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'roster_versions_source_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'based_on_roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
+        ];
       };
       rubric_categories: {
         Row: {
@@ -2118,6 +2341,53 @@ export type Database = {
           },
         ];
       };
+      tryout_teams: {
+        Row: {
+          created_at: string;
+          division_id: string;
+          id: string;
+          name: string;
+          organization_id: string;
+          position_targets: Json;
+          sort_order: number;
+          target_size: number | null;
+          tryout_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          created_at?: string;
+          division_id: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+          position_targets?: Json;
+          sort_order: number;
+          target_size?: number | null;
+          tryout_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          created_at?: string;
+          division_id?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          position_targets?: Json;
+          sort_order?: number;
+          target_size?: number | null;
+          tryout_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_teams_division_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
       tryouts: {
         Row: {
           blind_mode: boolean;
@@ -2385,6 +2655,21 @@ export type Database = {
       };
       canonical_import_text: { Args: { value: string }; Returns: string };
       canonical_registration_text: { Args: { value: string }; Returns: string };
+      change_roster_decisions: {
+        Args: {
+          p_changes: Json;
+          p_confirmation: string;
+          p_division_id: string;
+          p_expected_version: number;
+          p_organization_id: string;
+          p_roster_version_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version: number | null;
+        }[];
+      };
       check_in_registration: {
         Args: {
           p_group_id: string;
@@ -2550,6 +2835,19 @@ export type Database = {
           version_number: number;
         }[];
       };
+      create_roster_draft: {
+        Args: {
+          p_division_id: string;
+          p_organization_id: string;
+          p_teams: Json;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+          roster_version_id: string | null;
+          version: number | null;
+        }[];
+      };
       create_rubric_revision: {
         Args: {
           p_organization_id: string;
@@ -2604,6 +2902,20 @@ export type Database = {
           p_tryout_id: string;
         };
         Returns: boolean;
+      };
+      finalize_roster_version: {
+        Args: {
+          p_confirmation: string;
+          p_division_id: string;
+          p_expected_version: number;
+          p_organization_id: string;
+          p_roster_version_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version: number | null;
+        }[];
       };
       has_active_configuration_assignment: {
         Args: {
@@ -2797,6 +3109,21 @@ export type Database = {
         };
         Returns: boolean;
       };
+      move_roster_athlete: {
+        Args: {
+          p_division_id: string;
+          p_expected_version: number;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_roster_version_id: string;
+          p_team_id: string | null;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+          version: number | null;
+        }[];
+      };
       normalize_registration_text: { Args: { value: string }; Returns: string };
       public_registration_tryout: {
         Args: { p_tryout_slug: string };
@@ -2914,6 +3241,21 @@ export type Database = {
         };
         Returns: {
           outcome: string;
+        }[];
+      };
+      revise_roster_version: {
+        Args: {
+          p_confirmation: string;
+          p_division_id: string;
+          p_organization_id: string;
+          p_reason: string;
+          p_roster_version_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+          roster_version_id: string | null;
+          version: number | null;
         }[];
       };
       revoke_evaluator_assignment: {
