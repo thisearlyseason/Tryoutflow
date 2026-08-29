@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
-type ActionOutcome = { outcome: string; shareUrl?: string };
+type ActionOutcome = { outcome: string; shareUrl?: string; assignmentId?: string };
 type ManageableAssignment = {
   assignmentId: string;
   evaluatorUserId: string;
@@ -34,9 +34,9 @@ export function AssignmentWorkspace({
   const [invitationDelivery, setInvitationDelivery] = useState<
     'manual_share' | 'notifier_enqueued' | null
   >(null);
-  const [revokedAssignmentIds, setRevokedAssignmentIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  const [currentAssignments, setCurrentAssignments] = useState<ManageableAssignment[]>(() => [
+    ...assignments,
+  ]);
   const [pending, startTransition] = useTransition();
 
   return (
@@ -144,10 +144,37 @@ export function AssignmentWorkspace({
           event.preventDefault();
           const data = new FormData(event.currentTarget);
           startTransition(async () => {
-            const result = await onAssign({
+            const input = {
               evaluatorUserId: String(data.get('evaluatorUserId') ?? ''),
               scope: String(data.get('scope') ?? ''),
-            });
+            };
+            const result = await onAssign(input);
+            const assignmentId = result.assignmentId;
+            if (result.outcome === 'assigned' && assignmentId) {
+              const evaluator = evaluators.find(({ userId }) => userId === input.evaluatorUserId);
+              const scope = scopes.find(({ value }) => value === input.scope);
+              const scopeKind = input.scope.split(':')[0];
+              if (
+                evaluator &&
+                scope &&
+                (scopeKind === 'tryout' ||
+                  scopeKind === 'division' ||
+                  scopeKind === 'session' ||
+                  scopeKind === 'group')
+              ) {
+                setCurrentAssignments((current) => [
+                  ...current.filter((assignment) => assignment.assignmentId !== assignmentId),
+                  {
+                    assignmentId,
+                    evaluatorUserId: evaluator.userId,
+                    evaluatorName: evaluator.displayName,
+                    scopeLabel: scope.label,
+                    scopeKind,
+                    expiresAt: null,
+                  },
+                ]);
+              }
+            }
             setMessage(
               result.outcome === 'assigned'
                 ? 'Evaluator assigned.'
@@ -205,52 +232,53 @@ export function AssignmentWorkspace({
         <h3 className="text-lg font-semibold" id="active-grants-heading">
           Active evaluator grants
         </h3>
-        {assignments.length === 0 ? (
+        {currentAssignments.length === 0 ? (
           <p className="mt-3 text-sm text-[var(--color-text-muted)]">
             No manageable active grants.
           </p>
         ) : (
           <ul className="mt-4 grid gap-3">
-            {assignments
-              .filter((assignment) => !revokedAssignmentIds.has(assignment.assignmentId))
-              .map((assignment) => (
-                <li
-                  className="flex min-w-0 flex-col gap-3 rounded-lg border border-[var(--color-border)] p-4 sm:flex-row sm:items-center sm:justify-between"
-                  key={assignment.assignmentId}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{assignment.evaluatorName}</p>
-                    <p className="text-sm text-[var(--color-text-muted)]">
-                      {assignment.scopeLabel}
-                    </p>
-                  </div>
-                  <button
-                    aria-label={`Revoke ${assignment.evaluatorName} from ${assignment.scopeLabel}`}
-                    className="button-secondary min-h-11"
-                    disabled={pending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        const result = await onRevoke(assignment.assignmentId);
-                        if (result.outcome === 'revoked') {
-                          setRevokedAssignmentIds(
-                            (current) => new Set([...current, assignment.assignmentId]),
-                          );
-                        }
-                        setMessage(
-                          result.outcome === 'revoked'
-                            ? 'Evaluator access revoked and recorded in the audit log.'
+            {currentAssignments.map((assignment) => (
+              <li
+                className="flex min-w-0 flex-col gap-3 rounded-lg border border-[var(--color-border)] p-4 sm:flex-row sm:items-center sm:justify-between"
+                key={assignment.assignmentId}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{assignment.evaluatorName}</p>
+                  <p className="text-sm text-[var(--color-text-muted)]">{assignment.scopeLabel}</p>
+                </div>
+                <button
+                  aria-label={`Revoke ${assignment.evaluatorName} from ${assignment.scopeLabel}`}
+                  className="button-secondary min-h-11"
+                  disabled={pending}
+                  onClick={() => {
+                    startTransition(async () => {
+                      const result = await onRevoke(assignment.assignmentId);
+                      if (result.outcome === 'revoked' || result.outcome === 'already_revoked') {
+                        setCurrentAssignments((current) =>
+                          current.filter(
+                            (currentAssignment) =>
+                              currentAssignment.assignmentId !== assignment.assignmentId,
+                          ),
+                        );
+                      }
+                      setMessage(
+                        result.outcome === 'revoked'
+                          ? 'Evaluator access revoked and recorded in the audit log.'
+                          : result.outcome === 'already_revoked'
+                            ? 'Evaluator access was already inactive. No new audit event was recorded.'
                             : result.outcome === 'forbidden'
                               ? 'You are not authorized to revoke that evaluator grant.'
                               : 'The evaluator grant could not be revoked.',
-                        );
-                      });
-                    }}
-                    type="button"
-                  >
-                    Revoke access
-                  </button>
-                </li>
-              ))}
+                      );
+                    });
+                  }}
+                  type="button"
+                >
+                  Revoke access
+                </button>
+              </li>
+            ))}
           </ul>
         )}
       </section>

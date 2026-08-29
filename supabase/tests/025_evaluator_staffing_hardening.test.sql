@@ -58,12 +58,18 @@ select is((select count(*) from information_schema.routine_privileges where spec
 set local role authenticated;
 select set_config('request.jwt.claim.sub','b4111111-1111-4111-8111-111111111111',true);
 select is((select outcome from public.assign_evaluator('b4000000-0000-4000-8000-000000000001','b4333333-3333-4333-8333-333333333333','b4777777-7777-4777-8777-777777777771','tryout',null,null,null,null)),'assigned','owner grants tryout evaluation access');
+select set_config('app.test.stale_assignment_id',(select id::text from public.tryout_staff_assignments where organization_id='b4000000-0000-4000-8000-000000000001' and user_id='b4333333-3333-4333-8333-333333333333' and scope_kind='tryout' and revoked_at is null),true);
 select is((select outcome from public.assign_evaluator('b4000000-0000-4000-8000-000000000001','b4444444-4444-4444-8444-444444444444','b4777777-7777-4777-8777-777777777771','division','b4888888-8888-4888-8888-888888888881',null,null,null)),'assigned','owner grants boundary evaluator access');
 reset role;
 
 update public.organization_members set status='disabled'
 where organization_id='b4000000-0000-4000-8000-000000000001' and user_id='b4333333-3333-4333-8333-333333333333';
 select is((select count(*) from public.tryout_staff_assignments where organization_id='b4000000-0000-4000-8000-000000000001' and user_id='b4333333-3333-4333-8333-333333333333' and revoked_at is null),0::bigint,'disabling membership revokes active grants');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','b4111111-1111-4111-8111-111111111111',true);
+select is((select outcome from public.revoke_evaluator_assignment('b4000000-0000-4000-8000-000000000001',current_setting('app.test.stale_assignment_id')::uuid)),'already_revoked','stale revoke distinguishes automatic offboarding from an audited RPC revoke');
+reset role;
+select is((select count(*) from public.audit_logs where action='staffing.evaluator_revoked' and entity_id=current_setting('app.test.stale_assignment_id')::uuid),0::bigint,'stale revoke never claims or fabricates an RPC revocation audit');
 update public.organization_members set status='active'
 where organization_id='b4000000-0000-4000-8000-000000000001' and user_id='b4333333-3333-4333-8333-333333333333';
 select is((select count(*) from public.tryout_staff_assignments where organization_id='b4000000-0000-4000-8000-000000000001' and user_id='b4333333-3333-4333-8333-333333333333' and revoked_at is null),0::bigint,'re-enabling membership never revives revoked grants');

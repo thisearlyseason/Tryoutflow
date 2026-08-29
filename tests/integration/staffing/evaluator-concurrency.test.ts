@@ -109,7 +109,7 @@ describe('evaluator assignment membership serialization', () => {
 
   it('serializes duplicate assignment and assign-vs-disable/delete on the membership row', async () => {
     const owner = randomUUID();
-    const evaluators = [randomUUID(), randomUUID(), randomUUID()];
+    const evaluators = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
     const organization = randomUUID();
     const tryout = randomUUID();
     const suffix = tryout.slice(0, 8);
@@ -123,14 +123,15 @@ describe('evaluator assignment membership serialization', () => {
 
     try {
       await psql(`
-        insert into auth.users(id) values('${owner}'),('${evaluators[0]}'),('${evaluators[1]}'),('${evaluators[2]}');
+        insert into auth.users(id) values('${owner}'),('${evaluators[0]}'),('${evaluators[1]}'),('${evaluators[2]}'),('${evaluators[3]}');
         insert into public.organizations(id,name,slug,timezone)
           values('${organization}','Concurrent Staffing','concurrent-staffing-${suffix}','America/Edmonton');
         insert into public.organization_members(organization_id,user_id,role,status) values
           ('${organization}','${owner}','owner','active'),
           ('${organization}','${evaluators[0]}','member','active'),
           ('${organization}','${evaluators[1]}','member','active'),
-          ('${organization}','${evaluators[2]}','member','active');
+          ('${organization}','${evaluators[2]}','member','active'),
+          ('${organization}','${evaluators[3]}','member','active');
         insert into public.tryouts(id,organization_id,name,slug,sport,timezone)
           values('${tryout}','${organization}','Concurrent Camp','concurrent-camp-${suffix}','Hockey','America/Edmonton');
       `);
@@ -206,6 +207,57 @@ describe('evaluator assignment membership serialization', () => {
         ).stdout.trim(),
       ).toBe('0');
 
+      // Principal delete: assignment takes a KEY SHARE lock on auth.users before
+      // membership/assignment locks. The cascade queues behind it, then removes
+      // membership and grant after assignment commits without a deadlock.
+      const principalHolderName = `staffing-principal-holder-${suffix}`;
+      const assignBeforePrincipalDeleteName = `staffing-assign-before-principal-delete-${suffix}`;
+      const principalDeleteName = `staffing-principal-delete-${suffix}`;
+      names.push(principalHolderName, assignBeforePrincipalDeleteName, principalDeleteName);
+      const principalHolder = startSession(principalHolderName);
+      sessions.push(principalHolder);
+      const principalKey = await assignmentKey(evaluators[3]!);
+      principalHolder.stdin?.write(
+        `select pg_advisory_lock(${principalKey}); select 'holder_ready';\n`,
+      );
+      await waitForOutput(principalHolder, 'holder_ready');
+      const assignBeforePrincipalDelete = callAssign(
+        evaluators[3]!,
+        assignBeforePrincipalDeleteName,
+      );
+      expect(
+        await waitForBlockingEdge(assignBeforePrincipalDeleteName, principalHolderName),
+      ).toMatch(/advisory/u);
+      const principalDelete = psql(
+        `delete from auth.users where id='${evaluators[3]}'`,
+        principalDeleteName,
+      );
+      expect(
+        await waitForBlockingEdge(principalDeleteName, assignBeforePrincipalDeleteName),
+      ).toMatch(/transactionid|tuple/u);
+      principalHolder.stdin?.write(`select pg_advisory_unlock(${principalKey});\n\\q\n`);
+      await expect(assignBeforePrincipalDelete).resolves.toMatchObject({
+        stdout: expect.stringContaining('assigned'),
+      });
+      await principalDelete;
+      expect(
+        (await psql(`select count(*) from auth.users where id='${evaluators[3]}'`)).stdout.trim(),
+      ).toBe('0');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.organization_members where organization_id='${organization}' and user_id='${evaluators[3]}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('0');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.tryout_staff_assignments where organization_id='${organization}' and user_id='${evaluators[3]}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('0');
+
       // Delete-first: a hard membership delete owns the same row. The assigner
       // waits, then returns not_member without creating a grant.
       const deleteName = `staffing-delete-${suffix}`;
@@ -241,7 +293,7 @@ describe('evaluator assignment membership serialization', () => {
         delete from public.tryouts where organization_id='${organization}';
         delete from public.organization_members where organization_id='${organization}';
         delete from public.organizations where id='${organization}';
-        delete from auth.users where id in ('${owner}','${evaluators[0]}','${evaluators[1]}','${evaluators[2]}');
+        delete from auth.users where id in ('${owner}','${evaluators[0]}','${evaluators[1]}','${evaluators[2]}','${evaluators[3]}');
         set session_replication_role=origin;
       `).catch(() => undefined);
     }

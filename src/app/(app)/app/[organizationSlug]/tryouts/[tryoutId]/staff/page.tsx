@@ -178,7 +178,10 @@ export default async function TryoutStaffPage({
       p_expires_at: undefined,
       ...scopeArgs,
     });
-    return { outcome: error ? 'unexpected' : (data[0]?.outcome ?? 'unexpected') };
+    return {
+      outcome: error ? 'unexpected' : (data[0]?.outcome ?? 'unexpected'),
+      assignmentId: error ? undefined : data[0]?.assignment_id,
+    };
   }
 
   return (

@@ -260,6 +260,63 @@ describe('assignment workspace', () => {
     );
     expect(await screen.findByText(/revoked and recorded in the audit log/i)).toBeVisible();
     expect(screen.queryByText('Evan Evaluator')).not.toBeInTheDocument();
+    expect(screen.getByText('No manageable active grants.')).toBeVisible();
+  });
+
+  it('adds a successful assignment to the current grant list without a reload', async () => {
+    const user = userEvent.setup();
+    render(
+      <AssignmentWorkspace
+        assignments={[]}
+        evaluators={[{ userId: evaluatorId, displayName: 'Evan Evaluator' }]}
+        onAssign={async () => ({
+          outcome: 'assigned',
+          assignmentId: '77777777-7777-4777-8777-777777777777',
+        })}
+        onInvite={async () => ({ outcome: 'manual_share', shareUrl: '/invite/secret' })}
+        onRevoke={async () => ({ outcome: 'revoked' })}
+        scopes={[{ value: `division:${divisionId}`, label: 'U13 division' }]}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText('Evaluator'), evaluatorId);
+    await user.selectOptions(screen.getByLabelText('Evaluation scope'), `division:${divisionId}`);
+    await user.click(screen.getByRole('button', { name: 'Assign evaluator' }));
+    expect(await screen.findByText('Evaluator assigned.')).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Revoke Evan Evaluator from U13 division' }),
+    ).toBeVisible();
+    expect(screen.queryByText('No manageable active grants.')).not.toBeInTheDocument();
+  });
+
+  it('does not claim an audit event when a stale grant was already revoked', async () => {
+    const user = userEvent.setup();
+    render(
+      <AssignmentWorkspace
+        assignments={[
+          {
+            assignmentId: '77777777-7777-4777-8777-777777777777',
+            evaluatorUserId: evaluatorId,
+            evaluatorName: 'Evan Evaluator',
+            scopeLabel: 'Skills — Blue',
+            scopeKind: 'group',
+            expiresAt: null,
+          },
+        ]}
+        evaluators={[]}
+        onAssign={async () => ({ outcome: 'assigned' })}
+        onInvite={async () => ({ outcome: 'manual_share', shareUrl: '/invite/secret' })}
+        onRevoke={async () => ({ outcome: 'already_revoked' })}
+        scopes={[]}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Revoke Evan Evaluator from Skills — Blue' }),
+    );
+    expect(await screen.findByText(/access was already inactive/i)).toBeVisible();
+    expect(screen.queryByText(/recorded in the audit log/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Evan Evaluator')).not.toBeInTheDocument();
   });
 
   it('does not claim email was unsent when notifier delivery was queued', async () => {
