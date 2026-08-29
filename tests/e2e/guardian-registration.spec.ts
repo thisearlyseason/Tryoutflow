@@ -32,7 +32,7 @@ test('guardian can complete the accessible public registration form on mobile', 
   await page.getByLabel('I consent').check();
   await page.getByRole('button', { name: 'Submit registration' }).click();
   await expect(page).toHaveURL(/confirmation/);
-  await expect(page.getByRole('heading', { name: 'Registration received' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Registration confirmation' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true);

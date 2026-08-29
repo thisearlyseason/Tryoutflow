@@ -63,6 +63,6 @@ describe('registration application command', () => {
           notifier: noRegistrationConfirmationNotifier,
         },
       ),
-    ).resolves.toEqual({ accepted: true, delivery: 'not_configured' });
+    ).resolves.toEqual({ accepted: true, delivery: 'not_configured', confirmationToken: 'secret' });
   });
 });

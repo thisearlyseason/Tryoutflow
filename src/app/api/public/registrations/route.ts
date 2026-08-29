@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     });
     const row = configuration.data?.[0];
     if (configuration.error || !row) return genericError(400);
-    await registerAthlete(
+    const command = await registerAthlete(
       {
         tryoutSlug: body.tryoutSlug,
         idempotencyKey: body.idempotencyKey,
@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
         notifier: noRegistrationConfirmationNotifier,
         gateway: {
           async submit(input) {
-            const result = await client.rpc('submit_public_registration', {
+            const result = await client.rpc('submit_public_registration_with_phone', {
               p_tryout_slug: input.tryoutSlug,
               p_submission: input.submission as Json,
               p_idempotency_key: input.idempotencyKey,
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         },
       },
     );
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, manualConfirmationToken: command.confirmationToken });
   } catch (error) {
     if (error instanceof Error && error.message === 'rate_limited') return genericError(429);
     return genericError(400);

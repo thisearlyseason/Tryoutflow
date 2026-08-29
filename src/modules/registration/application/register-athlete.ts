@@ -80,7 +80,11 @@ export async function registerAthlete(
     gateway: RegisterAthleteGateway;
     notifier: RegistrationConfirmationNotifier;
   },
-): Promise<{ accepted: boolean; delivery: 'queued' | 'not_configured' | 'not_attempted' }> {
+): Promise<{
+  accepted: boolean;
+  delivery: 'queued' | 'not_configured' | 'not_attempted';
+  confirmationToken?: string;
+}> {
   const submission = validateRegistrationSubmission(input.submission, dependencies.form);
   const result = await dependencies.gateway.submit({
     tryoutSlug: input.tryoutSlug,
@@ -94,5 +98,9 @@ export async function registerAthlete(
     confirmationToken: result.confirmationToken,
     guardianEmail: submission.guardianEmail.trim().toLocaleLowerCase('en-CA'),
   });
-  return { accepted: true, delivery: notification.queued ? 'queued' : 'not_configured' };
+  return {
+    accepted: true,
+    delivery: notification.queued ? 'queued' : 'not_configured',
+    confirmationToken: notification.queued ? undefined : result.confirmationToken,
+  };
 }

@@ -1710,6 +1710,19 @@ export type Database = {
           registration_id: string;
         }[];
       };
+      submit_public_registration_with_phone: {
+        Args: {
+          p_idempotency_key: string;
+          p_rate_key_hash: string;
+          p_submission: Json;
+          p_tryout_slug: string;
+        };
+        Returns: {
+          confirmation_token: string;
+          outcome: string;
+          registration_id: string;
+        }[];
+      };
       transition_tryout_lifecycle: {
         Args: {
           p_action: string;

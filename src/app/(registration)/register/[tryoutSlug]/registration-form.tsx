@@ -76,6 +76,13 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
         }),
       });
       if (!response.ok) throw new Error('failed');
+      const result = (await response.json()) as { manualConfirmationToken?: string };
+      if (result.manualConfirmationToken) {
+        window.sessionStorage.setItem(
+          'tryoutflow:registration:confirmation',
+          result.manualConfirmationToken,
+        );
+      }
       window.sessionStorage.removeItem(`tryoutflow:registration:${tryoutSlug}:idempotency`);
       window.location.assign(`/register/${encodeURIComponent(tryoutSlug)}/confirmation`);
     } catch {
