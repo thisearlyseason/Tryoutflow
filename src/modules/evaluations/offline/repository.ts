@@ -1,4 +1,4 @@
-import Dexie, { type Transaction } from 'dexie';
+import Dexie, { type IndexableType, type Transaction } from 'dexie';
 import { z } from 'zod';
 
 import {
@@ -267,6 +267,28 @@ function receiptPayload(receipt: Omit<StoredEvaluationReceipt, 'receiptDigest'>)
   return receipt;
 }
 
+type QuarantineTrust = {
+  physicalKey?: IndexableType;
+  scope?: EvaluationStorageScope;
+  clientMutationId?: string;
+};
+
+function indexableKeyPayload(value: unknown): unknown {
+  if (typeof value === 'string') return ['string', value];
+  if (typeof value === 'number') return ['number', Object.is(value, -0) ? '-0' : String(value)];
+  if (value instanceof Date) return ['date', value.toISOString()];
+  if (Array.isArray(value)) return ['array', value.map((part) => indexableKeyPayload(part))];
+  if (value instanceof ArrayBuffer) return ['bytes', [...new Uint8Array(value)]];
+  if (ArrayBuffer.isView(value)) {
+    return ['bytes', [...new Uint8Array(value.buffer, value.byteOffset, value.byteLength)]];
+  }
+  return ['unsupported'];
+}
+
+function digestUuid(hexDigest: string): string {
+  return `${hexDigest.slice(0, 8)}-${hexDigest.slice(8, 12)}-5${hexDigest.slice(13, 16)}-8${hexDigest.slice(17, 20)}-${hexDigest.slice(20, 32)}`;
+}
+
 export class EvaluationOfflineRepository {
   readonly databaseName: string;
   private readonly quotas: EvaluationOfflineQuotas;
@@ -352,6 +374,7 @@ export class EvaluationOfflineRepository {
     reason: QuarantineReason,
     diagnostic: string,
     now: Date,
+    trust: QuarantineTrust = {},
   ): StoredEvaluationQuarantine {
     const rawObject = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     const parsedScope = evaluationScopeSchema.safeParse(rawObject.scope);
@@ -366,7 +389,8 @@ export class EvaluationOfflineRepository {
       safeRecoverySourceKey(rawObject.scopeKey, 512)
         ? safeRecoverySourceKey(rawObject.scopeKey, 512)
         : undefined;
-    const trustedScopeKey = parsedScopeKey ?? rawCounterScopeKey;
+    const callerScopeKey = trust.scope ? scopeKey(trust.scope) : undefined;
+    const trustedScopeKey = callerScopeKey ?? parsedScopeKey ?? rawCounterScopeKey;
     const sourceKeyCandidate =
       sourceTable === 'mutations' ||
       sourceTable === 'receipts' ||
@@ -375,7 +399,11 @@ export class EvaluationOfflineRepository {
         : sourceTable === 'queueCounters'
           ? rawObject.queueKey
           : rawObject.scopeKey;
-    const boundedSourceKey = safeRecoverySourceKey(sourceKeyCandidate, 600);
+    const boundedSourceKey = safeRecoverySourceKey(
+      typeof trust.physicalKey === 'string' ? trust.physicalKey : sourceKeyCandidate,
+      600,
+    );
+    const envelope = recoveryEnvelope(raw);
     const candidate = {
       quarantineKey: crypto.randomUUID(),
       ...(trustedScopeKey ? { scopeKey: trustedScopeKey } : {}),
@@ -385,7 +413,11 @@ export class EvaluationOfflineRepository {
       diagnostic: safeDiagnostic(diagnostic),
       status: 'needs_attention',
       createdAt: now.toISOString(),
-      recoveryEnvelope: recoveryEnvelope(raw),
+      recoveryEnvelope: {
+        ...envelope,
+        ...(trustedScopeKey ? { scopeKey: trustedScopeKey } : {}),
+        ...(trust.clientMutationId ? { clientMutationId: trust.clientMutationId } : {}),
+      },
     };
     const parsed = storedQuarantineSchema.safeParse(candidate);
     if (parsed.success) return parsed.data;
@@ -408,8 +440,9 @@ export class EvaluationOfflineRepository {
     reason: QuarantineReason,
     diagnostic: string,
     now: Date,
+    trust: QuarantineTrust = {},
   ): Promise<void> {
-    const quarantineRecord = this.makeQuarantine(sourceTable, raw, reason, diagnostic, now);
+    const quarantineRecord = this.makeQuarantine(sourceTable, raw, reason, diagnostic, now, trust);
     const quarantineCount = await transaction.table('quarantines').count();
     if (quarantineCount >= this.quotas.maxQuarantines) throw quotaError('quarantines');
     const rawObject = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
@@ -421,7 +454,11 @@ export class EvaluationOfflineRepository {
         : sourceTable === 'queueCounters'
           ? rawObject.queueKey
           : rawObject.scopeKey;
-    if (typeof deletionKey === 'string') await transaction.table(sourceTable).delete(deletionKey);
+    const physicalDeletionKey: IndexableType | undefined =
+      trust.physicalKey ?? (typeof deletionKey === 'string' ? deletionKey : undefined);
+    if (physicalDeletionKey !== undefined) {
+      await transaction.table<unknown, IndexableType>(sourceTable).delete(physicalDeletionKey);
+    }
     await this.assertByteQuota(transaction, quarantineRecord);
     await transaction.table('quarantines').add(storedQuarantineSchema.parse(quarantineRecord));
   }
@@ -433,8 +470,9 @@ export class EvaluationOfflineRepository {
     reason: QuarantineReason,
     diagnostic: string,
     now: Date,
+    trust: QuarantineTrust = {},
   ): Promise<void> {
-    const quarantineRecord = this.makeQuarantine(sourceTable, raw, reason, diagnostic, now);
+    const quarantineRecord = this.makeQuarantine(sourceTable, raw, reason, diagnostic, now, trust);
     const duplicate = await transaction
       .table('quarantines')
       .filter(
@@ -617,6 +655,7 @@ export class EvaluationOfflineRepository {
           'digest_mismatch',
           'A corrupt terminal tombstone was replaced by a deterministic fence.',
           now,
+          { physicalKey: storageKey, scope, clientMutationId },
         );
       }
     }
@@ -672,6 +711,54 @@ export class EvaluationOfflineRepository {
       this.database.quarantines,
       this.database.queueCounters,
     ] as const;
+  }
+
+  private async physicallyScopedTombstones(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+  ): Promise<Array<{ physicalKey: string; clientMutationId: string; raw: unknown }>> {
+    const prefix = `${scopeKey(scope)}|`;
+    const table = transaction.table<unknown, IndexableType>('receiptTombstones');
+    const allKeys = await table.toCollection().primaryKeys();
+    const physicalKeys = allKeys.filter(
+      (key): key is string => typeof key === 'string' && key.startsWith(prefix),
+    );
+    const records = await table.bulkGet(physicalKeys);
+    return physicalKeys.flatMap((physicalKey, index) => {
+      const raw = records[index];
+      if (raw === undefined) return [];
+      return [
+        {
+          physicalKey,
+          clientMutationId: physicalKey.slice(prefix.length),
+          raw,
+        },
+      ];
+    });
+  }
+
+  private async repairedQuarantineKey(
+    transaction: AllTablesTransaction,
+    scope: EvaluationStorageScope,
+    physicalKey: IndexableType,
+  ): Promise<string> {
+    const table = transaction.table<unknown, IndexableType>('quarantines');
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const digest = await Dexie.waitFor(
+        digestValue({
+          purpose: 'tryoutflow-quarantine-repair-v1',
+          scopeKey: scopeKey(scope),
+          physicalKey: indexableKeyPayload(physicalKey),
+          attempt,
+        }),
+      );
+      const candidate = digestUuid(digest);
+      if ((await table.get(candidate)) === undefined) return candidate;
+    }
+    throw new EvaluationOfflineError(
+      'corrupt_record',
+      'Malformed quarantine metadata could not be assigned a bounded repair key.',
+    );
   }
 
   private tombstoneMatchesMutation(
@@ -1945,18 +2032,20 @@ export class EvaluationOfflineRepository {
   async listQuarantines(scopeInput: EvaluationStorageScope): Promise<StoredEvaluationQuarantine[]> {
     const scope = this.parseScope(scopeInput);
     try {
-      return await this.database.transaction('rw', this.allTables(), async () => {
-        const rawRecords = await this.database.quarantines
-          .where('scopeKey')
-          .equals(scopeKey(scope))
-          .sortBy('createdAt');
+      return await this.database.transaction('rw', this.allTables(), async (transaction) => {
+        const table = transaction.table<unknown, IndexableType>('quarantines');
+        const physicalKeys = await table.where('scopeKey').equals(scopeKey(scope)).primaryKeys();
+        const rawRecords = await table.bulkGet(physicalKeys);
         const readable: StoredEvaluationQuarantine[] = [];
-        for (const raw of rawRecords) {
+        for (const [index, raw] of rawRecords.entries()) {
+          if (raw === undefined) continue;
           const parsed = storedQuarantineSchema.safeParse(raw);
           if (parsed.success) {
             readable.push(structuredClone(parsed.data));
             continue;
           }
+          const physicalKey = physicalKeys[index]!;
+          const replacementKey = await this.repairedQuarantineKey(transaction, scope, physicalKey);
           const replacement = this.makeQuarantine(
             'mutations',
             { scope, scopeKey: scopeKey(scope) },
@@ -1964,15 +2053,20 @@ export class EvaluationOfflineRepository {
             'Stored quarantine metadata was reduced to a safe minimal record.',
             new Date(),
           );
-          const rawKey =
-            raw && typeof raw === 'object'
-              ? (raw as Record<string, unknown>).quarantineKey
-              : undefined;
-          if (typeof rawKey === 'string') await this.database.quarantines.delete(rawKey);
-          await this.database.quarantines.add(replacement);
-          readable.push(structuredClone(replacement));
+          const deterministicReplacement = storedQuarantineSchema.parse({
+            ...replacement,
+            quarantineKey: replacementKey,
+          });
+          await table.delete(physicalKey);
+          await this.assertByteQuota(transaction, deterministicReplacement);
+          await table.put(deterministicReplacement, replacementKey);
+          readable.push(structuredClone(deterministicReplacement));
         }
-        return readable;
+        return readable.sort(
+          (left, right) =>
+            left.createdAt.localeCompare(right.createdAt) ||
+            left.quarantineKey.localeCompare(right.quarantineKey),
+        );
       });
     } catch (error) {
       throw mapStorageError(error, 'read');
@@ -2159,21 +2253,25 @@ export class EvaluationOfflineRepository {
         }
 
         const tombstones = new Map<string, StoredEvaluationReceiptTombstone>();
-        const rawTombstones = await this.database.receiptTombstones
-          .filter(
-            (record) =>
-              typeof record.storageKey === 'string' && record.storageKey.startsWith(`${key}|`),
-          )
-          .toArray();
-        for (const raw of rawTombstones) {
-          const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+        const rawTombstones = await this.physicallyScopedTombstones(transaction, scope);
+        for (const { physicalKey, clientMutationId, raw } of rawTombstones) {
           try {
             const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
-            tombstones.set(tombstone.storageKey, tombstone);
+            tombstones.set(physicalKey, tombstone);
             if (tombstone.reason === 'corrupt_receipt') corruption = true;
           } catch {
             if (uuid.safeParse(clientMutationId).success) {
               await this.ensureReceiptTombstone(transaction, scope, clientMutationId, new Date());
+            } else {
+              await this.moveToQuarantine(
+                transaction,
+                'receiptTombstones',
+                raw,
+                'digest_mismatch',
+                'Sync-state snapshot found an invalid terminal tombstone.',
+                new Date(),
+                { physicalKey, scope },
+              );
             }
             corruption = true;
           }
@@ -2406,10 +2504,7 @@ export class EvaluationOfflineRepository {
               typeof record.storageKey === 'string' && record.storageKey.startsWith(`${key}|`),
           )
           .toArray();
-        const rawTombstones = await this.database.receiptTombstones
-          .where('scopeKey')
-          .equals(key)
-          .toArray();
+        const rawTombstones = await this.physicallyScopedTombstones(transaction, scope);
         const rawDraft = await this.database.drafts.get(key);
         const rawContext = await this.database.sessionContexts.get(key);
         const rawCounters = await this.database.queueCounters
@@ -2445,11 +2540,10 @@ export class EvaluationOfflineRepository {
           }
         }
         const tombstoneKeys: string[] = [];
-        for (const raw of rawTombstones) {
-          const clientMutationId = raw.storageKey.slice(`${key}|`.length);
+        for (const { physicalKey, clientMutationId, raw } of rawTombstones) {
           try {
             const tombstone = await this.validateReceiptTombstone(raw, scope, clientMutationId);
-            tombstoneKeys.push(tombstone.storageKey);
+            tombstoneKeys.push(physicalKey);
           } catch {
             await this.moveToQuarantine(
               transaction,
@@ -2458,6 +2552,11 @@ export class EvaluationOfflineRepository {
               'digest_mismatch',
               'Teardown retained an invalid terminal tombstone for review.',
               new Date(),
+              {
+                physicalKey,
+                scope,
+                ...(uuid.safeParse(clientMutationId).success ? { clientMutationId } : {}),
+              },
             );
             newlyQuarantined += 1;
           }

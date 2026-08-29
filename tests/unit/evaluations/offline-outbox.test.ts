@@ -1825,4 +1825,154 @@ describe('evaluation offline outbox', () => {
     ]);
     reopened.close();
   });
+
+  it('quarantines a physically scoped tombstone with tampered embedded identity during teardown', async () => {
+    const baseName = databaseBase('physical-tombstone-teardown');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    await target.enqueueEvaluationMutation(mutation());
+    const claim = await target.nextPendingMutation(scope);
+    await target.acknowledgeMutation({
+      scope,
+      evaluationId: claim!.evaluationId,
+      clientMutationId: claim!.clientMutationId,
+      claimToken: claim!.claimToken!,
+      expectedVersion: claim!.expectedVersion,
+      payloadDigest: claim!.payloadDigest,
+      serverVersion: 3,
+      acknowledgedAt: '2026-08-29T10:00:00.000Z',
+    });
+    await target.clearAcknowledged(scope);
+    target.close();
+
+    const trustedScopeKey = Object.values(scope).join('|');
+    const physicalKey = `${trustedScopeKey}|${mutation().clientMutationId}`;
+    const tamperedClientMutationId = '30000000-0000-4000-8000-000000000099';
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const tombstone = await raw.table('receiptTombstones').get(physicalKey);
+    const { tombstoneDigest: _oldDigest, ...tombstonePayload } = tombstone;
+    const tamperedPayload = {
+      ...tombstonePayload,
+      scopeKey: Object.values(otherScope).join('|'),
+      clientMutationId: tamperedClientMutationId,
+    };
+    await raw.table('receiptTombstones').put({
+      ...tamperedPayload,
+      tombstoneDigest: await digestValue(tamperedPayload),
+    });
+    await raw.table('sessionContexts').delete(trustedScopeKey);
+    await raw.table('drafts').delete(trustedScopeKey);
+    raw.close();
+
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await expect(reopened.teardownScope(scope)).resolves.toEqual({
+      cleared: false,
+      retainedUnacknowledged: 1,
+    });
+    await expect(reopened.listQuarantines(scope)).resolves.toEqual([
+      expect.objectContaining({
+        scopeKey: trustedScopeKey,
+        sourceTable: 'receiptTombstones',
+        sourceKey: physicalKey,
+        reason: 'digest_mismatch',
+        recoveryEnvelope: expect.objectContaining({
+          scopeKey: trustedScopeKey,
+          clientMutationId: mutation().clientMutationId,
+        }),
+      }),
+    ]);
+    reopened.close();
+
+    const inspect = new Dexie(physicalName);
+    inspect.version(5).stores(v5Stores);
+    await inspect.open();
+    expect(await inspect.table('receiptTombstones').get(physicalKey)).toBeUndefined();
+    expect(await inspect.table('receiptTombstones').count()).toBe(0);
+    expect(await inspect.table('receipts').get(physicalKey)).toBeDefined();
+    inspect.close();
+
+    const replayed = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await replayed.saveSessionContext(context());
+    await expect(replayed.enqueueEvaluationMutation(mutation())).resolves.toMatchObject({
+      status: 'acknowledged',
+      clientMutationId: mutation().clientMutationId,
+    });
+    replayed.close();
+  });
+
+  it('repairs malformed quarantines by exact legal IndexedDB primary key idempotently', async () => {
+    const baseName = databaseBase('repair-runtime-quarantine-keys');
+    const physicalName = trackUserDatabase(baseName);
+    const target = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    await prepare(target);
+    target.close();
+
+    const trustedScopeKey = Object.values(scope).join('|');
+    const runtimeKeys: IDBValidKey[] = [
+      42,
+      new Date('2026-08-29T12:00:00.000Z'),
+      ['legal', 7, new Date('2026-08-29T12:01:00.000Z')],
+    ];
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    for (const quarantineKey of runtimeKeys) {
+      await raw.table('quarantines').add({
+        quarantineKey,
+        scopeKey: trustedScopeKey,
+        sourceTable: 'anything',
+        sourceKey: 'guardian@example.com',
+        reason: 'anything',
+        diagnostic: 'sensitive raw guardian@example.com',
+        status: 'needs_attention',
+        createdAt: 'bizarre',
+        recoveryEnvelope: { guardianEmail: 'guardian@example.com' },
+      });
+    }
+    raw.close();
+
+    const reopened = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName: baseName,
+    });
+    const first = await reopened.listQuarantines(scope);
+    const second = await reopened.listQuarantines(scope);
+    expect(first).toEqual(second);
+    expect(first).toHaveLength(runtimeKeys.length);
+    expect(first.every((record) => record.scopeKey === trustedScopeKey)).toBe(true);
+    expect(JSON.stringify(first)).not.toContain('guardian@example.com');
+    reopened.close();
+
+    const inspect = new Dexie(physicalName);
+    inspect.version(5).stores(v5Stores);
+    await inspect.open();
+    const repairedKeys = await inspect.table('quarantines').toCollection().primaryKeys();
+    const repairedRows = await inspect.table('quarantines').toArray();
+    expect(repairedKeys).toHaveLength(runtimeKeys.length);
+    expect(repairedKeys.every((key) => typeof key === 'string')).toBe(true);
+    expect(
+      repairedRows.sort(
+        (left, right) =>
+          String(left.createdAt).localeCompare(String(right.createdAt)) ||
+          String(left.quarantineKey).localeCompare(String(right.quarantineKey)),
+      ),
+    ).toEqual(first);
+    expect(JSON.stringify(repairedRows)).not.toContain('guardian@example.com');
+    inspect.close();
+  });
 });
