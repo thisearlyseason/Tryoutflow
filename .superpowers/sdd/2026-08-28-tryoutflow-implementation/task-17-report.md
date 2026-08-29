@@ -710,3 +710,67 @@ git diff --check                                                  PASS
   counter stores including proof consumption metadata.
 - No migration, IndexedDB version change, public conflict action, or proof-crypto/export contract
   changed. `progress.md` and Task 18 were not changed.
+
+## Revised-scope fix round 4 — exhaustive live terminal-state truth table
+
+### Status
+
+DONE — every individually valid live mutation/receipt/tombstone combination is classified by one
+shared fail-closed truth table before destructive recovery, exact replay, or future append. Task 18
+was not started. The authenticated production-cookie browser traversal remains the documented
+release-environment gate.
+
+### RED evidence
+
+- A connected pending or `needs_attention` successor carrying a digest-valid
+  `receipt_authority` tombstone but no receipt passed natural-lineage validation and was
+  destructively retired by `use_server`.
+- The same leased combination reached a later `invalid_transition` check instead of being
+  classified as corrupt terminal lineage at the common pre-write boundary.
+
+### Delivered
+
+- One terminal-state classifier is shared by connected natural-lineage validation and the direct
+  enqueue/replay preflight. Live pending, leased, and attention work is valid only without a receipt
+  or tombstone. Live acknowledged work is valid only with `synced`, cleared lease fields, its exact
+  receipt, and its exact `receipt_authority` fence. Mutation-compacted exact receipt/authority pairs
+  and the pre-existing permanent receipt-compacted fence remain supported.
+- Receipt identity, scope, evaluation, expected/successor version, payload digest, acknowledgment
+  time, and fence reason must agree. Missing artifacts, extra artifacts on nonterminal work,
+  wrong-reason fences, and digest-valid divergent fences fail with `corrupt_record`.
+- The exhaustive 4 status × 2 receipt × 4 tombstone matrix covers all 32 live combinations with
+  four hand-listed accepted cells. Each of the other 28 cells rejects future append without changing
+  any of the seven stores.
+- The exact reviewer reproduction covers a conflict head plus a connected pending, leased, or
+  attention successor with authority/no receipt. Both `use_server` and same-identity replay reject
+  before proof consumption or writes, and the complete store snapshot remains byte-equivalent.
+- Existing malformed-record quarantine recovery remains unchanged: the cross-store preflight
+  applies after individual records validate, while structurally or digest-invalid rows continue
+  through their bounded recovery path.
+
+### Verification
+
+```text
+Targeted authority-without-receipt reviewer probe                RED (3 failures), then PASS (3/3)
+Exhaustive live terminal-state matrix                            PASS (32/32)
+Focused offline outbox                                           PASS (136/136)
+npm run verify                                                    PASS (format, lint, types, 398 unit tests, build)
+npm run test:integration, repeated                               PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                           PASS (47 migrations)
+npx supabase test db --local                                      PASS (29 files / 847 tests)
+npm run test:e2e:evaluation                                       PASS (8/8; Mobile Chrome + Mobile Safari)
+npm audit --audit-level=high                                      PASS (0 vulnerabilities)
+git diff --check                                                  PASS
+```
+
+### Self-review
+
+- The accepted cells are literal test expectations, not expectations derived from the production
+  classifier. Wrong branch, wrong status, missing receipt, wrong fence reason, and divergent fence
+  mutations each fail at least one matrix cell.
+- All relevant validation runs inside the same seven-store Dexie transaction and before proof
+  consumption, draft replacement, queue retirement, terminal insertion, counter changes, or replay
+  return. Rejection snapshots include the stored proof.
+- No raw draft, note, score, athlete identity, or contact data was added to terminal metadata. No
+  migration, IndexedDB version, public API, cross-tab protocol, or conflict action changed.
+- `progress.md` and Task 18 were not changed.

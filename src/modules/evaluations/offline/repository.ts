@@ -1032,6 +1032,44 @@ export class EvaluationOfflineRepository {
       );
   }
 
+  /**
+   * Classify the complete durable state for one mutation identity. A live queue row is either
+   * ordinary nonterminal work with no terminal artifacts, or the exact acknowledged triple.
+   * Once the live row is compacted, the exact receipt plus its authority fence remain sufficient.
+   * No partial or contradictory combination involving a live mutation can authorize replay,
+   * append, or conflict recovery.
+   */
+  private assertSupportedMutationTerminalState(
+    mutation: StoredEvaluationMutation | undefined,
+    receipt: StoredEvaluationReceipt | undefined,
+    tombstone: StoredEvaluationReceiptTombstone | undefined,
+  ): void {
+    if (mutation) {
+      if (mutation.status === 'acknowledged') {
+        if (!receipt)
+          throw new EvaluationOfflineError(
+            'corrupt_record',
+            'Acknowledged work requires its exact receipt and terminal authority fence.',
+          );
+        this.assertExactReceiptTerminalTriple(mutation, receipt, tombstone);
+        return;
+      }
+      if (receipt || tombstone)
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Nonterminal work cannot carry receipt or tombstone authority.',
+        );
+      return;
+    }
+
+    if (receipt) {
+      this.assertExactReceiptTerminalTriple(undefined, receipt, tombstone);
+      return;
+    }
+    // A receipt may age out after its live mutation while the permanent digest-bound authority
+    // fence remains. That tombstone-only state blocks identity reuse but is not a live triple.
+  }
+
   private async validateQueueLineage(
     transaction: AllTablesTransaction,
     scope: EvaluationStorageScope,
@@ -1497,6 +1535,9 @@ export class EvaluationOfflineRepository {
     const mutationsByClient = new Map(
       relatedMutations.map((record) => [record.clientMutationId, record]),
     );
+    const receiptsByClient = new Map(
+      relatedReceipts.map((record) => [record.clientMutationId, record]),
+    );
     const tombstonesByClient = new Map(
       relatedTombstones.map((record) => [record.clientMutationId, record]),
     );
@@ -1527,30 +1568,12 @@ export class EvaluationOfflineRepository {
           'Target natural lineage has unresolved quarantine recovery metadata.',
         );
     }
-    for (const receipt of relatedReceipts) {
-      const mutation = mutationsByClient.get(receipt.clientMutationId);
-      const tombstone = tombstonesByClient.get(receipt.clientMutationId);
-      this.assertExactReceiptTerminalTriple(mutation, receipt, tombstone);
-    }
-    for (const tombstone of relatedTombstones) {
-      const mutation = mutationsByClient.get(tombstone.clientMutationId);
-      if (mutation && tombstone.reason !== 'receipt_authority')
-        throw new EvaluationOfflineError(
-          'corrupt_record',
-          'Resolved target mutation still has live queue lineage.',
-        );
-      if (mutation?.status === 'acknowledged') {
-        const receipt = relatedReceipts.find(
-          (candidate) => candidate.clientMutationId === tombstone.clientMutationId,
-        );
-        if (!receipt)
-          throw new EvaluationOfflineError(
-            'corrupt_record',
-            'Acknowledged target mutation is missing its exact terminal receipt.',
-          );
-        this.assertExactReceiptTerminalTriple(mutation, receipt, tombstone);
-      }
-    }
+    for (const clientMutationId of relatedClientIds)
+      this.assertSupportedMutationTerminalState(
+        mutationsByClient.get(clientMutationId),
+        receiptsByClient.get(clientMutationId),
+        tombstonesByClient.get(clientMutationId),
+      );
 
     const conflictGroups = new Map<string, StoredEvaluationReceiptTombstone[]>();
     for (const tombstone of relatedTombstones) {
@@ -2445,6 +2468,38 @@ export class EvaluationOfflineRepository {
         this.allTables(),
         async (transaction) => {
           const existingReceiptRaw = await this.database.receipts.get(baseRecord.storageKey);
+          const existingMutationRaw = await this.database.mutations.get(baseRecord.storageKey);
+          const existingTombstoneRaw = await this.database.receiptTombstones.get(
+            baseRecord.storageKey,
+          );
+          let preflightRecordsValid = true;
+          let existingMutation: StoredEvaluationMutation | undefined;
+          let existingReceipt: StoredEvaluationReceipt | undefined;
+          let existingTombstone: StoredEvaluationReceiptTombstone | undefined;
+          try {
+            existingMutation = existingMutationRaw
+              ? await this.validateMutationRecord(existingMutationRaw)
+              : undefined;
+            existingReceipt = existingReceiptRaw
+              ? await this.validateReceiptRecord(existingReceiptRaw, {
+                  scope,
+                  clientMutationId,
+                })
+              : undefined;
+            existingTombstone = existingTombstoneRaw
+              ? await this.validateReceiptTombstone(existingTombstoneRaw, scope, clientMutationId)
+              : undefined;
+          } catch {
+            // Existing recovery paths below quarantine malformed records. The truth table is for
+            // individually valid records whose cross-store combination is contradictory.
+            preflightRecordsValid = false;
+          }
+          if (preflightRecordsValid)
+            this.assertSupportedMutationTerminalState(
+              existingMutation,
+              existingReceipt,
+              existingTombstone,
+            );
           if (existingReceiptRaw) {
             try {
               const existingReceipt = await this.validateReceiptRecord(existingReceiptRaw, {
