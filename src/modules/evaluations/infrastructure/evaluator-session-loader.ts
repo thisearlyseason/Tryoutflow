@@ -4,6 +4,10 @@ import { listAssignedAthletes } from '../../staffing/application/list-assigned-a
 import type { AssignedAthleteSummary } from '../../staffing/domain/assignment';
 import { SupabaseAssignedAthleteGateway } from '../../staffing/infrastructure/supabase-assigned-athlete-gateway';
 import { requireOrganizationRouteContext } from '../../organizations/application/organization-route-context';
+import {
+  resolveEvaluatorDestinations,
+  type EvaluatorDestination,
+} from '../application/list-evaluator-destinations';
 
 export type EvaluatorSessionSummary = {
   id: string;
@@ -43,8 +47,59 @@ export type EvaluatorSessionData = {
 export type EvaluatorSessionLoadResult =
   { outcome: 'ready'; value: EvaluatorSessionData } | { outcome: 'forbidden' | 'unexpected' };
 
+export type EvaluatorLandingLoadResult =
+  { outcome: 'ready'; value: { destinations: EvaluatorDestination[] } } | { outcome: 'unexpected' };
+
 function isEvaluationState(value: string): value is OwnEvaluationSummary['state'] {
   return value === 'draft' || value === 'completed' || value === 'locked' || value === 'reopened';
+}
+
+export async function loadEvaluatorDestinations(
+  organizationSlug: string,
+): Promise<EvaluatorLandingLoadResult> {
+  const current = await requireOrganizationRouteContext(organizationSlug);
+  const tryoutIds = [
+    ...new Set(
+      current.authorization.assignments
+        .filter((assignment) => assignment.role === 'evaluator')
+        .map((assignment) => assignment.scope.tryoutId),
+    ),
+  ];
+  if (tryoutIds.length === 0) return { outcome: 'ready', value: { destinations: [] } };
+  const [tryouts, sessions] = await Promise.all([
+    current.client
+      .from('tryouts')
+      .select('id,name,status')
+      .eq('organization_id', current.organization.id)
+      .in('id', tryoutIds),
+    current.client
+      .from('tryout_sessions')
+      .select('id,tryout_id,division_id,name')
+      .eq('organization_id', current.organization.id)
+      .in('tryout_id', tryoutIds),
+  ]);
+  if (tryouts.error || sessions.error) return { outcome: 'unexpected' };
+  return {
+    outcome: 'ready',
+    value: {
+      destinations: resolveEvaluatorDestinations(
+        current.authorization,
+        tryouts.data.map((tryout) => ({
+          organizationId: current.organization.id,
+          id: tryout.id,
+          name: tryout.name,
+          status: tryout.status,
+        })),
+        sessions.data.map((session) => ({
+          organizationId: current.organization.id,
+          id: session.id,
+          tryoutId: session.tryout_id,
+          divisionId: session.division_id,
+          name: session.name,
+        })),
+      ),
+    },
+  };
 }
 
 export async function loadEvaluatorSession(

@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 test('scores assigned athletes one-handed without losing an in-page draft', async ({ page }) => {
@@ -7,6 +8,7 @@ test('scores assigned athletes one-handed without losing an in-page draft', asyn
   await expect(page.locator('body')).not.toContainText('Ava Smith');
 
   const skating = page.getByRole('radio', { name: 'Skating score 3 of 5' });
+  await expect(skating).toBeEnabled();
   await skating.focus();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: 'Skating score 4 of 5' })).toBeChecked();
@@ -48,6 +50,8 @@ test('scores assigned athletes one-handed without losing an in-page draft', asyn
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
 });
 
 test('states conflict and offline limits without overwriting the page draft', async ({
@@ -56,15 +60,29 @@ test('states conflict and offline limits without overwriting the page draft', as
 }) => {
   await page.goto('/dddddddd-dddd-4ddd-8ddd-dddddddddddd');
   const note = page.getByLabel('Private evaluator note');
+  await expect(note).toBeEnabled();
   await note.fill('trigger conflict');
   await expect(page.getByRole('status')).toContainText('Server draft changed');
   await expect(note).toHaveValue('trigger conflict');
   await expect(page.getByRole('button', { name: 'Save now' })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'trigger conflict',
+  );
+  await expect(page.getByRole('button', { name: 'Copy local draft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download local draft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save now' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Keep my local draft' }).click();
+  await note.fill('resolved local draft');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('status')).toContainText('Saved on server');
 
   await page.goto('/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+  await expect(page.getByLabel('Private evaluator note')).toBeEnabled();
   await context.setOffline(true);
   await page.getByLabel('Private evaluator note').fill('Page-only while disconnected');
   await expect(page.getByRole('status')).toContainText('Offline');
-  await expect(page.getByRole('status')).toContainText('Changes remain on this page only');
+  await expect(page.getByRole('status')).toContainText('retained for this browser session');
   await context.setOffline(false);
 });

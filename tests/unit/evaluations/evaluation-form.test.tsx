@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderToString } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AthletePager } from '../../../src/modules/evaluations/ui/athlete-pager';
 import { EvaluationForm } from '../../../src/modules/evaluations/ui/evaluation-form';
@@ -41,6 +41,19 @@ const categories = [
     required: true,
   },
 ];
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+  window.sessionStorage.clear();
+});
 
 describe('ScoreControl', () => {
   it('emits an integer category score from a 44px radio target', async () => {
@@ -128,7 +141,7 @@ describe('EvaluationSaveState', () => {
     ['saved', 'Saved on server'],
     ['conflict', 'Server draft changed'],
     ['offline', 'Offline'],
-    ['error', 'Save failed'],
+    ['unconfirmed', 'Save not confirmed'],
   ] as const)('renders a truthful %s state', (state, message) => {
     render(<EvaluationSaveState state={state} />);
     expect(screen.getByRole('status')).toHaveTextContent(message);
@@ -243,6 +256,12 @@ describe('EvaluationForm', () => {
     await act(async () => vi.advanceTimersByTime(700));
     expect(await screen.findByRole('status')).toHaveTextContent('Server draft changed');
     expect(screen.getByLabelText('Private evaluator note')).toHaveValue('Do not lose this');
+    expect(
+      screen.queryByRole('button', { name: 'Reload and compare safely' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('exists on this page only');
+    expect(screen.getByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
     await act(async () => vi.advanceTimersByTime(5_000));
     expect(onSave).toHaveBeenCalledTimes(1);
     vi.useRealTimers();
@@ -338,6 +357,398 @@ describe('EvaluationForm', () => {
     );
     vi.useRealTimers();
   });
+
+  it('drains the active save and newest queued revision before one double-click-safe completion', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const first = deferred<{
+      outcome: 'saved';
+      evaluationId: string;
+      version: number;
+    }>();
+    const second = deferred<{
+      outcome: 'saved';
+      evaluationId: string;
+      version: number;
+    }>();
+    const completion = deferred<{ outcome: 'completed'; version: number }>();
+    const onSave = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
+    const onComplete = vi.fn(() => completion.promise);
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="queue-drain"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 1,
+          state: 'draft',
+          scores: [
+            { categoryId: skatingId, value: 4 },
+            { categoryId: competeId, value: 4 },
+          ],
+          note: '',
+        }}
+        onComplete={onComplete}
+        onSave={onSave}
+      />,
+    );
+
+    const note = screen.getByLabelText('Private evaluator note');
+    await user.type(note, 'First');
+    await act(async () => vi.advanceTimersByTime(700));
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    await user.type(note, ' queued');
+    const completeButton = screen.getByRole('button', { name: 'Complete evaluation' });
+    expect(completeButton).toBeEnabled();
+    await user.dblClick(completeButton);
+    expect(completeButton).toBeDisabled();
+    expect(onComplete).not.toHaveBeenCalled();
+
+    await act(async () =>
+      first.resolve({
+        outcome: 'saved',
+        evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        version: 2,
+      }),
+    );
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ note: 'First queued', expectedVersion: 2 }),
+    );
+    expect(onComplete).not.toHaveBeenCalled();
+
+    await act(async () =>
+      second.resolve({
+        outcome: 'saved',
+        evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        version: 3,
+      }),
+    );
+    await waitFor(() =>
+      expect(onComplete).toHaveBeenCalledWith({
+        evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        expectedVersion: 3,
+      }),
+    );
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    await act(async () => completion.resolve({ outcome: 'completed', version: 4 }));
+    expect(await screen.findByRole('button', { name: 'Evaluation completed' })).toBeDisabled();
+  });
+
+  it('does not complete when the server locks an active save', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const save = deferred<{ outcome: 'locked' }>();
+    const onComplete = vi.fn();
+    const first = render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="server-lock"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 1,
+          state: 'draft',
+          scores: [
+            { categoryId: skatingId, value: 4 },
+            { categoryId: competeId, value: 4 },
+          ],
+          note: '',
+        }}
+        onComplete={onComplete}
+        onSave={() => save.promise}
+      />,
+    );
+    await user.type(screen.getByLabelText('Private evaluator note'), 'Changed');
+    await act(async () => vi.advanceTimersByTime(700));
+    await user.click(screen.getByRole('button', { name: 'Complete evaluation' }));
+    await act(async () => save.resolve({ outcome: 'locked' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Evaluation locked');
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Private evaluator note')).toBeDisabled();
+    first.unmount();
+
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="server-lock"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 2,
+          state: 'locked',
+          scores: [
+            { categoryId: skatingId, value: 4 },
+            { categoryId: competeId, value: 4 },
+          ],
+          note: 'Server copy',
+        }}
+        onComplete={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Review local and server drafts' }),
+    ).toBeVisible();
+    expect(screen.getByRole('article', { name: 'Local draft' })).toHaveTextContent('Changed');
+    expect(screen.getByRole('button', { name: 'Keep my local draft' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Use server draft' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Copy local draft' })).toBeVisible();
+  });
+
+  it('keeps a queued later edit dirty until that exact revision is confirmed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const first = deferred<{
+      outcome: 'saved';
+      evaluationId: string;
+      version: number;
+    }>();
+    const second = deferred<{
+      outcome: 'saved';
+      evaluationId: string;
+      version: number;
+    }>();
+    const onSave = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(() => second.promise);
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="later-edit"
+        initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+        onComplete={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    const note = screen.getByLabelText('Private evaluator note');
+    await user.type(note, 'One');
+    await act(async () => vi.advanceTimersByTime(700));
+    await user.type(note, ' two');
+    await act(async () =>
+      first.resolve({
+        outcome: 'saved',
+        evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        version: 1,
+      }),
+    );
+    expect(await screen.findByRole('status')).not.toHaveTextContent('Saved on server');
+    expect(window.sessionStorage.length).toBe(1);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    await act(async () =>
+      second.resolve({
+        outcome: 'saved',
+        evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        version: 2,
+      }),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved on server');
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it('clears a confirmed draft so returning does not issue a redundant CAS save', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const firstSave = vi.fn(async () => ({
+      outcome: 'saved' as const,
+      evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      version: 1,
+    }));
+    const first = render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="confirmed-return"
+        initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+        onComplete={vi.fn()}
+        onSave={firstSave}
+      />,
+    );
+    await user.type(screen.getByLabelText('Private evaluator note'), 'Confirmed');
+    await act(async () => vi.advanceTimersByTime(700));
+    expect(await screen.findByRole('status')).toHaveTextContent('Saved on server');
+    first.unmount();
+
+    const returnSave = vi.fn();
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="confirmed-return"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 1,
+          state: 'draft',
+          scores: [],
+          note: 'Confirmed',
+        }}
+        onComplete={vi.fn()}
+        onSave={returnSave}
+      />,
+    );
+    await act(async () => vi.advanceTimersByTime(2_000));
+    expect(screen.getByRole('status')).toHaveTextContent('Saved on server');
+    expect(returnSave).not.toHaveBeenCalled();
+  });
+
+  it('retains a conflict draft across reload and requires explicit reconciliation before overwrite', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const first = render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="conflict-reload"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 1,
+          state: 'draft',
+          scores: [],
+          note: 'Old server copy',
+        }}
+        onComplete={vi.fn()}
+        onSave={async () => ({ outcome: 'conflict' })}
+      />,
+    );
+    const note = screen.getByLabelText('Private evaluator note');
+    await user.clear(note);
+    await user.type(note, 'Local sensitive note');
+    await act(async () => vi.advanceTimersByTime(700));
+    expect(await screen.findByRole('status')).toHaveTextContent('Server draft changed');
+    first.unmount();
+
+    const onSave = vi.fn(async () => ({
+      outcome: 'saved' as const,
+      evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      version: 3,
+    }));
+    render(
+      <EvaluationForm
+        athlete={athlete}
+        categories={categories}
+        draftCacheKey="conflict-reload"
+        initialDraft={{
+          evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          version: 2,
+          state: 'draft',
+          scores: [],
+          note: 'New server copy',
+        }}
+        onComplete={vi.fn()}
+        onSave={onSave}
+      />,
+    );
+    expect(
+      await screen.findByRole('heading', { name: 'Review local and server drafts' }),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole('article', { name: 'Local draft' })).getByText(
+        'Local sensitive note',
+      ),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole('article', { name: 'Server draft loaded after reload' })).getByText(
+        'New server copy',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Copy local draft' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Download local draft' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Save now' })).toBeDisabled();
+
+    await user.click(screen.getByRole('button', { name: 'Keep my local draft' }));
+    await user.click(screen.getByRole('button', { name: 'Save now' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ note: 'Local sensitive note', expectedVersion: 2 }),
+    );
+  });
+
+  it.each([
+    ['forbidden', 'Access removed', true],
+    ['invalid_input', 'Draft validation failed', false],
+    ['invalid_context', 'Evaluation context changed', true],
+    ['invalid_score', 'Score not accepted', false],
+    ['invalid_note_tag', 'Tag no longer available', false],
+    ['locked', 'Evaluation locked', true],
+    ['unexpected', 'Save not confirmed', false],
+  ] as const)(
+    'maps save outcome %s to truthful recovery and editability',
+    async (outcome, message, disabled) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(
+        <EvaluationForm
+          athlete={athlete}
+          categories={categories}
+          draftCacheKey={`outcome-${outcome}`}
+          initialDraft={{ evaluationId: null, version: 0, state: 'draft', scores: [] }}
+          onComplete={vi.fn()}
+          onSave={async () => ({ outcome })}
+        />,
+      );
+      await user.type(screen.getByLabelText('Private evaluator note'), 'Retained');
+      await act(async () => vi.advanceTimersByTime(700));
+      expect(await screen.findByRole('status')).toHaveTextContent(message);
+      expect(screen.getByLabelText('Private evaluator note')).toHaveValue('Retained');
+      expect(screen.getByLabelText('Private evaluator note')).toHaveProperty('disabled', disabled);
+      expect(window.sessionStorage.length).toBe(1);
+    },
+  );
+
+  it.each([
+    ['forbidden', 'Access removed', true, false],
+    ['required_scores_missing', 'Required scores missing', false, false],
+    ['locked', 'Evaluation locked', true, false],
+    ['conflict', 'Server draft changed', false, true],
+    ['unexpected', 'Save not confirmed', false, true],
+  ] as const)(
+    'maps completion outcome %s without claiming success',
+    async (outcome, message, disabled, reviews) => {
+      const user = userEvent.setup();
+      const onComplete = vi.fn(async () => ({ outcome }));
+      render(
+        <EvaluationForm
+          athlete={athlete}
+          categories={categories}
+          draftCacheKey={`completion-${outcome}`}
+          initialDraft={{
+            evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            version: 2,
+            state: 'draft',
+            scores: [
+              { categoryId: skatingId, value: 4 },
+              { categoryId: competeId, value: 4 },
+            ],
+            note: 'Confirmed draft',
+          }}
+          onComplete={onComplete}
+          onSave={vi.fn()}
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Complete evaluation' }));
+      expect(await screen.findByRole('status')).toHaveTextContent(message);
+      expect(onComplete).toHaveBeenCalledWith({
+        evaluationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        expectedVersion: 2,
+      });
+      expect(screen.getByLabelText('Private evaluator note')).toHaveProperty('disabled', disabled);
+      if (reviews) {
+        expect(
+          screen.getByRole('heading', { name: 'Review local and server drafts' }),
+        ).toBeVisible();
+        expect(window.sessionStorage.length).toBe(1);
+      }
+    },
+  );
 
   it('renders configured tags and evaluator-owned flags as touch-sized controls', async () => {
     const user = userEvent.setup();

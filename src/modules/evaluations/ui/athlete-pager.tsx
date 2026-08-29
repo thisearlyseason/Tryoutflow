@@ -6,11 +6,13 @@ const linkClass =
   'min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 py-3 text-center font-bold text-[var(--color-primary)] focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)]';
 
 export function AthletePager({
+  ariaLabel = 'Athlete navigation',
   currentIndex,
   nextHref,
   previousHref,
   total,
 }: {
+  ariaLabel?: string;
   currentIndex: number;
   nextHref: string | null;
   previousHref: string | null;
@@ -18,7 +20,7 @@ export function AthletePager({
 }) {
   return (
     <nav
-      aria-label="Athlete navigation"
+      aria-label={ariaLabel}
       className="grid min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-2"
     >
       {previousHref ? (

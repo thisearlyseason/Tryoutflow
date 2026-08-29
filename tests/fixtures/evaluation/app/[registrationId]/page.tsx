@@ -73,7 +73,9 @@ export default async function EvaluationFixturePage({
 
   return (
     <main className="mx-auto grid min-h-dvh min-w-0 max-w-3xl gap-5 overflow-x-clip px-4 py-5">
+      <h1 className="sr-only">Evaluator scoring</h1>
       <AthletePager
+        ariaLabel="Athlete navigation above scoring"
         currentIndex={index}
         nextHref={next ? `/${next.registrationId}` : null}
         previousHref={previous ? `/${previous.registrationId}` : null}
@@ -98,6 +100,7 @@ export default async function EvaluationFixturePage({
         onSave={onSave}
       />
       <AthletePager
+        ariaLabel="Athlete navigation below scoring"
         currentIndex={index}
         nextHref={next ? `/${next.registrationId}` : null}
         previousHref={previous ? `/${previous.registrationId}` : null}

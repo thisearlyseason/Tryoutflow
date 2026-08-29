@@ -6,7 +6,7 @@ import type { OwnEvaluationSummary } from '../infrastructure/evaluator-session-l
 export function EvaluationRouteMessage({
   outcome,
 }: {
-  outcome: 'forbidden' | 'unexpected' | 'empty';
+  outcome: 'forbidden' | 'unexpected' | 'empty' | 'empty_assignments';
 }) {
   const content =
     outcome === 'forbidden'
@@ -20,10 +20,15 @@ export function EvaluationRouteMessage({
             heading: 'No assigned athletes',
             detail: 'There are no eligible athletes in your current session assignment.',
           }
-        : {
-            heading: 'Evaluation workspace unavailable',
-            detail: 'The session could not be loaded. Refresh the page or try again shortly.',
-          };
+        : outcome === 'empty_assignments'
+          ? {
+              heading: 'No active evaluator assignments',
+              detail: 'Ask an organizer to assign you to a tryout, division, session, or group.',
+            }
+          : {
+              heading: 'Evaluation workspace unavailable',
+              detail: 'The session could not be loaded. Refresh the page or try again shortly.',
+            };
   return (
     <section
       aria-labelledby="evaluation-state-heading"

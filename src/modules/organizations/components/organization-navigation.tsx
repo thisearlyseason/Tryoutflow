@@ -19,20 +19,28 @@ export function OrganizationNavigation({
         .map((assignment) => assignment.scope.tryoutId),
     ),
   ];
+  const evaluates = authorization.assignments.some((assignment) => assignment.role === 'evaluator');
+  const evaluatorLinks = evaluates
+    ? ([['Evaluate', `/app/${organizationSlug}/evaluate`]] as string[][])
+    : [];
   const links = managesOrganization
     ? [
         ['Home', `/app/${organizationSlug}/home`],
         ['Tryouts', `/app/${organizationSlug}/tryouts`],
         ['Athletes', `/app/${organizationSlug}/athletes`],
+        ...evaluatorLinks,
         ['Evaluators', `/app/${organizationSlug}/evaluators`],
         ['Members', `/app/${organizationSlug}/organization/members`],
         ['Settings', `/app/${organizationSlug}/organization/settings`],
       ]
-    : staffedTryouts.map((tryoutId, index) => [
-        staffedTryouts.length === 1 ? 'Staff' : `Staff ${index + 1}`,
-        `/app/${organizationSlug}/tryouts/${tryoutId}/staff`,
-        `Staff for tryout ${tryoutId}`,
-      ]);
+    : [
+        ...evaluatorLinks,
+        ...staffedTryouts.map((tryoutId, index) => [
+          staffedTryouts.length === 1 ? 'Staff' : `Staff ${index + 1}`,
+          `/app/${organizationSlug}/tryouts/${tryoutId}/staff`,
+          `Staff for tryout ${tryoutId}`,
+        ]),
+      ];
 
   return (
     <nav

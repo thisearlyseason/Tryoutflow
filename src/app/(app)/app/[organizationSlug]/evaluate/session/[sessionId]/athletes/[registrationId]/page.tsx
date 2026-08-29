@@ -128,6 +128,7 @@ export default async function AthleteEvaluationPage({
   return (
     <section aria-labelledby="athlete-heading" className="mx-auto grid min-w-0 max-w-3xl gap-5">
       <AthletePager
+        ariaLabel="Athlete navigation above scoring"
         currentIndex={athleteIndex}
         nextHref={next ? `${basePath}/athletes/${next.registrationId}` : null}
         previousHref={previous ? `${basePath}/athletes/${previous.registrationId}` : null}
@@ -144,13 +145,14 @@ export default async function AthleteEvaluationPage({
           groupName: ownDraft.athlete.groupName,
         }}
         categories={loaded.value.categories}
-        draftCacheKey={`${loaded.value.current.organization.id}:${sessionId}:${registrationId}`}
+        draftCacheKey={`${loaded.value.current.userId}:${loaded.value.current.organization.id}:${loaded.value.session.tryoutId}:${sessionId}:${registrationId}:${loaded.value.rubricVersionId}`}
         initialDraft={ownDraft.draft}
         noteTags={loaded.value.noteTags}
         onComplete={onComplete}
         onSave={onSave}
       />
       <AthletePager
+        ariaLabel="Athlete navigation below scoring"
         currentIndex={athleteIndex}
         nextHref={next ? `${basePath}/athletes/${next.registrationId}` : null}
         previousHref={previous ? `${basePath}/athletes/${previous.registrationId}` : null}

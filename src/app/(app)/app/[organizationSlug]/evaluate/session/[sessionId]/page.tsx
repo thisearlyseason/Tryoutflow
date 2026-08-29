@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { loadEvaluatorSession } from '@/modules/evaluations/infrastructure/evaluator-session-loader';
+import { firstIncompleteAssignedAthlete } from '@/modules/evaluations/application/list-evaluator-destinations';
 import { EvaluationRouteMessage } from '@/modules/evaluations/ui/session-state';
 
 export default async function EvaluatorSessionPage({
@@ -17,6 +18,7 @@ export default async function EvaluatorSessionPage({
     (evaluation) => evaluation.state === 'completed' || evaluation.state === 'locked',
   ).length;
   const basePath = `/app/${organizationSlug}/evaluate/session/${sessionId}`;
+  const nextIncomplete = firstIncompleteAssignedAthlete(athletes, evaluations);
   return (
     <section aria-labelledby="evaluator-session-heading" className="grid min-w-0 gap-6">
       <header>
@@ -29,9 +31,9 @@ export default async function EvaluatorSessionPage({
       <div className="grid gap-3 sm:grid-cols-3">
         <Link
           className="min-h-[44px] rounded-xl bg-[var(--color-primary)] p-5 font-bold text-[var(--color-primary-foreground)]"
-          href={`${basePath}/athletes/${athletes[0]?.registrationId}`}
+          href={nextIncomplete ? `${basePath}/athletes/${nextIncomplete}` : `${basePath}/progress`}
         >
-          Continue scoring
+          {nextIncomplete ? 'Continue scoring' : 'Review completed session'}
         </Link>
         <Link
           className="min-h-[44px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 font-bold"
