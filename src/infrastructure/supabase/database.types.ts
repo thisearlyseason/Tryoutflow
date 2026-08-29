@@ -1576,9 +1576,29 @@ export type Database = {
         };
         Returns: boolean;
       };
+      canonical_athlete_identity_lock_key: {
+        Args: {
+          p_birth_date: string;
+          p_family_name: string;
+          p_given_name: string;
+          p_organization_id: string;
+        };
+        Returns: number;
+      };
       canonical_import_text: { Args: { value: string }; Returns: string };
       canonical_registration_text: { Args: { value: string }; Returns: string };
       commit_athlete_import: {
+        Args: {
+          p_organization_id: string;
+          p_preview_id: string;
+          p_selected_rows: number[];
+        };
+        Returns: {
+          athlete_ids: string[];
+          outcome: string;
+        }[];
+      };
+      commit_athlete_import_after_identity_locks: {
         Args: {
           p_organization_id: string;
           p_preview_id: string;
