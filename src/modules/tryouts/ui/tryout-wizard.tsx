@@ -41,12 +41,16 @@ const guidance: Record<TryoutSetupStep, { title: string; description: string }> 
 export function TryoutWizard({
   action,
   blockers,
+  divisions = [],
   name,
+  sessions = [],
   step,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   blockers: string[];
+  divisions?: { id: string; name: string }[];
   name: string;
+  sessions?: { id: string; name: string }[];
   step: TryoutSetupStep;
 }) {
   const [confirmation, setConfirmation] = useState('');
@@ -85,10 +89,96 @@ export function TryoutWizard({
               value={confirmation}
             />
           </label>
+        ) : step === 'basics' ? (
+          <>
+            <label className="block">
+              Name
+              <Input defaultValue={name} name="name" required />
+            </label>
+            <label className="block">
+              Sport
+              <Input name="sport" required />
+            </label>
+            <label className="block">
+              Timezone
+              <Input name="timezone" required />
+            </label>
+            <label className="block">
+              Registration opens
+              <Input name="registrationStartsAt" required type="datetime-local" />
+            </label>
+            <label className="block">
+              Registration closes
+              <Input name="registrationEndsAt" required type="datetime-local" />
+            </label>
+          </>
+        ) : step === 'divisions' ? (
+          <label className="block">
+            Division name
+            <Input name="name" required />
+          </label>
+        ) : step === 'sessions' ? (
+          <>
+            <label className="block">
+              Division
+              <select className="w-full" name="divisionId" required>
+                {divisions.map((division) => (
+                  <option key={division.id} value={division.id}>
+                    {division.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              Session name
+              <Input name="name" required />
+            </label>
+            <label className="block">
+              Starts
+              <Input name="startsAt" required type="datetime-local" />
+            </label>
+            <label className="block">
+              Ends
+              <Input name="endsAt" required type="datetime-local" />
+            </label>
+            <label className="block">
+              Group (optional)
+              <Input name="groupName" />
+            </label>
+            <label className="block">
+              Position (optional)
+              <Input name="positionName" />
+            </label>
+          </>
+        ) : step === 'registration' ? (
+          <label className="block">
+            Form name
+            <Input name="name" required />
+          </label>
+        ) : step === 'rubrics' ? (
+          <>
+            <label className="block">
+              Session
+              <select className="w-full" name="sessionId" required>
+                {sessions.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {session.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              Rubric name
+              <Input name="name" required />
+            </label>
+            <label className="block">
+              Category name
+              <Input name="categoryName" required />
+            </label>
+          </>
         ) : (
           <p className="rounded-lg bg-[var(--color-surface-muted)] p-3 text-sm">
-            Mark this step complete after saving its configuration. Your progress is saved and you
-            can resume this draft from any device.
+            This step is validated from saved configuration.
           </p>
         )}
         <Button

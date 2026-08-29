@@ -9,6 +9,10 @@ import {
   tryoutSetupSteps,
   type TryoutSetupStep,
 } from '@/modules/tryouts/application/save-tryout-setup-step';
+import {
+  saveWizardConfiguration,
+  wizardPayload,
+} from '@/modules/tryouts/application/save-wizard-configuration';
 import { TryoutWizard } from '@/modules/tryouts/ui/tryout-wizard';
 import { WizardProgress } from '@/modules/tryouts/ui/wizard-progress';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
@@ -40,6 +44,18 @@ export default async function TryoutSetupStepPage({
     { authorization: current.authorization },
   );
   const blockers = validation.ok ? validation.value.blockers : ['authorization_required'];
+  const { data: divisions } = await current.client
+    .from('tryout_divisions')
+    .select('id, name')
+    .eq('organization_id', current.organization.id)
+    .eq('tryout_id', tryoutId)
+    .order('sort_order');
+  const { data: sessions } = await current.client
+    .from('tryout_sessions')
+    .select('id, name')
+    .eq('organization_id', current.organization.id)
+    .eq('tryout_id', tryoutId)
+    .order('sort_order');
   async function save(formData: FormData) {
     'use server';
     const route = await requireCurrentOrganization(organizationSlug);
@@ -65,10 +81,27 @@ export default async function TryoutSetupStepPage({
         );
       redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/overview`);
     }
-    const result = await saveTryoutSetupStep(
-      { organizationId: route.organization.id, tryoutId, step },
-      { authorization: route.authorization },
-    );
+    const result =
+      step === 'review'
+        ? await saveTryoutSetupStep(
+            { organizationId: route.organization.id, tryoutId, step },
+            { authorization: route.authorization },
+          )
+        : await saveWizardConfiguration(
+            {
+              organizationId: route.organization.id,
+              tryoutId,
+              step,
+              payload: wizardPayload(step, formData),
+            },
+            { authorization: route.authorization },
+          );
+    if (result.ok && step !== 'review') {
+      await saveTryoutSetupStep(
+        { organizationId: route.organization.id, tryoutId, step },
+        { authorization: route.authorization },
+      );
+    }
     const next =
       tryoutSetupSteps[Math.min(tryoutSetupSteps.indexOf(step) + 1, tryoutSetupSteps.length - 1)];
     redirect(
@@ -84,7 +117,14 @@ export default async function TryoutSetupStepPage({
         currentStep={step}
         hrefBase={`/app/${organizationSlug}/tryouts/${tryoutId}/setup`}
       />
-      <TryoutWizard action={save} blockers={blockers} name={tryout.name} step={step} />
+      <TryoutWizard
+        action={save}
+        blockers={blockers}
+        divisions={divisions ?? []}
+        name={tryout.name}
+        sessions={sessions ?? []}
+        step={step}
+      />
     </section>
   );
 }

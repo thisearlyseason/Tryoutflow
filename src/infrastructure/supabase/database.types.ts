@@ -1268,6 +1268,17 @@ export type Database = {
           outcome: string;
         }[];
       };
+      save_tryout_wizard_configuration: {
+        Args: {
+          p_organization_id: string;
+          p_payload: Json;
+          p_step: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+        }[];
+      };
       select_tryout_registration_form_version: {
         Args: {
           p_organization_id: string;
