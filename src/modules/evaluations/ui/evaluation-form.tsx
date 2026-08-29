@@ -44,8 +44,8 @@ type EditableDraft = {
 };
 
 export type EvaluationSaveResult =
-  | { outcome: 'saved'; evaluationId: string; version: number }
-  | { outcome: 'saved_device'; evaluationId: string; version: number }
+  | { outcome: 'saved'; evaluationId: string; version: number; confirmationToken?: string }
+  | { outcome: 'saved_device'; evaluationId: string; version: number; confirmationToken?: string }
   | {
       outcome:
         | 'forbidden'
@@ -98,6 +98,12 @@ type CachedDraft = {
   recovery: 'dirty' | RecoveryKind;
   lastRequest?: SaveRequest & { revision: number };
   lastCompletion?: { evaluationId: string; expectedVersion: number };
+  localAuthority?: {
+    revision: number;
+    resolutionIdentity: string;
+    resultDigest: string;
+    pendingConfirmationToken?: string;
+  };
 };
 
 const editableDraftSchema = z.strictObject({
@@ -119,6 +125,14 @@ const cachedDraftSchema = z.strictObject({
   lastRequest: saveRequestSchema.extend({ revision: z.number().int().positive() }).optional(),
   lastCompletion: z
     .strictObject({ evaluationId: z.uuid(), expectedVersion: z.number().int().positive() })
+    .optional(),
+  localAuthority: z
+    .strictObject({
+      revision: z.number().int().positive(),
+      resolutionIdentity: z.string().min(1).max(200),
+      resultDigest: z.string().regex(/^[0-9a-f]{64}$/),
+      pendingConfirmationToken: z.string().min(1).max(200).optional(),
+    })
     .optional(),
 });
 
@@ -190,7 +204,11 @@ export function EvaluationForm({
     expectedVersion: number;
   }) => Promise<EvaluationSaveResult>;
   durableDeviceSave?: boolean;
-  serverConfirmation?: { evaluationId: string; version: number } | null;
+  serverConfirmation?: {
+    evaluationId: string;
+    version: number;
+    confirmationToken?: string;
+  } | null;
   backgroundSaveResult?:
     | {
         token: number;
@@ -203,6 +221,8 @@ export function EvaluationForm({
         draft: EditableDraft;
         evaluationId: string;
         version: number;
+        resolutionIdentity: string;
+        resultDigest: string;
       }
     | null;
   onResolveRecovery?: (input: {
@@ -276,11 +296,13 @@ export function EvaluationForm({
   const lastRequestRef = useRef<CachedDraft['lastRequest']>(undefined);
   const lastCompletionRef = useRef<CachedDraft['lastCompletion']>(undefined);
   const storageAvailableRef = useRef(Boolean(draftCacheKey));
+  const localAuthorityRef = useRef<CachedDraft['localAuthority']>(undefined);
   const editable = completionState === 'draft' || completionState === 'reopened';
   const interactive = editable && hydrated && !restriction && !completing && !resolving;
 
   useEffect(() => {
     if (
+      !hydrated ||
       !serverConfirmation ||
       serverConfirmation.evaluationId !== evaluationIdRef.current ||
       serverConfirmation.version < versionRef.current
@@ -288,12 +310,22 @@ export function EvaluationForm({
       return;
     evaluationIdRef.current = serverConfirmation.evaluationId;
     versionRef.current = Math.max(versionRef.current, serverConfirmation.version);
+    if (localAuthorityRef.current) {
+      if (
+        localAuthorityRef.current.pendingConfirmationToken === undefined ||
+        localAuthorityRef.current.pendingConfirmationToken !==
+          serverConfirmation.confirmationToken ||
+        confirmedRevisionRef.current !== localAuthorityRef.current.revision
+      )
+        return;
+      localAuthorityRef.current = undefined;
+    }
     serverConfirmedRef.current = true;
     if (confirmedRevisionRef.current === revisionRef.current && !blockedRef.current) {
       setSaveState('saved');
       clearCachedDraft(draftCacheKey);
     }
-  }, [draftCacheKey, serverConfirmation]);
+  }, [draftCacheKey, hydrated, serverConfirmation]);
 
   useEffect(() => {
     if (!backgroundSaveResult || !hydrated) return;
@@ -301,23 +333,39 @@ export function EvaluationForm({
       const editedAfterRecoveryOpened =
         recoveryOpenedAtRevisionRef.current !== null &&
         revisionRef.current > recoveryOpenedAtRevisionRef.current;
+      const existingAuthority = localAuthorityRef.current;
+      const preserveLocal = Boolean(existingAuthority) || editedAfterRecoveryOpened;
       evaluationIdRef.current = backgroundSaveResult.evaluationId;
-      versionRef.current = backgroundSaveResult.version;
+      versionRef.current = Math.max(versionRef.current, backgroundSaveResult.version);
       blockedRef.current = false;
       recoveryKindRef.current = null;
-      recoveryOpenedAtRevisionRef.current = null;
-      lastRequestRef.current = undefined;
-      lastCompletionRef.current = undefined;
       setRecovery(null);
-      if (editedAfterRecoveryOpened) {
+      if (preserveLocal) {
+        const changedWinner =
+          existingAuthority !== undefined &&
+          (existingAuthority.resolutionIdentity !== backgroundSaveResult.resolutionIdentity ||
+            existingAuthority.resultDigest !== backgroundSaveResult.resultDigest);
+        localAuthorityRef.current = {
+          revision: revisionRef.current,
+          resolutionIdentity: backgroundSaveResult.resolutionIdentity,
+          resultDigest: backgroundSaveResult.resultDigest,
+        };
         serverConfirmedRef.current = false;
         confirmedRevisionRef.current = 0;
         drainGoalRef.current = 0;
-        setRecoveryNotice('A newer edit was preserved after another tab resolved the conflict.');
+        setRecoveryNotice(
+          changedWinner
+            ? 'The server result changed again. Your newer local edit is still protected for an explicit save or rebase.'
+            : 'A newer edit was preserved after another tab resolved the conflict.',
+        );
         setSaveState(navigator.onLine ? 'editing' : 'offline');
         persistDraft('dirty');
         return;
       }
+      recoveryOpenedAtRevisionRef.current = null;
+      lastRequestRef.current = undefined;
+      lastCompletionRef.current = undefined;
+      localAuthorityRef.current = undefined;
       latestDraftRef.current = backgroundSaveResult.draft;
       revisionRef.current = 0;
       confirmedRevisionRef.current = 0;
@@ -352,7 +400,9 @@ export function EvaluationForm({
   function persistDraft(recoveryState: CachedDraft['recovery'] = 'dirty'): boolean {
     if (
       !draftCacheKey ||
-      (recoveryState === 'dirty' && revisionRef.current === confirmedRevisionRef.current)
+      (recoveryState === 'dirty' &&
+        revisionRef.current === confirmedRevisionRef.current &&
+        !localAuthorityRef.current)
     )
       return storageAvailableRef.current;
     const stored = writeCachedDraft(draftCacheKey, {
@@ -364,6 +414,7 @@ export function EvaluationForm({
       recovery: recoveryState,
       lastRequest: lastRequestRef.current,
       lastCompletion: lastCompletionRef.current,
+      ...(localAuthorityRef.current ? { localAuthority: localAuthorityRef.current } : {}),
     });
     storageAvailableRef.current = stored;
     return stored;
@@ -384,6 +435,7 @@ export function EvaluationForm({
     setDraft(cached.draft);
     lastRequestRef.current = cached.lastRequest;
     lastCompletionRef.current = cached.lastCompletion;
+    localAuthorityRef.current = cached.localAuthority;
     if (cached.serverSnapshotToken === null) {
       storageAvailableRef.current = writeCachedDraft(draftCacheKey, {
         ...cached,
@@ -428,6 +480,11 @@ export function EvaluationForm({
     if (completionGateRef.current || restrictionRef.current) return;
     latestDraftRef.current = next;
     revisionRef.current += 1;
+    if (localAuthorityRef.current)
+      localAuthorityRef.current = {
+        ...localAuthorityRef.current,
+        revision: revisionRef.current,
+      };
     if (drainPromiseRef.current) drainGoalRef.current = revisionRef.current;
     setDraft(next);
     if (recovery) setRecovery({ ...recovery, local: next, durable: persistDraft(recovery.kind) });
@@ -535,10 +592,24 @@ export function EvaluationForm({
       evaluationIdRef.current = result.evaluationId;
       serverConfirmedRef.current = result.outcome === 'saved';
       confirmedRevisionRef.current = savedRevision;
+      if (result.outcome === 'saved' && localAuthorityRef.current?.revision === savedRevision)
+        localAuthorityRef.current = undefined;
+      else if (
+        result.outcome === 'saved_device' &&
+        result.confirmationToken &&
+        localAuthorityRef.current?.revision === savedRevision
+      )
+        localAuthorityRef.current = {
+          ...localAuthorityRef.current,
+          pendingConfirmationToken: result.confirmationToken,
+        };
       setServerValidation(null);
       if (confirmedRevisionRef.current === revisionRef.current) {
-        clearCachedDraft(draftCacheKey);
-        lastRequestRef.current = undefined;
+        if (result.outcome === 'saved_device' && localAuthorityRef.current) persistDraft('dirty');
+        else {
+          clearCachedDraft(draftCacheKey);
+          lastRequestRef.current = undefined;
+        }
         setSaveState(result.outcome === 'saved' ? 'saved' : 'saved_device');
       } else {
         setSaveState('editing');
@@ -724,6 +795,7 @@ export function EvaluationForm({
     evaluationIdRef.current = resolution?.evaluationId ?? authoritativeServerDraft.evaluationId;
     blockedRef.current = false;
     recoveryKindRef.current = null;
+    localAuthorityRef.current = undefined;
     lastRequestRef.current = undefined;
     lastCompletionRef.current = undefined;
     const confirmed = resolution?.outcome === 'resolved';
@@ -763,6 +835,7 @@ export function EvaluationForm({
     evaluationIdRef.current = resolution?.evaluationId ?? authoritativeServerDraft.evaluationId;
     blockedRef.current = false;
     recoveryKindRef.current = null;
+    localAuthorityRef.current = undefined;
     lastRequestRef.current = undefined;
     lastCompletionRef.current = undefined;
     setDraft(serverDraft);

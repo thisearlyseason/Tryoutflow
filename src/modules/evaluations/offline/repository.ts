@@ -101,6 +101,8 @@ export type EvaluationDraftLineage = {
   resolution?: {
     action: 'keep_local' | 'use_server';
     inputLocalDraftDigest: string;
+    resolutionId: string;
+    resultDraftDigest: string;
   };
 };
 
@@ -735,6 +737,19 @@ export class EvaluationOfflineRepository {
       | 'resolutionResultDraftDigest'
       | 'resolutionResultPayloadDigest'
       | 'resolutionResultMarker'
+      | 'resolutionId'
+      | 'resolutionAction'
+      | 'resolutionHeadMutationId'
+      | 'resolutionInputDigest'
+      | 'resolutionOutputDigest'
+      | 'resolutionRetiredEvaluationId'
+      | 'resolutionRetiredQueueKey'
+      | 'resolutionRetiredQueueSequence'
+      | 'resolutionRetiredExpectedVersion'
+      | 'resolutionRetiredPayloadDigest'
+      | 'resolutionRetiredDraftDigest'
+      | 'resolutionGroupSize'
+      | 'resolutionGroupDigest'
     >,
   ): Promise<StoredEvaluationReceiptTombstone> {
     const storageKey = `${scopeKey(scope)}|${clientMutationId}`;
@@ -1240,6 +1255,15 @@ export class EvaluationOfflineRepository {
       scope,
     ))
       tombstones.push(await this.validateReceiptTombstone(raw, scope, clientMutationId));
+    if (
+      tombstones.some(
+        (record) => record.reason === 'conflict_dependent' && !record.resolutionRetiredEvaluationId,
+      )
+    )
+      throw new EvaluationOfflineError(
+        'corrupt_record',
+        'Legacy dependent conflict lineage requires recoverable attention.',
+      );
 
     const relatedIds = new Set(seedEvaluationIds);
     let expanded = true;
@@ -1261,8 +1285,20 @@ export class EvaluationOfflineRepository {
           tombstone.evaluationId,
           tombstone.resolutionOriginalEvaluationId,
           tombstone.resolutionServerEvaluationId,
+          tombstone.resolutionRetiredEvaluationId,
         ].filter((value): value is string => value !== undefined);
         if (!linked.some((value) => relatedIds.has(value))) continue;
+        if (tombstone.resolutionId)
+          for (const sibling of tombstones) {
+            if (
+              sibling.resolutionId === tombstone.resolutionId &&
+              sibling.resolutionRetiredEvaluationId &&
+              !relatedIds.has(sibling.resolutionRetiredEvaluationId)
+            ) {
+              relatedIds.add(sibling.resolutionRetiredEvaluationId);
+              expanded = true;
+            }
+          }
         for (const value of linked)
           if (!relatedIds.has(value)) {
             relatedIds.add(value);
@@ -1278,6 +1314,7 @@ export class EvaluationOfflineRepository {
         record.evaluationId,
         record.resolutionOriginalEvaluationId,
         record.resolutionServerEvaluationId,
+        record.resolutionRetiredEvaluationId,
       ].some((value) => value !== undefined && relatedIds.has(value)),
     );
 
@@ -1350,12 +1387,122 @@ export class EvaluationOfflineRepository {
         );
     }
 
+    const conflictGroups = new Map<string, StoredEvaluationReceiptTombstone[]>();
+    for (const tombstone of relatedTombstones) {
+      if (!tombstone.reason.startsWith('conflict_')) continue;
+      if (
+        !tombstone.resolutionId ||
+        !tombstone.resolutionAction ||
+        !tombstone.resolutionHeadMutationId ||
+        !tombstone.resolutionInputDigest ||
+        !tombstone.resolutionOutputDigest ||
+        !tombstone.resolutionRetiredEvaluationId ||
+        !tombstone.resolutionRetiredQueueKey ||
+        !tombstone.resolutionRetiredQueueSequence ||
+        tombstone.resolutionRetiredExpectedVersion === undefined ||
+        !tombstone.resolutionRetiredPayloadDigest ||
+        !tombstone.resolutionRetiredDraftDigest ||
+        !tombstone.resolutionGroupSize ||
+        !tombstone.resolutionGroupDigest
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Legacy conflict terminal lineage requires recoverable attention.',
+        );
+      if (
+        tombstone.resolutionRetiredQueueKey !==
+        evaluationQueueKey(scope, tombstone.resolutionRetiredEvaluationId)
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Conflict terminal queue identity is invalid.',
+        );
+      const group = conflictGroups.get(tombstone.resolutionId) ?? [];
+      group.push(tombstone);
+      conflictGroups.set(tombstone.resolutionId, group);
+    }
+    for (const group of conflictGroups.values()) {
+      const first = group[0]!;
+      const heads = group.filter(
+        (record) => record.clientMutationId === first.resolutionHeadMutationId,
+      );
+      if (
+        heads.length !== 1 ||
+        !['conflict_keep_local', 'conflict_use_server'].includes(heads[0]!.reason) ||
+        heads[0]!.resolutionAction !==
+          (heads[0]!.reason === 'conflict_keep_local' ? 'keep_local' : 'use_server') ||
+        group.some(
+          (record) =>
+            record.resolutionAction !== first.resolutionAction ||
+            record.resolutionHeadMutationId !== first.resolutionHeadMutationId ||
+            record.resolutionInputDigest !== first.resolutionInputDigest ||
+            record.resolutionOutputDigest !== first.resolutionOutputDigest ||
+            record.resolutionGroupSize !== first.resolutionGroupSize ||
+            record.resolutionGroupDigest !== first.resolutionGroupDigest ||
+            (record.clientMutationId !== first.resolutionHeadMutationId &&
+              record.reason !== 'conflict_dependent'),
+        )
+      )
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Conflict terminal resolution group is incomplete or divergent.',
+        );
+      if (group.length !== first.resolutionGroupSize)
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Conflict terminal resolution group cardinality is incomplete.',
+        );
+      const groupDigest = await Dexie.waitFor(
+        digestValue({
+          purpose: 'tryoutflow-conflict-resolution-group-v1',
+          resolutionId: first.resolutionId,
+          action: first.resolutionAction,
+          headMutationId: first.resolutionHeadMutationId,
+          inputDigest: first.resolutionInputDigest,
+          outputDigest: first.resolutionOutputDigest,
+          retired: group
+            .map((record) => ({
+              clientMutationId: record.clientMutationId,
+              evaluationId: record.resolutionRetiredEvaluationId,
+              queueKey: record.resolutionRetiredQueueKey,
+              queueSequence: record.resolutionRetiredQueueSequence,
+              expectedVersion: record.resolutionRetiredExpectedVersion,
+              payloadDigest: record.resolutionRetiredPayloadDigest,
+              draftDigest: record.resolutionRetiredDraftDigest,
+            }))
+            .sort(
+              (left, right) =>
+                left.queueKey!.localeCompare(right.queueKey!) ||
+                left.queueSequence! - right.queueSequence! ||
+                left.clientMutationId.localeCompare(right.clientMutationId),
+            ),
+        }),
+      );
+      if (groupDigest !== first.resolutionGroupDigest)
+        throw new EvaluationOfflineError(
+          'corrupt_record',
+          'Conflict terminal resolution group integrity is invalid.',
+        );
+    }
+
+    const hasConflictLineage =
+      relatedTombstones.some((record) => record.reason.startsWith('conflict_')) ||
+      relatedMutations.some(
+        (record) => record.status === 'needs_attention' && record.errorCategory === 'conflict',
+      );
+    if (!hasConflictLineage) return;
+
     for (const evaluationId of relatedIds) {
       const queueKey = evaluationQueueKey(scope, evaluationId);
       const queue = relatedMutations
         .filter((record) => record.queueKey === queueKey)
         .sort((left, right) => left.queueSequence - right.queueSequence);
       const sequences = new Set<number>();
+      const conflictResultMutationIds = new Set(
+        relatedTombstones
+          .map((record) => record.resolutionResultMutationId)
+          .filter((value): value is string => value !== undefined),
+      );
       // Legacy receipt-authority fences predate persisted queueSequence metadata. They are still
       // immutable one-for-one terminal queue members, so their bounded cardinality proves the
       // compacted prefix (new records continue with the exact counter after that prefix).
@@ -1363,29 +1510,41 @@ export class EvaluationOfflineRepository {
         (record) =>
           record.reason === 'receipt_authority' &&
           record.evaluationId === evaluationId &&
-          !mutationsByClient.has(record.clientMutationId),
+          !mutationsByClient.has(record.clientMutationId) &&
+          !conflictResultMutationIds.has(record.clientMutationId),
       ).length;
       for (let sequence = 1; sequence <= compactedTerminalCount; sequence += 1)
         sequences.add(sequence);
-      for (const mutation of queue) {
-        if (sequences.has(mutation.queueSequence))
+      const addSequence = (sequence: number) => {
+        if (sequences.has(sequence))
           throw new EvaluationOfflineError(
             'corrupt_record',
             'Target queue contains a duplicate sequence.',
           );
-        sequences.add(mutation.queueSequence);
+        sequences.add(sequence);
+      };
+      for (const mutation of queue) {
+        addSequence(mutation.queueSequence);
       }
       for (const tombstone of relatedTombstones) {
         if (
-          tombstone.resolutionOriginalEvaluationId === evaluationId &&
-          tombstone.resolutionOriginalQueueSequence
+          tombstone.resolutionRetiredEvaluationId === evaluationId &&
+          tombstone.resolutionRetiredQueueSequence
         )
-          sequences.add(tombstone.resolutionOriginalQueueSequence);
+          addSequence(tombstone.resolutionRetiredQueueSequence);
+        if (
+          tombstone.resolutionOriginalEvaluationId === evaluationId &&
+          tombstone.resolutionOriginalQueueSequence &&
+          tombstone.resolutionRetiredQueueSequence === undefined
+        )
+          addSequence(tombstone.resolutionOriginalQueueSequence);
         if (
           tombstone.resolutionServerEvaluationId === evaluationId &&
-          tombstone.resolutionResultQueueSequence
+          tombstone.resolutionResultQueueSequence &&
+          tombstone.resolutionResultMutationId &&
+          !mutationsByClient.has(tombstone.resolutionResultMutationId)
         )
-          sequences.add(tombstone.resolutionResultQueueSequence);
+          addSequence(tombstone.resolutionResultQueueSequence);
       }
       const rawCounter = await transaction.table('queueCounters').get(queueKey);
       if (!rawCounter) {
@@ -1422,6 +1581,7 @@ export class EvaluationOfflineRepository {
     baseRecord: Omit<StoredEvaluationMutation, 'queueSequence'>,
     now: Date,
   ): Promise<StoredEvaluationMutation> {
+    await this.validateConflictNaturalLineage(transaction, scope, [baseRecord.evaluationId]);
     if (
       (await this.database.mutations.get(baseRecord.storageKey)) ||
       (await this.database.receipts.get(baseRecord.storageKey)) ||
@@ -1661,6 +1821,10 @@ export class EvaluationOfflineRepository {
         if (!(await this.validateQueueLineage(transaction, scope, mutations, new Date()))) {
           throw new EvaluationOfflineError('corrupt_record', 'Draft queue lineage is invalid.');
         }
+        await this.validateConflictNaturalLineage(transaction, scope, [
+          ...(storedDraft.evaluationId ? [storedDraft.evaluationId] : []),
+          ...mutations.map((mutation) => mutation.evaluationId),
+        ]);
 
         const exactMutation = mutations
           .filter(
@@ -1771,6 +1935,8 @@ export class EvaluationOfflineRepository {
                   resolution = {
                     action: 'keep_local',
                     inputLocalDraftDigest: tombstone.resolutionInputLocalDraftDigest,
+                    resolutionId: tombstone.resolutionId ?? tombstone.clientMutationId,
+                    resultDraftDigest: tombstone.resolutionResultDraftDigest!,
                   };
                   break;
                 }
@@ -1826,6 +1992,8 @@ export class EvaluationOfflineRepository {
                 resolution: {
                   action: 'use_server',
                   inputLocalDraftDigest: tombstone.resolutionInputLocalDraftDigest,
+                  resolutionId: tombstone.resolutionId ?? tombstone.clientMutationId,
+                  resultDraftDigest: tombstone.resolutionResultDraftDigest,
                 },
               };
             }
@@ -2135,6 +2303,7 @@ export class EvaluationOfflineRepository {
               throw error;
             }
           }
+          await this.validateConflictNaturalLineage(transaction, scope, [input.evaluationId]);
           const allMutations = await this.database.mutations.toArray();
           if (allMutations.length >= this.quotas.maxMutations) throw quotaError('mutations');
           const unacknowledged = allMutations.filter(
@@ -2443,6 +2612,9 @@ export class EvaluationOfflineRepository {
             corruptCount += 1;
           }
           if (corruptCount > 0) return null;
+          await this.validateConflictNaturalLineage(transaction, scope, [
+            ...records.map((record) => record.evaluationId),
+          ]);
           const ordered = records.sort(
             (left, right) =>
               left.queueSequence - right.queueSequence ||
@@ -3077,7 +3249,43 @@ export class EvaluationOfflineRepository {
           await this.database.mutations.add(rebased);
         }
 
-        for (const row of queueRows) {
+        const resolutionId = crypto.randomUUID();
+        const retiredRows: {
+          row: StoredEvaluationMutation;
+          retiredDraftDigest: string;
+        }[] = [];
+        for (const row of queueRows)
+          retiredRows.push({
+            row,
+            retiredDraftDigest: await Dexie.waitFor(digestValue(row.draft)),
+          });
+        const resolutionGroupDigest = await Dexie.waitFor(
+          digestValue({
+            purpose: 'tryoutflow-conflict-resolution-group-v1',
+            resolutionId,
+            action: input.action,
+            headMutationId: head.clientMutationId,
+            inputDigest: requestedLocalDraftDigest,
+            outputDigest: resultDraftDigest,
+            retired: retiredRows
+              .map(({ row, retiredDraftDigest }) => ({
+                clientMutationId: row.clientMutationId,
+                evaluationId: row.evaluationId,
+                queueKey: row.queueKey,
+                queueSequence: row.queueSequence,
+                expectedVersion: row.expectedVersion,
+                payloadDigest: row.payloadDigest,
+                draftDigest: retiredDraftDigest,
+              }))
+              .sort(
+                (left, right) =>
+                  left.queueKey.localeCompare(right.queueKey) ||
+                  left.queueSequence - right.queueSequence ||
+                  left.clientMutationId.localeCompare(right.clientMutationId),
+              ),
+          }),
+        );
+        for (const { row, retiredDraftDigest } of retiredRows) {
           await this.database.mutations.delete(row.storageKey);
           await this.ensureConflictResolutionTombstone(
             transaction,
@@ -3089,27 +3297,42 @@ export class EvaluationOfflineRepository {
                 : 'conflict_use_server'
               : 'conflict_dependent',
             now,
-            row.storageKey === head.storageKey
-              ? {
-                  resolutionOriginalEvaluationId: head.evaluationId,
-                  resolutionOriginalPayloadDigest: head.payloadDigest,
-                  resolutionOriginalQueueSequence: head.queueSequence,
-                  resolutionServerEvaluationId: input.server.evaluationId,
-                  resolutionServerVersion: input.server.version,
-                  resolutionServerSnapshotDigest: serverSnapshotDigest,
-                  resolutionInputLocalDraftDigest: requestedLocalDraftDigest,
-                  resolutionResultDraftDigest: resultDraftDigest,
-                  resolutionResultPayloadDigest: draftRecord.payloadDigest,
-                  resolutionResultMarker:
-                    input.action === 'keep_local' ? 'keep_local_rebased' : 'use_server_discarded',
-                  ...(rebased
-                    ? {
-                        resolutionResultMutationId: rebased.clientMutationId,
-                        resolutionResultQueueSequence: rebased.queueSequence,
-                      }
-                    : {}),
-                }
-              : undefined,
+            {
+              resolutionId,
+              resolutionAction: input.action,
+              resolutionHeadMutationId: head.clientMutationId,
+              resolutionInputDigest: requestedLocalDraftDigest,
+              resolutionOutputDigest: resultDraftDigest,
+              resolutionRetiredEvaluationId: row.evaluationId,
+              resolutionRetiredQueueKey: row.queueKey,
+              resolutionRetiredQueueSequence: row.queueSequence,
+              resolutionRetiredExpectedVersion: row.expectedVersion,
+              resolutionRetiredPayloadDigest: row.payloadDigest,
+              resolutionRetiredDraftDigest: retiredDraftDigest,
+              resolutionGroupSize: retiredRows.length,
+              resolutionGroupDigest,
+              ...(row.storageKey === head.storageKey
+                ? {
+                    resolutionOriginalEvaluationId: head.evaluationId,
+                    resolutionOriginalPayloadDigest: head.payloadDigest,
+                    resolutionOriginalQueueSequence: head.queueSequence,
+                    resolutionServerEvaluationId: input.server.evaluationId,
+                    resolutionServerVersion: input.server.version,
+                    resolutionServerSnapshotDigest: serverSnapshotDigest,
+                    resolutionInputLocalDraftDigest: requestedLocalDraftDigest,
+                    resolutionResultDraftDigest: resultDraftDigest,
+                    resolutionResultPayloadDigest: draftRecord.payloadDigest,
+                    resolutionResultMarker:
+                      input.action === 'keep_local' ? 'keep_local_rebased' : 'use_server_discarded',
+                    ...(rebased
+                      ? {
+                          resolutionResultMutationId: rebased.clientMutationId,
+                          resolutionResultQueueSequence: rebased.queueSequence,
+                        }
+                      : {}),
+                  }
+                : {}),
+            },
           );
         }
         return {
@@ -3735,6 +3958,11 @@ export class EvaluationOfflineRepository {
         if (!(await this.validateQueueLineage(transaction, scope, mutations, new Date()))) {
           corruption = true;
         }
+        if (!corruption)
+          await this.validateConflictNaturalLineage(transaction, scope, [
+            ...(draftRecord?.evaluationId ? [draftRecord.evaluationId] : []),
+            ...mutations.map((mutation) => mutation.evaluationId),
+          ]);
 
         const rawCounters = await this.database.queueCounters
           .where('scopeKey')

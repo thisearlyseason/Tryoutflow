@@ -1039,6 +1039,8 @@ describe('EvaluationForm', () => {
           },
           evaluationId,
           version: 3,
+          resolutionIdentity: 'resolution-sibling-winner',
+          resultDigest: 'a'.repeat(64),
         }}
         serverConfirmation={{ evaluationId, version: 3 }}
       />,
@@ -1092,6 +1094,8 @@ describe('EvaluationForm', () => {
           draft: { scores: [], note: 'sibling winner', noteTagIds: [], flags: [] },
           evaluationId,
           version: 3,
+          resolutionIdentity: 'resolution-sibling-winner',
+          resultDigest: 'a'.repeat(64),
         }}
         serverConfirmation={{ evaluationId, version: 3 }}
       />,
@@ -1106,6 +1110,119 @@ describe('EvaluationForm', () => {
     expect(
       window.sessionStorage.getItem('tryoutflow:evaluation-draft:v1:sibling-resolution-new-edit'),
     ).toContain('newest edit while sibling resolves');
+  });
+
+  it('preserves a newer local edit across one hundred repeated sibling-resolution polls and reload', async () => {
+    const user = userEvent.setup();
+    const evaluationId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const cacheKey = 'sibling-resolution-repeated-new-edit';
+    window.sessionStorage.setItem(
+      `tryoutflow:evaluation-draft:v1:${cacheKey}`,
+      JSON.stringify({
+        draft: { scores: [], note: 'conflicted local', noteTagIds: [], flags: [] },
+        baseVersion: 1,
+        evaluationId,
+        revision: 1,
+        recovery: 'conflict',
+        serverSnapshotToken: 'older-snapshot',
+      }),
+    );
+    const shared = {
+      athlete,
+      categories,
+      draftCacheKey: cacheKey,
+      serverSnapshotToken: 'fresh-snapshot',
+      initialDraft: { evaluationId, version: 2, state: 'draft' as const, scores: [] },
+      onComplete: vi.fn(),
+      onSave: vi.fn(async () => ({
+        outcome: 'saved_device' as const,
+        evaluationId,
+        version: 4,
+        confirmationToken: 'newer-local-receipt',
+      })),
+    };
+    const view = render(<EvaluationForm {...shared} />);
+    const note = await screen.findByLabelText('Private evaluator note');
+    await user.type(note, ' newest edit while sibling resolves');
+
+    for (let pulse = 1; pulse <= 100; pulse += 1) {
+      view.rerender(
+        <EvaluationForm
+          {...shared}
+          backgroundSaveResult={{
+            token: pulse,
+            outcome: 'resolved_elsewhere',
+            draft: {
+              scores: [],
+              note: pulse % 2 === 0 ? 'changed sibling winner' : 'sibling winner',
+              noteTagIds: [],
+              flags: [],
+            },
+            evaluationId,
+            version: pulse % 2 === 0 ? 4 : 3,
+            resolutionIdentity:
+              pulse % 2 === 0 ? 'resolution-changed-winner' : 'resolution-sibling-winner',
+            resultDigest: (pulse % 2 === 0 ? 'b' : 'a').repeat(64),
+          }}
+          serverConfirmation={{ evaluationId, version: 4 }}
+        />,
+      );
+      await waitFor(() =>
+        expect(screen.getByLabelText('Private evaluator note')).toHaveValue(
+          'conflicted local newest edit while sibling resolves',
+        ),
+      );
+    }
+    expect(screen.getByText('Unsaved changes on this page')).toBeVisible();
+    expect(window.sessionStorage.getItem(`tryoutflow:evaluation-draft:v1:${cacheKey}`)).toContain(
+      'newest edit while sibling resolves',
+    );
+
+    view.unmount();
+    const reloaded = render(
+      <EvaluationForm
+        {...shared}
+        backgroundSaveResult={{
+          token: 101,
+          outcome: 'resolved_elsewhere',
+          draft: { scores: [], note: 'changed sibling winner', noteTagIds: [], flags: [] },
+          evaluationId,
+          version: 4,
+          resolutionIdentity: 'resolution-changed-winner',
+          resultDigest: 'b'.repeat(64),
+        }}
+        serverConfirmation={{ evaluationId, version: 4 }}
+      />,
+    );
+    expect(await screen.findByLabelText('Private evaluator note')).toHaveValue(
+      'conflicted local newest edit while sibling resolves',
+    );
+    expect(window.sessionStorage.getItem(`tryoutflow:evaluation-draft:v1:${cacheKey}`)).toContain(
+      'newest edit while sibling resolves',
+    );
+    await waitFor(
+      () =>
+        expect(shared.onSave).toHaveBeenCalledWith(
+          expect.objectContaining({ note: 'conflicted local newest edit while sibling resolves' }),
+        ),
+      { timeout: 2_000 },
+    );
+    await waitFor(() => expect(screen.getByText('Saved on device')).toBeVisible());
+    expect(window.sessionStorage.getItem(`tryoutflow:evaluation-draft:v1:${cacheKey}`)).toContain(
+      'newer-local-receipt',
+    );
+    reloaded.rerender(
+      <EvaluationForm
+        {...shared}
+        serverConfirmation={{
+          evaluationId,
+          version: 4,
+          confirmationToken: 'newer-local-receipt',
+        }}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Saved on server')).toBeVisible());
+    expect(window.sessionStorage.getItem(`tryoutflow:evaluation-draft:v1:${cacheKey}`)).toBeNull();
   });
 
   it('does not trust a changed snapshot token when the server version went backwards', async () => {

@@ -103,6 +103,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
   const [serverConfirmation, setServerConfirmation] = useState<{
     evaluationId: string;
     version: number;
+    confirmationToken?: string;
   } | null>(null);
   const [backgroundSaveResult, setBackgroundSaveResult] = useState<
     | {
@@ -121,6 +122,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         };
         evaluationId: string;
         version: number;
+        resolutionIdentity: string;
+        resultDigest: string;
       }
     | null
   >(null);
@@ -190,6 +193,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
           setServerConfirmation({
             evaluationId: reconciled.confirmation.evaluationId,
             version: reconciled.confirmation.serverVersion,
+            confirmationToken: reconciled.confirmation.clientMutationId,
           });
         }
         return;
@@ -209,6 +213,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         setServerConfirmation({
           evaluationId: receipt.evaluationId,
           version: receipt.serverVersion,
+          confirmationToken: receipt.clientMutationId,
         });
       }
     }
@@ -255,6 +260,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
           setServerConfirmation({
             evaluationId: lineage.confirmation.evaluationId,
             version: lineage.confirmation.serverVersion,
+            confirmationToken: lineage.confirmation.clientMutationId,
           });
           setBackgroundSaveResult({
             token: Date.now(),
@@ -267,6 +273,8 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
             },
             evaluationId: lineage.confirmation.evaluationId,
             version: lineage.confirmation.serverVersion,
+            resolutionIdentity: lineage.resolution.resolutionId,
+            resultDigest: lineage.resolution.resultDraftDigest,
           });
           return;
         }
@@ -434,11 +442,13 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       setServerConfirmation({
         evaluationId: queued.evaluationId,
         version: queued.serverVersion,
+        confirmationToken: queued.clientMutationId,
       });
       return {
         outcome: 'saved',
         evaluationId: queued.evaluationId,
         version: queued.serverVersion,
+        confirmationToken: queued.clientMutationId,
       };
     }
     activeLineageRef.current = {
@@ -456,11 +466,13 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       setServerConfirmation({
         evaluationId: evaluationIdRef.current,
         version: receipt.serverVersion,
+        confirmationToken: receipt.clientMutationId,
       });
       return {
         outcome: 'saved',
         evaluationId: evaluationIdRef.current,
         version: receipt.serverVersion,
+        confirmationToken: receipt.clientMutationId,
       };
     }
     const mutation = (await repository.listMutations(storageScope)).find(
@@ -481,6 +493,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
       outcome: 'saved_device',
       evaluationId: evaluationIdRef.current,
       version: input.expectedVersion + 1,
+      confirmationToken: queued.clientMutationId,
     };
   }
 
@@ -586,6 +599,7 @@ export function SynchronizedEvaluationForm({ storageScope, ...props }: Synchroni
         setServerConfirmation({
           evaluationId: receipt.evaluationId,
           version: receipt.serverVersion,
+          confirmationToken: receipt.clientMutationId,
         });
         return {
           outcome: 'resolved' as const,

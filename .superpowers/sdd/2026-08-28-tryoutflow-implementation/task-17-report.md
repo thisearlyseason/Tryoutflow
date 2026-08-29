@@ -376,3 +376,43 @@ git diff --check                                                   PASS
 - Polling, source tracking, and UI work are bounded; no sequence gap is accepted to regain liveness.
 - Existing local-digest binding, permanent terminal fences, generation fencing, and Mobile Safari fixture isolation remain intact. No migration or IndexedDB version rewrite was introduced.
 - `progress.md` and Task 18 were not changed.
+
+## User-authorized third exceptional remediation
+
+### Status
+
+DONE — the two reproduced Critical findings are remediated and verified. Task 18 was not started. The authenticated production-browser chain remains the release-environment gate.
+
+### RED evidence
+
+- Resolving a sequence-1 conflict retired sequence-2/3 dependents into bare tombstones without their physical queue identity, sequence, version, or payload/draft digests. A forged-behind counter could therefore hide the compacted prefix and permit reuse.
+- A newer local edit survived the first `resolved_elsewhere` pulse but the pulse cleared its recovery watermark; the second identical pulse then replaced the edit with the sibling result.
+
+### Delivered
+
+- Every conflict head and dependent now receives an integrity-protected terminal record containing exact natural identity, physical queue lineage, mutation/version/payload/draft lineage, head relationship, resolution action/identity, input/output digests, and complete group cardinality/digest.
+- Natural-lineage validation expands provisional/authoritative IDs and resolution groups, reconstructs the complete live-plus-terminal prefix, and rejects missing/deleted group members, duplicate/gapped/reused sequences, cross-queue collisions, and missing/behind/ahead counters atomically. Exact replay validates the same prefix and preserves byte-equivalent success; a valid successor continues at sequence 4.
+- Legacy bare conflict-dependent or otherwise incomplete conflict fences fail closed with recoverable attention. They cannot authorize destructive replay, enqueue, or sequence/identity reuse.
+- Cached drafts now persist a local-authority revision watermark plus observed resolution identity/result digest and exact pending receipt token. Unlimited identical pulses are no-ops; a legitimately changed sibling winner presents explicit rebase protection without overwriting the newer draft. Only its exact save result, exact matching receipt, or explicit discard clears authority.
+
+### Verification
+
+```text
+Focused dependent-lineage and 100-pulse probes                   RED, then GREEN
+npm run verify                                                    PASS (format, lint, types, 361 unit tests, build)
+npm run test:integration, repeated                                PASS twice (19 files / 137 tests)
+npx supabase db reset --local --no-seed                           PASS (47 migrations)
+npx supabase test db --local                                      PASS (29 files / 847 tests)
+npm run test:e2e:evaluation                                       PASS (8/8; Mobile Chrome + Mobile Safari)
+Mobile Safari offline/conflict + durable-resolution --repeat=10   PASS (20/20)
+npm audit --audit-level=high                                      PASS (0 vulnerabilities)
+git diff --check                                                  PASS
+```
+
+### Self-review
+
+- Terminal group digest and cardinality bind every retired row, so deleting a dependent and forging its counter behind cannot create a valid compacted prefix.
+- Strict conflict-prefix validation is limited to connected active/resolved conflict lineage; ordinary queue compaction and Task 16 draft reconstruction remain compatible.
+- Tombstones and local-authority metadata contain bounded identifiers, counters, versions, markers, and SHA-256 digests only; raw evaluator content is not copied into terminal records.
+- All destructive conflict paths validate inside the all-store transaction before draft replacement, deletion, tombstone/counter mutation, or replay return. Rejection tests assert full byte-equivalent rollback.
+- `progress.md` and Task 18 were not changed.

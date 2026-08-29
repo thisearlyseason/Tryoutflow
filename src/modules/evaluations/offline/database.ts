@@ -126,6 +126,19 @@ export type StoredEvaluationReceiptTombstone = {
   resolutionResultDraftDigest?: string;
   resolutionResultPayloadDigest?: string;
   resolutionResultMarker?: 'keep_local_rebased' | 'use_server_discarded';
+  resolutionId?: string;
+  resolutionAction?: 'keep_local' | 'use_server';
+  resolutionHeadMutationId?: string;
+  resolutionInputDigest?: string;
+  resolutionOutputDigest?: string;
+  resolutionRetiredEvaluationId?: string;
+  resolutionRetiredQueueKey?: string;
+  resolutionRetiredQueueSequence?: number;
+  resolutionRetiredExpectedVersion?: number;
+  resolutionRetiredPayloadDigest?: string;
+  resolutionRetiredDraftDigest?: string;
+  resolutionGroupSize?: number;
+  resolutionGroupDigest?: string;
   tombstoneDigest: string;
 };
 
@@ -409,6 +422,24 @@ export const storedReceiptTombstoneSchema = z
     resolutionResultDraftDigest: sha256.optional(),
     resolutionResultPayloadDigest: sha256.optional(),
     resolutionResultMarker: z.enum(['keep_local_rebased', 'use_server_discarded']).optional(),
+    resolutionId: uuid.optional(),
+    resolutionAction: z.enum(['keep_local', 'use_server']).optional(),
+    resolutionHeadMutationId: uuid.optional(),
+    resolutionInputDigest: sha256.optional(),
+    resolutionOutputDigest: sha256.optional(),
+    resolutionRetiredEvaluationId: uuid.optional(),
+    resolutionRetiredQueueKey: z.string().min(1).max(600).optional(),
+    resolutionRetiredQueueSequence: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).optional(),
+    resolutionRetiredExpectedVersion: z
+      .number()
+      .int()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional(),
+    resolutionRetiredPayloadDigest: sha256.optional(),
+    resolutionRetiredDraftDigest: sha256.optional(),
+    resolutionGroupSize: z.number().int().min(1).max(2_000).optional(),
+    resolutionGroupDigest: sha256.optional(),
     tombstoneDigest: sha256,
   })
   .superRefine((record, context) => {
@@ -471,6 +502,31 @@ export const storedReceiptTombstoneSchema = z
       (record.resolutionResultMutationId || record.resolutionResultQueueSequence)
     ) {
       context.addIssue({ code: 'custom', message: 'A server discard cannot name a successor.' });
+    }
+    const retiredLineage = [
+      record.resolutionId,
+      record.resolutionAction,
+      record.resolutionHeadMutationId,
+      record.resolutionInputDigest,
+      record.resolutionOutputDigest,
+      record.resolutionRetiredEvaluationId,
+      record.resolutionRetiredQueueKey,
+      record.resolutionRetiredQueueSequence,
+      record.resolutionRetiredExpectedVersion,
+      record.resolutionRetiredPayloadDigest,
+      record.resolutionRetiredDraftDigest,
+      record.resolutionGroupSize,
+      record.resolutionGroupDigest,
+    ];
+    const retiredCount = retiredLineage.filter((value) => value !== undefined).length;
+    if (retiredCount !== 0 && retiredCount !== retiredLineage.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Retired conflict queue lineage is incomplete.',
+      });
+    }
+    if (retiredCount > 0 && !record.reason.startsWith('conflict_')) {
+      context.addIssue({ code: 'custom', message: 'Only conflict fences carry retired lineage.' });
     }
   });
 

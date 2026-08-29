@@ -7,6 +7,7 @@ import {
   digestValue,
   evaluationPayload,
   evaluationQueueKey,
+  receiptTombstonePayload,
 } from '../../../src/modules/evaluations/offline/database';
 
 import {
@@ -695,6 +696,321 @@ describe('evaluation offline outbox', () => {
     await expect(
       target.enqueueEvaluationMutation(mutation({ clientMutationId: firstId })),
     ).rejects.toMatchObject({ code: 'corrupt_record' });
+    target.close();
+  });
+
+  it.each(['keep_local', 'use_server'] as const)(
+    'retains the complete three-entry terminal queue prefix for %s conflict resolution',
+    async (action) => {
+      const baseName = databaseBase(`conflict-dependent-terminal-prefix-${action}`);
+      const physicalName = trackUserDatabase(baseName);
+      const target = await prepare(
+        createEvaluationOfflineRepository({
+          authenticatedUserId: scope.userId,
+          databaseName: baseName,
+        }),
+      );
+      const ids = [
+        '30000000-0000-4000-8000-000000000201',
+        '30000000-0000-4000-8000-000000000202',
+        '30000000-0000-4000-8000-000000000203',
+      ];
+      for (const [index, clientMutationId] of ids.entries())
+        await target.enqueueEvaluationMutation(
+          mutation({
+            clientMutationId,
+            expectedVersion: 2 + index,
+            draft: { ...draft, note: `terminal prefix ${index + 1}` },
+          }),
+        );
+      const head = (await target.nextPendingMutation(scope))!;
+      await target.markNeedsAttention({
+        scope,
+        evaluationId: head.evaluationId,
+        clientMutationId: head.clientMutationId,
+        claimToken: head.claimToken!,
+        category: 'conflict',
+        message: 'three-entry terminal prefix',
+        conflictServerEvaluationId: head.evaluationId,
+        conflictServerVersion: 7,
+      });
+      const input = {
+        scope,
+        clientMutationId: head.clientMutationId,
+        action,
+        original: {
+          evaluationId: head.evaluationId,
+          payloadDigest: head.payloadDigest,
+          queueSequence: head.queueSequence,
+        },
+        local: { ...draft, note: 'chosen local input' },
+        server: {
+          scope,
+          evaluationId: head.evaluationId,
+          version: 7,
+          draft: { ...draft, note: 'chosen server input' },
+        },
+      };
+      const resolved = await target.resolveConflict(input);
+      const raw = new Dexie(physicalName);
+      raw.version(5).stores(v5Stores);
+      await raw.open();
+      const terminalRows = (await raw.table('receiptTombstones').toArray()).filter((row) =>
+        ids.includes(row.clientMutationId),
+      );
+      expect(terminalRows).toHaveLength(3);
+      expect(
+        terminalRows
+          .map((row) => ({
+            clientMutationId: row.clientMutationId,
+            queueKey: row.resolutionRetiredQueueKey,
+            queueSequence: row.resolutionRetiredQueueSequence,
+            expectedVersion: row.resolutionRetiredExpectedVersion,
+            headMutationId: row.resolutionHeadMutationId,
+            action: row.resolutionAction,
+          }))
+          .sort((left, right) => left.queueSequence - right.queueSequence),
+      ).toEqual(
+        ids.map((clientMutationId, index) => ({
+          clientMutationId,
+          queueKey: evaluationQueueKey(scope, head.evaluationId),
+          queueSequence: index + 1,
+          expectedVersion: 2 + index,
+          headMutationId: ids[0],
+          action,
+        })),
+      );
+      raw.close();
+
+      expect(await target.resolveConflict(input)).toEqual(resolved);
+      const corrupt = new Dexie(physicalName);
+      corrupt.version(5).stores(v5Stores);
+      await corrupt.open();
+      const removedTerminal = terminalRows.find((row) => row.clientMutationId === ids[2])!;
+      await corrupt.table('receiptTombstones').delete(removedTerminal.storageKey);
+      await corrupt.table('queueCounters').put({
+        queueKey: evaluationQueueKey(scope, head.evaluationId),
+        scopeKey: Object.values(scope).join('|'),
+        nextSequence: 2,
+      });
+      const missingMemberSnapshot = await snapshotV5(corrupt);
+      await expect(target.resolveConflict(input)).rejects.toMatchObject({
+        code: 'corrupt_record',
+      });
+      expect(await snapshotV5(corrupt)).toEqual(missingMemberSnapshot);
+      await corrupt.table('receiptTombstones').put(removedTerminal);
+      for (const nextSequence of [2, 3]) {
+        await corrupt.table('queueCounters').put({
+          queueKey: evaluationQueueKey(scope, head.evaluationId),
+          scopeKey: Object.values(scope).join('|'),
+          nextSequence,
+        });
+        await expect(target.resolveConflict(input)).rejects.toMatchObject({
+          code: 'corrupt_record',
+        });
+      }
+      await corrupt.table('queueCounters').put({
+        queueKey: evaluationQueueKey(scope, head.evaluationId),
+        scopeKey: Object.values(scope).join('|'),
+        nextSequence: action === 'keep_local' ? 5 : 4,
+      });
+      corrupt.close();
+      expect(await target.resolveConflict(input)).toEqual(resolved);
+      if (action === 'use_server')
+        await expect(
+          target.enqueueEvaluationMutation(
+            mutation({
+              clientMutationId: '30000000-0000-4000-8000-000000000204',
+              expectedVersion: 7,
+              draft: { ...draft, note: 'future append after terminal prefix' },
+            }),
+          ),
+        ).resolves.toMatchObject({ queueSequence: 4 });
+      else
+        expect(await target.listMutations(scope)).toEqual([
+          expect.objectContaining({
+            clientMutationId: resolved.clientMutationId,
+            queueSequence: 4,
+          }),
+        ]);
+      target.close();
+    },
+  );
+
+  it('fails closed on a legacy bare dependent fence without reopening or reusing its sequence', async () => {
+    const baseName = databaseBase('conflict-dependent-legacy-fence');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const headId = '30000000-0000-4000-8000-000000000211';
+    const dependentId = '30000000-0000-4000-8000-000000000212';
+    await target.enqueueEvaluationMutation(mutation({ clientMutationId: headId }));
+    await target.enqueueEvaluationMutation(
+      mutation({ clientMutationId: dependentId, expectedVersion: 3 }),
+    );
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: head.evaluationId,
+      clientMutationId: headId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'legacy dependent fence',
+      conflictServerEvaluationId: head.evaluationId,
+      conflictServerVersion: 7,
+    });
+    const input = {
+      scope,
+      clientMutationId: headId,
+      action: 'use_server' as const,
+      original: {
+        evaluationId: head.evaluationId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: draft,
+      server: { scope, evaluationId: head.evaluationId, version: 7, draft },
+    };
+    await target.resolveConflict(input);
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const dependent = await raw
+      .table('receiptTombstones')
+      .get(`${Object.values(scope).join('|')}|${dependentId}`);
+    const legacy = { ...dependent };
+    for (const key of [
+      'resolutionId',
+      'resolutionAction',
+      'resolutionHeadMutationId',
+      'resolutionInputDigest',
+      'resolutionOutputDigest',
+      'resolutionRetiredEvaluationId',
+      'resolutionRetiredQueueKey',
+      'resolutionRetiredQueueSequence',
+      'resolutionRetiredExpectedVersion',
+      'resolutionRetiredPayloadDigest',
+      'resolutionRetiredDraftDigest',
+    ])
+      delete legacy[key];
+    delete legacy.tombstoneDigest;
+    legacy.tombstoneDigest = await digestValue(receiptTombstonePayload(legacy));
+    await raw.table('receiptTombstones').put(legacy);
+    raw.close();
+
+    await expect(target.resolveConflict(input)).rejects.toMatchObject({ code: 'corrupt_record' });
+    await expect(
+      target.enqueueEvaluationMutation(
+        mutation({
+          clientMutationId: '30000000-0000-4000-8000-000000000213',
+          expectedVersion: 7,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+    await expect(
+      target.enqueueEvaluationMutation(mutation({ clientMutationId: dependentId })),
+    ).rejects.toMatchObject({ code: 'corrupt_record' });
+    target.close();
+  });
+
+  it('proves one resolution group across provisional and authoritative queue identities', async () => {
+    const baseName = databaseBase('conflict-dependent-multi-id-chain');
+    const physicalName = trackUserDatabase(baseName);
+    const target = await prepare(
+      createEvaluationOfflineRepository({
+        authenticatedUserId: scope.userId,
+        databaseName: baseName,
+      }),
+    );
+    const provisionalId = mutation().evaluationId;
+    const authoritativeId = '30000000-0000-4000-8000-000000000221';
+    const headId = '30000000-0000-4000-8000-000000000222';
+    const provisionalDependentId = '30000000-0000-4000-8000-000000000223';
+    const authoritativeDependentId = '30000000-0000-4000-8000-000000000224';
+    await target.enqueueEvaluationMutation(
+      mutation({ clientMutationId: headId, evaluationId: provisionalId }),
+    );
+    await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: provisionalDependentId,
+        evaluationId: provisionalId,
+        expectedVersion: 3,
+      }),
+    );
+    const head = (await target.nextPendingMutation(scope))!;
+    await target.markNeedsAttention({
+      scope,
+      evaluationId: provisionalId,
+      clientMutationId: headId,
+      claimToken: head.claimToken!,
+      category: 'conflict',
+      message: 'provisional to authoritative chain',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 7,
+    });
+    const newestDraft = { ...draft, note: 'newest authoritative dependent' };
+    await target.saveDraftLocally({
+      scope,
+      evaluationId: authoritativeId,
+      expectedVersion: 7,
+      draft: newestDraft,
+    });
+    await target.enqueueEvaluationMutation(
+      mutation({
+        clientMutationId: authoritativeDependentId,
+        evaluationId: authoritativeId,
+        expectedVersion: 7,
+        draft: newestDraft,
+      }),
+    );
+    const input = {
+      scope,
+      clientMutationId: headId,
+      action: 'keep_local' as const,
+      original: {
+        evaluationId: provisionalId,
+        payloadDigest: head.payloadDigest,
+        queueSequence: head.queueSequence,
+      },
+      local: newestDraft,
+      server: { scope, evaluationId: authoritativeId, version: 7, draft },
+    };
+    const result = await target.resolveConflict(input);
+    expect(await target.resolveConflict(input)).toEqual(result);
+
+    const raw = new Dexie(physicalName);
+    raw.version(5).stores(v5Stores);
+    await raw.open();
+    const retired = (await raw.table('receiptTombstones').toArray()).filter((row) =>
+      [headId, provisionalDependentId, authoritativeDependentId].includes(row.clientMutationId),
+    );
+    expect(new Set(retired.map((row) => row.resolutionId))).toHaveProperty('size', 1);
+    expect(
+      retired.map((row) => [row.resolutionRetiredEvaluationId, row.resolutionRetiredQueueSequence]),
+    ).toEqual(
+      expect.arrayContaining([
+        [provisionalId, 1],
+        [provisionalId, 2],
+        [authoritativeId, 1],
+      ]),
+    );
+    await raw.table('queueCounters').put({
+      queueKey: evaluationQueueKey(scope, authoritativeId),
+      scopeKey: Object.values(scope).join('|'),
+      nextSequence: 2,
+    });
+    const before = await snapshotV5(raw);
+    raw.close();
+    await expect(target.resolveConflict(input)).rejects.toMatchObject({ code: 'corrupt_record' });
+    const after = new Dexie(physicalName);
+    after.version(5).stores(v5Stores);
+    await after.open();
+    expect(await snapshotV5(after)).toEqual(before);
+    after.close();
     target.close();
   });
 
