@@ -1,14 +1,131 @@
 // @vitest-environment node
 
-import { execFile as execFileCallback, spawn } from 'node:child_process';
+import { execFile as execFileCallback, execFileSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const execFile = promisify(execFileCallback);
-const databaseUrl =
+const primaryDatabaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const isolatedDatabaseName = `tryoutflow_roster_${randomUUID().replaceAll('-', '')}`;
+const databaseUrl = primaryDatabaseUrl.replace(/\/[^/]+$/u, `/${isolatedDatabaseName}`);
+
+beforeAll(() => {
+  execFileSync(
+    'psql',
+    [
+      primaryDatabaseUrl,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `drop database if exists ${isolatedDatabaseName} with (force)`,
+    ],
+    { stdio: 'pipe' },
+  );
+  execFileSync(
+    'psql',
+    [primaryDatabaseUrl, '-v', 'ON_ERROR_STOP=1', '-c', `create database ${isolatedDatabaseName}`],
+    { stdio: 'pipe' },
+  );
+  execFileSync(
+    'psql',
+    [
+      databaseUrl,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `
+        drop schema public;
+        create schema auth;
+        create schema extensions;
+        create table auth.users(id uuid primary key,email text);
+        create function auth.uid() returns uuid language sql stable as
+          'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
+        create function auth.role() returns text language sql stable as
+          'select nullif(current_setting(''request.jwt.claim.role'',true),'''')';
+        create function auth.jwt() returns jsonb language sql stable as
+          'select coalesce(nullif(current_setting(''request.jwt.claims'',true),'''')::jsonb,''{}''::jsonb)';
+        create extension citext with schema extensions;
+        create extension pgcrypto with schema extensions;
+        create extension "uuid-ossp" with schema extensions;
+      `,
+    ],
+    { stdio: 'pipe' },
+  );
+  const databaseContainer = execFileSync(
+    'docker',
+    ['ps', '--filter', 'name=supabase_db_', '--format', '{{.Names}}'],
+    { encoding: 'utf8' },
+  )
+    .trim()
+    .split('\n')[0];
+  if (!databaseContainer) throw new Error('local Supabase database container not found');
+  const schema = execFileSync(
+    'docker',
+    [
+      'exec',
+      databaseContainer,
+      'pg_dump',
+      '-U',
+      'postgres',
+      '-d',
+      'postgres',
+      '--schema-only',
+      '--no-owner',
+      '--schema=public',
+      '--schema=private',
+    ],
+    { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 },
+  )
+    .split('\n')
+    .filter((line) => !line.startsWith('ALTER DEFAULT PRIVILEGES'))
+    .join('\n');
+  execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1'], {
+    input: schema,
+    maxBuffer: 50 * 1024 * 1024,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+});
+
+afterAll(() => {
+  execFileSync(
+    'psql',
+    [
+      primaryDatabaseUrl,
+      '-v',
+      'ON_ERROR_STOP=1',
+      '-c',
+      `drop database if exists ${isolatedDatabaseName} with (force)`,
+    ],
+    { stdio: 'pipe' },
+  );
+  expect(
+    execFileSync(
+      'psql',
+      [
+        primaryDatabaseUrl,
+        '-At',
+        '-c',
+        `select count(*) from pg_database where datname='${isolatedDatabaseName}'`,
+      ],
+      { encoding: 'utf8' },
+    ).trim(),
+  ).toBe('0');
+  expect(
+    execFileSync(
+      'psql',
+      [
+        primaryDatabaseUrl,
+        '-At',
+        '-c',
+        "select count(*) from public.organizations where slug like 'roster-race-%'",
+      ],
+      { encoding: 'utf8' },
+    ).trim(),
+  ).toBe('0');
+});
 const psql = (sql: string, applicationName = 'tryoutflow-roster-integration') =>
   execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
     env: { ...process.env, PGAPPNAME: applicationName },
@@ -94,6 +211,9 @@ describe('real roster finalization concurrency', () => {
           ('${registrationB}','${organization}','${tryout}','${athleteB}','${division}','${formVersion}','{}',repeat('b',64),repeat('2',64));
         update public.tryouts set status='published',published_at=clock_timestamp() where id='${tryout}';
       `);
+      if (process.env.TRYOUTFLOW_ROSTER_FORCE_FAILURE === '1') {
+        throw new Error('forced roster fixture failure');
+      }
       const created = await asOwner(
         `select outcome||'|'||roster_version_id||'|'||version from public.create_roster_draft('${organization}','${tryout}','${division}','[{"name":"Blue"},{"name":"White"}]')`,
         `roster-create-${suffix}`,
@@ -178,33 +298,10 @@ describe('real roster finalization concurrency', () => {
         ).stdout.trim(),
       ).toBe(`${rosterId}|1|2|1`);
     } finally {
-      if (holder.exitCode === null && holder.signalCode === null) {
-        holder.stdin?.write(`select pg_advisory_unlock(${gateKey});\n\\q\n`);
-        holder.kill('SIGTERM');
-      }
-      await psql(`
-        begin;
-        alter table public.roster_assignments disable trigger guard_roster_assignments_snapshot;
-        alter table public.roster_decisions disable trigger guard_roster_decisions_snapshot;
-        alter table public.decision_history disable trigger guard_decision_history_snapshot_insert;
-        alter table public.decision_history disable trigger prevent_decision_history_update;
-        alter table public.decision_history disable trigger prevent_decision_history_delete;
-        alter table public.roster_versions disable trigger prevent_finalized_roster_version_mutation;
-        alter table public.tryout_teams disable trigger prevent_finalized_roster_team_mutation;
-        set session_replication_role=replica;
-        do $cleanup$ declare target record; begin for target in select distinct table_name from information_schema.columns where table_schema='public' and column_name='organization_id' and table_name<>'organizations' loop execute format('delete from public.%I where organization_id=$1',target.table_name) using '${organization}'::uuid; end loop; end $cleanup$;
-        delete from public.organizations where id='${organization}';
-        delete from auth.users where id='${owner}';
-        set session_replication_role=origin;
-        alter table public.roster_assignments enable always trigger guard_roster_assignments_snapshot;
-        alter table public.roster_decisions enable always trigger guard_roster_decisions_snapshot;
-        alter table public.decision_history enable always trigger guard_decision_history_snapshot_insert;
-        alter table public.decision_history enable always trigger prevent_decision_history_update;
-        alter table public.decision_history enable always trigger prevent_decision_history_delete;
-        alter table public.roster_versions enable always trigger prevent_finalized_roster_version_mutation;
-        alter table public.tryout_teams enable always trigger prevent_finalized_roster_team_mutation;
-        commit;
-      `);
+      await psql(
+        `select pg_terminate_backend(pid) from pg_stat_activity where pid<>pg_backend_pid() and datname=current_database() and application_name like 'roster-%-${suffix}'`,
+        `roster-cleanup-${suffix}`,
+      );
     }
   }, 30_000);
 });
