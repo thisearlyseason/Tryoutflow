@@ -18,7 +18,7 @@ const validateInputSchema = publishInputSchema.omit({ expectedVersion: true });
 export type PublishBlocker =
   | 'division_missing'
   | 'session_missing'
-  | 'form_missing'
+  | 'registration_form_missing'
   | 'registration_closed'
   | 'rubric_invalid';
 
@@ -50,7 +50,7 @@ function isPublishBlocker(value: unknown): value is PublishBlocker {
   return (
     value === 'division_missing' ||
     value === 'session_missing' ||
-    value === 'form_missing' ||
+    value === 'registration_form_missing' ||
     value === 'registration_closed' ||
     value === 'rubric_invalid'
   );

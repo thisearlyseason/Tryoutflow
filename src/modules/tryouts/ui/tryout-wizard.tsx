@@ -42,6 +42,7 @@ export function TryoutWizard({
   action,
   blockers,
   divisions = [],
+  error,
   name,
   sessions = [],
   step,
@@ -49,6 +50,7 @@ export function TryoutWizard({
   action: (formData: FormData) => void | Promise<void>;
   blockers: string[];
   divisions?: { id: string; name: string }[];
+  error?: string;
   name: string;
   sessions?: { id: string; name: string }[];
   step: TryoutSetupStep;
@@ -64,6 +66,11 @@ export function TryoutWizard({
       <p className="eyebrow">Setup step</p>
       <h2 id="wizard-step-heading">{item.title}</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">{item.description}</p>
+      {error ? (
+        <p className="mt-4 rounded-lg border border-[var(--color-destructive)] p-3" role="alert">
+          Could not save this step: {error.replaceAll('_', ' ')}. Your progress was not advanced.
+        </p>
+      ) : null}
       {blockers.length > 0 && (step === 'review' || step === 'publish') ? (
         <div
           aria-live="polite"

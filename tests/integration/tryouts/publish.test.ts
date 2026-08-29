@@ -43,19 +43,21 @@ describe('tryout publication', () => {
     expect(result).toEqual({ ok: false, error: { code: 'rubric_invalid' } });
   });
 
-  it.each(['division_missing', 'session_missing', 'form_missing', 'registration_closed'] as const)(
-    'maps the database %s blocker without claiming publication',
-    async (blocker) => {
-      const repository = gateway({ kind: blocker });
-      await expect(
-        publishTryout(
-          { organizationId, tryoutId, expectedVersion: 4 },
-          { authorization: directorAuthorization },
-          { gateway: repository },
-        ),
-      ).resolves.toEqual({ ok: false, error: { code: blocker } });
-    },
-  );
+  it.each([
+    'division_missing',
+    'session_missing',
+    'registration_form_missing',
+    'registration_closed',
+  ] as const)('maps the database %s blocker without claiming publication', async (blocker) => {
+    const repository = gateway({ kind: blocker });
+    await expect(
+      publishTryout(
+        { organizationId, tryoutId, expectedVersion: 4 },
+        { authorization: directorAuthorization },
+        { gateway: repository },
+      ),
+    ).resolves.toEqual({ ok: false, error: { code: blocker } });
+  });
 
   it('does not call the atomic command when current authorization lacks publish capability', async () => {
     const repository = gateway({ kind: 'published', publicSlug: 'fall-id-camp' });

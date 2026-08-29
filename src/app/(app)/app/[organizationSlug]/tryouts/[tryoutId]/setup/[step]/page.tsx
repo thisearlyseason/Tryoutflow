@@ -13,16 +13,21 @@ import {
   saveWizardConfiguration,
   wizardPayload,
 } from '@/modules/tryouts/application/save-wizard-configuration';
+import { persistWizardStep } from '@/modules/tryouts/application/persist-wizard-step';
 import { TryoutWizard } from '@/modules/tryouts/ui/tryout-wizard';
 import { WizardProgress } from '@/modules/tryouts/ui/wizard-progress';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 
 export default async function TryoutSetupStepPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationSlug: string; tryoutId: string; step: string }>;
+  searchParams: Promise<{ error?: string | string[] }>;
 }) {
   const { organizationSlug, step: rawStep, tryoutId } = await params;
+  const { error: rawError } = await searchParams;
+  const error = typeof rawError === 'string' ? rawError : undefined;
   if (!tryoutSetupSteps.includes(rawStep as TryoutSetupStep)) notFound();
   const step = rawStep as TryoutSetupStep;
   const current = await requireCurrentOrganization(organizationSlug);
@@ -81,32 +86,24 @@ export default async function TryoutSetupStepPage({
         );
       redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/overview`);
     }
-    const result =
-      step === 'review'
-        ? await saveTryoutSetupStep(
-            { organizationId: route.organization.id, tryoutId, step },
-            { authorization: route.authorization },
-          )
-        : await saveWizardConfiguration(
-            {
-              organizationId: route.organization.id,
-              tryoutId,
-              step,
-              payload: wizardPayload(step, formData),
-            },
-            { authorization: route.authorization },
-          );
-    if (result.ok && step !== 'review') {
-      await saveTryoutSetupStep(
-        { organizationId: route.organization.id, tryoutId, step },
-        { authorization: route.authorization },
-      );
-    }
-    const next =
-      tryoutSetupSteps[Math.min(tryoutSetupSteps.indexOf(step) + 1, tryoutSetupSteps.length - 1)];
-    redirect(
-      `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${next}${result.ok ? '' : `?error=${result.error.code}`}`,
+    const result = await persistWizardStep(
+      {
+        organizationId: route.organization.id,
+        tryoutId,
+        step,
+        payload: wizardPayload(step, formData),
+      },
+      {
+        saveConfiguration: (input) =>
+          saveWizardConfiguration(input, { authorization: route.authorization }),
+        saveProgress: (input) => saveTryoutSetupStep(input, { authorization: route.authorization }),
+      },
     );
+    if (result.kind === 'error')
+      redirect(
+        `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${step}?error=${encodeURIComponent(result.code)}`,
+      );
+    redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/${result.nextStep}`);
   }
   return (
     <section>
@@ -121,6 +118,7 @@ export default async function TryoutSetupStepPage({
         action={save}
         blockers={blockers}
         divisions={divisions ?? []}
+        error={error}
         name={tryout.name}
         sessions={sessions ?? []}
         step={step}

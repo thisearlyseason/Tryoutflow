@@ -1,5 +1,5 @@
 begin;
-select plan(14);
+select plan(18);
 
 select has_function('public', 'publish_tryout', array['uuid', 'uuid', 'integer'], 'publication is one database transaction');
 
@@ -19,6 +19,10 @@ insert into public.registration_forms (id, organization_id, tryout_id, name)
 values ('60606060-6060-4060-8060-606060606060', '20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 'Registration');
 insert into public.registration_form_versions (id, organization_id, tryout_id, registration_form_id, version_number, schema)
 values ('70707070-7070-4070-8070-707070707070', '20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '60606060-6060-4060-8060-606060606060', 1, '{"fields":[]}');
+insert into public.registration_forms (id, organization_id, tryout_id, name)
+values ('62626262-6262-4262-8262-626262626262', '20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 'Alternate registration');
+insert into public.registration_form_versions (id, organization_id, tryout_id, registration_form_id, version_number, schema)
+values ('72727272-7272-4272-8272-727272727272', '20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '62626262-6262-4262-8262-626262626262', 1, '{"fields":[]}');
 insert into public.rubrics (id, organization_id, tryout_id, name)
 values ('80808080-8080-4080-8080-808080808080', '20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 'Skills');
 insert into public.rubric_versions (id, organization_id, tryout_id, rubric_id, version_number)
@@ -29,19 +33,20 @@ set local request.jwt.claim.sub = '11111111-1111-4111-8111-111111111112';
 select throws_ok(
   $$select * from public.publish_tryout('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 0)$$,
   '42501', null, 'an inactive non-member cannot publish');
+insert into public.session_rubrics (organization_id, tryout_id, session_id, rubric_version_id)
+values ('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '50505050-5050-4050-8050-505050505050', '90909090-9090-4090-8090-909090909090');
 set local request.jwt.claim.sub = '10101010-1010-4010-8010-101010101010';
+select is((select blocker from public.validate_tryout_for_publish('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030') limit 1), 'registration_form_missing', 'readiness requires an explicit selected form version');
 select is(
   (select outcome from public.select_tryout_registration_form_version('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '70707070-7070-4070-8070-707070707070')),
   'selected', 'an exact registration form version is selected before publication');
-insert into public.session_rubrics (organization_id, tryout_id, session_id, rubric_version_id)
-values ('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', '50505050-5050-4050-8050-505050505050', '90909090-9090-4090-8090-909090909090');
-
-set local request.jwt.claim.sub = '10101010-1010-4010-8010-101010101010';
 select is((select outcome from public.publish_tryout('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 0)), 'published', 'publishes a complete draft with CAS');
 select is((select status from public.tryouts where id = '30303030-3030-4030-8030-303030303030'), 'published', 'tryout state is published');
 select is((select status from public.registration_form_versions where id = '70707070-7070-4070-8070-707070707070'), 'published', 'required form draft is published in transaction');
+select is((select status from public.registration_form_versions where id = '72727272-7272-4272-8272-727272727272'), 'draft', 'unselected form draft remains a draft');
 select is((select status from public.rubric_versions where id = '90909090-9090-4090-8090-909090909090'), 'published', 'bound draft rubric is published in the same transaction');
 select is((select count(*) from public.tryout_publications where tryout_id = '30303030-3030-4030-8030-303030303030'), 1::bigint, 'publication pins one exact form version');
+select is((select registration_form_version_id from public.tryout_publications where tryout_id = '30303030-3030-4030-8030-303030303030'), '70707070-7070-4070-8070-707070707070'::uuid, 'publication pins the selected form version');
 select is((select count(*) from public.audit_logs where organization_id = '20202020-2020-4020-8020-202020202020' and action = 'tryout.published' and entity_id = '30303030-3030-4030-8030-303030303030'), 1::bigint, 'publication appends an audit event');
 select is((select outcome from public.publish_tryout('20202020-2020-4020-8020-202020202020', '30303030-3030-4030-8030-303030303030', 0)), 'already_published', 'a double-click is idempotent');
 
@@ -58,6 +63,10 @@ insert into public.registration_forms (id, organization_id, tryout_id, name)
 values ('61616161-6161-4161-8161-616161616161', '20202020-2020-4020-8020-202020202020', '31313131-3131-4131-8131-313131313131', 'Registration');
 insert into public.registration_form_versions (id, organization_id, tryout_id, registration_form_id, version_number, schema)
 values ('71717171-7171-4171-8171-717171717171', '20202020-2020-4020-8020-202020202020', '31313131-3131-4131-8131-313131313131', '61616161-6161-4161-8161-616161616161', 1, '{"fields":[]}');
+select is(
+  (select outcome from public.select_tryout_registration_form_version('20202020-2020-4020-8020-202020202020', '31313131-3131-4131-8131-313131313131', '70707070-7070-4070-8070-707070707070')),
+  'invalid_version', 'selection denies a form version belonging to another tryout');
+select outcome from public.select_tryout_registration_form_version('20202020-2020-4020-8020-202020202020', '31313131-3131-4131-8131-313131313131', '71717171-7171-4171-8171-717171717171');
 insert into public.rubrics (id, organization_id, tryout_id, name)
 values ('81818181-8181-4181-8181-818181818181', '20202020-2020-4020-8020-202020202020', '31313131-3131-4131-8131-313131313131', 'Skills');
 insert into public.rubric_versions (id, organization_id, tryout_id, rubric_id, version_number, status, published_at)
