@@ -16,11 +16,12 @@ test('check-in workspace supports search, placement, conflict recovery, and mobi
   await page.getByLabel('Requested number (optional)').fill('44');
   await page.getByRole('button', { name: 'Check in Ava Smith' }).click();
   await expect(page.getByRole('status')).toContainText(
-    'The service could not complete the check-in. Try again.',
+    'The check-in outcome could not be confirmed. It is safe to retry.',
   );
   await page.getByRole('button', { name: 'Check in Ava Smith' }).click();
   await expect(page.getByRole('status')).toContainText('Ava Smith checked in');
   await expect(page.getByRole('button', { name: 'Confirm Ava Smith again' })).toBeVisible();
+  await expect(page.getByText('#44 · checked in')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm Ava Smith again' }).click();
   await expect(page.getByRole('status')).toContainText('Ava Smith was already checked in. #44');
   const targets = await page.locator('main button, main input, main select').evaluateAll((nodes) =>

@@ -191,7 +191,7 @@ describe('CheckinWorkspace', () => {
     await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
     await user.click(screen.getByRole('button', { name: /^search$/i }));
     await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
-    await screen.findByText(/request.*could not be confirmed/i);
+    await screen.findByText(/outcome.*could not be confirmed.*safe to retry/i);
     await user.click(screen.getByRole('button', { name: /check in Ava Smith/i }));
     expect(await screen.findByText(/already checked in.*#17/i)).toBeInTheDocument();
     expect(keys).toHaveLength(2);
@@ -232,7 +232,7 @@ describe('CheckinWorkspace', () => {
     await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
     await user.click(screen.getByRole('button', { name: /^search$/i }));
     await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
-    await screen.findByText(/service could not complete the check-in/i);
+    await screen.findByText(/outcome could not be confirmed.*safe to retry/i);
     await user.click(screen.getByRole('button', { name: /check in Ava Smith/i }));
     expect(await screen.findByText(/Ava Smith checked in.*#17/i)).toBeInTheDocument();
     expect(keys).toHaveLength(2);
@@ -284,6 +284,36 @@ describe('CheckinWorkspace', () => {
     expect(keys[0]).not.toBe(keys[1]);
   });
 
+  it('synchronizes the visible row number from a conclusive receipt', async () => {
+    const user = userEvent.setup();
+    render(
+      <CheckinWorkspace
+        search={vi.fn(async () => [
+          {
+            registrationId: 'REG-1042',
+            athleteName: 'Ava Smith',
+            guardianName: 'Taylor Smith',
+            divisionName: 'U13',
+            tryoutNumber: null,
+            status: 'ready' as const,
+          },
+        ])}
+        onCheckIn={vi.fn(async () => ({
+          outcome: 'checked_in' as const,
+          receiptId: 'receipt-1',
+          checkedInAt: '2026-08-28T12:00:00.000Z',
+          assignedNumber: 17,
+        }))}
+        placements={[{ sessionId: 'session-1', sessionName: 'Morning' }]}
+      />,
+    );
+    await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
+    expect(await screen.findByText(/#17 · checked in/i)).toBeInTheDocument();
+    expect(screen.queryByText(/number not assigned · checked in/i)).not.toBeInTheDocument();
+  });
+
   it('renders an unexpected service failure separately from invalid input', async () => {
     const user = userEvent.setup();
     render(
@@ -305,7 +335,9 @@ describe('CheckinWorkspace', () => {
     await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
     await user.click(screen.getByRole('button', { name: /^search$/i }));
     await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
-    expect(await screen.findByText(/service could not complete the check-in/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/outcome could not be confirmed.*safe to retry/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/request is invalid/i)).not.toBeInTheDocument();
   });
 });

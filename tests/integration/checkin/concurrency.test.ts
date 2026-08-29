@@ -34,7 +34,7 @@ const waitForOutput = (child: ReturnType<typeof spawn>, expected: string) =>
     });
   });
 
-const waitForBlockedCalls = async (applicationNames: string[]) => {
+const waitForBlockedCalls = async (applicationNames: readonly string[]) => {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const result = await psql(
       `select count(*) from pg_stat_activity where application_name=any(array[${applicationNames.map((name) => `'${name}'`).join(',')}]) and wait_event_type='Lock'`,
@@ -43,6 +43,22 @@ const waitForBlockedCalls = async (applicationNames: string[]) => {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error(`calls did not block on enrollment move: ${applicationNames.join(', ')}`);
+};
+
+const waitForBlockingEdge = async (blockedName: string, blockerName: string) => {
+  for (let attempt = 0; attempt < 150; attempt += 1) {
+    const result = await psql(`
+      select blocked.pid||'|'||blocker.pid
+      from pg_stat_activity blocked
+      join pg_stat_activity blocker on blocker.application_name='${blockerName}'
+      where blocked.application_name='${blockedName}'
+        and blocked.wait_event_type='Lock'
+        and blocker.pid=any(pg_blocking_pids(blocked.pid))
+    `);
+    if (result.stdout.trim()) return result.stdout.trim();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`${blockedName} was not blocked by ${blockerName}`);
 };
 
 describe('concurrent number assignment and check-in', () => {
@@ -82,7 +98,7 @@ describe('concurrent number assignment and check-in', () => {
     const slug = `checkin-${tryoutId.slice(0, 8)}`;
     const callAs = (actorId: string, sql: string, column = 'outcome', applicationName?: string) =>
       psql(
-        `begin; set local role authenticated; select set_config('request.jwt.claim.sub','${actorId}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
+        `begin; set local statement_timeout='10s'; set local role authenticated; select set_config('request.jwt.claim.sub','${actorId}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
         applicationName,
       );
     const call = (sql: string, column = 'outcome') => callAs(staffId, sql, column);
@@ -177,6 +193,80 @@ describe('concurrent number assignment and check-in', () => {
         'assigned',
       ]);
 
+      // Exact inverse ordering: the real assignment command owns the registration
+      // parent while naturally waiting on its number-scope advisory lock. The mover
+      // then owns the enrollment tuple and waits in its BEFORE trigger on that parent.
+      // Releasing only the unrelated scope holder must let the logically prior command
+      // commit, then the mover complete, with neither deadlock nor statement timeout.
+      const scopeHolderName = 'checkin-inverse-scope-holder';
+      const inverseCommandName = 'checkin-inverse-command';
+      const inverseMoverName = 'checkin-inverse-mover';
+      const scopeHolder = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
+        env: { ...process.env, PGAPPNAME: scopeHolderName },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const scopeHeld = waitForOutput(scopeHolder, 'inverse-scope-held');
+      scopeHolder.stdin?.write(`
+        begin;
+        set local statement_timeout='8s';
+        select pg_advisory_xact_lock(hashtextextended(concat_ws(':','checkin-number','${organizationId}','${tryoutId}','session','${divisionId}','${sessionOneId}',null),0));
+        select 'inverse-scope-held';
+      `);
+      await scopeHeld;
+      const inverseCommand = callAs(
+        scopedStaffId,
+        `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[2]}','${divisionId}','${sessionOneId}',null,'session',8)`,
+        'outcome',
+        inverseCommandName,
+      );
+      const commandScopeEdge = await waitForBlockingEdge(inverseCommandName, scopeHolderName);
+
+      const inverseMover = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
+        env: { ...process.env, PGAPPNAME: inverseMoverName },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      const inverseMoveCompleted = waitForOutput(inverseMover, 'inverse-move-completed');
+      inverseMover.stdin?.write(`
+        begin;
+        set local statement_timeout='8s';
+        update public.session_enrollments set session_id='${sessionTwoId}'
+        where organization_id='${organizationId}' and registration_id='${registrationIds[2]}'
+          and session_id='${sessionOneId}';
+        select 'inverse-move-completed';
+      `);
+      const moverCommandEdge = await waitForBlockingEdge(inverseMoverName, inverseCommandName);
+      const [commandPid, scopeHolderPid] = commandScopeEdge.split('|');
+      const [moverPid, moverBlockerPid] = moverCommandEdge.split('|');
+      expect(moverBlockerPid).toBe(commandPid);
+      expect(new Set([commandPid, scopeHolderPid, moverPid]).size).toBe(3);
+
+      const scopeHolderExited = new Promise<void>((resolve, reject) => {
+        scopeHolder.once('exit', (code) =>
+          code === 0 ? resolve() : reject(new Error(`inverse scope holder exited ${code}`)),
+        );
+      });
+      scopeHolder.stdin?.end('commit;\n');
+      await scopeHolderExited;
+      expect((await inverseCommand).stdout.trim()).toBe('corrected');
+      await inverseMoveCompleted;
+      const inverseMoverExited = new Promise<void>((resolve, reject) => {
+        inverseMover.once('exit', (code) =>
+          code === 0 ? resolve() : reject(new Error(`inverse mover exited ${code}`)),
+        );
+      });
+      inverseMover.stdin?.end('commit;\n');
+      await inverseMoverExited;
+      expect(
+        (
+          await psql(
+            `select count(*) from public.tryout_numbers where registration_id='${registrationIds[2]}' and session_id='${sessionOneId}' and released_at is null`,
+          )
+        ).stdout.trim(),
+      ).toBe('0');
+      await psql(
+        `update public.session_enrollments set session_id='${sessionOneId}' where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionTwoId}'`,
+      );
+
       const mover = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
         env: { ...process.env, PGAPPNAME: 'checkin-enrollment-mover' },
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -190,14 +280,20 @@ describe('concurrent number assignment and check-in', () => {
         'checkin-move-race-assign',
         'checkin-move-race-release',
         'checkin-move-race-checkin',
-      ];
+      ] as const;
+      const moverFirstAssignment = callAs(
+        scopedStaffId,
+        `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[2]}','${divisionId}','${sessionOneId}',null,'session',8)`,
+        'outcome',
+        moveRaceNames[0],
+      );
+      const moverFirstEdge = await waitForBlockingEdge(
+        moveRaceNames[0],
+        'checkin-enrollment-mover',
+      );
+      expect(moverFirstEdge.split('|')).toHaveLength(2);
       const moveRace = [
-        callAs(
-          scopedStaffId,
-          `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[2]}','${divisionId}','${sessionOneId}',null,'session',8)`,
-          'outcome',
-          moveRaceNames[0],
-        ),
+        moverFirstAssignment,
         callAs(
           scopedStaffId,
           `select public.release_tryout_number('${organizationId}','${tryoutId}','${registrationIds[2]}','${sessionOneId}',null,'placement_changed') as outcome`,
@@ -520,5 +616,5 @@ describe('concurrent number assignment and check-in', () => {
         set session_replication_role=origin;
       `);
     }
-  });
+  }, 15_000);
 });

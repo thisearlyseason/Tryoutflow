@@ -57,7 +57,7 @@ const failureMessages: Record<
   invalid_request: 'The check-in request is invalid.',
   exhausted: 'No tryout numbers are available in this scope.',
   conflict: 'This retry key belongs to a different check-in request.',
-  unexpected_error: 'The service could not complete the check-in. Try again.',
+  unexpected_error: 'The check-in outcome could not be confirmed. It is safe to retry.',
 };
 
 export function CheckinWorkspace({
@@ -177,12 +177,18 @@ export function CheckinWorkspace({
         setResults(
           (current) =>
             current?.map((row) =>
-              row.registrationId === result.registrationId ? { ...row, status: 'checked_in' } : row,
+              row.registrationId === result.registrationId
+                ? {
+                    ...row,
+                    status: 'checked_in',
+                    tryoutNumber: receipt.assignedNumber ?? row.tryoutNumber,
+                  }
+                : row,
             ) ?? null,
         );
       } catch {
         setMessage(
-          `The check-in request for ${result.athleteName} could not be confirmed. Try again.`,
+          `The check-in outcome for ${result.athleteName} could not be confirmed. It is safe to retry.`,
         );
       } finally {
         inFlightRequests.current.delete(requestPayload);
