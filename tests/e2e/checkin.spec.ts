@@ -17,6 +17,8 @@ test('check-in workspace supports search, placement, conflict recovery, and mobi
   await page.getByRole('button', { name: 'Check in Ava Smith' }).click();
   await expect(page.getByRole('status')).toContainText('Ava Smith checked in');
   await expect(page.getByRole('button', { name: 'Confirm Ava Smith again' })).toBeVisible();
+  await page.getByRole('button', { name: 'Confirm Ava Smith again' }).click();
+  await expect(page.getByRole('status')).toContainText('Ava Smith was already checked in. #43');
   const targets = await page.locator('main button, main input, main select').evaluateAll((nodes) =>
     nodes.map((node) => ({
       height: node.getBoundingClientRect().height,

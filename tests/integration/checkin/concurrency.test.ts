@@ -17,35 +17,42 @@ describe('concurrent number assignment and check-in', () => {
     const id = () => randomUUID();
     const ownerId = id();
     const staffId = id();
+    const scopedStaffId = id();
     const organizationId = id();
     const tryoutId = id();
     const divisionId = id();
     const divisionTwoId = id();
     const sessionOneId = id();
     const sessionTwoId = id();
+    const correctionSessionId = id();
+    const divisionTwoSessionId = id();
     const groupId = id();
     const formId = id();
     const versionId = id();
     const athleteIds = [id(), id(), id(), id(), id()];
     const registrationIds = [id(), id(), id(), id(), id()];
     const slug = `checkin-${tryoutId.slice(0, 8)}`;
-    const call = (sql: string, column = 'outcome') =>
+    const callAs = (actorId: string, sql: string, column = 'outcome') =>
       psql(
-        `begin; set local role authenticated; select set_config('request.jwt.claim.sub','${staffId}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
+        `begin; set local role authenticated; select set_config('request.jwt.claim.sub','${actorId}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
       );
+    const call = (sql: string, column = 'outcome') => callAs(staffId, sql, column);
     try {
       await psql(`
-        insert into auth.users(id) values('${ownerId}'),('${staffId}');
+        insert into auth.users(id) values('${ownerId}'),('${staffId}'),('${scopedStaffId}');
         insert into public.organizations(id,name,slug,timezone) values('${organizationId}','Concurrent Checkin','${slug}','America/Edmonton');
         insert into public.organization_members(organization_id,user_id,role,status) values
-          ('${organizationId}','${ownerId}','owner','active'),('${organizationId}','${staffId}','member','active');
+          ('${organizationId}','${ownerId}','owner','active'),('${organizationId}','${staffId}','member','active'),
+          ('${organizationId}','${scopedStaffId}','member','active');
         insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('${tryoutId}','${organizationId}','Concurrent Camp','${slug}','Hockey','America/Edmonton');
         insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values
           ('${divisionId}','${organizationId}','${tryoutId}','U13',0),
           ('${divisionTwoId}','${organizationId}','${tryoutId}','U15',1);
         insert into public.tryout_sessions(id,organization_id,tryout_id,division_id,name,capacity,starts_at,ends_at,sort_order) values
           ('${sessionOneId}','${organizationId}','${tryoutId}','${divisionId}','One',null,clock_timestamp()+interval '1 day',clock_timestamp()+interval '1 day 1 hour',0),
-          ('${sessionTwoId}','${organizationId}','${tryoutId}','${divisionId}','Two',1,clock_timestamp()+interval '1 day 2 hours',clock_timestamp()+interval '1 day 3 hours',1);
+          ('${sessionTwoId}','${organizationId}','${tryoutId}','${divisionId}','Two',1,clock_timestamp()+interval '1 day 2 hours',clock_timestamp()+interval '1 day 3 hours',1),
+          ('${correctionSessionId}','${organizationId}','${tryoutId}','${divisionId}','Correction',null,clock_timestamp()+interval '1 day 4 hours',clock_timestamp()+interval '1 day 5 hours',2),
+          ('${divisionTwoSessionId}','${organizationId}','${tryoutId}','${divisionTwoId}','Other division',null,clock_timestamp()+interval '1 day',clock_timestamp()+interval '1 day 1 hour',0);
         insert into public.session_groups(id,organization_id,tryout_id,session_id,name,sort_order,capacity)
           values('${groupId}','${organizationId}','${tryoutId}','${sessionOneId}','Last slot',0,1);
         insert into public.registration_forms(id,organization_id,tryout_id,name) values('${formId}','${organizationId}','${tryoutId}','Form');
@@ -66,8 +73,9 @@ describe('concurrent number assignment and check-in', () => {
         insert into public.session_enrollments(organization_id,tryout_id,registration_id,session_id) values
           ('${organizationId}','${tryoutId}','${registrationIds[2]}','${sessionOneId}'),
           ('${organizationId}','${tryoutId}','${registrationIds[3]}','${sessionOneId}');
-        insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,granted_by_user_id)
-          values('${organizationId}','${staffId}','checkin','tryout','${tryoutId}','${ownerId}');
+        insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,session_id,granted_by_user_id) values
+          ('${organizationId}','${staffId}','checkin','tryout','${tryoutId}',null,'${ownerId}'),
+          ('${organizationId}','${scopedStaffId}','checkin','session','${tryoutId}','${sessionOneId}','${ownerId}');
         set session_replication_role=replica;
         update public.tryouts set status='published',published_at=clock_timestamp() where id='${tryoutId}';
         set session_replication_role=origin;
@@ -116,6 +124,118 @@ describe('concurrent number assignment and check-in', () => {
         'assigned',
         'assigned',
       ]);
+
+      expect(
+        (
+          await callAs(
+            scopedStaffId,
+            `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[4]}','${divisionId}','${sessionOneId}',null,'session',88)`,
+          )
+        ).stdout.trim(),
+      ).toBe('invalid_registration');
+      expect(
+        (
+          await call(
+            `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[4]}','${divisionTwoId}','${divisionTwoSessionId}',null,'session',77)`,
+          )
+        ).stdout.trim(),
+      ).toBe('assigned');
+      expect(
+        (
+          await callAs(
+            scopedStaffId,
+            `select public.release_tryout_number('${organizationId}','${tryoutId}','${registrationIds[4]}','${sessionOneId}',null,'offboarding') as outcome`,
+          )
+        ).stdout.trim(),
+      ).toBe('invalid_placement');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.tryout_numbers where registration_id='${registrationIds[4]}' and session_id='${divisionTwoSessionId}' and number=77 and released_at is null`,
+          )
+        ).stdout.trim(),
+      ).toBe('1');
+
+      const initialReceipt = (
+        await call(
+          `select * from public.check_in_registration_v2('${organizationId}','${tryoutId}','${registrationIds[0]}','${correctionSessionId}',null,'immutable-receipt-request-0001','session',50)`,
+          `outcome||'|'||receipt_id||'|'||checked_in_at||'|'||assigned_number`,
+        )
+      ).stdout.trim();
+      expect(initialReceipt).toMatch(/^checked_in\|[0-9a-f-]+\|.+\|50$/u);
+      expect(
+        (
+          await call(
+            `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[0]}','${divisionId}','${correctionSessionId}',null,'session',51)`,
+          )
+        ).stdout.trim(),
+      ).toBe('corrected');
+      expect(
+        (
+          await psql(
+            `select count(*) filter(where number=50 and released_at is not null)||'|'||count(*) filter(where number=51 and released_at is null) from public.tryout_numbers where registration_id='${registrationIds[0]}' and session_id='${correctionSessionId}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('1|1');
+      expect(
+        (
+          await call(
+            `select * from public.check_in_registration_v2('${organizationId}','${tryoutId}','${registrationIds[0]}','${correctionSessionId}',null,'immutable-receipt-request-0001','session',50)`,
+            `outcome||'|'||receipt_id||'|'||checked_in_at||'|'||assigned_number`,
+          )
+        ).stdout.trim(),
+      ).toBe(initialReceipt);
+      expect(
+        (
+          await call(
+            `select * from public.check_in_registration_v2('${organizationId}','${tryoutId}','${registrationIds[0]}','${correctionSessionId}',null,'deliberate-repeat-request-001','session',50)`,
+            `outcome||'|'||receipt_id||'|'||assigned_number`,
+          )
+        ).stdout.trim(),
+      ).toMatch(/^already_checked_in\|[0-9a-f-]+\|50$/u);
+      expect(
+        (
+          await psql(
+            `select count(*) from public.audit_logs where organization_id='${organizationId}' and action='checkin.number_released' and details->>'reason'='correction' and details->'scope'->>'sessionId'='${correctionSessionId}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('1');
+
+      const issuedTokens = await Promise.all([
+        callAs(
+          ownerId,
+          `select public.issue_checkin_qr_token('${organizationId}','${tryoutId}','${registrationIds[4]}') as token`,
+          'token',
+        ),
+        callAs(
+          ownerId,
+          `select public.issue_checkin_qr_token('${organizationId}','${tryoutId}','${registrationIds[4]}') as token`,
+          'token',
+        ),
+      ]);
+      const rawTokens = issuedTokens.map(({ stdout }) => stdout.trim());
+      expect(rawTokens.every((token) => /^[0-9a-f]{64}$/u.test(token))).toBe(true);
+      expect(
+        (
+          await psql(
+            `select count(*) from public.checkin_qr_tokens where organization_id='${organizationId}' and registration_id='${registrationIds[4]}' and used_at is null and revoked_at is null`,
+          )
+        ).stdout.trim(),
+      ).toBe('1');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.checkin_qr_tokens where organization_id='${organizationId}' and registration_id='${registrationIds[4]}' and used_at is null and revoked_at is null and token_digest in(encode(extensions.digest('${rawTokens[0]}','sha256'),'hex'),encode(extensions.digest('${rawTokens[1]}','sha256'),'hex'))`,
+          )
+        ).stdout.trim(),
+      ).toBe('1');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.audit_logs where organization_id='${organizationId}' and actor_user_id='${ownerId}' and action='checkin.qr_issued' and entity_id='${registrationIds[4]}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('2');
 
       const lastGroupSlot = await Promise.all([
         call(
@@ -173,6 +293,53 @@ describe('concurrent number assignment and check-in', () => {
           )
         ).stdout.trim(),
       ).toBe('0');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.audit_logs where organization_id='${organizationId}' and actor_user_id is null and action='checkin.number_released' and details->>'reason'='placement_changed' and details->'scope'->>'sessionId'='${sessionTwoId}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('1');
+
+      expect(['assigned', 'corrected']).toContain(
+        (
+          await call(
+            `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[1]}','${divisionId}','${sessionOneId}',null,'division',90)`,
+          )
+        ).stdout.trim(),
+      );
+      expect(
+        (
+          await call(
+            `select public.release_tryout_number('${organizationId}','${tryoutId}','${registrationIds[1]}','${sessionOneId}',null,'offboarding') as outcome`,
+          )
+        ).stdout.trim(),
+      ).toBe('released');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.audit_logs where organization_id='${organizationId}' and actor_user_id='${staffId}' and action='checkin.number_released' and details->>'reason'='offboarding' and details->>'registrationId'='${registrationIds[1]}' and details->'before'->>'releasedAt' is null and details->'after'->>'releasedAt' is not null`,
+          )
+        ).stdout.trim(),
+      ).toBe('1');
+
+      await psql(
+        `update public.tryout_registrations set status='withdrawn' where id='${registrationIds[4]}'`,
+      );
+      expect(
+        (
+          await psql(
+            `select count(*) from public.audit_logs where organization_id='${organizationId}' and actor_user_id is null and action='checkin.number_released' and details->>'reason'='withdrawal' and details->>'registrationId'='${registrationIds[4]}'`,
+          )
+        ).stdout.trim(),
+      ).toBe('2');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.tryout_numbers where registration_id='${registrationIds[4]}' and released_at is null`,
+          )
+        ).stdout.trim(),
+      ).toBe('0');
     } finally {
       await psql(`
         set session_replication_role=replica;
@@ -192,7 +359,7 @@ describe('concurrent number assignment and check-in', () => {
         delete from public.tryouts where organization_id='${organizationId}';
         delete from public.organization_members where organization_id='${organizationId}';
         delete from public.organizations where id='${organizationId}';
-        delete from auth.users where id in('${ownerId}','${staffId}');
+        delete from auth.users where id in('${ownerId}','${staffId}','${scopedStaffId}');
         set session_replication_role=origin;
       `);
     }

@@ -198,4 +198,74 @@ describe('CheckinWorkspace', () => {
     expect(keys[0]).toBe(keys[1]);
     expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/u);
   });
+
+  it('rotates the request key after success so a deliberate repeat reaches the repeat contract', async () => {
+    const user = userEvent.setup();
+    const keys: string[] = [];
+    const onCheckIn = vi.fn(async (input: { requestKey: string }) => {
+      keys.push(input.requestKey);
+      return keys.length === 1
+        ? {
+            outcome: 'checked_in' as const,
+            receiptId: 'receipt-1',
+            checkedInAt: '2026-08-28T12:00:00.000Z',
+            assignedNumber: 17,
+          }
+        : {
+            outcome: 'already_checked_in' as const,
+            receiptId: 'receipt-1',
+            checkedInAt: '2026-08-28T12:00:00.000Z',
+            assignedNumber: 17,
+          };
+    });
+    render(
+      <CheckinWorkspace
+        search={vi.fn(async () => [
+          {
+            registrationId: 'REG-1042',
+            athleteName: 'Ava Smith',
+            guardianName: 'Taylor Smith',
+            divisionName: 'U13',
+            tryoutNumber: null,
+            status: 'ready' as const,
+          },
+        ])}
+        onCheckIn={onCheckIn}
+        placements={[{ sessionId: 'session-1', sessionName: 'Morning' }]}
+      />,
+    );
+    await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
+    expect(await screen.findByText(/Ava Smith checked in.*#17/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /confirm Ava Smith again/i }));
+    expect(await screen.findByText(/already checked in.*#17/i)).toBeInTheDocument();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it('renders an unexpected service failure separately from invalid input', async () => {
+    const user = userEvent.setup();
+    render(
+      <CheckinWorkspace
+        search={vi.fn(async () => [
+          {
+            registrationId: 'REG-1042',
+            athleteName: 'Ava Smith',
+            guardianName: 'Taylor Smith',
+            divisionName: 'U13',
+            tryoutNumber: null,
+            status: 'ready' as const,
+          },
+        ])}
+        onCheckIn={vi.fn(async () => ({ outcome: 'unexpected_error' as const }))}
+        placements={[{ sessionId: 'session-1', sessionName: 'Morning' }]}
+      />,
+    );
+    await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
+    expect(await screen.findByText(/service could not complete the check-in/i)).toBeInTheDocument();
+    expect(screen.queryByText(/request is invalid/i)).not.toBeInTheDocument();
+  });
 });

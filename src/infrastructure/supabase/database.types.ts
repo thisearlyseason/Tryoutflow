@@ -174,6 +174,7 @@ export type Database = {
         Row: {
           action: string;
           actor_user_id: string | null;
+          details: Json;
           entity_id: string;
           entity_type: string;
           id: string;
@@ -183,6 +184,7 @@ export type Database = {
         Insert: {
           action: string;
           actor_user_id?: string | null;
+          details?: Json;
           entity_id: string;
           entity_type: string;
           id?: string;
@@ -192,6 +194,7 @@ export type Database = {
         Update: {
           action?: string;
           actor_user_id?: string | null;
+          details?: Json;
           entity_id?: string;
           entity_type?: string;
           id?: string;
@@ -299,6 +302,7 @@ export type Database = {
       };
       checkins: {
         Row: {
+          assigned_number_snapshot: number;
           checked_in_at: string;
           checked_in_by_user_id: string;
           group_id: string | null;
@@ -314,6 +318,7 @@ export type Database = {
           tryout_number_id: string;
         };
         Insert: {
+          assigned_number_snapshot: number;
           checked_in_at?: string;
           checked_in_by_user_id: string;
           group_id?: string | null;
@@ -329,6 +334,7 @@ export type Database = {
           tryout_number_id: string;
         };
         Update: {
+          assigned_number_snapshot?: number;
           checked_in_at?: string;
           checked_in_by_user_id?: string;
           group_id?: string | null;
@@ -1063,6 +1069,7 @@ export type Database = {
         Row: {
           capacity: number | null;
           created_at: string;
+          division_id: string;
           id: string;
           name: string;
           organization_id: string;
@@ -1074,6 +1081,7 @@ export type Database = {
         Insert: {
           capacity?: number | null;
           created_at?: string;
+          division_id?: string;
           id?: string;
           name: string;
           organization_id: string;
@@ -1085,6 +1093,7 @@ export type Database = {
         Update: {
           capacity?: number | null;
           created_at?: string;
+          division_id?: string;
           id?: string;
           name?: string;
           organization_id?: string;
@@ -1094,6 +1103,13 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'session_groups_division_session_fkey';
+            columns: ['organization_id', 'tryout_id', 'division_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'division_id', 'id'];
+          },
           {
             foreignKeyName: 'session_groups_session_fkey';
             columns: ['organization_id', 'tryout_id', 'session_id'];

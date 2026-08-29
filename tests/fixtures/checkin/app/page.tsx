@@ -1,9 +1,12 @@
 import { CheckinWorkspace } from '../../../../src/modules/checkin/ui/checkin-workspace';
 
+const checkedInRegistrations = new Set<string>();
+
 export default function CheckinFixture() {
   async function search(query: string) {
     'use server';
     if (!query.toLowerCase().includes('ava')) return [];
+    checkedInRegistrations.delete('40f02020-2020-4020-8020-202020202020');
     return [
       {
         registrationId: '40f02020-2020-4020-8020-202020202020',
@@ -15,12 +18,14 @@ export default function CheckinFixture() {
       },
     ];
   }
-  async function checkIn(input: { requestedNumber?: number }) {
+  async function checkIn(input: { registrationId: string; requestedNumber?: number }) {
     'use server';
     if (input.requestedNumber === 42)
       return { outcome: 'number_conflict' as const, nextAvailable: 43 };
-    if (input.requestedNumber === 99) return { outcome: 'already_checked_in' as const };
-    return { outcome: 'checked_in' as const };
+    if (checkedInRegistrations.has(input.registrationId))
+      return { outcome: 'already_checked_in' as const, assignedNumber: input.requestedNumber };
+    checkedInRegistrations.add(input.registrationId);
+    return { outcome: 'checked_in' as const, assignedNumber: input.requestedNumber };
   }
   return (
     <main className="mx-auto min-w-0 max-w-3xl p-4">

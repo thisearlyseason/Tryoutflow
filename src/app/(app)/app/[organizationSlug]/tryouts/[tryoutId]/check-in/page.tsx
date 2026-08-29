@@ -37,7 +37,7 @@ export default async function CheckinPage({
   if (!tryout) notFound();
   const { data: sessions } = await current.client
     .from('tryout_sessions')
-    .select('id,name,division_id,session_groups(id,name)')
+    .select('id,name,division_id,session_groups!session_groups_session_fkey(id,name)')
     .eq('organization_id', current.organization.id)
     .eq('tryout_id', tryoutId)
     .order('starts_at');
@@ -100,7 +100,7 @@ export default async function CheckinPage({
       p_limit: 25,
       p_rate_key_hash: rateKey,
     });
-    if (error) return { outcome: 'invalid_request' as const, results: [] };
+    if (error) return { outcome: 'unexpected_error' as const, results: [] };
     const first = data[0];
     if (!first) return { outcome: 'ok' as const, results: [] };
     if (first.outcome !== 'ok') {
@@ -165,7 +165,7 @@ export default async function CheckinPage({
       p_scope_kind: parsed.data.numberScope,
       p_requested: (parsed.data.requestedNumber ?? null) as unknown as number,
     });
-    if (error || !data[0]) return { outcome: 'invalid_request' as const };
+    if (error || !data[0]) return { outcome: 'unexpected_error' as const };
     return {
       outcome: data[0].outcome as
         | 'checked_in'
@@ -180,7 +180,8 @@ export default async function CheckinPage({
         | 'forbidden'
         | 'invalid_request'
         | 'exhausted'
-        | 'conflict',
+        | 'conflict'
+        | 'unexpected_error',
       receiptId: data[0].receipt_id ?? undefined,
       checkedInAt: data[0].checked_in_at ?? undefined,
       assignedNumber: data[0].assigned_number ?? undefined,

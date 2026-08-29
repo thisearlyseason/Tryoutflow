@@ -24,7 +24,8 @@ export type CheckinOutcome =
   | 'forbidden'
   | 'invalid_request'
   | 'exhausted'
-  | 'conflict';
+  | 'conflict'
+  | 'unexpected_error';
 
 export type CheckinActionResult = {
   outcome: CheckinOutcome;
@@ -37,7 +38,7 @@ export type CheckinActionResult = {
 export type CheckinSearchResponse =
   | CheckinSearchResult[]
   | {
-      outcome: 'ok' | 'rate_limited' | 'forbidden' | 'invalid_request';
+      outcome: 'ok' | 'rate_limited' | 'forbidden' | 'invalid_request' | 'unexpected_error';
       results: CheckinSearchResult[];
     };
 
@@ -56,6 +57,7 @@ const failureMessages: Record<
   invalid_request: 'The check-in request is invalid.',
   exhausted: 'No tryout numbers are available in this scope.',
   conflict: 'This retry key belongs to a different check-in request.',
+  unexpected_error: 'The service could not complete the check-in. Try again.',
 };
 
 export function CheckinWorkspace({
@@ -90,6 +92,7 @@ export function CheckinWorkspace({
   const [requestedNumber, setRequestedNumber] = useState('');
   const [pending, startTransition] = useTransition();
   const requestKeys = useRef(new Map<string, string>());
+  const inFlightRequests = useRef(new Set<string>());
 
   function runSearch() {
     const bounded = query.trim();
@@ -113,7 +116,9 @@ export function CheckinWorkspace({
               ? 'Too many searches. Wait a minute and try again.'
               : outcome === 'forbidden'
                 ? 'You are not authorized for that placement.'
-                : 'Search request is invalid.',
+                : outcome === 'unexpected_error'
+                  ? 'Search service is temporarily unavailable. Try again.'
+                  : 'Search request is invalid.',
           );
           return;
         }
@@ -129,15 +134,17 @@ export function CheckinWorkspace({
   }
 
   function checkIn(result: CheckinSearchResult) {
+    const placement = placements[placementIndex];
+    const requestPayload = JSON.stringify([
+      result.registrationId,
+      placement?.sessionId ?? null,
+      placement?.groupId ?? null,
+      requestedNumber === '' ? null : Number(requestedNumber),
+    ]);
+    if (inFlightRequests.current.has(requestPayload)) return;
+    inFlightRequests.current.add(requestPayload);
     startTransition(async () => {
       try {
-        const placement = placements[placementIndex];
-        const requestPayload = JSON.stringify([
-          result.registrationId,
-          placement?.sessionId ?? null,
-          placement?.groupId ?? null,
-          requestedNumber === '' ? null : Number(requestedNumber),
-        ]);
         let requestKey = requestKeys.current.get(requestPayload);
         if (!requestKey) {
           requestKey = crypto.randomUUID();
@@ -151,6 +158,7 @@ export function CheckinWorkspace({
           requestKey,
           numberScope: placement?.numberScope ?? (placement?.groupId ? 'group' : 'session'),
         });
+        requestKeys.current.delete(requestPayload);
         if (receipt.outcome !== 'checked_in' && receipt.outcome !== 'already_checked_in') {
           const suffix =
             receipt.outcome === 'number_conflict' && receipt.nextAvailable
@@ -174,6 +182,8 @@ export function CheckinWorkspace({
         );
       } catch {
         setMessage(`Could not check in ${result.athleteName}. Resolve the conflict and retry.`);
+      } finally {
+        inFlightRequests.current.delete(requestPayload);
       }
     });
   }
