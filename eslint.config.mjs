@@ -3,7 +3,7 @@ import nextParser from 'eslint-config-next/parser';
 
 export default [
   {
-    ignores: ['.next/**', 'coverage/**', 'playwright-report/**'],
+    ignores: ['.next/**', 'tests/fixtures/**/.next/**', 'coverage/**', 'playwright-report/**'],
   },
   {
     files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],
