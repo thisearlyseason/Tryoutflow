@@ -167,7 +167,7 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
             autoComplete="email"
           />{' '}
         </label>
-        {tryout.formSchema.fields
+        {[...tryout.formSchema.fields]
           .sort((a, b) => a.sortOrder - b.sortOrder)
           .map((field) => (
             <label key={field.key} className="grid gap-1">
@@ -178,6 +178,7 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
                     aria-label={field.label}
                     type="checkbox"
                     required={field.required}
+                    className="min-h-[var(--target-mobile)] min-w-[var(--target-mobile)]"
                   />{' '}
                   {field.label}
                 </span>
