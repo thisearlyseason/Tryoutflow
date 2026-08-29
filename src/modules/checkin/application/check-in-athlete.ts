@@ -23,7 +23,8 @@ export type CheckinResult =
         | 'forbidden'
         | 'invalid_request'
         | 'exhausted'
-        | 'conflict';
+        | 'conflict'
+        | 'retryable_contention';
       nextAvailable?: number;
     };
 

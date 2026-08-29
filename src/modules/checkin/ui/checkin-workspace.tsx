@@ -25,6 +25,7 @@ export type CheckinOutcome =
   | 'invalid_request'
   | 'exhausted'
   | 'conflict'
+  | 'retryable_contention'
   | 'unexpected_error';
 
 export type CheckinActionResult = {
@@ -57,6 +58,7 @@ const failureMessages: Record<
   invalid_request: 'The check-in request is invalid.',
   exhausted: 'No tryout numbers are available in this scope.',
   conflict: 'This retry key belongs to a different check-in request.',
+  retryable_contention: 'A concurrent placement change is in progress. It is safe to retry.',
   unexpected_error: 'The check-in outcome could not be confirmed. It is safe to retry.',
 };
 
@@ -158,7 +160,8 @@ export function CheckinWorkspace({
           requestKey,
           numberScope: placement?.numberScope ?? (placement?.groupId ? 'group' : 'session'),
         });
-        if (receipt.outcome !== 'unexpected_error') requestKeys.current.delete(requestPayload);
+        if (!['unexpected_error', 'retryable_contention'].includes(receipt.outcome))
+          requestKeys.current.delete(requestPayload);
         if (receipt.outcome !== 'checked_in' && receipt.outcome !== 'already_checked_in') {
           const suffix =
             receipt.outcome === 'number_conflict' && receipt.nextAvailable

@@ -181,6 +181,7 @@ export default async function CheckinPage({
         | 'invalid_request'
         | 'exhausted'
         | 'conflict'
+        | 'retryable_contention'
         | 'unexpected_error',
       receiptId: data[0].receipt_id ?? undefined,
       checkedInAt: data[0].checked_in_at ?? undefined,

@@ -130,6 +130,7 @@ describe('CheckinWorkspace', () => {
     ['invalid_request', 'The check-in request is invalid.'],
     ['exhausted', 'No tryout numbers are available in this scope.'],
     ['conflict', 'This retry key belongs to a different check-in request.'],
+    ['retryable_contention', 'A concurrent placement change is in progress. It is safe to retry.'],
   ] as const)(
     'renders the %s outcome without marking the athlete checked in',
     async (outcome, message) => {
@@ -233,6 +234,46 @@ describe('CheckinWorkspace', () => {
     await user.click(screen.getByRole('button', { name: /^search$/i }));
     await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
     await screen.findByText(/outcome could not be confirmed.*safe to retry/i);
+    await user.click(screen.getByRole('button', { name: /check in Ava Smith/i }));
+    expect(await screen.findByText(/Ava Smith checked in.*#17/i)).toBeInTheDocument();
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+  });
+
+  it('retains the request key after conclusive retryable placement contention', async () => {
+    const user = userEvent.setup();
+    const keys: string[] = [];
+    const onCheckIn = vi.fn(async (input: { requestKey: string }) => {
+      keys.push(input.requestKey);
+      return keys.length === 1
+        ? { outcome: 'retryable_contention' as const }
+        : {
+            outcome: 'checked_in' as const,
+            receiptId: 'receipt-1',
+            checkedInAt: '2026-08-28T12:00:00.000Z',
+            assignedNumber: 17,
+          };
+    });
+    render(
+      <CheckinWorkspace
+        search={vi.fn(async () => [
+          {
+            registrationId: 'REG-1042',
+            athleteName: 'Ava Smith',
+            guardianName: 'Taylor Smith',
+            divisionName: 'U13',
+            tryoutNumber: null,
+            status: 'ready' as const,
+          },
+        ])}
+        onCheckIn={onCheckIn}
+        placements={[{ sessionId: 'session-1', sessionName: 'Morning' }]}
+      />,
+    );
+    await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
+    await user.click(screen.getByRole('button', { name: /^search$/i }));
+    await user.click(await screen.findByRole('button', { name: /check in Ava Smith/i }));
+    await screen.findByText(/concurrent placement change.*safe to retry/i);
     await user.click(screen.getByRole('button', { name: /check in Ava Smith/i }));
     expect(await screen.findByText(/Ava Smith checked in.*#17/i)).toBeInTheDocument();
     expect(keys).toHaveLength(2);

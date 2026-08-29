@@ -2,6 +2,7 @@ import { CheckinWorkspace } from '../../../../src/modules/checkin/ui/checkin-wor
 
 const checkedInRegistrations = new Set<string>();
 const ambiguousRequestKeys = new Map<string, string>();
+const contentionRequestKeys = new Map<string, string>();
 const receipts = new Map<
   string,
   { payload: string; outcome: 'checked_in' | 'already_checked_in'; assignedNumber?: number }
@@ -13,6 +14,7 @@ export default function CheckinFixture() {
     if (!query.toLowerCase().includes('ava')) return [];
     checkedInRegistrations.clear();
     ambiguousRequestKeys.clear();
+    contentionRequestKeys.clear();
     receipts.clear();
     return [
       {
@@ -55,6 +57,15 @@ export default function CheckinFixture() {
       }
       if (ambiguousKey !== input.requestKey) return { outcome: 'conflict' as const };
       ambiguousRequestKeys.delete(input.registrationId);
+    }
+    if (input.requestedNumber === 45) {
+      const contentionKey = contentionRequestKeys.get(input.registrationId);
+      if (!contentionKey) {
+        contentionRequestKeys.set(input.registrationId, input.requestKey);
+        return { outcome: 'retryable_contention' as const };
+      }
+      if (contentionKey !== input.requestKey) return { outcome: 'conflict' as const };
+      contentionRequestKeys.delete(input.registrationId);
     }
     checkedInRegistrations.add(input.registrationId);
     receipts.set(input.requestKey, {

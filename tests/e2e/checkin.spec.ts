@@ -24,6 +24,14 @@ test('check-in workspace supports search, placement, conflict recovery, and mobi
   await expect(page.getByText('#44 · checked in')).toBeVisible();
   await page.getByRole('button', { name: 'Confirm Ava Smith again' }).click();
   await expect(page.getByRole('status')).toContainText('Ava Smith was already checked in. #44');
+  await page.getByRole('button', { name: 'Search' }).click();
+  await page.getByLabel('Requested number (optional)').fill('45');
+  await page.getByRole('button', { name: 'Check in Ava Smith' }).click();
+  await expect(page.getByRole('status')).toContainText(
+    'A concurrent placement change is in progress. It is safe to retry.',
+  );
+  await page.getByRole('button', { name: 'Check in Ava Smith' }).click();
+  await expect(page.getByRole('status')).toContainText('Ava Smith checked in. #45');
   const targets = await page.locator('main button, main input, main select').evaluateAll((nodes) =>
     nodes.map((node) => ({
       height: node.getBoundingClientRect().height,

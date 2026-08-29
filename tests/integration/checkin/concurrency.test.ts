@@ -48,17 +48,88 @@ const waitForBlockedCalls = async (applicationNames: readonly string[]) => {
 const waitForBlockingEdge = async (blockedName: string, blockerName: string) => {
   for (let attempt = 0; attempt < 150; attempt += 1) {
     const result = await psql(`
-      select blocked.pid||'|'||blocker.pid
+      select blocked.pid||'|'||blocker.pid||'|'||waiting_lock.locktype||'|'||waiting_lock.mode
       from pg_stat_activity blocked
       join pg_stat_activity blocker on blocker.application_name='${blockerName}'
+      join pg_locks waiting_lock on waiting_lock.pid=blocked.pid and not waiting_lock.granted
       where blocked.application_name='${blockedName}'
         and blocked.wait_event_type='Lock'
         and blocker.pid=any(pg_blocking_pids(blocked.pid))
+      order by waiting_lock.locktype,waiting_lock.mode
+      limit 1
     `);
-    if (result.stdout.trim()) return result.stdout.trim();
+    if (result.stdout.trim()) {
+      const [blockedPid, blockerPid, lockType, lockMode] = result.stdout.trim().split('|');
+      return { blockedPid, blockerPid, lockType, lockMode };
+    }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error(`${blockedName} was not blocked by ${blockerName}`);
+};
+
+type SpawnedPsqlSession = {
+  applicationName: string;
+  child: ReturnType<typeof spawn>;
+};
+
+const spawnPsqlSession = (
+  applicationName: string,
+  sessions: SpawnedPsqlSession[],
+  applicationNames: Set<string>,
+) => {
+  const child = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
+    env: { ...process.env, PGAPPNAME: applicationName },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  sessions.push({ applicationName, child });
+  applicationNames.add(applicationName);
+  return child;
+};
+
+const stopPsqlSessions = async (sessions: SpawnedPsqlSession[], applicationNames: Set<string>) => {
+  for (const { child } of sessions) {
+    if (
+      child.exitCode === null &&
+      child.signalCode === null &&
+      child.stdin &&
+      !child.stdin.destroyed
+    ) {
+      try {
+        child.stdin.write('\nrollback;\n\\q\n');
+      } catch {
+        // Backend termination below is the unconditional rollback fallback.
+      }
+    }
+  }
+  if (applicationNames.size > 0) {
+    const names = [...applicationNames].map((name) => `'${name.replaceAll("'", "''")}'`).join(',');
+    await psql(
+      `select pg_terminate_backend(pid) from pg_stat_activity where datname=current_database() and pid<>pg_backend_pid() and application_name=any(array[${names}])`,
+      'tryoutflow-checkin-cleanup',
+    ).catch(() => undefined);
+  }
+  for (const { child } of sessions) {
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+  }
+  await Promise.allSettled(
+    sessions.map(
+      ({ child }) =>
+        new Promise<void>((resolve) => {
+          if (child.exitCode !== null || child.signalCode !== null) return resolve();
+          const forceTimer = setTimeout(() => {
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+          }, 500);
+          const finishTimer = setTimeout(() => {
+            resolve();
+          }, 1_000);
+          child.once('exit', () => {
+            clearTimeout(forceTimer);
+            clearTimeout(finishTimer);
+            resolve();
+          });
+        }),
+    ),
+  );
 };
 
 describe('concurrent number assignment and check-in', () => {
@@ -95,12 +166,24 @@ describe('concurrent number assignment and check-in', () => {
     const versionId = id();
     const athleteIds = [id(), id(), id(), id(), id()];
     const registrationIds = [id(), id(), id(), id(), id()];
-    const slug = `checkin-${tryoutId.slice(0, 8)}`;
-    const callAs = (actorId: string, sql: string, column = 'outcome', applicationName?: string) =>
-      psql(
+    const testSuffix = tryoutId.slice(0, 8);
+    const slug = `checkin-${testSuffix}`;
+    const spawnedSessions: SpawnedPsqlSession[] = [];
+    const trackedApplicationNames = new Set<string>();
+    const pendingCalls = new Set<ReturnType<typeof psql>>();
+    const callAs = (actorId: string, sql: string, column = 'outcome', applicationName?: string) => {
+      if (applicationName) trackedApplicationNames.add(applicationName);
+      const pending = psql(
         `begin; set local statement_timeout='10s'; set local role authenticated; select set_config('request.jwt.claim.sub','${actorId}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
         applicationName,
       );
+      pendingCalls.add(pending);
+      void pending.then(
+        () => pendingCalls.delete(pending),
+        () => pendingCalls.delete(pending),
+      );
+      return pending;
+    };
     const call = (sql: string, column = 'outcome') => callAs(staffId, sql, column);
     try {
       await psql(`
@@ -193,52 +276,68 @@ describe('concurrent number assignment and check-in', () => {
         'assigned',
       ]);
 
-      // Exact inverse ordering: the real assignment command owns the registration
-      // parent while naturally waiting on its number-scope advisory lock. The mover
-      // then owns the enrollment tuple and waits in its BEFORE trigger on that parent.
-      // Releasing only the unrelated scope holder must let the logically prior command
-      // commit, then the mover complete, with neither deadlock nor statement timeout.
-      const scopeHolderName = 'checkin-inverse-scope-holder';
-      const inverseCommandName = 'checkin-inverse-command';
-      const inverseMoverName = 'checkin-inverse-mover';
-      const scopeHolder = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
-        env: { ...process.env, PGAPPNAME: scopeHolderName },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      const scopeHeld = waitForOutput(scopeHolder, 'inverse-scope-held');
+      // Natural inverse ordering: a completed supported check-in transaction holds
+      // the session/group parents. The target check-in owns its registration parent
+      // while waiting on that holder; an enrollment mover then owns the target tuple
+      // while waiting on the target parent. Releasing the holder must drive the target
+      // through its real existing-group FOR UPDATE NOWAIT branch without deadlock.
+      await psql(
+        `update public.session_enrollments set group_id='${groupId}' where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionOneId}'`,
+      );
+      const scopeHolderName = `checkin-natural-holder-${testSuffix}`;
+      const inverseCommandName = `checkin-natural-target-${testSuffix}`;
+      const inverseMoverName = `checkin-inverse-mover-${testSuffix}`;
+      const scopeHolder = spawnPsqlSession(
+        scopeHolderName,
+        spawnedSessions,
+        trackedApplicationNames,
+      );
+      const scopeHeld = waitForOutput(scopeHolder, 'checked_in|natural-scope-held');
       scopeHolder.stdin?.write(`
         begin;
         set local statement_timeout='8s';
-        select pg_advisory_xact_lock(hashtextextended(concat_ws(':','checkin-number','${organizationId}','${tryoutId}','session','${divisionId}','${sessionOneId}',null),0));
-        select 'inverse-scope-held';
+        set local role authenticated;
+        select set_config('request.jwt.claim.sub','${staffId}',true);
+        select outcome||'|natural-scope-held' from public.check_in_registration_v2(
+          '${organizationId}','${tryoutId}','${registrationIds[1]}','${sessionOneId}',
+          '${siblingGroupId}','natural-holder-request-0001','group',31);
       `);
       await scopeHeld;
       const inverseCommand = callAs(
-        scopedStaffId,
-        `select outcome from public.assign_tryout_number('${organizationId}','${tryoutId}','${registrationIds[2]}','${divisionId}','${sessionOneId}',null,'session',8)`,
+        staffId,
+        `select outcome from public.check_in_registration_v2('${organizationId}','${tryoutId}','${registrationIds[2]}','${sessionOneId}','${siblingGroupId}','natural-contention-request-01','group',32)`,
         'outcome',
         inverseCommandName,
       );
       const commandScopeEdge = await waitForBlockingEdge(inverseCommandName, scopeHolderName);
 
-      const inverseMover = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
-        env: { ...process.env, PGAPPNAME: inverseMoverName },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      const inverseMover = spawnPsqlSession(
+        inverseMoverName,
+        spawnedSessions,
+        trackedApplicationNames,
+      );
       const inverseMoveCompleted = waitForOutput(inverseMover, 'inverse-move-completed');
       inverseMover.stdin?.write(`
         begin;
         set local statement_timeout='8s';
-        update public.session_enrollments set session_id='${sessionTwoId}'
+        update public.session_enrollments set group_id='${siblingGroupId}'
         where organization_id='${organizationId}' and registration_id='${registrationIds[2]}'
           and session_id='${sessionOneId}';
         select 'inverse-move-completed';
       `);
       const moverCommandEdge = await waitForBlockingEdge(inverseMoverName, inverseCommandName);
-      const [commandPid, scopeHolderPid] = commandScopeEdge.split('|');
-      const [moverPid, moverBlockerPid] = moverCommandEdge.split('|');
-      expect(moverBlockerPid).toBe(commandPid);
-      expect(new Set([commandPid, scopeHolderPid, moverPid]).size).toBe(3);
+      expect(commandScopeEdge.lockType).toBe('transactionid');
+      expect(commandScopeEdge.lockMode).toBe('ShareLock');
+      expect(moverCommandEdge.blockerPid).toBe(commandScopeEdge.blockedPid);
+      expect(moverCommandEdge.lockType).toBe('transactionid');
+      expect(moverCommandEdge.lockMode).toBe('ShareLock');
+      expect(
+        new Set([
+          commandScopeEdge.blockedPid,
+          commandScopeEdge.blockerPid,
+          moverCommandEdge.blockedPid,
+        ]).size,
+      ).toBe(3);
 
       const scopeHolderExited = new Promise<void>((resolve, reject) => {
         scopeHolder.once('exit', (code) =>
@@ -247,8 +346,23 @@ describe('concurrent number assignment and check-in', () => {
       });
       scopeHolder.stdin?.end('commit;\n');
       await scopeHolderExited;
-      expect((await inverseCommand).stdout.trim()).toBe('corrected');
+      expect((await inverseCommand).stdout.trim()).toBe('retryable_contention');
       await inverseMoveCompleted;
+      expect(
+        (
+          await psql(
+            `select
+              (select count(*) from public.checkins where organization_id='${organizationId}'
+                and registration_id='${registrationIds[2]}' and session_id='${sessionOneId}')||'|'||
+              (select count(*) from public.tryout_numbers where organization_id='${organizationId}'
+                and registration_id='${registrationIds[2]}' and session_id='${sessionOneId}'
+                and group_id='${siblingGroupId}' and released_at is null)||'|'||
+              (select count(*) from public.audit_logs where organization_id='${organizationId}'
+                and action='checkin.completed' and details->>'sessionId'='${sessionOneId}'
+                and details->>'groupId'='${siblingGroupId}' and details->>'assignedNumber'='32')`,
+          )
+        ).stdout.trim(),
+      ).toBe('0|0|0');
       const inverseMoverExited = new Promise<void>((resolve, reject) => {
         inverseMover.once('exit', (code) =>
           code === 0 ? resolve() : reject(new Error(`inverse mover exited ${code}`)),
@@ -258,28 +372,38 @@ describe('concurrent number assignment and check-in', () => {
       await inverseMoverExited;
       expect(
         (
-          await psql(
-            `select count(*) from public.tryout_numbers where registration_id='${registrationIds[2]}' and session_id='${sessionOneId}' and released_at is null`,
+          await call(
+            `select outcome from public.check_in_registration_v2('${organizationId}','${tryoutId}','${registrationIds[2]}','${sessionOneId}','${siblingGroupId}','natural-contention-request-01','group',32)`,
           )
         ).stdout.trim(),
-      ).toBe('0');
+      ).toBe('checked_in');
+      expect(
+        (
+          await psql(
+            `select count(*) from public.checkins where organization_id='${organizationId}'
+              and registration_id='${registrationIds[2]}' and session_id='${sessionOneId}'
+              and assigned_number_snapshot=32
+              and idempotency_key_digest=encode(extensions.digest('natural-contention-request-01','sha256'),'hex')`,
+          )
+        ).stdout.trim(),
+      ).toBe('1');
       await psql(
-        `update public.session_enrollments set session_id='${sessionOneId}' where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionTwoId}'`,
+        `delete from public.checkins where organization_id='${organizationId}' and registration_id in('${registrationIds[1]}','${registrationIds[2]}') and session_id='${sessionOneId}';
+         delete from public.session_enrollments where organization_id='${organizationId}' and registration_id='${registrationIds[1]}' and session_id='${sessionOneId}';
+         update public.session_enrollments set group_id=null where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionOneId}';`,
       );
 
-      const mover = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
-        env: { ...process.env, PGAPPNAME: 'checkin-enrollment-mover' },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      const moverName = `checkin-enrollment-mover-${testSuffix}`;
+      const mover = spawnPsqlSession(moverName, spawnedSessions, trackedApplicationNames);
       const moveLocked = waitForOutput(mover, 'enrollment-move-locked');
       mover.stdin?.write(
         `begin; update public.session_enrollments set session_id='${sessionTwoId}' where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionOneId}'; select 'enrollment-move-locked';\n`,
       );
       await moveLocked;
       const moveRaceNames = [
-        'checkin-move-race-assign',
-        'checkin-move-race-release',
-        'checkin-move-race-checkin',
+        `checkin-move-race-assign-${testSuffix}`,
+        `checkin-move-race-release-${testSuffix}`,
+        `checkin-move-race-checkin-${testSuffix}`,
       ] as const;
       const moverFirstAssignment = callAs(
         scopedStaffId,
@@ -287,11 +411,9 @@ describe('concurrent number assignment and check-in', () => {
         'outcome',
         moveRaceNames[0],
       );
-      const moverFirstEdge = await waitForBlockingEdge(
-        moveRaceNames[0],
-        'checkin-enrollment-mover',
-      );
-      expect(moverFirstEdge.split('|')).toHaveLength(2);
+      const moverFirstEdge = await waitForBlockingEdge(moveRaceNames[0], moverName);
+      expect(moverFirstEdge.lockType).toBe('transactionid');
+      expect(moverFirstEdge.lockMode).toBe('ShareLock');
       const moveRace = [
         moverFirstAssignment,
         callAs(
@@ -331,16 +453,17 @@ describe('concurrent number assignment and check-in', () => {
         `update public.session_enrollments set session_id='${sessionOneId}' where organization_id='${organizationId}' and registration_id='${registrationIds[2]}' and session_id='${sessionTwoId}'`,
       );
 
-      const placer = spawn('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl], {
-        env: { ...process.env, PGAPPNAME: 'checkin-unplaced-placer' },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
+      const placerName = `checkin-unplaced-placer-${testSuffix}`;
+      const placer = spawnPsqlSession(placerName, spawnedSessions, trackedApplicationNames);
       const placementLocked = waitForOutput(placer, 'unplaced-placement-locked');
       placer.stdin?.write(
         `begin; insert into public.session_enrollments(organization_id,tryout_id,registration_id,session_id,group_id) values('${organizationId}','${tryoutId}','${registrationIds[1]}','${sessionOneId}','${siblingGroupId}'); select 'unplaced-placement-locked';\n`,
       );
       await placementLocked;
-      const unplacedRaceNames = ['checkin-unplaced-race-assign', 'checkin-unplaced-race-checkin'];
+      const unplacedRaceNames = [
+        `checkin-unplaced-race-assign-${testSuffix}`,
+        `checkin-unplaced-race-checkin-${testSuffix}`,
+      ];
       const unplacedRace = [
         callAs(
           groupScopedStaffId,
@@ -594,6 +717,8 @@ describe('concurrent number assignment and check-in', () => {
         ).stdout.trim(),
       ).toBe('0');
     } finally {
+      await stopPsqlSessions(spawnedSessions, trackedApplicationNames);
+      await Promise.allSettled([...pendingCalls]);
       await psql(`
         set session_replication_role=replica;
         delete from public.audit_logs where organization_id='${organizationId}';
