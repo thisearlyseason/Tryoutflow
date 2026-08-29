@@ -19,6 +19,13 @@ export function OrganizationNavigation({
         .map((assignment) => assignment.scope.tryoutId),
     ),
   ];
+  const rankedTryouts = [
+    ...new Set(
+      authorization.assignments
+        .filter((assignment) => assignment.role === 'director' || assignment.role === 'reviewer')
+        .map((assignment) => assignment.scope.tryoutId),
+    ),
+  ];
   const evaluates = authorization.assignments.some((assignment) => assignment.role === 'evaluator');
   const evaluatorLinks = evaluates
     ? ([['Evaluate', `/app/${organizationSlug}/evaluate`]] as string[][])
@@ -39,6 +46,16 @@ export function OrganizationNavigation({
           staffedTryouts.length === 1 ? 'Staff' : `Staff ${index + 1}`,
           `/app/${organizationSlug}/tryouts/${tryoutId}/staff`,
           `Staff for tryout ${tryoutId}`,
+        ]),
+        ...rankedTryouts.map((tryoutId, index) => [
+          rankedTryouts.length === 1 ? 'Rankings' : `Rankings ${index + 1}`,
+          `/app/${organizationSlug}/tryouts/${tryoutId}/rankings`,
+          `Rankings for tryout ${tryoutId}`,
+        ]),
+        ...staffedTryouts.map((tryoutId, index) => [
+          staffedTryouts.length === 1 ? 'Live' : `Live ${index + 1}`,
+          `/app/${organizationSlug}/tryouts/${tryoutId}/live`,
+          `Live dashboard for tryout ${tryoutId}`,
         ]),
       ];
 

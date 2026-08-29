@@ -1850,6 +1850,7 @@ export type Database = {
           division_id: string;
           id: string;
           organization_id: string;
+          position_id: string | null;
           registration_form_version_id: string;
           responses: Json;
           source: string;
@@ -1865,6 +1866,7 @@ export type Database = {
           division_id: string;
           id?: string;
           organization_id: string;
+          position_id?: string | null;
           registration_form_version_id: string;
           responses: Json;
           source?: string;
@@ -1880,6 +1882,7 @@ export type Database = {
           division_id?: string;
           id?: string;
           organization_id?: string;
+          position_id?: string | null;
           registration_form_version_id?: string;
           responses?: Json;
           source?: string;
@@ -1909,6 +1912,13 @@ export type Database = {
             columns: ['organization_id', 'tryout_id', 'registration_form_version_id'];
             isOneToOne: false;
             referencedRelation: 'registration_form_versions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'tryout_registrations_position_fkey';
+            columns: ['organization_id', 'tryout_id', 'position_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_positions';
             referencedColumns: ['organization_id', 'tryout_id', 'id'];
           },
           {
@@ -2683,6 +2693,32 @@ export type Database = {
           evaluator_user_id: string;
         }[];
       };
+      load_live_dashboard: {
+        Args: {
+          p_division_id?: string;
+          p_group_id?: string;
+          p_organization_id: string;
+          p_session_id?: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          result: Json;
+        }[];
+      };
+      load_ranking_snapshot: {
+        Args: {
+          p_athlete_ids?: string[];
+          p_division_id?: string;
+          p_group_id?: string;
+          p_organization_id: string;
+          p_position_id?: string;
+          p_session_id?: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          result: Json;
+        }[];
+      };
       lock_canonical_athlete_identity: {
         Args: {
           p_birth_date: string;
@@ -2989,6 +3025,22 @@ export type Database = {
         }[];
       };
       sync_evaluation_mutation: {
+        Args: {
+          p_client_mutation_id: string;
+          p_draft: Json;
+          p_evaluation_id: string;
+          p_expected_version: number;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_rubric_version_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          receipt: Json;
+        }[];
+      };
+      sync_evaluation_mutation_legacy: {
         Args: {
           p_client_mutation_id: string;
           p_draft: Json;

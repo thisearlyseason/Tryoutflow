@@ -1,0 +1,85 @@
+import { EmptyState } from '../../../components/feedback/empty-state';
+import type { AthleteComparison as AthleteComparisonModel } from '../application/compare-athletes';
+
+export function AthleteComparison({ comparison }: { comparison: AthleteComparisonModel }) {
+  if (comparison.athletes.length === 0)
+    return <EmptyState title="No athletes selected" description="Choose two to four athletes." />;
+  const categoryIds = [
+    ...new Set(
+      comparison.athletes.flatMap((athlete) => athlete.categories.map((row) => row.categoryId)),
+    ),
+  ];
+  return (
+    <div className="max-w-full overflow-x-auto rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+      <table className="w-full min-w-[40rem] border-collapse text-left">
+        <caption className="p-4 text-left text-sm text-[var(--color-text-muted)]">
+          Category aggregates from completed evaluations. Lower coverage means lower confidence.
+        </caption>
+        <thead>
+          <tr>
+            <th className="p-4" scope="col">
+              Evidence
+            </th>
+            {comparison.athletes.map((athlete) => (
+              <th className="p-4" key={athlete.athleteId} scope="col">
+                {athlete.displayName}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="border-t border-[var(--color-border)]">
+            <th className="p-4" scope="row">
+              Overall
+            </th>
+            {comparison.athletes.map((athlete) => (
+              <td className="p-4 text-2xl font-bold tabular-nums" key={athlete.athleteId}>
+                {athlete.overall ?? 'Unranked'}
+              </td>
+            ))}
+          </tr>
+          <tr className="border-t border-[var(--color-border)]">
+            <th className="p-4" scope="row">
+              Coverage
+            </th>
+            {comparison.athletes.map((athlete) => (
+              <td className="p-4" key={athlete.athleteId}>
+                {athlete.completedEvaluators} of {athlete.expectedEvaluators} ·{' '}
+                {athlete.completionPercent}%
+              </td>
+            ))}
+          </tr>
+          <tr className="border-t border-[var(--color-border)]">
+            <th className="p-4" scope="row">
+              Range
+            </th>
+            {comparison.athletes.map((athlete) => (
+              <td className="p-4" key={athlete.athleteId}>
+                {athlete.scoreRange?.join('–') ?? 'Not available'}
+              </td>
+            ))}
+          </tr>
+          {categoryIds.map((categoryId) => {
+            const name =
+              comparison.athletes
+                .flatMap((athlete) => athlete.categories)
+                .find((row) => row.categoryId === categoryId)?.name ?? 'Category';
+            return (
+              <tr className="border-t border-[var(--color-border)]" key={categoryId}>
+                <th className="p-4" scope="row">
+                  {name}
+                </th>
+                {comparison.athletes.map((athlete) => (
+                  <td className="p-4 tabular-nums" key={athlete.athleteId}>
+                    {athlete.categories.find((row) => row.categoryId === categoryId)
+                      ?.normalizedAverage ?? '—'}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
