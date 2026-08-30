@@ -123,6 +123,12 @@ test('keeps total roster and target counts truthful under position filters', asy
   await expect(page.getByRole('heading', { name: 'Blue roster 1 of 2' })).toBeVisible();
   await expect(page.getByText('1 visible with this filter')).toBeVisible();
   await expect(page.getByText('Forward target 0 of 1')).toBeVisible();
+  await expect(page.getByTestId('roster-destination-pool').getByRole('status')).toHaveText(
+    'No athletes match this filter.',
+  );
+  await expect(
+    page.getByTestId('roster-destination-10000000-0000-4000-8000-000000000005').getByRole('status'),
+  ).toHaveText('No athletes assigned.');
 });
 
 test('has accessible 44px controls and no 320px horizontal overflow', async ({ page }) => {

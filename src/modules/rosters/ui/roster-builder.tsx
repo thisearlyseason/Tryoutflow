@@ -13,6 +13,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '../../../components/ui/button';
+import type { RosterMemberRankingEvidence } from '../application/load-roster-workspace';
 import type { DecisionStatus } from '../domain/roster';
 import { AthletePool } from './athlete-pool';
 import { FinalizeRosterDialog } from './finalize-roster-dialog';
@@ -32,11 +33,7 @@ export type RosterWorkspaceAthlete = Readonly<{
   tryoutNumber: number | null;
   positionId: string | null;
   positionName: string | null;
-  overall: string | null;
-  completedEvaluators: number;
-  expectedEvaluators: number;
-  scoreRange: readonly [string, string] | null;
-  flags: readonly string[];
+  rankingEvidence: RosterMemberRankingEvidence;
   decision: DecisionStatus;
   teamId: string | null;
 }>;

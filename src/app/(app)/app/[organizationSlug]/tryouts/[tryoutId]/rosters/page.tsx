@@ -10,10 +10,19 @@ import { SupabaseRankingGateway } from '@/modules/rankings/infrastructure/supaba
 import { changeDecision } from '@/modules/rosters/application/change-decision';
 import { createRosterDraft } from '@/modules/rosters/application/create-roster-draft';
 import { finalizeRoster } from '@/modules/rosters/application/finalize-roster';
-import { loadRosterWorkspace } from '@/modules/rosters/application/load-roster-workspace';
+import {
+  loadRosterWorkspace,
+  rankingEvidenceForRosterMember,
+} from '@/modules/rosters/application/load-roster-workspace';
 import { moveAthlete } from '@/modules/rosters/application/move-athlete';
 import { reviseRoster } from '@/modules/rosters/application/revise-roster';
-import { decisionStatusSchema } from '@/modules/rosters/domain/roster';
+import {
+  bindChangeRosterActionInput,
+  bindCreateRosterActionInput,
+  bindFinalizeRosterActionInput,
+  bindMoveRosterActionInput,
+  bindReviseRosterActionInput,
+} from '@/modules/rosters/application/roster-action-boundary';
 import { SupabaseRosterWorkspaceGateway } from '@/modules/rosters/infrastructure/supabase-roster-workspace-gateway';
 import {
   RosterBuilder,
@@ -109,43 +118,39 @@ export default async function RostersPage({
 
   const path = `/app/${organizationSlug}/tryouts/${tryoutId}/rosters`;
 
-  async function createAction(input: {
-    teams: readonly {
-      name: string;
-      targetSize: number | null;
-      positionTargets: Readonly<Record<string, number>>;
-    }[];
-  }) {
+  async function createAction(input: unknown) {
     'use server';
     const scoped = await requireOrganizationRouteContext(organizationSlug);
-    const result = await createRosterDraft(
-      {
-        organizationId: scoped.organization.id,
-        tryoutId,
-        divisionId: selectedDivisionId,
-        teams: input.teams,
-      },
-      scoped.authorization,
-    );
+    const bound = bindCreateRosterActionInput(input, {
+      organizationId: scoped.organization.id,
+      tryoutId,
+      divisionId: selectedDivisionId,
+    });
+    if (!bound.ok) return { ok: false as const, code: 'invalid_input' };
+    const result = await createRosterDraft(bound.data, scoped.authorization);
     if (!result.ok) return { ok: false as const, code: result.error.code };
     revalidatePath(path);
     return { ok: true as const, ...result.value };
   }
 
-  async function moveAction(input: {
-    rosterVersionId: string;
-    registrationId: string;
-    teamId: string | null;
-    expectedVersion: number;
-  }) {
+  async function moveAction(input: unknown) {
     'use server';
     const scoped = await requireOrganizationRouteContext(organizationSlug);
+    const bound = bindMoveRosterActionInput(input, {
+      organizationId: scoped.organization.id,
+      tryoutId,
+      divisionId: selectedDivisionId,
+    });
+    if (!bound.ok) return { ok: false as const, code: 'invalid_input' };
     const result = await moveAthlete(
       {
-        organizationId: scoped.organization.id,
-        tryoutId,
-        divisionId: selectedDivisionId,
-        ...input,
+        organizationId: bound.data.organizationId,
+        tryoutId: bound.data.tryoutId,
+        divisionId: bound.data.divisionId,
+        rosterVersionId: bound.data.rosterVersionId,
+        registrationId: bound.data.registrationId,
+        teamId: bound.data.teamId,
+        expectedVersion: bound.data.expectedVersion,
       },
       scoped.authorization,
     );
@@ -159,22 +164,24 @@ export default async function RostersPage({
     return { ok: true as const, version: result.value.version };
   }
 
-  async function changeAction(input: {
-    rosterVersionId: string;
-    changes: readonly { registrationId: string; status: z.infer<typeof decisionStatusSchema> }[];
-    expectedVersion: number;
-  }) {
+  async function changeAction(input: unknown) {
     'use server';
     const scoped = await requireOrganizationRouteContext(organizationSlug);
+    const bound = bindChangeRosterActionInput(input, {
+      organizationId: scoped.organization.id,
+      tryoutId,
+      divisionId: selectedDivisionId,
+    });
+    if (!bound.ok) return { ok: false as const, code: 'invalid_input' };
     const result = await changeDecision(
       {
-        organizationId: scoped.organization.id,
-        tryoutId,
-        divisionId: selectedDivisionId,
-        rosterVersionId: input.rosterVersionId,
-        expectedVersion: input.expectedVersion,
+        organizationId: bound.data.organizationId,
+        tryoutId: bound.data.tryoutId,
+        divisionId: bound.data.divisionId,
+        rosterVersionId: bound.data.rosterVersionId,
+        expectedVersion: bound.data.expectedVersion,
         confirmation: 'CONFIRM DECISIONS',
-        changes: input.changes,
+        changes: bound.data.changes,
       },
       scoped.authorization,
     );
@@ -188,16 +195,22 @@ export default async function RostersPage({
     return { ok: true as const, version: result.value.version };
   }
 
-  async function finalizeAction(input: { rosterVersionId: string; expectedVersion: number }) {
+  async function finalizeAction(input: unknown) {
     'use server';
     const scoped = await requireOrganizationRouteContext(organizationSlug);
+    const bound = bindFinalizeRosterActionInput(input, {
+      organizationId: scoped.organization.id,
+      tryoutId,
+      divisionId: selectedDivisionId,
+    });
+    if (!bound.ok) return { ok: false as const, code: 'invalid_input' };
     const result = await finalizeRoster(
       {
-        organizationId: scoped.organization.id,
-        tryoutId,
-        divisionId: selectedDivisionId,
-        rosterVersionId: input.rosterVersionId,
-        expectedVersion: input.expectedVersion,
+        organizationId: bound.data.organizationId,
+        tryoutId: bound.data.tryoutId,
+        divisionId: bound.data.divisionId,
+        rosterVersionId: bound.data.rosterVersionId,
+        expectedVersion: bound.data.expectedVersion,
         confirmation: 'FINALIZE ROSTER',
       },
       scoped.authorization,
@@ -212,21 +225,23 @@ export default async function RostersPage({
     return { ok: true as const, version: result.value.version };
   }
 
-  async function reviseAction(input: {
-    rosterVersionId: string;
-    expectedVersion: number;
-    reason: string;
-  }) {
+  async function reviseAction(input: unknown) {
     'use server';
     const scoped = await requireOrganizationRouteContext(organizationSlug);
+    const bound = bindReviseRosterActionInput(input, {
+      organizationId: scoped.organization.id,
+      tryoutId,
+      divisionId: selectedDivisionId,
+    });
+    if (!bound.ok) return { ok: false as const, code: 'invalid_input' };
     const result = await reviseRoster(
       {
-        organizationId: scoped.organization.id,
-        tryoutId,
-        divisionId: selectedDivisionId,
-        rosterVersionId: input.rosterVersionId,
-        expectedVersion: input.expectedVersion,
-        reason: input.reason,
+        organizationId: bound.data.organizationId,
+        tryoutId: bound.data.tryoutId,
+        divisionId: bound.data.divisionId,
+        rosterVersionId: bound.data.rosterVersionId,
+        expectedVersion: bound.data.expectedVersion,
+        reason: bound.data.reason,
         confirmation: 'REVISE ROSTER',
       },
       scoped.authorization,
@@ -297,17 +312,17 @@ export default async function RostersPage({
       const { members, ...authoritative } = workspaceResult.snapshot;
       const athletes = members.map((member) => {
         const ranking = rankingByRegistration.get(member.registrationId);
+        const rankingEvidence = rankingEvidenceForRosterMember(
+          workspaceResult.evidenceAvailability,
+          ranking,
+        );
         return {
           registrationId: member.registrationId,
           displayName: member.displayName,
           tryoutNumber: member.tryoutNumber,
           positionId: member.positionId,
           positionName: member.positionName,
-          overall: ranking?.overall ?? null,
-          completedEvaluators: ranking?.completedEvaluators ?? 0,
-          expectedEvaluators: ranking?.expectedEvaluators ?? 0,
-          scoreRange: ranking?.scoreRange ?? null,
-          flags: ranking?.flags ?? [],
+          rankingEvidence,
           decision: member.decision,
           teamId: member.teamId,
         };

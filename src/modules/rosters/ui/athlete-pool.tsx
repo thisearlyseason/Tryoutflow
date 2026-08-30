@@ -59,21 +59,38 @@ export function RosterAthleteCard({
         ) : null}
       </div>
       <div className="mt-3 grid gap-1 text-sm">
-        <p>
-          <strong>{athlete.overall ?? 'No score'}</strong>
-          {athlete.overall === null ? '' : ' / 100'}
-        </p>
-        <p>
-          {athlete.completedEvaluators} of {athlete.expectedEvaluators} evaluations
-        </p>
-        <p>Range {athlete.scoreRange === null ? 'not available' : athlete.scoreRange.join('–')}</p>
+        {athlete.rankingEvidence.status === 'available' ? (
+          <>
+            <p>
+              <strong>{athlete.rankingEvidence.overall ?? 'No score'}</strong>
+              {athlete.rankingEvidence.overall === null ? '' : ' / 100'}
+            </p>
+            <p>
+              {athlete.rankingEvidence.completedEvaluators} of{' '}
+              {athlete.rankingEvidence.expectedEvaluators} evaluations
+            </p>
+            <p>
+              Range{' '}
+              {athlete.rankingEvidence.scoreRange === null
+                ? 'not available'
+                : athlete.rankingEvidence.scoreRange.join('–')}
+            </p>
+          </>
+        ) : (
+          <p className="font-medium">
+            {athlete.rankingEvidence.status === 'not_authorized'
+              ? 'Ranking evidence not authorized'
+              : 'Ranking evidence unavailable'}
+          </p>
+        )}
         <p>
           Decision: <strong className="capitalize">{athlete.decision}</strong>
         </p>
       </div>
-      {athlete.flags.length > 0 ? (
+      {athlete.rankingEvidence.status === 'available' &&
+      athlete.rankingEvidence.flags.length > 0 ? (
         <div className="mt-2 flex flex-wrap gap-2">
-          {athlete.flags.map((flag) => (
+          {athlete.rankingEvidence.flags.map((flag) => (
             <StatusBadge key={flag} status="callback">
               {flagLabels[flag] ?? flag.replaceAll('_', ' ')}
             </StatusBadge>
@@ -143,8 +160,13 @@ export function AthletePool({
           />
         ))}
         {athletes.length === 0 ? (
-          <p className="rounded-[var(--radius-control)] border border-dashed border-[var(--color-border)] p-3 text-sm text-[var(--color-text-muted)]">
-            No athletes in the pool.
+          <p
+            className="rounded-[var(--radius-control)] border border-dashed border-[var(--color-border)] p-3 text-sm text-[var(--color-text-muted)]"
+            role="status"
+          >
+            {filtered && totalCount > 0
+              ? 'No athletes match this filter.'
+              : 'No athletes in the pool.'}
           </p>
         ) : null}
       </div>

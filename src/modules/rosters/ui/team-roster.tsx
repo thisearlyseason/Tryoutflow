@@ -72,8 +72,13 @@ export function TeamRoster({
           />
         ))}
         {athletes.length === 0 ? (
-          <p className="rounded-[var(--radius-control)] border border-dashed border-[var(--color-border)] p-3 text-sm text-[var(--color-text-muted)]">
-            No athletes assigned.
+          <p
+            className="rounded-[var(--radius-control)] border border-dashed border-[var(--color-border)] p-3 text-sm text-[var(--color-text-muted)]"
+            role="status"
+          >
+            {filtered && allAthletes.length > 0
+              ? 'No athletes match this filter.'
+              : 'No athletes assigned.'}
           </p>
         ) : null}
       </div>

@@ -48,11 +48,14 @@ const draft: RosterWorkspaceSnapshot = {
       tryoutNumber: 42,
       positionId: ids.forward,
       positionName: 'Forward',
-      overall: '88.5',
-      completedEvaluators: 3,
-      expectedEvaluators: 3,
-      scoreRange: ['86.0', '91.0'],
-      flags: ['needs_another_look'],
+      rankingEvidence: {
+        status: 'available',
+        overall: '88.5',
+        completedEvaluators: 3,
+        expectedEvaluators: 3,
+        scoreRange: ['86.0', '91.0'],
+        flags: ['needs_another_look'],
+      },
       decision: 'undecided',
       teamId: null,
     },
@@ -62,11 +65,14 @@ const draft: RosterWorkspaceSnapshot = {
       tryoutNumber: 7,
       positionId: ids.goalie,
       positionName: 'Goalie',
-      overall: null,
-      completedEvaluators: 0,
-      expectedEvaluators: 2,
-      scoreRange: null,
-      flags: [],
+      rankingEvidence: {
+        status: 'available',
+        overall: null,
+        completedEvaluators: 0,
+        expectedEvaluators: 2,
+        scoreRange: null,
+        flags: [],
+      },
       decision: 'waitlisted',
       teamId: ids.blue,
     },
@@ -178,6 +184,22 @@ describe('RosterBuilder', () => {
     expect(screen.getByText('Blue roster 2 of 2')).toBeInTheDocument();
     expect(screen.getByText('1 visible with this filter')).toBeInTheDocument();
     expect(screen.getByText('Forward target 1 of 1')).toBeInTheDocument();
+  });
+
+  it('distinguishes filtered empty regions from truly empty roster regions', async () => {
+    const user = userEvent.setup();
+    renderBuilder();
+
+    await user.selectOptions(screen.getByLabelText('Filter by position'), ids.goalie);
+
+    expect(
+      within(screen.getByTestId('roster-destination-pool')).getByRole('status'),
+    ).toHaveTextContent('No athletes match this filter.');
+    expect(
+      within(screen.getByTestId(`roster-destination-${ids.white}`)).getByText(
+        'No athletes assigned.',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('requires an explicit review before a bulk release decision', async () => {
@@ -348,30 +370,96 @@ describe('RosterBuilder', () => {
     expect(await screen.findByRole('alert')).toHaveFocus();
   });
 
-  it('keeps authoritative roster members usable when ranking evidence is unavailable', () => {
+  it('keeps unavailable ranking evidence explicit on every affected athlete card', () => {
     renderBuilder({
       initial: {
         ...draft,
         evidenceAvailability: 'unavailable',
         athletes: [
           {
-            ...draft.athletes[0]!,
+            registrationId: ids.athlete42,
             displayName: 'Submitted Snapshot Member',
-            overall: null,
-            completedEvaluators: 0,
-            expectedEvaluators: 0,
-            scoreRange: null,
-            flags: [],
+            tryoutNumber: 42,
+            positionId: ids.forward,
+            positionName: 'Forward',
+            rankingEvidence: { status: 'unavailable' },
+            decision: 'undecided',
+            teamId: null,
           },
         ],
-      },
+      } as RosterWorkspaceSnapshot,
     });
 
-    expect(screen.getByText('Submitted Snapshot Member')).toBeInTheDocument();
+    const card = screen.getByTestId(`roster-athlete-${ids.athlete42}`);
+    expect(within(card).getByText('Ranking evidence unavailable')).toBeInTheDocument();
+    expect(card).not.toHaveTextContent('0 of 0 evaluations');
+    expect(card).not.toHaveTextContent('No score');
+    expect(card).not.toHaveTextContent('Range not available');
     expect(screen.getByRole('status', { name: 'Ranking evidence unavailable' })).toHaveTextContent(
       'Roster membership, placements, and decisions remain available',
     );
     expect(screen.getByRole('button', { name: 'Move submitted snapshot member' })).toBeEnabled();
+  });
+
+  it('does not turn a member missing from a successful ranking projection into zero evidence', () => {
+    renderBuilder({
+      initial: {
+        ...draft,
+        evidenceAvailability: 'available',
+        athletes: [
+          {
+            registrationId: ids.athlete42,
+            displayName: 'Projection Missing Member',
+            tryoutNumber: 42,
+            positionId: ids.forward,
+            positionName: 'Forward',
+            rankingEvidence: { status: 'unavailable' },
+            decision: 'undecided',
+            teamId: null,
+          },
+        ],
+      } as RosterWorkspaceSnapshot,
+    });
+
+    const card = screen.getByTestId(`roster-athlete-${ids.athlete42}`);
+    expect(within(card).getByText('Ranking evidence unavailable')).toBeInTheDocument();
+    expect(card).not.toHaveTextContent('0 of 0 evaluations');
+    expect(screen.queryByRole('status', { name: 'Ranking evidence unavailable' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Move projection missing member' })).toBeEnabled();
+  });
+
+  it('distinguishes not-authorized evidence from an actual zero-coverage ranking row', () => {
+    renderBuilder({
+      initial: {
+        ...draft,
+        athletes: [
+          {
+            ...draft.athletes[0]!,
+            rankingEvidence: { status: 'not_authorized' },
+          },
+          {
+            ...draft.athletes[1]!,
+            rankingEvidence: {
+              status: 'available',
+              overall: null,
+              completedEvaluators: 0,
+              expectedEvaluators: 0,
+              scoreRange: null,
+              flags: [],
+            },
+          },
+        ],
+      } as RosterWorkspaceSnapshot,
+    });
+
+    expect(
+      within(screen.getByTestId(`roster-athlete-${ids.athlete42}`)).getByText(
+        'Ranking evidence not authorized',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId(`roster-athlete-${ids.athlete7}`)).getByText('0 of 0 evaluations'),
+    ).toBeInTheDocument();
   });
 
   it('renders finalized roster evidence read-only for an authorized reviewer', () => {

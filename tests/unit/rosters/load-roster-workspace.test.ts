@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadRosterWorkspace } from '../../../src/modules/rosters/application/load-roster-workspace';
+import {
+  loadRosterWorkspace,
+  rankingEvidenceForRosterMember,
+} from '../../../src/modules/rosters/application/load-roster-workspace';
 import type { RosterWorkspaceData } from '../../../src/modules/rosters/application/roster-workspace';
 
 const ids = {
@@ -82,5 +85,14 @@ describe('loadRosterWorkspace', () => {
         rankings: { load: async () => ({ outcome: 'forbidden' }) },
       }),
     ).resolves.toEqual({ outcome: 'unavailable' });
+  });
+
+  it('marks a member absent from a successful projection unavailable instead of inventing zeros', () => {
+    expect(rankingEvidenceForRosterMember('available', undefined)).toEqual({
+      status: 'unavailable',
+    });
+    expect(rankingEvidenceForRosterMember('not_authorized', undefined)).toEqual({
+      status: 'not_authorized',
+    });
   });
 });
