@@ -12,7 +12,7 @@ export interface SupervisorStateStore {
   manifestPath(runId: string): string;
   commandPath(runId: string): string;
   commandGoPath(runId: string): string;
-  commandCompletionPath(runId: string): string;
+  commandCompletionPath(runId: string, capability: string): string;
   manifestBody(runId: string): IntegrationManifestBody;
   writeManifest(body: IntegrationManifestBody): void;
   advanceCleanup(
@@ -43,13 +43,16 @@ export interface SupervisorStateStore {
   } | null;
   writeCommandCompletion(
     runId: string,
+    capability: string,
     command: { pid?: number; pgid?: number; startedAt?: string; nonce: string } | null,
   ): void;
-  readCommandCompletion(runId: string): {
+  readCommandCompletion(
+    runId: string,
+    capability: string,
+  ): {
     phase: 'command-group-stopped';
     command: { pid?: number; pgid?: number; startedAt?: string; nonce: string } | null;
   } | null;
-  removeCommandCompletion(runId: string): void;
   permitCommand(runId: string): void;
   removeCommand(runId: string): void;
   removeRunState(runId: string): void;

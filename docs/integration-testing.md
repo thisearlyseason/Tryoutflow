@@ -5,9 +5,12 @@ outer runner owns the PostgreSQL advisory-lock session. If its supervisor dies, 
 that lock while the independent reaper stops the exact authenticated command process group and a
 recovery-only supervisor attempts authenticated staged cleanup.
 
-The reaper's exit is not proof of cleanup. It must durably publish an HMAC-authenticated completion
-bound to the run nonce and the launcher's exact PID, process-group ID, start time, and private
-capability. The outer runner independently verifies that the recorded group is absent before it can
+The reaper's exit is not proof of cleanup. Each bounded reaper attempt receives a fresh random
+completion capability and may publish once, without replacement, to only that attempt's immutable
+proof pathname. Existing, corrupt, or hostile entries are retained and ignored; no safety-critical
+retry validates and then removes or overwrites a proof pathname. The HMAC-authenticated proof binds
+the attempt capability, run nonce, and launcher's exact PID, process-group ID, and start time. The
+outer runner independently verifies that the recorded group is absent before it can
 release the lock. A killed, failed, missing, forged, or stale reaper is replaced without releasing
 the lock. If the exact launcher identity disappears while members of its recorded group remain,
 automatic signaling stops and the runner deliberately holds the lock until an operator has safely
@@ -18,6 +21,13 @@ command-state path and runner PID, and the advisory lock remains held. To termin
 use the exact identity procedure below to establish the old group is absent (terminating it if
 necessary), then send `SIGTERM` to the reported runner PID. The runner rechecks absence before it can
 release the lock; if evidence is unsafe or the group remains, it continues holding the lock.
+`SIGINT` and `SIGTERM` handlers remain installed and idempotent throughout this state, so repeated
+or mixed signals neither trigger default termination nor duplicate reapers, cleanup, or diagnostics.
+At most five immutable attempt proofs are retained per run for manual inspection.
+To prune retained proof evidence, first stop every integration runner, supervisor, reaper, and
+launcher for that local database identity and finish any authenticated artifact recovery. Then
+archive or remove the whole identity directory printed in the recovery diagnostic; do not remove
+individual proof pathnames while a runner holds the canonical lock.
 
 Normal completion, command failure, `SIGINT`, and `SIGTERM` automatically stop the owned command
 group and clean exact authenticated database roots. Registration rate-counter rows are deliberately

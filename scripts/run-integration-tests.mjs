@@ -77,26 +77,37 @@ let supervisorClosed = false;
 let quiescent = false;
 let resolveQuiescent;
 let requestedExitCode = null;
+let terminationForwarded = false;
 const forward = (signal, exitCode) => {
   requestedExitCode ??= exitCode;
+  if (quiescent) {
+    try {
+      if (commandIsProvenAbsent(supervisorState.readCommand(runId))) resolveQuiescent?.();
+    } catch {
+      // Unsafe state remains fail closed. The operator must inspect and resolve it manually.
+    }
+    return;
+  }
+  if (terminationForwarded) return;
+  terminationForwarded = true;
   if (supervisor && !supervisorClosed) {
     try {
       supervisor.kill(signal);
     } catch {
       // The directly owned supervisor is already gone.
     }
-  } else if (quiescent) {
-    try {
-      if (commandIsProvenAbsent(supervisorState.readCommand(runId))) resolveQuiescent?.();
-    } catch {
-      // Unsafe state remains fail closed. The operator must inspect and resolve it manually.
-    }
-  } else {
+  } else if (!supervisor) {
     holder.kill('SIGTERM');
   }
 };
-process.once('SIGINT', () => forward('SIGINT', 130));
-process.once('SIGTERM', () => forward('SIGTERM', 143));
+const handleSigint = () => forward('SIGINT', 130);
+const handleSigterm = () => forward('SIGTERM', 143);
+const removeSignalHandlers = () => {
+  process.off('SIGINT', handleSigint);
+  process.off('SIGTERM', handleSigterm);
+};
+process.on('SIGINT', handleSigint);
+process.on('SIGTERM', handleSigterm);
 
 try {
   await lockAcquired;
@@ -104,12 +115,14 @@ try {
   if (requestedExitCode === null) console.error(error);
   process.exitCode = requestedExitCode ?? 1;
   await holderClosed;
+  removeSignalHandlers();
   process.exit();
 }
 if (requestedExitCode !== null) {
   holder.stdin.end('\\q\n');
   await holderClosed;
   process.exitCode = requestedExitCode;
+  removeSignalHandlers();
   process.exit();
 }
 
@@ -133,6 +146,7 @@ const supervisorStartedAt = execFileSync('ps', ['-o', 'lstart=', '-p', String(su
 }).trim();
 if (!supervisorStartedAt) throw new Error('unable to bind integration supervisor identity');
 const spawnReaper = () => {
+  const completionCapability = randomBytes(16).toString('hex');
   const child = spawn(
     process.execPath,
     [
@@ -141,6 +155,7 @@ const spawnReaper = () => {
       supervisorStartedAt,
       runId,
       validated.identity,
+      completionCapability,
     ],
     { env: process.env, stdio: 'inherit' },
   );
@@ -148,7 +163,7 @@ const spawnReaper = () => {
     child.once('error', (error) => resolveResult({ code: 1, error }));
     child.once('close', (code, signal) => resolveResult({ code, signal }));
   });
-  return { child, completion };
+  return { child, completion, completionCapability };
 };
 const retryPolicy = createReaperRetryPolicy();
 const spawnNextReaper = async () => {
@@ -171,7 +186,10 @@ for (;;) {
   reaperResult = await reaperAttempt.completion;
   let confirmed = false;
   try {
-    const completion = supervisorState.readCommandCompletion(runId);
+    const completion = supervisorState.readCommandCompletion(
+      runId,
+      reaperAttempt.completionCapability,
+    );
     const command = supervisorState.readCommand(runId);
     confirmed = Boolean(
       reaperResult.code === 0 &&
@@ -185,7 +203,6 @@ for (;;) {
     // A missing, corrupt, forged, or stale completion is not authority to release the lock.
   }
   if (confirmed) break;
-  supervisorState.removeCommandCompletion(runId);
   reaperAttempt = await spawnNextReaper();
   if (!reaperAttempt) {
     quiescent = true;
@@ -236,6 +253,7 @@ if (result.signal) {
 supervisorState.removeCommand(runId);
 holder.stdin.end('\\q\n');
 await holderClosed;
+removeSignalHandlers();
 if (result.error) console.error(result.error);
 if (reaperResult.error) console.error(reaperResult.error);
 if (recoveryResult.error) console.error(recoveryResult.error);

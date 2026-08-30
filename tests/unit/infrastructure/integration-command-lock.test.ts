@@ -99,25 +99,30 @@ describe('authenticated integration supervisor state', () => {
     const store = createSupervisorStateStore({ baseDirectory, identity });
     const firstCommand = { nonce: 'b'.repeat(32) };
     const secondCommand = { nonce: 'c'.repeat(32) };
+    const firstCapability = 'd'.repeat(32);
+    const secondCapability = 'e'.repeat(32);
     store.writeCommand(firstRunId, firstCommand);
-    writeFileSync(store.commandCompletionPath(firstRunId), '{"completion":{}}');
-    expect(() => store.readCommandCompletion(firstRunId)).toThrow();
+    writeFileSync(store.commandCompletionPath(firstRunId, firstCapability), '{"completion":{}}');
+    expect(() => store.readCommandCompletion(firstRunId, firstCapability)).toThrow();
 
-    store.removeCommandCompletion(firstRunId);
-    rmSync(store.commandCompletionPath(firstRunId), { force: true });
-    store.writeCommandCompletion(firstRunId, firstCommand);
-    expect(store.readCommandCompletion(firstRunId)).toEqual({
+    store.writeCommandCompletion(firstRunId, secondCapability, firstCommand);
+    expect(store.readCommandCompletion(firstRunId, secondCapability)).toEqual({
       phase: 'command-group-stopped',
       command: firstCommand,
     });
+    expect(readFileSync(store.commandCompletionPath(firstRunId, firstCapability), 'utf8')).toBe(
+      '{"completion":{}}',
+    );
 
     store.writeCommand(secondRunId, secondCommand);
     writeFileSync(
-      store.commandCompletionPath(secondRunId),
-      readFileSync(store.commandCompletionPath(firstRunId)),
+      store.commandCompletionPath(secondRunId, firstCapability),
+      readFileSync(store.commandCompletionPath(firstRunId, secondCapability)),
       { mode: 0o600 },
     );
-    expect(() => store.readCommandCompletion(secondRunId)).toThrow(/body|stale/u);
+    expect(() => store.readCommandCompletion(secondRunId, firstCapability)).toThrow(
+      /body|stale|capability/u,
+    );
   });
 
   it.each(['directory', 'fifo', 'symlink', 'hardlink', 'oversize', 'permissions'] as const)(
@@ -129,8 +134,9 @@ describe('authenticated integration supervisor state', () => {
       const runId = 'e'.repeat(16);
       const store = createSupervisorStateStore({ baseDirectory, identity });
       const command = { nonce: 'f'.repeat(32) };
+      const capability = '1'.repeat(32);
       store.writeCommand(runId, command);
-      const proof = store.commandCompletionPath(runId);
+      const proof = store.commandCompletionPath(runId, capability);
       const sibling = join(store.directory, 'proof-source');
       if (kind === 'directory') mkdirSync(proof, { mode: 0o700 });
       if (kind === 'fifo') execFileSync('mkfifo', [proof]);
@@ -146,9 +152,8 @@ describe('authenticated integration supervisor state', () => {
       if (kind === 'permissions') writeFileSync(proof, '{}', { mode: 0o644 });
 
       const startedAt = Date.now();
-      expect(() => store.readCommandCompletion(runId)).toThrow(/unsafe|completion/u);
+      expect(() => store.readCommandCompletion(runId, capability)).toThrow(/unsafe|completion/u);
       expect(Date.now() - startedAt).toBeLessThan(1_000);
-      store.removeCommandCompletion(runId);
       expect(existsSync(proof)).toBe(true);
     },
   );
@@ -159,11 +164,14 @@ describe('authenticated integration supervisor state', () => {
     const runId = '1'.repeat(16);
     const store = createSupervisorStateStore({ baseDirectory, identity: '2'.repeat(64) });
     const command = { nonce: '3'.repeat(32) };
+    const capability = '4'.repeat(32);
     store.writeCommand(runId, command);
-    const proof = store.commandCompletionPath(runId);
+    const proof = store.commandCompletionPath(runId, capability);
     writeFileSync(proof, 'operator evidence', { mode: 0o600 });
 
-    expect(() => store.writeCommandCompletion(runId, command)).toThrow(/replace|exist/u);
+    expect(() => store.writeCommandCompletion(runId, capability, command)).toThrow(
+      /replace|exist/u,
+    );
     expect(readFileSync(proof, 'utf8')).toBe('operator evidence');
   });
 
@@ -173,7 +181,8 @@ describe('authenticated integration supervisor state', () => {
     const runId = '4'.repeat(16);
     const store = createSupervisorStateStore({ baseDirectory, identity: '5'.repeat(64) });
     store.writeCommand(runId, { nonce: '6'.repeat(32) });
-    const proof = store.commandCompletionPath(runId);
+    const capability = '7'.repeat(32);
+    const proof = store.commandCompletionPath(runId, capability);
     const shortSocketPath = join(tmpdir(), `tf-${randomUUID()}.sock`);
     const server = createServer();
     await new Promise<void>((resolveListen, rejectListen) => {
@@ -182,8 +191,7 @@ describe('authenticated integration supervisor state', () => {
     });
     renameSync(shortSocketPath, proof);
     try {
-      expect(() => store.readCommandCompletion(runId)).toThrow(/unsafe/u);
-      store.removeCommandCompletion(runId);
+      expect(() => store.readCommandCompletion(runId, capability)).toThrow(/unsafe/u);
       expect(existsSync(proof)).toBe(true);
     } finally {
       await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
@@ -200,8 +208,7 @@ describe('authenticated integration supervisor state', () => {
     renameSync(store.directory, originalDirectory);
     symlinkSync(originalDirectory, store.directory);
 
-    expect(() => store.readCommandCompletion(runId)).toThrow(/directory|identity/u);
-    expect(() => store.removeCommandCompletion(runId)).not.toThrow();
+    expect(() => store.readCommandCompletion(runId, '9'.repeat(32))).toThrow(/directory|identity/u);
   });
 });
 
@@ -933,50 +940,151 @@ describe('full integration command database lock', () => {
     }
   }, 20_000);
 
-  it('keeps a follower pre-lock when hostile proof storage defeats every reaper', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-hostile-reaper-proof-'));
+  it('retains its lock through repeated mixed signals until the exact group is externally absent', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-repeated-signal-reaper-'));
     const firstOutput = join(directory, 'first.jsonl');
     const secondOutput = join(directory, 'second.jsonl');
     const hooks = join(directory, 'hooks.jsonl');
-    const first = start(firstOutput, 0, undefined, {
+    const first = start(firstOutput, 30_000, undefined, {
       hookFile: hooks,
-      pausePhase: 'cleanup',
+      fixtureArguments: ['ignore-term'],
+      fixtureEnvironment: { TRYOUTFLOW_INTEGRATION_TEST_FORCE_REAPER_FAILURE: '1' },
     });
     let firstStderr = '';
     first.stderr?.setEncoding('utf8').on('data', (chunk: string) => (firstStderr += chunk));
-    let proof = '';
+    let predecessorPgid = 0;
     let persistedCounters: string[] = [];
     try {
-      await waitForFile(hooks, /"phase":"cleanup"/u, 10_000);
-      const cleanup = readFileSync(hooks, 'utf8')
+      await waitForFile(firstOutput, /"event":"start"/u, 10_000);
+      await waitForFile(hooks, /"phase":"active"/u, 10_000);
+      const firstEvent = JSON.parse(readFileSync(firstOutput, 'utf8').trim().split('\n')[0]!) as {
+        pid: number;
+        counterKey: string;
+      };
+      persistedCounters.push(firstEvent.counterKey);
+      predecessorPgid = Number(
+        execFileSync('ps', ['-o', 'pgid=', '-p', String(firstEvent.pid)], {
+          encoding: 'utf8',
+        }).trim(),
+      );
+      const active = readFileSync(hooks, 'utf8')
         .trim()
         .split('\n')
-        .map((line) => JSON.parse(line) as { phase: string; runId: string; supervisorPid?: number })
-        .find((event) => event.phase === 'cleanup')!;
-      const validated = resolveAndValidateLocalDatabase(databaseUrl);
-      const store = createSupervisorStateStore({ identity: validated.identity });
-      proof = store.commandCompletionPath(cleanup.runId);
-      execFileSync('mkfifo', [proof]);
-      process.kill(cleanup.supervisorPid!, 'SIGKILL');
-
+        .map((line) => JSON.parse(line) as { phase: string; supervisorPid?: number })
+        .find((event) => event.phase === 'active')!;
+      process.kill(active.supervisorPid!, 'SIGKILL');
       const deadline = Date.now() + 8_000;
       while (!/failed closed after 5 attempts/u.test(firstStderr) && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
       expect(firstStderr.match(/failed closed after 5 attempts/gu)).toHaveLength(1);
-      const second = start(secondOutput, 0);
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      expect(existsSync(secondOutput)).toBe(false);
 
-      rmSync(proof);
-      proof = '';
+      const second = start(secondOutput, 0);
+      for (const signals of [
+        Array<NodeJS.Signals>(2).fill('SIGTERM'),
+        Array<NodeJS.Signals>(10).fill('SIGINT'),
+        Array.from({ length: 100 }, (_, index) => (index % 2 === 0 ? 'SIGTERM' : 'SIGINT')),
+      ]) {
+        for (const signal of signals) process.kill(first.pid!, signal);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        expect(() => process.kill(first.pid!, 0)).not.toThrow();
+        expect(() => process.kill(firstEvent.pid, 0)).not.toThrow();
+      }
+      expect(existsSync(secondOutput)).toBe(false);
+      expect(firstStderr.match(/failed closed after 5 attempts/gu)).toHaveLength(1);
+
+      process.kill(-predecessorPgid, 'SIGKILL');
+      predecessorPgid = 0;
       first.kill('SIGTERM');
       const [firstResult, secondResult] = await Promise.all([
         completion(first),
         completion(second),
       ]);
-      expect(firstResult.code).toBe(143);
+      expect([130, 143]).toContain(firstResult.code);
       expect(secondResult.code).toBe(0);
+      persistedCounters.push(
+        (
+          JSON.parse(readFileSync(secondOutput, 'utf8').trim().split('\n')[0]!) as {
+            counterKey: string;
+          }
+        ).counterKey,
+      );
+    } finally {
+      first.kill('SIGKILL');
+      if (predecessorPgid > 1) {
+        try {
+          process.kill(-predecessorPgid, 'SIGKILL');
+        } catch {
+          // The exact command group is already absent.
+        }
+      }
+      await completion(start(join(directory, 'recovery.jsonl'), 0));
+      if (persistedCounters.length > 0)
+        execFileSync('psql', [
+          databaseUrl,
+          '-c',
+          `delete from public.registration_rate_counters where key_hash in('${persistedCounters.join("','")}')`,
+        ]);
+    }
+  }, 25_000);
+
+  it('retains hostile immutable proof evidence and succeeds through a fresh attempt path', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-immutable-reaper-proof-'));
+    const firstOutput = join(directory, 'first.jsonl');
+    const secondOutput = join(directory, 'second.jsonl');
+    const hooks = join(directory, 'hooks.jsonl');
+    const first = start(firstOutput, 30_000, undefined, {
+      hookFile: hooks,
+      pausePhase: 'active',
+      fixtureArguments: ['ignore-term'],
+    });
+    let proof = '';
+    let persistedCounters: string[] = [];
+    try {
+      await waitForFile(firstOutput, /"event":"start"/u, 10_000);
+      await waitForFile(hooks, /"phase":"active"/u, 10_000);
+      await waitForFile(hooks, /"phase":"reaper-started"/u, 10_000);
+      const events = readFileSync(hooks, 'utf8')
+        .trim()
+        .split('\n')
+        .map(
+          (line) =>
+            JSON.parse(line) as {
+              phase: string;
+              runId: string;
+              supervisorPid?: number;
+              completionCapability?: string;
+            },
+        );
+      const active = events.find((event) => event.phase === 'active')!;
+      const reaper = events.find((event) => event.phase === 'reaper-started')!;
+      const validated = resolveAndValidateLocalDatabase(databaseUrl);
+      const store = createSupervisorStateStore({ identity: validated.identity });
+      proof = store.commandCompletionPath(reaper.runId, reaper.completionCapability!);
+      execFileSync('mkfifo', [proof]);
+
+      process.kill(active.supervisorPid!, 'SIGKILL');
+      const second = start(secondOutput, 0, undefined, { hookFile: hooks });
+      const [firstResult, secondResult] = await Promise.all([
+        completion(first),
+        completion(second),
+      ]);
+      expect(firstResult.code).toBe(137);
+      expect(secondResult.code).toBe(0);
+      expect(existsSync(proof)).toBe(true);
+
+      const finalEvents = readFileSync(hooks, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { phase: string; runId: string });
+      const oldStopped = finalEvents.findIndex(
+        (event) => event.runId === active.runId && event.phase === 'command-group-stopped',
+      );
+      const followerPostLock = finalEvents.findIndex(
+        (event) => event.runId !== active.runId && event.phase === 'post-lock',
+      );
+      expect(oldStopped).toBeGreaterThan(-1);
+      expect(followerPostLock).toBeGreaterThan(oldStopped);
       persistedCounters = [firstOutput, secondOutput].map(
         (path) =>
           (
@@ -988,6 +1096,7 @@ describe('full integration command database lock', () => {
     } finally {
       first.kill('SIGKILL');
       if (proof) rmSync(proof, { force: true });
+      await completion(start(join(directory, 'recovery.jsonl'), 0));
       if (persistedCounters.length > 0)
         execFileSync('psql', [
           databaseUrl,
@@ -995,7 +1104,7 @@ describe('full integration command database lock', () => {
           `delete from public.registration_rate_counters where key_hash in('${persistedCounters.join("','")}')`,
         ]);
     }
-  }, 20_000);
+  }, 25_000);
 
   it('fails closed on lost launcher identity until the exact old group is externally absent', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-reaper-identity-failure-'));

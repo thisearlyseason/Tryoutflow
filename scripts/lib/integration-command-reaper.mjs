@@ -8,14 +8,16 @@ import {
 } from './integration-process-identity.mjs';
 import { createSupervisorStateStore } from './integration-supervisor-state.mjs';
 
-const [supervisorPidText, supervisorStartedAt, runId, identity] = process.argv.slice(2);
+const [supervisorPidText, supervisorStartedAt, runId, identity, completionCapability] =
+  process.argv.slice(2);
 const supervisorPid = Number.parseInt(supervisorPidText ?? '', 10);
 if (!Number.isSafeInteger(supervisorPid) || supervisorPid <= 1)
   throw new Error('invalid supervisor');
 if (
   !supervisorStartedAt ||
   !/^[0-9a-f]{16}$/u.test(runId ?? '') ||
-  !/^[0-9a-f]{64}$/u.test(identity ?? '')
+  !/^[0-9a-f]{64}$/u.test(identity ?? '') ||
+  !/^[0-9a-f]{32}$/u.test(completionCapability ?? '')
 ) {
   throw new Error('invalid reaper capability');
 }
@@ -25,7 +27,7 @@ function hook(phase) {
   if (process.env.NODE_ENV === 'test' && process.env.TRYOUTFLOW_INTEGRATION_TEST_HOOK_FILE) {
     appendFileSync(
       process.env.TRYOUTFLOW_INTEGRATION_TEST_HOOK_FILE,
-      `${JSON.stringify({ phase, reaperPid: process.pid, runId })}\n`,
+      `${JSON.stringify({ phase, reaperPid: process.pid, runId, completionCapability })}\n`,
     );
   }
 }
@@ -91,4 +93,4 @@ if (command?.pid !== undefined) {
 }
 
 hook('command-group-stopped');
-state.writeCommandCompletion(runId, command);
+state.writeCommandCompletion(runId, completionCapability, command);

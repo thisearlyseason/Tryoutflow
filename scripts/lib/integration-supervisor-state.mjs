@@ -21,6 +21,7 @@ import { join } from 'node:path';
 const runIdPattern = /^[0-9a-f]{16}$/u;
 const identityPattern = /^[0-9a-f]{64}$/u;
 const manifestEntryPattern = /^([0-9a-f]{16})\.json$/u;
+const completionCapabilityPattern = /^[0-9a-f]{32}$/u;
 const maximumStateBytes = 4_096;
 
 function currentUid(fallback) {
@@ -250,7 +251,12 @@ export function createSupervisorStateStore(options) {
   const manifestPath = (runId) => join(directory, `${runId}.json`);
   const commandPath = (runId) => join(directory, `${runId}.command.json`);
   const commandGoPath = (runId) => join(directory, `${runId}.command.go`);
-  const commandCompletionPath = (runId) => join(directory, `${runId}.command.reaped.json`);
+  const commandCompletionPath = (runId, capability) => {
+    if (!runIdPattern.test(runId) || !completionCapabilityPattern.test(capability ?? '')) {
+      throw new Error('invalid integration reaping proof capability');
+    }
+    return join(directory, `${runId}.command.reaped-${capability}.json`);
+  };
   const quarantine = (path) => {
     try {
       renameSync(path, `${path}.quarantine-${Date.now()}-${randomBytes(4).toString('hex')}`);
@@ -364,7 +370,6 @@ export function createSupervisorStateStore(options) {
         throw new Error('invalid integration command identity');
       }
       const payload = { body, command: { nonce: command.nonce } };
-      bestEffortRemovePrivateRegularFile(commandCompletionPath(runId));
       atomicWrite(
         commandPath(runId),
         JSON.stringify({
@@ -422,24 +427,30 @@ export function createSupervisorStateStore(options) {
       }
       return parsed.command;
     },
-    writeCommandCompletion(runId, command) {
+    writeCommandCompletion(runId, capability, command) {
       validateStateDirectory();
       const current = this.readCommand(runId);
       if (JSON.stringify(current) !== JSON.stringify(command ?? null)) {
         throw new Error('reaping completion does not match authenticated command identity');
       }
       const body = manifestBody(identity, runId);
+      if (!completionCapabilityPattern.test(capability ?? '')) {
+        throw new Error('invalid integration reaping proof capability');
+      }
       const completion = { phase: 'command-group-stopped', command: command ?? null };
-      const payload = { body, completion };
+      const payload = { body, capability, completion };
       atomicWrite(
-        commandCompletionPath(runId),
+        commandCompletionPath(runId, capability),
         JSON.stringify({ ...payload, authentication: authenticatedPayload(secret, payload) }),
         directory,
       );
     },
-    readCommandCompletion(runId) {
+    readCommandCompletion(runId, capability) {
       validateStateDirectory();
-      const path = commandCompletionPath(runId);
+      if (!completionCapabilityPattern.test(capability ?? '')) {
+        throw new Error('invalid integration reaping proof capability');
+      }
+      const path = commandCompletionPath(runId, capability);
       const serialized = readPrivateRegularFile(path, 'integration command completion', {
         missing: true,
       });
@@ -448,7 +459,12 @@ export function createSupervisorStateStore(options) {
       if (!validBody(parsed?.body, identity, runId)) {
         throw new Error('invalid reaping completion body');
       }
-      const payload = { body: parsed.body, completion: parsed.completion };
+      if (parsed.capability !== capability) throw new Error('stale reaping proof capability');
+      const payload = {
+        body: parsed.body,
+        capability: parsed.capability,
+        completion: parsed.completion,
+      };
       const expected = authenticatedPayload(secret, payload);
       if (
         typeof parsed.authentication !== 'string' ||
@@ -466,14 +482,6 @@ export function createSupervisorStateStore(options) {
       }
       return parsed.completion;
     },
-    removeCommandCompletion(runId) {
-      try {
-        validateStateDirectory();
-        bestEffortRemovePrivateRegularFile(commandCompletionPath(runId));
-      } catch {
-        // Directory replacement is untrusted evidence and cannot make fail-closed control throw.
-      }
-    },
     permitCommand(runId) {
       validateStateDirectory();
       atomicWrite(commandGoPath(runId), runId, directory);
@@ -483,7 +491,6 @@ export function createSupervisorStateStore(options) {
         validateStateDirectory();
         bestEffortRemovePrivateRegularFile(commandPath(runId));
         bestEffortRemovePrivateRegularFile(commandGoPath(runId));
-        bestEffortRemovePrivateRegularFile(commandCompletionPath(runId));
       } catch {
         // Untrusted directory replacement is retained for explicit operator recovery.
       }
