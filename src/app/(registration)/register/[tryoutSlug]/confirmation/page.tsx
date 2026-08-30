@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 
 type ConfirmationStatus =
   | 'loading'
+  | 'email_sent'
   | 'pending'
   | 'unknown'
   | 'confirmed'
@@ -59,6 +60,22 @@ export default function RegistrationConfirmationPage() {
   useEffect(() => {
     const slug = currentTryoutSlug();
     setTryoutSlug(slug);
+    const query = new URLSearchParams(window.location.search);
+    const emailedTokens = query.getAll('token');
+    const emailedToken = emailedTokens.length === 1 ? emailedTokens[0] : null;
+    if (emailedTokens.length > 0) window.history.replaceState({}, '', window.location.pathname);
+    if (emailedToken && /^[0-9a-f]{64}$/iu.test(emailedToken)) {
+      const normalizedToken = emailedToken.toLowerCase();
+      writeStorage(
+        window.sessionStorage,
+        sessionKey,
+        JSON.stringify({ token: normalizedToken, tryoutSlug: slug }),
+      );
+      removeStorage(window.localStorage, `tryoutflow:registration:${slug}:confirmed`);
+      setToken(normalizedToken);
+      setStatus('pending');
+      return;
+    }
     const stored = readStorage(window.sessionStorage, sessionKey);
     if (stored) {
       try {
@@ -83,6 +100,10 @@ export default function RegistrationConfirmationPage() {
       readStorage(window.localStorage, `tryoutflow:registration:${slug}:confirmed`) === 'true'
     ) {
       setStatus('confirmed');
+      return;
+    }
+    if (readStorage(window.sessionStorage, 'tryoutflow:registration:email-queued') === slug) {
+      setStatus('email_sent');
       return;
     }
     setStatus('unknown');
@@ -167,6 +188,11 @@ export default function RegistrationConfirmationPage() {
         </p>
       ) : status === 'confirmed' || status === 'already_confirmed' ? (
         <p className="mt-3">Your registration is confirmed.</p>
+      ) : status === 'email_sent' ? (
+        <p className="mt-3" role="status">
+          Your confirmation link has been queued to your email. Open that one-time link to finish
+          confirming the registration.
+        </p>
       ) : status === 'pending' && token ? (
         <>
           <p className="mt-3">

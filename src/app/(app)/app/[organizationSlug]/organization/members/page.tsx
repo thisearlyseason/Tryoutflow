@@ -1,3 +1,6 @@
+import { createServerSupabaseClient } from '@/infrastructure/supabase/server';
+import { getPublicAppOrigin } from '@/lib/env';
+import { DurableInvitationNotifier } from '@/modules/communications/application/queue-communication';
 import { inviteMember } from '@/modules/organizations/application/invite-member';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 import {
@@ -21,6 +24,13 @@ export default async function MembersPage({
   ): Promise<InvitationFormState> {
     'use server';
     const current = await requireCurrentOrganization(organizationSlug);
+    const notifier = new DurableInvitationNotifier(
+      await createServerSupabaseClient(),
+      ({ token, expiresAt }) => ({
+        subject: 'You are invited to TryoutFlow',
+        text: `Accept your invitation before ${expiresAt.toISOString()}: ${new URL(`/invite/${encodeURIComponent(token)}`, getPublicAppOrigin()).toString()}`,
+      }),
+    );
     const result = await inviteMember(
       {
         organizationId: current.organization.id,
@@ -28,6 +38,7 @@ export default async function MembersPage({
         role: formData.get('role'),
       },
       { userId: current.userId, authorization: current.authorization },
+      { notifier },
     );
     if (!result.ok) return { status: 'error', message: 'We could not create that invitation.' };
     return {

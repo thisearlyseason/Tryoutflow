@@ -31,6 +31,24 @@ describe('registration confirmation page', () => {
     ).toBeInTheDocument();
   });
 
+  it('truthfully tells a just-submitted guardian that the confirmation email was queued', async () => {
+    window.sessionStorage.setItem('tryoutflow:registration:email-queued', 'fall-camp');
+    render(<RegistrationConfirmationPage />);
+    expect(
+      await screen.findByText(/confirmation link has been queued to your email/i),
+    ).toBeInTheDocument();
+  });
+
+  it('accepts an emailed one-time token, stores it for the flow, and removes it from the URL', async () => {
+    window.history.replaceState({}, '', `/register/fall-camp/confirmation?token=${'d'.repeat(64)}`);
+    render(<RegistrationConfirmationPage />);
+    expect(await screen.findByText('d'.repeat(64))).toBeInTheDocument();
+    expect(window.location.search).toBe('');
+    expect(window.sessionStorage.getItem('tryoutflow:registration:confirmation')).toBe(
+      JSON.stringify({ token: 'd'.repeat(64), tryoutSlug: 'fall-camp' }),
+    );
+  });
+
   it('persists only non-sensitive confirmed state for a safe reload', async () => {
     window.localStorage.setItem('tryoutflow:registration:fall-camp:confirmed', 'true');
     render(<RegistrationConfirmationPage />);

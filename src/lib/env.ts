@@ -13,6 +13,13 @@ const serverEnvironmentSchema = clientEnvironmentSchema.extend({
 export type ClientEnvironment = z.infer<typeof clientEnvironmentSchema>;
 export type ServerEnvironment = z.infer<typeof serverEnvironmentSchema>;
 
+const communicationEnvironmentSchema = z.object({
+  JOB_PROCESSOR_CRON_SECRET: z.string().min(32).max(512),
+  RESEND_API_KEY: z.string().min(20).max(300),
+  RESEND_FROM_EMAIL: z.email().max(320),
+});
+export type CommunicationEnvironment = z.infer<typeof communicationEnvironmentSchema>;
+
 /** Validates the single canonical origin used in externally shared links. */
 export function getPublicAppOrigin(
   environment: Record<string, string | undefined> = process.env,
@@ -47,4 +54,12 @@ export function getServerEnvironment(
   }
 
   return serverEnvironmentSchema.parse(environment);
+}
+
+export function getCommunicationEnvironment(
+  environment: Record<string, string | undefined> = process.env,
+): CommunicationEnvironment {
+  if (typeof window !== 'undefined')
+    throw new Error('Server environment cannot be read in the browser');
+  return communicationEnvironmentSchema.parse(environment);
 }

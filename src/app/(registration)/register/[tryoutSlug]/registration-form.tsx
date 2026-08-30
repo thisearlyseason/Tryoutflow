@@ -88,7 +88,10 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
         }),
       });
       if (!response.ok) throw new Error('failed');
-      const result = (await response.json()) as { manualConfirmationToken?: string };
+      const result = (await response.json()) as {
+        delivery?: 'queued' | 'not_configured' | 'not_attempted';
+        manualConfirmationToken?: string;
+      };
       if (result.manualConfirmationToken) {
         try {
           window.sessionStorage.setItem(
@@ -97,6 +100,13 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
           );
         } catch {
           // Submission succeeded; the confirmation page will show recovery guidance.
+        }
+      }
+      if (result.delivery === 'queued') {
+        try {
+          window.sessionStorage.setItem('tryoutflow:registration:email-queued', tryoutSlug);
+        } catch {
+          // The destination page still provides conservative recovery guidance.
         }
       }
       try {

@@ -58,6 +58,19 @@ function psql(sql: string) {
   }).trim();
 }
 
+function latestQueuedConfirmationToken() {
+  const text = psql(`
+    select content_snapshot->>'text'
+    from public.communication_messages
+    where organization_id='a1101010-1010-4010-8010-101010101010'
+      and message_kind='registration_confirmation'
+    order by created_at desc,id desc limit 1
+  `);
+  const token = /[?&]token=([0-9a-f]{64})(?:&|$)/iu.exec(text)?.[1];
+  if (!token) throw new Error('queued confirmation token unavailable');
+  return token.toLowerCase();
+}
+
 function jsonRequest(path: string, body: unknown, headers: Record<string, string> = {}) {
   return new NextRequest(`${origin}${path}`, {
     method: 'POST',
@@ -78,6 +91,7 @@ beforeAll(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
+  process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
   directCanonicalRateKey = recordIntegrationRateKey(directCanonicalRateKey);
   execFileSync(
     'psql',
@@ -368,8 +382,14 @@ describe('real public registration route with local Supabase', () => {
       }),
     );
     expect(first.status).toBe(200);
-    const firstBody = (await first.json()) as { manualConfirmationToken?: string };
-    expect(firstBody.manualConfirmationToken).toMatch(/^[0-9a-f]{64}$/u);
+    const firstBody = (await first.json()) as {
+      delivery?: string;
+      manualConfirmationToken?: string;
+    };
+    expect(firstBody.delivery).toBe('queued');
+    expect(firstBody.manualConfirmationToken).toBeUndefined();
+    const firstToken = latestQueuedConfirmationToken();
+    expect(firstToken).toMatch(/^[0-9a-f]{64}$/u);
     expect(
       psql(
         "select phone from public.guardians where organization_id='a1101010-1010-4010-8010-101010101010' and normalized_email='guardian@example.com'",
@@ -385,8 +405,10 @@ describe('real public registration route with local Supabase', () => {
     );
     expect(replay.status).toBe(200);
     const replayBody = (await replay.json()) as { manualConfirmationToken?: string };
-    expect(replayBody.manualConfirmationToken).toMatch(/^[0-9a-f]{64}$/u);
-    expect(replayBody.manualConfirmationToken).not.toBe(firstBody.manualConfirmationToken);
+    expect(replayBody.manualConfirmationToken).toBeUndefined();
+    const replayToken = latestQueuedConfirmationToken();
+    expect(replayToken).toMatch(/^[0-9a-f]{64}$/u);
+    expect(replayToken).not.toBe(firstToken);
     expect(
       psql(
         "select count(*) from public.tryout_registrations registration join public.athletes athlete on athlete.id=registration.athlete_id where registration.organization_id='a1101010-1010-4010-8010-101010101010' and athlete.given_name='Ava' and athlete.family_name='Smith' and athlete.birth_date='2013-05-01'",
@@ -411,8 +433,8 @@ describe('real public registration route with local Supabase', () => {
         { 'x-forwarded-for': '203.0.113.11' },
       ),
     );
-    const token = ((await registration.json()) as { manualConfirmationToken: string })
-      .manualConfirmationToken;
+    await registration.json();
+    const token = latestQueuedConfirmationToken();
     const confirmed = await consumeConfirmation(
       jsonRequest(
         '/api/public/registrations/confirmation',
@@ -586,8 +608,8 @@ describe('real public registration route with local Supabase', () => {
         { 'x-forwarded-for': '203.0.113.30' },
       ),
     );
-    const oldToken = ((await registration.json()) as { manualConfirmationToken: string })
-      .manualConfirmationToken;
+    await registration.json();
+    const oldToken = latestQueuedConfirmationToken();
     psql(
       `update public.registration_confirmation_tokens set created_at=clock_timestamp()-interval '2 seconds',expires_at=clock_timestamp()-interval '1 second' where token_digest=encode(extensions.digest('${oldToken}','sha256'),'hex')`,
     );

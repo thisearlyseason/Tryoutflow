@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { createAdminSupabaseClient } from '../../../../infrastructure/supabase/admin';
 import type { Json } from '../../../../infrastructure/supabase/database.types';
-import { noRegistrationConfirmationNotifier } from '../../../../modules/registration/application/registration-confirmation-notifier';
+import { getPublicAppOrigin } from '../../../../lib/env';
+import { DurableRegistrationConfirmationNotifier } from '../../../../modules/communications/application/queue-communication';
 import { registerAthlete } from '../../../../modules/registration/application/register-athlete';
 import { RegistrationFormSchema } from '../../../../modules/registration/domain/form-schema';
 import { guardPublicJsonRequest } from './public-request-security';
@@ -76,6 +77,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const client = createAdminSupabaseClient();
+    const confirmationNotifier = new DurableRegistrationConfirmationNotifier(
+      client,
+      ({ confirmationToken }) => {
+        const confirmationUrl = new URL(
+          `/register/${encodeURIComponent(body.tryoutSlug)}/confirmation`,
+          getPublicAppOrigin(),
+        );
+        confirmationUrl.searchParams.set('token', confirmationToken);
+        return {
+          subject: 'Confirm your TryoutFlow registration',
+          text: `Confirm your registration using this one-time link: ${confirmationUrl.toString()}`,
+        };
+      },
+    );
     const contextLimit = await client.rpc('consume_public_registration_rate_limit', {
       p_rate_key_hash: guarded.contextRateKey,
       p_limit: 10,
@@ -104,7 +119,7 @@ export async function POST(request: NextRequest) {
       },
       {
         form: RegistrationFormSchema.parse(row.form_schema),
-        notifier: noRegistrationConfirmationNotifier,
+        notifier: confirmationNotifier,
         gateway: {
           async submit(input) {
             const result = await client.rpc('submit_public_registration_v2', {
@@ -133,7 +148,11 @@ export async function POST(request: NextRequest) {
         },
       },
     );
-    return NextResponse.json({ ok: true, manualConfirmationToken: command.confirmationToken });
+    return NextResponse.json({
+      ok: true,
+      delivery: command.delivery,
+      manualConfirmationToken: command.confirmationToken,
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'rate_limited') return genericError(429);
     return genericError(400);

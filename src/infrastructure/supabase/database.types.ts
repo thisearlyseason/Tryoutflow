@@ -488,6 +488,71 @@ export type Database = {
           },
         ];
       };
+      communication_messages: {
+        Row: {
+          attention_required_at: string | null;
+          business_idempotency_key: string;
+          content_snapshot: Json;
+          created_at: string;
+          id: string;
+          message_kind: string;
+          notice_class: string;
+          organization_id: string;
+          provider_message_id: string | null;
+          recipient_snapshot: Json;
+          request_digest: string;
+          source_id: string;
+          source_kind: string;
+          state: string;
+          submitted_at: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          attention_required_at?: string | null;
+          business_idempotency_key: string;
+          content_snapshot: Json;
+          created_at?: string;
+          id?: string;
+          message_kind: string;
+          notice_class: string;
+          organization_id: string;
+          provider_message_id?: string | null;
+          recipient_snapshot: Json;
+          request_digest: string;
+          source_id: string;
+          source_kind: string;
+          state?: string;
+          submitted_at?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          attention_required_at?: string | null;
+          business_idempotency_key?: string;
+          content_snapshot?: Json;
+          created_at?: string;
+          id?: string;
+          message_kind?: string;
+          notice_class?: string;
+          organization_id?: string;
+          provider_message_id?: string | null;
+          recipient_snapshot?: Json;
+          request_digest?: string;
+          source_id?: string;
+          source_kind?: string;
+          state?: string;
+          submitted_at?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'communication_messages_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       decision_history: {
         Row: {
           actor_user_id: string;
@@ -872,6 +937,42 @@ export type Database = {
           },
         ];
       };
+      notification_preferences: {
+        Row: {
+          guardian_id: string;
+          optional_email_enabled: boolean;
+          organization_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          guardian_id: string;
+          optional_email_enabled?: boolean;
+          organization_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          guardian_id?: string;
+          optional_email_enabled?: boolean;
+          organization_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'notification_preferences_guardian_fkey';
+            columns: ['organization_id', 'guardian_id'];
+            isOneToOne: true;
+            referencedRelation: 'guardians';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'notification_preferences_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       organization_evaluation_note_tags: {
         Row: {
           active: boolean;
@@ -1036,6 +1137,83 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [];
+      };
+      outbox_jobs: {
+        Row: {
+          attempt_count: number;
+          available_at: string;
+          business_idempotency_key: string;
+          completed_at: string | null;
+          created_at: string;
+          dead_lettered_at: string | null;
+          id: string;
+          job_type: string;
+          last_error_code: string | null;
+          lease_expires_at: string | null;
+          lease_generation: number;
+          lease_owner: string | null;
+          lease_token: string | null;
+          max_attempts: number;
+          message_id: string;
+          organization_id: string;
+          payload_version: number;
+          provider_idempotency_key: string;
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          available_at?: string;
+          business_idempotency_key: string;
+          completed_at?: string | null;
+          created_at?: string;
+          dead_lettered_at?: string | null;
+          id?: string;
+          job_type?: string;
+          last_error_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_generation?: number;
+          lease_owner?: string | null;
+          lease_token?: string | null;
+          max_attempts?: number;
+          message_id: string;
+          organization_id: string;
+          payload_version?: number;
+          provider_idempotency_key: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          available_at?: string;
+          business_idempotency_key?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          dead_lettered_at?: string | null;
+          id?: string;
+          job_type?: string;
+          last_error_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_generation?: number;
+          lease_owner?: string | null;
+          lease_token?: string | null;
+          max_attempts?: number;
+          message_id?: string;
+          organization_id?: string;
+          payload_version?: number;
+          provider_idempotency_key?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'outbox_jobs_message_fkey';
+            columns: ['organization_id', 'message_id'];
+            isOneToOne: false;
+            referencedRelation: 'communication_messages';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
       };
       platform_support_elevations: {
         Row: {
@@ -2735,6 +2913,20 @@ export type Database = {
           outcome: string;
         }[];
       };
+      claim_outbox_jobs: {
+        Args: {
+          p_batch_size: number;
+          p_lease_owner: string;
+          p_lease_seconds: number;
+        };
+        Returns: Database['public']['CompositeTypes']['claimed_outbox_job'][];
+        SetofOptions: {
+          from: '*';
+          to: 'claimed_outbox_job';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       commit_athlete_import: {
         Args: {
           p_organization_id: string;
@@ -2771,6 +2963,15 @@ export type Database = {
           outcome: string;
           version: number | null;
         }[];
+      };
+      complete_outbox_job: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_provider_message_id: string;
+        };
+        Returns: string;
       };
       configure_evaluation_note_tag: {
         Args: {
@@ -2909,6 +3110,16 @@ export type Database = {
           p_tryout_id: string;
         };
         Returns: boolean;
+      };
+      fail_outbox_job: {
+        Args: {
+          p_error_code: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_retryable: boolean;
+        };
+        Returns: string;
       };
       finalize_roster_version: {
         Args: {
@@ -3200,6 +3411,78 @@ export type Database = {
       purge_expired_athlete_import_previews: {
         Args: { p_limit?: number };
         Returns: number;
+      };
+      queue_invitation_communication: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_invitation_id: string;
+          p_organization_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      queue_registration_communication: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_guardian_id: string;
+          p_message_kind: string;
+          p_notice_class: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      queue_registration_confirmation_communication: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_guardian_email: string;
+          p_registration_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      queue_roster_decision_communication: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_expected_decision: string;
+          p_guardian_id: string;
+          p_message_kind: string;
+          p_notice_class: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_roster_version_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       registration_has_missing_information: {
         Args: { p_registration_id: string };
@@ -3495,7 +3778,24 @@ export type Database = {
       [_ in never]: never;
     };
     CompositeTypes: {
-      [_ in never]: never;
+      claimed_outbox_job: {
+        job_id: string | null;
+        message_id: string | null;
+        lease_token: string | null;
+        lease_generation: number | null;
+        lease_expires_at: string | null;
+        provider_idempotency_key: string | null;
+        recipient_email: string | null;
+        subject: string | null;
+        body_text: string | null;
+        attempt_count: number | null;
+        max_attempts: number | null;
+      };
+      queue_communication_result: {
+        outcome: string | null;
+        message_id: string | null;
+        job_id: string | null;
+      };
     };
   };
 };
