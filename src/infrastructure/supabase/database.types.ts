@@ -1267,6 +1267,73 @@ export type Database = {
           },
         ];
       };
+      external_entity_mappings: {
+        Row: {
+          connection_id: string;
+          created_at: string;
+          entity_type: string;
+          external_id: string;
+          external_ref: Json;
+          first_sync_job_id: string;
+          id: string;
+          internal_entity_id: string;
+          last_sync_job_id: string;
+          organization_id: string;
+          provider_key: string;
+          updated_at: string;
+        };
+        Insert: {
+          connection_id: string;
+          created_at?: string;
+          entity_type: string;
+          external_id: string;
+          external_ref: Json;
+          first_sync_job_id: string;
+          id?: string;
+          internal_entity_id: string;
+          last_sync_job_id: string;
+          organization_id: string;
+          provider_key: string;
+          updated_at?: string;
+        };
+        Update: {
+          connection_id?: string;
+          created_at?: string;
+          entity_type?: string;
+          external_id?: string;
+          external_ref?: Json;
+          first_sync_job_id?: string;
+          id?: string;
+          internal_entity_id?: string;
+          last_sync_job_id?: string;
+          organization_id?: string;
+          provider_key?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'external_entity_mappings_connection_fkey';
+            columns: ['organization_id', 'connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_connections';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'external_entity_mappings_first_job_fkey';
+            columns: ['organization_id', 'first_sync_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_sync_jobs';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'external_entity_mappings_last_job_fkey';
+            columns: ['organization_id', 'last_sync_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_sync_jobs';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       guardians: {
         Row: {
           created_at: string;
@@ -1305,6 +1372,376 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'organizations';
             referencedColumns: ['id'];
+          },
+        ];
+      };
+      integration_connections: {
+        Row: {
+          connected_at: string;
+          created_at: string;
+          created_by_user_id: string;
+          disconnected_at: string | null;
+          display_name: string;
+          id: string;
+          last_verified_at: string | null;
+          mock_data: boolean;
+          organization_id: string;
+          provider_key: string;
+          state: string;
+          updated_at: string;
+        };
+        Insert: {
+          connected_at?: string;
+          created_at?: string;
+          created_by_user_id: string;
+          disconnected_at?: string | null;
+          display_name: string;
+          id: string;
+          last_verified_at?: string | null;
+          mock_data: boolean;
+          organization_id: string;
+          provider_key: string;
+          state?: string;
+          updated_at?: string;
+        };
+        Update: {
+          connected_at?: string;
+          created_at?: string;
+          created_by_user_id?: string;
+          disconnected_at?: string | null;
+          display_name?: string;
+          id?: string;
+          last_verified_at?: string | null;
+          mock_data?: boolean;
+          organization_id?: string;
+          provider_key?: string;
+          state?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'integration_connections_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      integration_export_previews: {
+        Row: {
+          approved_fields: string[];
+          connection_id: string;
+          consumed_at: string | null;
+          created_at: string;
+          created_by_user_id: string;
+          destination_snapshot: Json;
+          expires_at: string;
+          id: string;
+          organization_id: string;
+          payload_digest: string;
+          preview_snapshot: Json;
+          provider_confirmation_token: string;
+          provider_preview_id: string;
+          provider_snapshot_digest: string;
+          roster_snapshot: Json;
+          roster_version: number;
+          roster_version_id: string;
+          sync_job_id: string | null;
+        };
+        Insert: {
+          approved_fields: string[];
+          connection_id: string;
+          consumed_at?: string | null;
+          created_at?: string;
+          created_by_user_id: string;
+          destination_snapshot: Json;
+          expires_at?: string;
+          id?: string;
+          organization_id: string;
+          payload_digest: string;
+          preview_snapshot: Json;
+          provider_confirmation_token: string;
+          provider_preview_id: string;
+          provider_snapshot_digest: string;
+          roster_snapshot: Json;
+          roster_version: number;
+          roster_version_id: string;
+          sync_job_id?: string | null;
+        };
+        Update: {
+          approved_fields?: string[];
+          connection_id?: string;
+          consumed_at?: string | null;
+          created_at?: string;
+          created_by_user_id?: string;
+          destination_snapshot?: Json;
+          expires_at?: string;
+          id?: string;
+          organization_id?: string;
+          payload_digest?: string;
+          preview_snapshot?: Json;
+          provider_confirmation_token?: string;
+          provider_preview_id?: string;
+          provider_snapshot_digest?: string;
+          roster_snapshot?: Json;
+          roster_version?: number;
+          roster_version_id?: string;
+          sync_job_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'integration_export_previews_connection_fkey';
+            columns: ['organization_id', 'connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_connections';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'integration_export_previews_job_fkey';
+            columns: ['organization_id', 'sync_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_sync_jobs';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'integration_export_previews_roster_fkey';
+            columns: ['organization_id', 'roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      integration_outbox_jobs: {
+        Row: {
+          attempt_count: number;
+          attempt_number: number;
+          available_at: string;
+          completed_at: string | null;
+          created_at: string;
+          dead_lettered_at: string | null;
+          id: string;
+          item_keys: string[];
+          last_error_code: string | null;
+          lease_expires_at: string | null;
+          lease_generation: number;
+          lease_owner: string | null;
+          lease_token: string | null;
+          max_attempts: number;
+          organization_id: string;
+          provider_idempotency_key: string;
+          provider_submission_started_at: string | null;
+          retry_idempotency_key: string;
+          status: string;
+          sync_job_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempt_count?: number;
+          attempt_number: number;
+          available_at?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          dead_lettered_at?: string | null;
+          id?: string;
+          item_keys: string[];
+          last_error_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_generation?: number;
+          lease_owner?: string | null;
+          lease_token?: string | null;
+          max_attempts?: number;
+          organization_id: string;
+          provider_idempotency_key: string;
+          provider_submission_started_at?: string | null;
+          retry_idempotency_key: string;
+          status?: string;
+          sync_job_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempt_count?: number;
+          attempt_number?: number;
+          available_at?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          dead_lettered_at?: string | null;
+          id?: string;
+          item_keys?: string[];
+          last_error_code?: string | null;
+          lease_expires_at?: string | null;
+          lease_generation?: number;
+          lease_owner?: string | null;
+          lease_token?: string | null;
+          max_attempts?: number;
+          organization_id?: string;
+          provider_idempotency_key?: string;
+          provider_submission_started_at?: string | null;
+          retry_idempotency_key?: string;
+          status?: string;
+          sync_job_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'integration_outbox_jobs_job_fkey';
+            columns: ['organization_id', 'sync_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_sync_jobs';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      integration_sync_items: {
+        Row: {
+          attempts: number;
+          completed_at: string | null;
+          created_at: string;
+          entity_type: string;
+          external_ref: Json | null;
+          id: string;
+          internal_entity_id: string;
+          item_key: string;
+          normalized_error: Json | null;
+          operation: string;
+          organization_id: string;
+          state: string;
+          sync_job_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          attempts?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          entity_type: string;
+          external_ref?: Json | null;
+          id?: string;
+          internal_entity_id: string;
+          item_key: string;
+          normalized_error?: Json | null;
+          operation: string;
+          organization_id: string;
+          state?: string;
+          sync_job_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          attempts?: number;
+          completed_at?: string | null;
+          created_at?: string;
+          entity_type?: string;
+          external_ref?: Json | null;
+          id?: string;
+          internal_entity_id?: string;
+          item_key?: string;
+          normalized_error?: Json | null;
+          operation?: string;
+          organization_id?: string;
+          state?: string;
+          sync_job_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'integration_sync_items_job_fkey';
+            columns: ['organization_id', 'sync_job_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_sync_jobs';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      integration_sync_jobs: {
+        Row: {
+          approved_fields: string[];
+          attention_required_at: string | null;
+          business_idempotency_key: string;
+          completed_at: string | null;
+          connection_id: string;
+          created_at: string;
+          created_by_user_id: string;
+          destination_snapshot: Json;
+          external_job_id: string | null;
+          id: string;
+          last_error: Json | null;
+          mock_data: boolean;
+          operation: string;
+          organization_id: string;
+          provider_confirmation_token: string;
+          provider_key: string;
+          provider_preview_id: string;
+          request_digest: string;
+          roster_snapshot: Json;
+          roster_version: number;
+          roster_version_id: string;
+          state: string;
+          updated_at: string;
+        };
+        Insert: {
+          approved_fields: string[];
+          attention_required_at?: string | null;
+          business_idempotency_key: string;
+          completed_at?: string | null;
+          connection_id: string;
+          created_at?: string;
+          created_by_user_id: string;
+          destination_snapshot: Json;
+          external_job_id?: string | null;
+          id?: string;
+          last_error?: Json | null;
+          mock_data: boolean;
+          operation?: string;
+          organization_id: string;
+          provider_confirmation_token: string;
+          provider_key: string;
+          provider_preview_id: string;
+          request_digest: string;
+          roster_snapshot: Json;
+          roster_version: number;
+          roster_version_id: string;
+          state?: string;
+          updated_at?: string;
+        };
+        Update: {
+          approved_fields?: string[];
+          attention_required_at?: string | null;
+          business_idempotency_key?: string;
+          completed_at?: string | null;
+          connection_id?: string;
+          created_at?: string;
+          created_by_user_id?: string;
+          destination_snapshot?: Json;
+          external_job_id?: string | null;
+          id?: string;
+          last_error?: Json | null;
+          mock_data?: boolean;
+          operation?: string;
+          organization_id?: string;
+          provider_confirmation_token?: string;
+          provider_key?: string;
+          provider_preview_id?: string;
+          request_digest?: string;
+          roster_snapshot?: Json;
+          roster_version?: number;
+          roster_version_id?: string;
+          state?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'integration_sync_jobs_connection_fkey';
+            columns: ['organization_id', 'connection_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_connections';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'integration_sync_jobs_roster_fkey';
+            columns: ['organization_id', 'roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'id'];
           },
         ];
       };
@@ -3395,6 +3832,14 @@ export type Database = {
         };
         Returns: undefined;
       };
+      authorize_integration_outbox_submission: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+        };
+        Returns: string;
+      };
       authorize_outbox_job_send: {
         Args: {
           p_job_id: string;
@@ -3610,6 +4055,20 @@ export type Database = {
           outcome: string;
         }[];
       };
+      claim_integration_outbox_jobs: {
+        Args: {
+          p_batch_size: number;
+          p_lease_owner: string;
+          p_lease_seconds: number;
+        };
+        Returns: Database['public']['CompositeTypes']['claimed_integration_outbox_job'][];
+        SetofOptions: {
+          from: '*';
+          to: 'claimed_integration_outbox_job';
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
+      };
       claim_outbox_jobs: {
         Args: {
           p_batch_size: number;
@@ -3661,6 +4120,16 @@ export type Database = {
           version: number | null;
         }[];
       };
+      complete_integration_outbox_job: {
+        Args: {
+          p_external_job_id: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_result: Json;
+        };
+        Returns: string;
+      };
       complete_outbox_job: {
         Args: {
           p_job_id: string;
@@ -3700,6 +4169,21 @@ export type Database = {
           note_tag_id: string | null;
           outcome: string;
         }[];
+      };
+      confirm_roster_export_preview: {
+        Args: {
+          p_confirmation_token: string;
+          p_idempotency_key: string;
+          p_organization_id: string;
+          p_provider_preview_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_export_confirmation_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_export_confirmation_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       consume_public_registration_rate_limit: {
         Args: { p_limit: number; p_rate_key_hash: string };
@@ -3883,6 +4367,16 @@ export type Database = {
         };
         Returns: boolean;
       };
+      fail_integration_outbox_job: {
+        Args: {
+          p_error_code: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_retryable: boolean;
+        };
+        Returns: string;
+      };
       fail_outbox_job: {
         Args: {
           p_error_code: string;
@@ -4065,6 +4559,19 @@ export type Database = {
         };
         Returns: {
           result: Json;
+        }[];
+      };
+      load_roster_export_context: {
+        Args: {
+          p_connection_id: string;
+          p_organization_id: string;
+          p_roster_version_id: string;
+        };
+        Returns: {
+          mock_data: boolean;
+          outcome: string;
+          provider_key: string;
+          roster: Json;
         }[];
       };
       load_roster_workspace: {
@@ -4486,6 +4993,20 @@ export type Database = {
           outcome: string;
         }[];
       };
+      retry_integration_sync_job: {
+        Args: {
+          p_idempotency_key: string;
+          p_job_id: string;
+          p_organization_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_retry_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_retry_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       revise_roster_version: {
         Args: {
           p_confirmation: string;
@@ -4542,6 +5063,31 @@ export type Database = {
           outcome: string;
           version: number | null;
         }[];
+      };
+      save_integration_connection: {
+        Args: {
+          p_connection_id: string;
+          p_display_name: string;
+          p_mock_data: boolean;
+          p_organization_id: string;
+          p_provider_key: string;
+        };
+        Returns: string;
+      };
+      save_roster_export_preview: {
+        Args: {
+          p_approved_fields: string[];
+          p_confirmation_token: string;
+          p_connection_id: string;
+          p_destination: Json;
+          p_organization_id: string;
+          p_payload_digest: string;
+          p_preview: Json;
+          p_provider_preview_id: string;
+          p_roster_version_id: string;
+          p_snapshot_digest: string;
+        };
+        Returns: string;
       };
       save_tryout_setup_step: {
         Args: { p_organization_id: string; p_step: string; p_tryout_id: string };
@@ -4729,6 +5275,21 @@ export type Database = {
       [_ in never]: never;
     };
     CompositeTypes: {
+      claimed_integration_outbox_job: {
+        outbox_job_id: string | null;
+        sync_job_id: string | null;
+        organization_id: string | null;
+        connection_id: string | null;
+        provider_key: string | null;
+        actor_user_id: string | null;
+        lease_token: string | null;
+        lease_generation: number | null;
+        lease_expires_at: string | null;
+        provider_idempotency_key: string | null;
+        attempt_number: number | null;
+        item_keys: string[] | null;
+        confirmed_request: Json | null;
+      };
       claimed_outbox_job: {
         job_id: string | null;
         message_id: string | null;
@@ -4747,6 +5308,16 @@ export type Database = {
         outcome: string | null;
         batch_id: string | null;
         queued_count: number | null;
+      };
+      integration_export_confirmation_result: {
+        outcome: string | null;
+        job_id: string | null;
+      };
+      integration_retry_result: {
+        outcome: string | null;
+        job_id: string | null;
+        retried_item_count: number | null;
+        preserved_completed_item_count: number | null;
       };
       queue_communication_result: {
         outcome: string | null;

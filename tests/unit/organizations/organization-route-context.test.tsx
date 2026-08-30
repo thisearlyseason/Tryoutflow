@@ -91,6 +91,10 @@ describe('least-privileged organization route context', () => {
       />,
     );
     expect(screen.getByRole('link', { name: 'Evaluators' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute(
+      'href',
+      '/app/badlands/organization/integrations',
+    );
     expect(screen.queryByRole('link', { name: /Staff for tryout/ })).not.toBeInTheDocument();
   });
 

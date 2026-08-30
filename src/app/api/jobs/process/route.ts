@@ -3,6 +3,10 @@ import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
+import type {
+  ClaimedIntegrationJob,
+  IntegrationDispatchOutcome,
+} from '../../../../infrastructure/integrations/dispatch-integration-job';
 import type { ClaimedEmailJob } from '../../../../infrastructure/jobs/claim-jobs';
 
 const MAX_BODY_BYTES = 1_024;
@@ -20,7 +24,43 @@ type ProcessDependencies = {
   dispatch(
     job: ClaimedEmailJob,
   ): Promise<'completed' | 'retry_scheduled' | 'dead_lettered' | 'cancelled' | 'needs_attention'>;
+  claimIntegrations?(input: {
+    leaseOwner: string;
+    batchSize: number;
+    leaseSeconds: number;
+  }): Promise<ClaimedIntegrationJob[]>;
+  dispatchIntegration?(job: ClaimedIntegrationJob): Promise<IntegrationDispatchOutcome>;
 };
+
+type JobSummary = {
+  claimed: number;
+  completed: number;
+  retryScheduled: number;
+  deadLettered: number;
+  cancelled: number;
+  needsAttention: number;
+  failed: number;
+};
+
+function emptySummary(claimed: number): JobSummary {
+  return {
+    claimed,
+    completed: 0,
+    retryScheduled: 0,
+    deadLettered: 0,
+    cancelled: 0,
+    needsAttention: 0,
+    failed: 0,
+  };
+}
+
+function recordOutcome(summary: JobSummary, outcome: IntegrationDispatchOutcome) {
+  if (outcome === 'completed') summary.completed += 1;
+  else if (outcome === 'retry_scheduled') summary.retryScheduled += 1;
+  else if (outcome === 'dead_lettered') summary.deadLettered += 1;
+  else if (outcome === 'cancelled') summary.cancelled += 1;
+  else summary.needsAttention += 1;
+}
 
 function jsonError(status: number, code: string) {
   return NextResponse.json({ error: code }, { status });
@@ -83,35 +123,46 @@ export async function processJobsRequest(request: Request, dependencies: Process
     if (!parsed.success) return jsonError(400, 'invalid_request');
     await dependencies.purgeExpiredPreviews?.().catch(() => undefined);
     await dependencies.purgeExpiredCheckoutIntents?.().catch(() => undefined);
-    const jobs = await dependencies.claim({
-      leaseOwner: `vercel:${randomUUID()}`,
+    const leaseRunId = randomUUID();
+    const claimInput = {
+      leaseOwner: `vercel:${leaseRunId}`,
       batchSize: parsed.data.batchSize,
       leaseSeconds: 90,
-    });
-    const summary = {
-      claimed: jobs.length,
-      completed: 0,
-      retryScheduled: 0,
-      deadLettered: 0,
-      cancelled: 0,
-      needsAttention: 0,
-      failed: 0,
     };
+    const [jobs, integrationJobs] = await Promise.all([
+      dependencies.claim(claimInput),
+      dependencies.claimIntegrations?.({
+        ...claimInput,
+        leaseOwner: `vercel:integration:${leaseRunId}`,
+      }) ?? Promise.resolve([]),
+    ]);
+    const summary = emptySummary(jobs.length);
+    const integrationSummary = emptySummary(integrationJobs.length);
     await Promise.all(
       jobs.map(async (job) => {
         try {
           const outcome = await dependencies.dispatch(job);
-          if (outcome === 'completed') summary.completed += 1;
-          else if (outcome === 'retry_scheduled') summary.retryScheduled += 1;
-          else if (outcome === 'dead_lettered') summary.deadLettered += 1;
-          else if (outcome === 'cancelled') summary.cancelled += 1;
-          else summary.needsAttention += 1;
+          recordOutcome(summary, outcome);
         } catch {
           summary.failed += 1;
         }
       }),
     );
-    return NextResponse.json(summary);
+    const dispatchIntegration = dependencies.dispatchIntegration;
+    if (dispatchIntegration) {
+      await Promise.all(
+        integrationJobs.map(async (job) => {
+          try {
+            recordOutcome(integrationSummary, await dispatchIntegration(job));
+          } catch {
+            integrationSummary.failed += 1;
+          }
+        }),
+      );
+    }
+    return NextResponse.json(
+      dependencies.claimIntegrations ? { ...summary, integrations: integrationSummary } : summary,
+    );
   } catch (error) {
     const status =
       typeof error === 'object' && error !== null && 'status' in error
@@ -130,12 +181,18 @@ export async function POST(request: Request) {
     { claimJobs },
     { dispatchJob },
     { ResendEmailProvider },
+    { claimIntegrationJobs, SupabaseIntegrationDispatchGateway },
+    { dispatchIntegrationJob },
+    { getServerTeamManagementProviderRegistry },
   ] = await Promise.all([
     import('../../../../infrastructure/supabase/admin'),
     import('../../../../lib/env'),
     import('../../../../infrastructure/jobs/claim-jobs'),
     import('../../../../infrastructure/jobs/dispatch-job'),
     import('../../../../infrastructure/email/resend-provider'),
+    import('../../../../infrastructure/integrations/integration-outbox'),
+    import('../../../../infrastructure/integrations/dispatch-integration-job'),
+    import('../../../../infrastructure/integrations/server-provider-registry'),
   ]);
   const environment = getCommunicationEnvironment();
   const client = createAdminSupabaseClient();
@@ -157,5 +214,11 @@ export async function POST(request: Request) {
     },
     claim: (input) => claimJobs(client, input),
     dispatch: (job) => dispatchJob(client, provider, job),
+    claimIntegrations: (input) => claimIntegrationJobs(client, input),
+    dispatchIntegration: (job) =>
+      dispatchIntegrationJob(job, {
+        providers: getServerTeamManagementProviderRegistry(),
+        gateway: new SupabaseIntegrationDispatchGateway(client),
+      }),
   });
 }

@@ -596,7 +596,7 @@ export class MockTheSquadProvider implements TeamManagementProvider {
   }
 
   private itemOperationKey(context: ProviderContext, operation: string, externalId: string) {
-    return `${this.contextScope(context)}:${operation}:${context.idempotencyKey}:${externalId}`;
+    return `${this.contextScope(context)}:${operation}:${externalId}`;
   }
 }
 

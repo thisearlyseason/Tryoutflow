@@ -23,6 +23,7 @@ export type Capability =
   | 'ranking:read'
   | 'roster:read'
   | 'roster:write'
+  | 'integration:manage'
   | 'report:read'
   | 'audit:read';
 
@@ -60,6 +61,7 @@ const ownerCapabilities: ReadonlySet<Capability> = new Set([
   'ranking:read',
   'roster:read',
   'roster:write',
+  'integration:manage',
   'report:read',
   'audit:read',
 ]);
@@ -79,6 +81,7 @@ const administratorCapabilities: ReadonlySet<Capability> = new Set([
   'ranking:read',
   'roster:read',
   'roster:write',
+  'integration:manage',
   'report:read',
   'audit:read',
 ]);

@@ -92,4 +92,69 @@ describe('job processor route security', () => {
       failed: 0,
     });
   });
+
+  it('claims and dispatches integration outbox work through the same protected boundary', async () => {
+    const integrationJob = {
+      outboxJobId: '44444444-4444-4444-8444-444444444444',
+      syncJobId: '55555555-5555-4555-8555-555555555555',
+      organizationId: '66666666-6666-4666-8666-666666666666',
+      connectionId: '77777777-7777-4777-8777-777777777777',
+      providerKey: 'the-squad',
+      actorUserId: '88888888-8888-4888-8888-888888888888',
+      leaseToken: '99999999-9999-4999-8999-999999999999',
+      leaseGeneration: 2,
+      leaseExpiresAt: new Date(Date.now() + 90_000).toISOString(),
+      providerIdempotencyKey: 'integration:55555555-5555-4555-8555-555555555555:1',
+      attemptNumber: 1,
+      itemKeys: ['team:demo'],
+      confirmedRequest: {
+        previewId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        confirmationToken: 'confirm-token',
+        destination: {
+          organization: { externalId: 'demo-org', displayName: 'Demo Organization' },
+          team: { externalId: 'demo-team', displayName: 'Demo Team' },
+          displayLabel: 'Demo Organization / Demo Team',
+          mockData: true,
+        },
+        approvedFields: ['first_name'],
+        roster: {
+          rosterVersionId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+          rosterVersionNumber: 1,
+          finalizedAt: '2026-08-30T12:00:00.000Z',
+          finalizedByUserId: '88888888-8888-4888-8888-888888888888',
+          tryoutId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+          tryoutName: 'U16 Tryout',
+          teams: [
+            { teamId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', teamName: 'Blue', athletes: [] },
+          ],
+        },
+      },
+    } as const;
+    const claimIntegrations = vi.fn().mockResolvedValue([integrationJob]);
+    const dispatchIntegration = vi.fn().mockResolvedValue('needs_attention');
+
+    const response = await processJobsRequest(request('{"batchSize":3}'), {
+      secret,
+      claim: vi.fn().mockResolvedValue([]),
+      dispatch: vi.fn(),
+      claimIntegrations,
+      dispatchIntegration,
+    });
+
+    expect(claimIntegrations).toHaveBeenCalledWith(
+      expect.objectContaining({ batchSize: 3, leaseSeconds: 90 }),
+    );
+    expect(dispatchIntegration).toHaveBeenCalledWith(integrationJob);
+    await expect(response.json()).resolves.toMatchObject({
+      integrations: {
+        claimed: 1,
+        completed: 0,
+        retryScheduled: 0,
+        deadLettered: 0,
+        cancelled: 0,
+        needsAttention: 1,
+        failed: 0,
+      },
+    });
+  });
 });
