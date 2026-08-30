@@ -11,6 +11,31 @@ const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
+const waitForBlockingEdge = async (blockedName: string, blockerName: string) => {
+  for (let attempt = 0; attempt < 250; attempt += 1) {
+    const result = await psql(`
+      select exists(
+        select 1 from pg_stat_activity blocked
+        join pg_stat_activity blocker on blocker.application_name='${blockerName}'
+        where blocked.application_name='${blockedName}'
+          and blocked.wait_event_type='Lock'
+          and blocker.pid=any(pg_blocking_pids(blocked.pid))
+      )
+    `);
+    if (result.stdout.trim() === 't') return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`${blockedName} was not blocked by ${blockerName}`);
+};
+const waitForSleepingSession = async (applicationName: string) => {
+  for (let attempt = 0; attempt < 250; attempt += 1) {
+    const result = await psql(`select exists(select 1 from pg_stat_activity
+      where application_name='${applicationName}' and wait_event='PgSleep')`);
+    if (result.stdout.trim() === 't') return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`${applicationName} did not acquire its row lock`);
+};
 const ids = {
   owner: randomUUID(),
   director: randomUUID(),
@@ -284,6 +309,211 @@ describe('decision batches and provider evidence', () => {
     ).toBe('recipient_suppressed');
     await psql(`update public.athlete_guardians set is_primary_contact=true
       where organization_id='${ids.organization}' and athlete_id='${ids.athlete}' and guardian_id='${ids.guardian}'`);
+  });
+
+  it('serializes simultaneous exact preview confirmations into one queue and one truthful replay', async () => {
+    const preview = JSON.parse(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+          select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
+            'Concurrency-bound exact confirmation.','builtin:selected',1)`)
+      ).stdout.trim(),
+    ) as { digest: string; previewToken: string };
+    const suffix = randomUUID().slice(0, 8);
+    const holderName = `message-roster-holder-${suffix}`;
+    const firstName = `message-confirm-first-${suffix}`;
+    const secondName = `message-confirm-second-${suffix}`;
+    const holder = psql(`
+      set application_name='${holderName}';
+      begin;
+      select id from public.roster_versions where id='${ids.roster}' for update;
+      select pg_sleep(30);
+      commit;
+    `).then(
+      () => undefined,
+      () => undefined,
+    );
+
+    try {
+      await waitForSleepingSession(holderName);
+      const confirmSql = (applicationName: string) => `
+        set application_name='${applicationName}';
+        set role authenticated;
+        select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select outcome||'|'||coalesce(batch_id::text,'')||'|'||queued_count
+        from public.create_decision_message_batch_v2(
+          '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}',
+          '${preview.previewToken}','${preview.digest}','SEND EXACT BATCH');
+      `;
+      const first = psql(confirmSql(firstName));
+      await waitForBlockingEdge(firstName, holderName);
+      const second = psql(confirmSql(secondName));
+      await waitForBlockingEdge(secondName, firstName);
+      await psql(`select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name='${holderName}'`);
+      const results = await Promise.all([first, second]);
+      const outcomes = results.map((result) => result.stdout.trim());
+      const batchIds = outcomes.map((outcome) => outcome.split('|')[1]);
+      expect(outcomes.map((outcome) => outcome.split('|')[0]).sort()).toEqual([
+        'queued',
+        'replayed',
+      ]);
+      expect(new Set(batchIds).size).toBe(1);
+      expect(
+        (
+          await psql(`select
+            (select count(*) from public.communication_batches where id='${batchIds[0]}')||'|'||
+            (select count(*) from public.communication_messages where communication_batch_id='${batchIds[0]}')||'|'||
+            (select count(*) from public.outbox_jobs where message_id in(
+              select id from public.communication_messages where communication_batch_id='${batchIds[0]}'))||'|'||
+            (select count(*) from public.communication_preview_tombstones where communication_batch_id='${batchIds[0]}')`)
+        ).stdout.trim(),
+      ).toBe('1|1|1|1');
+    } finally {
+      await psql(`select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name in('${holderName}','${firstName}','${secondName}')`).catch(
+        () => undefined,
+      );
+      await holder;
+    }
+  });
+
+  it('preserves one exact winner against concurrent mutated-digest and wrong-actor confirmations', async () => {
+    const preview = JSON.parse(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+          select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
+            'Concurrent mismatched callers stay non-oracular.','builtin:selected',1)`)
+      ).stdout.trim(),
+    ) as { digest: string; previewToken: string };
+    const alteredDigest = `${preview.digest[0] === '0' ? '1' : '0'}${preview.digest.slice(1)}`;
+    const wrongActor = '00000000-0000-4000-8000-000000000999';
+    const suffix = randomUUID().slice(0, 8);
+    const holderName = `message-mismatch-holder-${suffix}`;
+    const exactName = `message-mismatch-exact-${suffix}`;
+    const digestName = `message-mismatch-digest-${suffix}`;
+    const actorName = `message-mismatch-actor-${suffix}`;
+    const holder = psql(`set application_name='${holderName}'; begin;
+      select id from public.roster_versions where id='${ids.roster}' for update;
+      select pg_sleep(30); commit;`).then(
+      () => undefined,
+      () => undefined,
+    );
+    const confirmSql = (applicationName: string, actor: string, digest: string) => `
+      set application_name='${applicationName}'; set statement_timeout='10s'; set role authenticated;
+      select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${actor}',false);
+      select outcome||'|'||coalesce(batch_id::text,'')||'|'||queued_count
+      from public.create_decision_message_batch_v2(
+        '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}',
+        '${preview.previewToken}','${digest}','SEND EXACT BATCH');`;
+
+    try {
+      await waitForSleepingSession(holderName);
+      const exact = psql(confirmSql(exactName, ids.owner, preview.digest));
+      await waitForBlockingEdge(exactName, holderName);
+      const changedDigest = psql(confirmSql(digestName, ids.owner, alteredDigest));
+      const changedActor = psql(confirmSql(actorName, wrongActor, preview.digest));
+      await waitForBlockingEdge(digestName, exactName);
+      await waitForBlockingEdge(actorName, exactName);
+      await psql(`select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name='${holderName}'`);
+      const [exactResult, digestResult, actorResult] = await Promise.all([
+        exact,
+        changedDigest,
+        changedActor,
+      ]);
+      expect(exactResult.stdout.trim().split('|')[0]).toBe('queued');
+      expect(digestResult.stdout.trim()).toBe('preview_conflict||0');
+      expect(actorResult.stdout.trim()).toBe('forbidden||0');
+      const batchId = exactResult.stdout.trim().split('|')[1];
+      expect(
+        (
+          await psql(`select
+            (select count(*) from public.communication_batches where id='${batchId}')||'|'||
+            (select count(*) from public.communication_messages where communication_batch_id='${batchId}')||'|'||
+            (select count(*) from public.outbox_jobs where message_id in(
+              select id from public.communication_messages where communication_batch_id='${batchId}'))||'|'||
+            (select count(*) from public.communication_preview_tombstones where communication_batch_id='${batchId}')`)
+        ).stdout.trim(),
+      ).toBe('1|1|1|1');
+    } finally {
+      await psql(`select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name in('${holderName}','${exactName}','${digestName}','${actorName}')`).catch(
+        () => undefined,
+      );
+      await holder;
+    }
+  });
+
+  it('serializes an expired token and lets neither simultaneous caller consume it', async () => {
+    const preview = JSON.parse(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+          select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
+            'Expired simultaneous confirmation.','builtin:selected',1)`)
+      ).stdout.trim(),
+    ) as { digest: string; previewToken: string };
+    const tokenHash = (
+      await psql(
+        `select encode(extensions.digest(convert_to('${preview.previewToken}','UTF8'),'sha256'),'hex')`,
+      )
+    ).stdout.trim();
+    await psql(`update public.communication_preview_proofs
+      set issued_at=clock_timestamp()-interval '11 minutes',
+        expires_at=clock_timestamp()-interval '1 minute'
+      where token_digest='${tokenHash}'`);
+    const suffix = randomUUID().slice(0, 8);
+    const holderName = `message-expired-holder-${suffix}`;
+    const firstName = `message-expired-first-${suffix}`;
+    const secondName = `message-expired-second-${suffix}`;
+    const holder = psql(`set application_name='${holderName}'; begin;
+      select token_digest from public.communication_preview_proofs
+      where token_digest='${tokenHash}' for update;
+      select pg_sleep(30); commit;`).then(
+      () => undefined,
+      () => undefined,
+    );
+    const confirmSql = (applicationName: string) => `
+      set application_name='${applicationName}'; set statement_timeout='10s'; set role authenticated;
+      select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      select outcome from public.create_decision_message_batch_v2(
+        '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}',
+        '${preview.previewToken}','${preview.digest}','SEND EXACT BATCH');`;
+
+    try {
+      await waitForSleepingSession(holderName);
+      const first = psql(confirmSql(firstName));
+      await waitForBlockingEdge(firstName, holderName);
+      const second = psql(confirmSql(secondName));
+      await waitForBlockingEdge(secondName, firstName);
+      await psql(`select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name='${holderName}'`);
+      const results = await Promise.all([first, second]);
+      expect(results.map((result) => result.stdout.trim())).toEqual([
+        'preview_conflict',
+        'preview_conflict',
+      ]);
+      expect(
+        (
+          await psql(`select
+            (select count(*) from public.communication_preview_proofs where token_digest='${tokenHash}')||'|'||
+            (select count(*) from public.communication_preview_tombstones where token_digest='${tokenHash}')||'|'||
+            (select count(*) from public.communication_batches where preview_digest='${preview.digest}')`)
+        ).stdout.trim(),
+      ).toBe('1|0|0');
+    } finally {
+      await psql(`select pg_terminate_backend(pid) from pg_stat_activity
+        where application_name in('${holderName}','${firstName}','${secondName}')`).catch(
+        () => undefined,
+      );
+      await holder;
+    }
   });
 
   it('durably retains an event received before provider completion and reconciles it atomically', async () => {
