@@ -1,5 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { act } from 'react';
+import { hydrateRoot, type Root } from 'react-dom/client';
+import { renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -8,6 +11,7 @@ import {
   resolveRosterDrop,
   type RosterWorkspaceSnapshot,
 } from '../../../src/modules/rosters/ui/roster-builder';
+import { normalizeRosterSearchText } from '../../../src/modules/rosters/ui/athlete-pool';
 
 const ids = {
   roster: '10000000-0000-4000-8000-000000000001',
@@ -471,5 +475,122 @@ describe('RosterBuilder', () => {
     expect(screen.getByText(/Recorded in the roster audit trail/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create revision' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Move athlete 42' })).not.toBeInTheDocument();
+  });
+
+  it('hydrates finalized audit evidence identically across locale and timezone boundaries', async () => {
+    const originalDateLocaleString = Date.prototype.toLocaleString;
+    const originalStringLocaleLowerCase = String.prototype.toLocaleLowerCase;
+    let renderEnvironment: 'server' | 'client' = 'server';
+    const dateLocaleSpy = vi.spyOn(Date.prototype, 'toLocaleString').mockImplementation(function (
+      this: Date,
+      ...args: Parameters<Date['toLocaleString']>
+    ) {
+      if (this.toISOString() === '2026-08-30T10:00:00.000Z') {
+        return renderEnvironment === 'server' ? '8/30/2026, 10:00:00 AM' : '30.08.2026 04:00:00';
+      }
+      return originalDateLocaleString.apply(this, args);
+    });
+    const lowerCaseLocaleSpy = vi
+      .spyOn(String.prototype, 'toLocaleLowerCase')
+      .mockImplementation(function (
+        this: string,
+        ...args: Parameters<String['toLocaleLowerCase']>
+      ) {
+        if (String(this).normalize('NFC') === 'İPEK') {
+          return renderEnvironment === 'server' ? 'i̇pek' : 'ipek';
+        }
+        return originalStringLocaleLowerCase.apply(this, args);
+      });
+    const finalized = {
+      ...draft,
+      state: 'finalized' as const,
+      version: 5,
+      finalizedAt: '2026-08-30T10:00:00.000Z',
+      athletes: [
+        { ...draft.athletes[0]!, displayName: 'İPEK' },
+        { ...draft.athletes[1]!, displayName: 'I\u0307PEK' },
+      ],
+    };
+    const callbacks = {
+      onMove: vi.fn(),
+      onChangeDecisions: vi.fn(),
+      onFinalize: vi.fn(),
+      onRevise: vi.fn(),
+    };
+    const element = <RosterBuilder canEdit initial={finalized} {...callbacks} />;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const recoverableErrors: unknown[] = [];
+    const consoleErrors: unknown[][] = [];
+    const consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation((...args: unknown[]) => consoleErrors.push(args));
+    const reactActEnvironment = globalThis as typeof globalThis & {
+      IS_REACT_ACT_ENVIRONMENT?: boolean;
+    };
+    const previousActEnvironment = reactActEnvironment.IS_REACT_ACT_ENVIRONMENT;
+    reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    let root: Root | undefined;
+
+    try {
+      const serverMarkup = renderToString(element);
+      renderEnvironment = 'client';
+      expect(renderToString(element)).toBe(serverMarkup);
+      container.innerHTML = serverMarkup;
+
+      await act(async () => {
+        root = hydrateRoot(container, element, {
+          onRecoverableError: (error) => recoverableErrors.push(error),
+        });
+      });
+
+      expect(recoverableErrors).toEqual([]);
+      expect(consoleErrors).toEqual([]);
+      expect(container.querySelector('time')).toHaveAttribute(
+        'datetime',
+        '2026-08-30T10:00:00.000Z',
+      );
+      expect(container.querySelector('time')).toHaveTextContent('2026-08-30 10:00:00 UTC');
+      expect(within(container).getByRole('heading', { name: 'İPEK' })).toBeInTheDocument();
+      expect(within(container).getByRole('heading', { name: 'I\u0307PEK' })).toBeInTheDocument();
+    } finally {
+      await act(async () => root?.unmount());
+      container.remove();
+      consoleErrorSpy.mockRestore();
+      dateLocaleSpy.mockRestore();
+      lowerCaseLocaleSpy.mockRestore();
+      reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+    }
+  });
+
+  it('fails safely when a finalized audit timestamp is invalid', () => {
+    renderBuilder({
+      canEdit: false,
+      initial: { ...draft, state: 'finalized', version: 5, finalizedAt: 'not-a-timestamp' },
+    });
+
+    expect(screen.getByText(/Recorded in the roster audit trail/u)).toHaveTextContent(
+      'Finalization time unavailable.',
+    );
+    expect(screen.queryByRole('time')).not.toBeInTheDocument();
+  });
+
+  it('normalizes Turkish dotted I and Unicode composition without mutating display names', async () => {
+    expect(normalizeRosterSearchText('İPEK')).toBe('i̇pek');
+    expect(normalizeRosterSearchText('I\u0307PEK')).toBe('i̇pek');
+
+    renderBuilder({
+      initial: {
+        ...draft,
+        athletes: [
+          { ...draft.athletes[0]!, displayName: 'İPEK' },
+          { ...draft.athletes[1]!, displayName: 'I\u0307PEK' },
+        ],
+      },
+    });
+
+    expect(await screen.findAllByRole('button', { name: 'Move i̇pek' })).toHaveLength(2);
+    expect(screen.getByRole('heading', { name: 'İPEK' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'I\u0307PEK' })).toBeInTheDocument();
   });
 });

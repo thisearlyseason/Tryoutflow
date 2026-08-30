@@ -113,6 +113,17 @@ function decisionLabel(status: DecisionStatus) {
   return status[0]!.toUpperCase() + status.slice(1);
 }
 
+function finalizedAuditTime(value: string | null) {
+  if (value === null) return null;
+  const timestamp = new Date(value);
+  if (!Number.isFinite(timestamp.getTime())) return null;
+  const dateTime = timestamp.toISOString();
+  return {
+    dateTime,
+    label: `${dateTime.slice(0, 10)} ${dateTime.slice(11, 19)} UTC`,
+  };
+}
+
 type DraftTeamInput = {
   name: string;
   targetSize: string;
@@ -350,6 +361,7 @@ export function RosterBuilder({
 
   const editable =
     hydrated && canEdit && snapshot.state === 'draft' && staleVersion === null && !busy;
+  const finalizedTime = finalizedAuditTime(snapshot.finalizedAt);
   const visibleAthletes = useMemo(
     () =>
       snapshot.athletes.filter(
@@ -560,11 +572,15 @@ export function RosterBuilder({
             </p>
             {snapshot.state === 'finalized' ? (
               <p className="mt-2 text-sm">
-                Recorded in the roster audit trail
-                {snapshot.finalizedAt
-                  ? ` at ${new Date(snapshot.finalizedAt).toLocaleString()}`
-                  : ''}
-                .
+                Recorded in the roster audit trail.{' '}
+                {snapshot.finalizedAt === null ? null : finalizedTime === null ? (
+                  'Finalization time unavailable.'
+                ) : (
+                  <>
+                    Finalized at{' '}
+                    <time dateTime={finalizedTime.dateTime}>{finalizedTime.label}</time>.
+                  </>
+                )}
               </p>
             ) : null}
           </div>
