@@ -21,6 +21,8 @@ const preview = {
   rosterVersionId: ids.roster,
   rosterVersion: 9,
   kind: 'selected',
+  templateId: 'builtin:selected',
+  templateVersion: 1,
   editableText: 'Welcome.',
   count: 1,
   digest: 'a'.repeat(64),
@@ -49,10 +51,20 @@ describe('decision message batch proof', () => {
         rosterVersionId: ids.roster,
         kind: 'selected',
         editableText: 'Welcome.',
+        templateId: 'builtin:selected',
+        expectedTemplateVersion: 1,
       },
       { rpc },
     );
     expect(loaded).toMatchObject({ digest: 'a'.repeat(64), recipients: [{ text: 'Exact text' }] });
+    expect(rpc).toHaveBeenCalledWith('preview_decision_message_batch_v2', {
+      p_organization_id: ids.organization,
+      p_roster_version_id: ids.roster,
+      p_decision: 'selected',
+      p_editable_text: 'Welcome.',
+      p_template_id: 'builtin:selected',
+      p_expected_template_version: 1,
+    });
     rpc.mockResolvedValueOnce({
       data: { outcome: 'queued', batch_id: ids.batch, queued_count: 1 },
       error: null,

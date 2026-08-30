@@ -46,14 +46,17 @@ describe('job processor route security', () => {
     };
     const claim = vi.fn().mockResolvedValue([job]);
     const dispatch = vi.fn().mockResolvedValue('completed');
+    const purgeExpiredPreviews = vi.fn().mockResolvedValue(undefined);
     const response = await processJobsRequest(request('{"batchSize":2}'), {
       secret,
       claim,
       dispatch,
+      purgeExpiredPreviews,
     });
     expect(response.status).toBe(200);
     expect(claim).toHaveBeenCalledWith(expect.objectContaining({ batchSize: 2 }));
     expect(dispatch).toHaveBeenCalledWith(job);
+    expect(purgeExpiredPreviews).toHaveBeenCalledOnce();
     const text = await response.text();
     expect(text).toContain('"completed":1');
     expect(text).not.toMatch(/private|subject|body|recipient/iu);

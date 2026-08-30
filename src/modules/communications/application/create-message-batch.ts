@@ -21,6 +21,8 @@ const recipientPreviewSchema = z
     rosterVersionId: z.uuid(),
     rosterVersion: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     kind: z.enum(['callback', 'selected', 'waitlisted', 'released']),
+    templateId: z.string().trim().min(1).max(100),
+    templateVersion: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     editableText: z.string().trim().min(1).max(4_000),
     recipients: z.array(renderedRecipientSchema).min(1).max(500),
     count: z.number().int().min(1).max(500),
@@ -56,14 +58,18 @@ export async function loadRecipientPreview(
     rosterVersionId: string;
     kind: DecisionMessageKind;
     editableText: string;
+    templateId: string;
+    expectedTemplateVersion: number;
   },
   client: RpcClient,
 ): Promise<RecipientPreview | { outcome: 'forbidden' | 'invalid_input' | 'stale_snapshot' }> {
-  const { data, error } = await client.rpc('preview_decision_message_batch', {
+  const { data, error } = await client.rpc('preview_decision_message_batch_v2', {
     p_organization_id: input.organizationId,
     p_roster_version_id: input.rosterVersionId,
     p_decision: input.kind,
     p_editable_text: input.editableText,
+    p_template_id: input.templateId,
+    p_expected_template_version: input.expectedTemplateVersion,
   });
   if (error || !data || typeof data !== 'object') return { outcome: 'invalid_input' };
   const value = data as Record<string, unknown>;

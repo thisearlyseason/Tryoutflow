@@ -13,15 +13,23 @@ type ActionResult =
 export function MessageComposer({
   rosterVersions,
   templates = {},
+  canSaveTemplates = false,
   previewAction,
   sendAction,
   saveTemplateAction,
 }: {
   rosterVersions: readonly { id: string; label: string }[];
-  templates?: Partial<Record<DecisionMessageKind, { editableText: string; version: number }>>;
+  templates?: Partial<
+    Record<DecisionMessageKind, { id: string; editableText: string; version: number }>
+  >;
+  canSaveTemplates?: boolean;
   previewAction(input: unknown): Promise<ActionResult>;
   sendAction(input: unknown): Promise<{ outcome: string; queuedCount?: number }>;
-  saveTemplateAction?(input: unknown): Promise<{ outcome: string; version?: number }>;
+  saveTemplateAction?(input: unknown): Promise<{
+    outcome: string;
+    version?: number;
+    templateId?: string;
+  }>;
 }) {
   const [rosterVersionId, setRosterVersionId] = useState(rosterVersions[0]?.id ?? '');
   const [kind, setKind] = useState<DecisionMessageKind>('selected');
@@ -39,6 +47,9 @@ export function MessageComposer({
   >(() =>
     Object.fromEntries(Object.entries(templates).map(([key, value]) => [key, value?.version])),
   );
+  const [templateIds, setTemplateIds] = useState<Partial<Record<DecisionMessageKind, string>>>(() =>
+    Object.fromEntries(Object.entries(templates).map(([key, value]) => [key, value?.id])),
+  );
   const [preview, setPreview] = useState<RecipientPreview>();
   const [confirmation, setConfirmation] = useState('');
   const [status, setStatus] = useState('');
@@ -47,7 +58,13 @@ export function MessageComposer({
   function requestPreview() {
     startTransition(async () => {
       setStatus('Loading exact recipient preview…');
-      const result = await previewAction({ rosterVersionId, kind, editableText });
+      const result = await previewAction({
+        rosterVersionId,
+        kind,
+        editableText,
+        templateId: templateIds[kind] ?? `builtin:${kind}`,
+        expectedTemplateVersion: templateVersions[kind] ?? 1,
+      });
       if ('outcome' in result) {
         setPreview(undefined);
         setStatus(
@@ -169,7 +186,7 @@ export function MessageComposer({
         >
           Preview exact recipients
         </Button>
-        {saveTemplateAction ? (
+        {saveTemplateAction && canSaveTemplates ? (
           <Button
             variant="secondary"
             disabled={pending || !editableText.trim()}
@@ -183,6 +200,8 @@ export function MessageComposer({
                 });
                 if (result.outcome === 'saved' && result.version) {
                   setTemplateVersions((current) => ({ ...current, [kind]: result.version }));
+                  if (result.templateId)
+                    setTemplateIds((current) => ({ ...current, [kind]: result.templateId }));
                   setTemplateTexts((current) => ({ ...current, [kind]: editableText.trim() }));
                   setStatus('Organization template saved.');
                 } else {
@@ -207,31 +226,45 @@ export function MessageComposer({
           <h3 id="recipient-preview" className="text-lg font-bold">
             Exact recipient preview · {preview.count}
           </h3>
-          <ul className="mt-3 grid gap-2">
+          <h4 className="mt-3 font-bold">Exact rendered messages</h4>
+          <div className="mt-3 grid gap-3">
             {preview.recipients.map((recipient) => (
-              <li
+              <details
                 key={recipient.registrationId}
-                className="flex flex-wrap justify-between gap-2 border-b py-2"
+                className="rounded-[var(--radius-control)] border p-3"
               >
-                <span>{recipient.athletePreferredName}</span>
-                <span>{recipient.recipientEmail}</span>
-              </li>
+                <summary className="min-h-11 cursor-pointer py-2 font-semibold">
+                  {recipient.athletePreferredName} · {recipient.recipientEmail}
+                </summary>
+                <article className="grid min-w-0 gap-3 pt-3">
+                  <p>
+                    <strong>Subject:</strong> {recipient.subject}
+                  </p>
+                  <div>
+                    <h4 className="font-bold">Plain text</h4>
+                    <pre className="mt-1 whitespace-pre-wrap break-words font-sans text-sm">
+                      {recipient.text}
+                    </pre>
+                  </div>
+                  <div>
+                    <h4 className="font-bold">HTML preview</h4>
+                    <iframe
+                      className="mt-1 min-h-48 w-full rounded border bg-white"
+                      sandbox=""
+                      srcDoc={recipient.html}
+                      title={`HTML message preview for ${recipient.athletePreferredName}`}
+                    />
+                  </div>
+                  <div>
+                    <h4 className="font-bold">Exact HTML source</h4>
+                    <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all text-xs">
+                      {recipient.html}
+                    </pre>
+                  </div>
+                </article>
+              </details>
             ))}
-          </ul>
-          <article className="mt-4 grid gap-3 rounded-[var(--radius-control)] border p-3">
-            <h4 className="font-bold">Exact rendered message</h4>
-            <p>
-              <strong>Subject:</strong> {preview.recipients[0]?.subject}
-            </p>
-            <pre className="whitespace-pre-wrap break-words font-sans text-sm">
-              {preview.recipients[0]?.text}
-            </pre>
-            {preview.count > 1 ? (
-              <p className="text-sm text-[var(--color-text-muted)]">
-                Each recipient's protected athlete and team facts are rendered separately.
-              </p>
-            ) : null}
-          </article>
+          </div>
           <p className="mt-4 text-sm">
             Sending email cannot change a roster decision. Provider failures appear separately in
             delivery status.

@@ -17,6 +17,8 @@ const inputSchema = z
     rosterVersionId: z.uuid(),
     kind: z.enum(['callback', 'selected', 'waitlisted', 'released']),
     editableText: z.string().trim().min(1).max(4_000),
+    templateId: z.string().trim().min(1).max(100),
+    expectedTemplateVersion: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   })
   .strict();
 const templateInputSchema = z
@@ -40,26 +42,21 @@ export default async function MessagesPage({
   if (!z.uuid().safeParse(tryoutId).success) notFound();
   const current = await requireOrganizationRouteContext(organizationSlug);
   const organizationId = current.organization.id;
-  const [{ data: tryout }, { data: versions, error: versionsError }, { data: templateRows }] =
-    await Promise.all([
-      current.client
-        .from('tryouts')
-        .select('id,name')
-        .eq('organization_id', organizationId)
-        .eq('id', tryoutId)
-        .maybeSingle(),
-      current.client
-        .from('roster_versions')
-        .select('id,division_id,revision_number,version')
-        .eq('organization_id', organizationId)
-        .eq('tryout_id', tryoutId)
-        .eq('state', 'finalized')
-        .order('revision_number', { ascending: false }),
-      current.client
-        .from('communication_templates')
-        .select('message_kind,editable_text,version')
-        .eq('organization_id', organizationId),
-    ]);
+  const [{ data: tryout }, { data: versions, error: versionsError }] = await Promise.all([
+    current.client
+      .from('tryouts')
+      .select('id,name')
+      .eq('organization_id', organizationId)
+      .eq('id', tryoutId)
+      .maybeSingle(),
+    current.client
+      .from('roster_versions')
+      .select('id,division_id,revision_number,version')
+      .eq('organization_id', organizationId)
+      .eq('tryout_id', tryoutId)
+      .eq('state', 'finalized')
+      .order('revision_number', { ascending: false }),
+  ]);
   if (!tryout) notFound();
   if (versionsError)
     return (
@@ -77,6 +74,13 @@ export default async function MessagesPage({
       }).ok,
   );
   if (authorizedVersions.length === 0) notFound();
+  const { data: rawTemplateRows } = await (current.client as unknown as RpcClient).rpc(
+    'list_communication_templates_for_notice',
+    { p_organization_id: organizationId, p_tryout_id: tryoutId },
+  );
+  const templateRows = Array.isArray(rawTemplateRows)
+    ? (rawTemplateRows as Array<Record<string, unknown>>)
+    : [];
   const { data: messages } = await current.client
     .from('communication_messages')
     .select('id,state,created_at,protected_facts_snapshot,source_roster_version_id')
@@ -144,6 +148,7 @@ export default async function MessagesPage({
     return {
       outcome: String(result.outcome),
       version: result.version ? Number(result.version) : undefined,
+      templateId: result.templateId ? String(result.templateId) : undefined,
     };
   }
 
@@ -156,12 +161,16 @@ export default async function MessagesPage({
         <h1 className="text-3xl font-black">Messages</h1>
       </header>
       <MessageComposer
+        canSaveTemplates={
+          requireCapability(current.authorization, 'membership:manage', { organizationId }).ok
+        }
         templates={Object.fromEntries(
-          (templateRows ?? []).map((template) => [
-            template.message_kind,
+          templateRows.map((template) => [
+            String(template.message_kind),
             {
-              editableText: template.editable_text,
-              version: template.version,
+              id: String(template.id),
+              editableText: String(template.editable_text),
+              version: Number(template.version),
             },
           ]),
         )}

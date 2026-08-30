@@ -500,6 +500,9 @@ export type Database = {
           recipient_count: number;
           roster_version: number;
           roster_version_id: string;
+          template_content: string;
+          template_id: string;
+          template_version: number;
         };
         Insert: {
           created_at?: string;
@@ -512,6 +515,9 @@ export type Database = {
           recipient_count: number;
           roster_version: number;
           roster_version_id: string;
+          template_content: string;
+          template_id: string;
+          template_version: number;
         };
         Update: {
           created_at?: string;
@@ -524,6 +530,9 @@ export type Database = {
           recipient_count?: number;
           roster_version?: number;
           roster_version_id?: string;
+          template_content?: string;
+          template_id?: string;
+          template_version?: number;
         };
         Relationships: [
           {
@@ -611,6 +620,8 @@ export type Database = {
           source_kind: string;
           source_registration_id: string | null;
           source_roster_version_id: string | null;
+          source_template_id: string | null;
+          source_template_version: number | null;
           source_tryout_id: string | null;
           state: string;
           submitted_at: string | null;
@@ -643,6 +654,8 @@ export type Database = {
           source_kind: string;
           source_registration_id?: string | null;
           source_roster_version_id?: string | null;
+          source_template_id?: string | null;
+          source_template_version?: number | null;
           source_tryout_id?: string | null;
           state?: string;
           submitted_at?: string | null;
@@ -675,6 +688,8 @@ export type Database = {
           source_kind?: string;
           source_registration_id?: string | null;
           source_roster_version_id?: string | null;
+          source_template_id?: string | null;
+          source_template_version?: number | null;
           source_tryout_id?: string | null;
           state?: string;
           submitted_at?: string | null;
@@ -687,6 +702,18 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'communication_batches';
             referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'communication_messages_batch_template_fkey';
+            columns: [
+              'organization_id',
+              'communication_batch_id',
+              'source_template_id',
+              'source_template_version',
+            ];
+            isOneToOne: false;
+            referencedRelation: 'communication_batches';
+            referencedColumns: ['organization_id', 'id', 'template_id', 'template_version'];
           },
           {
             foreignKeyName: 'communication_messages_organization_id_fkey';
@@ -717,6 +744,7 @@ export type Database = {
           event_type: string;
           message_id: string;
           occurred_at: string;
+          organization_id: string;
           provider_message_id: string;
           received_at: string;
         };
@@ -725,6 +753,7 @@ export type Database = {
           event_type: string;
           message_id: string;
           occurred_at: string;
+          organization_id: string;
           provider_message_id: string;
           received_at?: string;
         };
@@ -733,16 +762,23 @@ export type Database = {
           event_type?: string;
           message_id?: string;
           occurred_at?: string;
+          organization_id?: string;
           provider_message_id?: string;
           received_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'communication_pending_events_message_fkey';
+            columns: ['organization_id', 'message_id'];
+            isOneToOne: false;
+            referencedRelation: 'communication_messages';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
       };
       communication_preview_proofs: {
         Row: {
           actor_user_id: string;
-          communication_batch_id: string | null;
-          consumed_at: string | null;
           decision: string;
           division_id: string;
           editable_text: string;
@@ -754,13 +790,14 @@ export type Database = {
           render_digest: string;
           roster_version: number;
           roster_version_id: string;
+          template_content: string;
+          template_id: string;
+          template_version: number;
           token_digest: string;
           tryout_id: string;
         };
         Insert: {
           actor_user_id: string;
-          communication_batch_id?: string | null;
-          consumed_at?: string | null;
           decision: string;
           division_id: string;
           editable_text: string;
@@ -772,13 +809,14 @@ export type Database = {
           render_digest: string;
           roster_version: number;
           roster_version_id: string;
+          template_content: string;
+          template_id: string;
+          template_version: number;
           token_digest: string;
           tryout_id: string;
         };
         Update: {
           actor_user_id?: string;
-          communication_batch_id?: string | null;
-          consumed_at?: string | null;
           decision?: string;
           division_id?: string;
           editable_text?: string;
@@ -790,17 +828,13 @@ export type Database = {
           render_digest?: string;
           roster_version?: number;
           roster_version_id?: string;
+          template_content?: string;
+          template_id?: string;
+          template_version?: number;
           token_digest?: string;
           tryout_id?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: 'communication_preview_proofs_batch_fkey';
-            columns: ['organization_id', 'communication_batch_id'];
-            isOneToOne: false;
-            referencedRelation: 'communication_batches';
-            referencedColumns: ['organization_id', 'id'];
-          },
           {
             foreignKeyName: 'communication_preview_proofs_org_fkey';
             columns: ['organization_id'];
@@ -817,10 +851,43 @@ export type Database = {
           },
         ];
       };
+      communication_preview_tombstones: {
+        Row: {
+          binding_digest: string;
+          communication_batch_id: string;
+          consumed_at: string;
+          render_digest: string;
+          token_digest: string;
+        };
+        Insert: {
+          binding_digest: string;
+          communication_batch_id: string;
+          consumed_at?: string;
+          render_digest: string;
+          token_digest: string;
+        };
+        Update: {
+          binding_digest?: string;
+          communication_batch_id?: string;
+          consumed_at?: string;
+          render_digest?: string;
+          token_digest?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'communication_preview_tombstones_batch_fkey';
+            columns: ['communication_batch_id'];
+            isOneToOne: false;
+            referencedRelation: 'communication_batches';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       communication_templates: {
         Row: {
           created_at: string;
           editable_text: string;
+          id: string;
           message_kind: string;
           organization_id: string;
           updated_at: string;
@@ -830,6 +897,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           editable_text: string;
+          id?: string;
           message_kind: string;
           organization_id: string;
           updated_at?: string;
@@ -839,6 +907,7 @@ export type Database = {
         Update: {
           created_at?: string;
           editable_text?: string;
+          id?: string;
           message_kind?: string;
           organization_id?: string;
           updated_at?: string;
@@ -3672,6 +3741,15 @@ export type Database = {
           tryout_number: number | null;
         }[];
       };
+      list_communication_templates_for_notice: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          editable_text: string;
+          id: string;
+          message_kind: string;
+          version: number;
+        }[];
+      };
       list_manageable_evaluator_assignments: {
         Args: { p_organization_id: string; p_tryout_id: string };
         Returns: {
@@ -3839,6 +3917,17 @@ export type Database = {
         };
         Returns: Json;
       };
+      preview_decision_message_batch_v2: {
+        Args: {
+          p_decision: string;
+          p_editable_text: string;
+          p_expected_template_version: number;
+          p_organization_id: string;
+          p_roster_version_id: string;
+          p_template_id: string;
+        };
+        Returns: Json;
+      };
       public_registration_tryout: {
         Args: { p_tryout_slug: string };
         Returns: {
@@ -3894,6 +3983,10 @@ export type Database = {
         }[];
       };
       purge_expired_athlete_import_previews: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
+      purge_expired_communication_previews: {
         Args: { p_limit?: number };
         Returns: number;
       };

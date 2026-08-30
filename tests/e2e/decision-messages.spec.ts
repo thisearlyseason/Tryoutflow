@@ -10,8 +10,18 @@ test('previews and confirms the exact audience without changing decisions', asyn
   await expect(page.locator('body')).not.toContainText(
     /guardian|evaluator|score|private response/i,
   );
-  await expect(page.getByText(/Subject: Roster selection/u)).toBeVisible();
   await expect(page.getByText('Exact rendered message')).toBeVisible();
+  await page.getByText('Ava · ava@example.com', { exact: true }).click();
+  await expect(page.getByText(/Subject: Roster selection/u).first()).toBeVisible();
+  await page.getByText('Bea · bea@example.com', { exact: true }).click();
+  await expect(page.getByText(/Bea\s+Thank you for taking part/u)).toBeVisible();
+  await expect(
+    page
+      .getByTitle('HTML message preview for Bea')
+      .contentFrame()
+      .getByText('Bea later-recipient HTML'),
+  ).toBeVisible();
+  await expect(page.getByText(/<main><p>Bea later-recipient HTML<\/p><\/main>/u)).toBeVisible();
   await page.getByLabel('Type SEND EXACT BATCH to confirm').fill('SEND EXACT BATCH');
   await page.getByRole('button', { name: 'Confirm and queue exactly 2' }).click();
   await expect(page.getByRole('status')).toContainText(

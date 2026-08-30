@@ -13,6 +13,7 @@ const psql = (sql: string) =>
   execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const ids = {
   owner: randomUUID(),
+  director: randomUUID(),
   organization: randomUUID(),
   tryout: randomUUID(),
   division: randomUUID(),
@@ -37,6 +38,10 @@ afterAll(async () => {
     delete from public.communication_delivery_events where organization_id='${ids.organization}';
     alter table public.communication_delivery_events enable always trigger prevent_communication_delivery_events_mutation;
     delete from public.communication_preview_proofs where organization_id='${ids.organization}';
+    alter table public.communication_preview_tombstones disable trigger prevent_communication_preview_tombstones_mutation;
+    delete from public.communication_preview_tombstones where communication_batch_id in(
+      select id from public.communication_batches where organization_id='${ids.organization}');
+    alter table public.communication_preview_tombstones enable always trigger prevent_communication_preview_tombstones_mutation;
     delete from public.outbox_provider_handoffs where organization_id='${ids.organization}';
     delete from public.outbox_jobs where organization_id='${ids.organization}';
     delete from public.communication_messages where organization_id='${ids.organization}';
@@ -56,12 +61,13 @@ afterAll(async () => {
     delete from public.athletes where organization_id='${ids.organization}';
     delete from public.registration_form_versions where organization_id='${ids.organization}';
     delete from public.registration_forms where organization_id='${ids.organization}';
+    delete from public.tryout_staff_assignments where organization_id='${ids.organization}';
     delete from public.tryout_divisions where organization_id='${ids.organization}';
     delete from public.tryouts where organization_id='${ids.organization}';
     delete from public.organization_members where organization_id='${ids.organization}';
     delete from public.audit_logs where organization_id='${ids.organization}';
     delete from public.organizations where id='${ids.organization}';
-    delete from auth.users where id='${ids.owner}';
+    delete from auth.users where id in('${ids.owner}','${ids.director}');
     set session_replication_role=origin;
   `);
 });
@@ -69,11 +75,15 @@ afterAll(async () => {
 describe('decision batches and provider evidence', () => {
   it('creates the exact confirmed batch atomically and replays without changing the decision', async () => {
     await psql(`
-      insert into auth.users(id,email) values('${ids.owner}','owner-${ids.owner}@example.com');
+      insert into auth.users(id,email) values('${ids.owner}','owner-${ids.owner}@example.com'),
+        ('${ids.director}','director-${ids.director}@example.com');
       insert into public.organizations(id,name,slug) values('${ids.organization}','Badlands Hockey Academy','${slug}');
       insert into public.organization_members(organization_id,user_id,role,status) values('${ids.organization}','${ids.owner}','owner','active');
+      insert into public.organization_members(organization_id,user_id,role,status) values('${ids.organization}','${ids.director}','member','active');
       insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('${ids.tryout}','${ids.organization}','U15 Competitive Tryout','${slug}-tryout','Hockey','America/Edmonton');
       insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values('${ids.division}','${ids.organization}','${ids.tryout}','U15',0);
+      insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,granted_by_user_id)
+        values('${ids.organization}','${ids.director}','director','tryout','${ids.tryout}','${ids.owner}');
       insert into public.registration_forms(id,organization_id,tryout_id,name) values('${ids.form}','${ids.organization}','${ids.tryout}','Form');
       insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at) values('${ids.formVersion}','${ids.organization}','${ids.tryout}','${ids.form}',1,'{"fields":[]}','published',clock_timestamp());
       insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date) values('${ids.athlete}','${ids.organization}','Ava','Smith','ava','smith','2013-01-01');
@@ -87,7 +97,8 @@ describe('decision batches and provider evidence', () => {
     `);
     const preview = await psql(`
       set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
-      select public.preview_decision_message_batch('${ids.organization}','${ids.roster}','selected','Welcome to the program.');
+      select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
+        'Welcome to the program.','builtin:selected',1);
     `);
     const data = JSON.parse(preview.stdout.trim()) as {
       digest: string;
@@ -151,6 +162,14 @@ describe('decision batches and provider evidence', () => {
         from public.communication_batches batch where organization_id='${ids.organization}' and preview_digest='${data.digest}'`)
     ).stdout.trim();
     expect(replayedResult).toBe(`${createdResult}|1`);
+    expect(
+      (
+        await psql(`select (select count(*) from public.communication_preview_proofs where token_digest=
+          encode(extensions.digest(convert_to('${data.previewToken}','UTF8'),'sha256'),'hex'))||'|'||
+          (select count(*) from public.communication_preview_tombstones where token_digest=
+          encode(extensions.digest(convert_to('${data.previewToken}','UTF8'),'sha256'),'hex'))`)
+      ).stdout.trim(),
+    ).toBe('0|1');
     const evidence = await psql(`select id||'|'||state||'|'||
       (protected_facts_snapshot ? 'decision')||'|'||
       (content_snapshot::text !~* 'guardian|score|evaluator|private guardian')||'|'||
@@ -175,15 +194,14 @@ describe('decision batches and provider evidence', () => {
       text: data.recipients[0]!.text,
       html: data.recipients[0]!.html,
     });
-    expect(
-      JSON.parse(
-        (
-          await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+    const savedTemplate = JSON.parse(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
       select set_config('request.jwt.claim.sub','${ids.owner}',false); select public.save_communication_template(
       '${ids.organization}','selected','Saved organization copy',0)`)
-        ).stdout.trim(),
-      ),
-    ).toMatchObject({ outcome: 'saved', version: 1 });
+      ).stdout.trim(),
+    ) as { outcome: string; version: number; templateId: string };
+    expect(savedTemplate).toMatchObject({ outcome: 'saved', version: 1 });
     expect(
       JSON.parse(
         (
@@ -193,6 +211,72 @@ describe('decision batches and provider evidence', () => {
         ).stdout.trim(),
       ),
     ).toMatchObject({ outcome: 'version_conflict', version: 1 });
+    const directorAccess = JSON.parse(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.director}',false);
+      select jsonb_build_object('templates',(select jsonb_agg(row_to_json(template)) from
+        public.list_communication_templates_for_notice('${ids.organization}','${ids.tryout}') template),
+        'save',public.save_communication_template('${ids.organization}','selected','Director cannot save',1))`)
+      ).stdout.trim(),
+    ) as { templates: unknown[]; save: { outcome: string } };
+    expect(directorAccess.templates).toHaveLength(1);
+    expect(directorAccess.save).toEqual({ outcome: 'forbidden' });
+
+    const customPreview = JSON.parse(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
+        'Per-batch custom copy','${savedTemplate.templateId}',1)`)
+      ).stdout.trim(),
+    ) as { digest: string; previewToken: string };
+    await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.owner}',false); select public.save_communication_template(
+      '${ids.organization}','selected','Updated organization copy',1)`);
+    expect(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.owner}',false); select outcome from public.create_decision_message_batch_v2(
+      '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${customPreview.previewToken}',
+      '${customPreview.digest}','SEND EXACT BATCH')`)
+      ).stdout.trim(),
+    ).toBe('preview_conflict');
+
+    const rateOutcomes: string[] = [];
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const output =
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
+          'Rate bounded ${attempt}','builtin:selected',1)->>'outcome'`);
+      rateOutcomes.push(output.stdout.trim());
+    }
+    expect(rateOutcomes).toEqual([...Array(9).fill('ok'), 'rate_limited']);
+    await psql(`update public.communication_preview_proofs set issued_at=clock_timestamp()-interval '20 minutes',
+      expires_at=clock_timestamp()-interval '10 minutes' where organization_id='${ids.organization}'`);
+    expect(
+      (
+        await psql(`set role service_role; select public.purge_expired_communication_previews(3)`)
+      ).stdout.trim(),
+    ).toBe('3');
+    expect(
+      (
+        await psql(`select count(*) from public.communication_preview_proofs
+          where organization_id='${ids.organization}'`)
+      ).stdout.trim(),
+    ).toBe('7');
+    expect(
+      (
+        await psql(`set role service_role; select public.purge_expired_communication_previews(100)`)
+      ).stdout.trim(),
+    ).toBe('7');
+    expect(
+      (
+        await psql(`select count(*) from public.communication_preview_proofs
+          where organization_id='${ids.organization}'`)
+      ).stdout.trim(),
+    ).toBe('0');
     await psql(`update public.athlete_guardians set is_primary_contact=false
       where organization_id='${ids.organization}' and athlete_id='${ids.athlete}' and guardian_id='${ids.guardian}'`);
     expect(
@@ -227,6 +311,14 @@ describe('decision batches and provider evidence', () => {
         )
       ).stdout.trim(),
     ).toBe('1');
+    await expect(
+      psql('truncate table public.communication_pending_delivery_events'),
+    ).rejects.toThrow(/communication evidence is append-only/u);
+    await expect(
+      psql(
+        'set session_replication_role=replica; truncate table public.communication_pending_delivery_events',
+      ),
+    ).rejects.toThrow(/communication evidence is append-only/u);
     await psql(`update public.communication_messages set state='submitted',provider_message_id='${providerId}',
       submitted_at=clock_timestamp() where id='${earlyMessage}'`);
     expect(

@@ -9,6 +9,8 @@ const preview = {
   rosterVersionId: '10000000-0000-4000-8000-000000000002',
   rosterVersion: 7,
   kind: 'selected' as const,
+  templateId: 'builtin:selected',
+  templateVersion: 1,
   editableText: 'Thank you for taking part in this tryout.',
   recipients: [
     {
@@ -25,7 +27,7 @@ const preview = {
       athletePreferredName: 'Bea',
       subject: 'Roster selection: U15 Competitive Tryout',
       text: 'Bea\n\nThank you for taking part in this tryout.',
-      html: '<main>Bea</main>',
+      html: '<main><p>Bea later-recipient HTML</p></main>',
     },
   ],
   count: 2,

@@ -12,8 +12,8 @@ select col_is_pk('public','communication_delivery_events','event_id','provider e
 select col_is_unique('public','communication_batches',array['organization_id','preview_digest'],'exact previews replay one batch');
 
 select ok(has_function_privilege('authenticated',
-  'public.preview_decision_message_batch(uuid,uuid,text,text)','execute'),
-  'authenticated operators can preview an authorized exact audience');
+  'public.preview_decision_message_batch_v2(uuid,uuid,text,text,text,bigint)','execute'),
+  'authenticated operators can preview an authorized template-bound exact audience');
 select ok(not has_function_privilege('authenticated',
   'public.create_decision_message_batch(uuid,uuid,bigint,text,text,text,uuid[],text)','execute'),
   'legacy digest-only batch command is retired');
