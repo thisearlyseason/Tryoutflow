@@ -6,11 +6,12 @@ export async function dispatchJob(
   provider: EmailProvider,
   job: ClaimedEmailJob,
 ): Promise<'completed' | 'retry_scheduled' | 'dead_lettered' | 'cancelled' | 'needs_attention'> {
+  const providerTimeoutMilliseconds = 45_000;
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     const safeDeadline = Date.parse(job.leaseExpiresAt) - 15_000;
-    const remaining = safeDeadline - Date.now();
-    if (!Number.isFinite(remaining) || remaining < 1_000)
+    const initialRemaining = safeDeadline - Date.now();
+    if (!Number.isFinite(initialRemaining) || initialRemaining < providerTimeoutMilliseconds)
       throw { code: 'provider_temporary', retryable: true } satisfies EmailProviderError;
     const authorization = await client.rpc('authorize_outbox_job_send', {
       p_job_id: job.jobId,
@@ -21,8 +22,20 @@ export async function dispatchJob(
     if (String(authorization.data) === 'cancelled') return 'cancelled';
     if (String(authorization.data) === 'needs_attention') return 'needs_attention';
     if (String(authorization.data) !== 'authorized') throw new Error('authorization_conflict');
+    const remaining = safeDeadline - Date.now();
+    if (!Number.isFinite(remaining) || remaining < providerTimeoutMilliseconds) {
+      const declined = await client.rpc('decline_outbox_job_send', {
+        p_job_id: job.jobId,
+        p_lease_token: job.leaseToken,
+        p_lease_generation: job.leaseGeneration,
+        p_reason: 'provider_deadline_elapsed',
+      });
+      if (declined.error || String(declined.data) !== 'retry_scheduled')
+        throw new Error('authorization_conflict');
+      return 'retry_scheduled';
+    }
     const controller = new AbortController();
-    timeout = setTimeout(() => controller.abort(), Math.min(45_000, remaining));
+    timeout = setTimeout(() => controller.abort(), providerTimeoutMilliseconds);
     const result = await provider.send(
       { to: job.recipientEmail, subject: job.subject, text: job.bodyText },
       job.providerIdempotencyKey,

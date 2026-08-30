@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { FakeEmailProvider } from '../../../src/infrastructure/email/fake-email-provider';
+import type { EmailProvider } from '../../../src/infrastructure/email/email-provider';
 import { claimJobs, type JobRpcClient } from '../../../src/infrastructure/jobs/claim-jobs';
 import { dispatchJob } from '../../../src/infrastructure/jobs/dispatch-job';
 
@@ -612,6 +613,114 @@ describe('transactional communication outbox', () => {
         )
       ).stdout.trim(),
     ).toBe('needs_attention|lease_attempts_exhausted');
+  });
+
+  it('does not invoke the provider when authorization consumes the safety budget and retries later', async () => {
+    const queued = (
+      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+          '${ids.guardian}','registration_reminder','Delayed authorization','Body','${keyPrefix}-delayed-auth')`)
+    ).stdout.trim();
+    await psql(`update public.outbox_jobs set available_at='1500-01-01' where id='${queued}'`);
+    const [claimed] = await (async () => {
+      const rows =
+        await psql(`set role service_role; select coalesce(json_agg(row_to_json(claim)),'[]')
+        from public.claim_outbox_jobs('worker-delayed-auth',1,90) claim`);
+      return JSON.parse(rows.stdout.trim()) as Array<Record<string, unknown>>;
+    })();
+    if (!claimed) throw new Error('delayed authorization job was not claimed');
+    const leasedJob = {
+      jobId: String(claimed.job_id),
+      messageId: String(claimed.message_id),
+      leaseToken: String(claimed.lease_token),
+      leaseGeneration: Number(claimed.lease_generation),
+      leaseExpiresAt: new Date(Date.now() + 60_500).toISOString(),
+      providerIdempotencyKey: String(claimed.provider_idempotency_key),
+      recipientEmail: String(claimed.recipient_email),
+      subject: String(claimed.subject),
+      bodyText: String(claimed.body_text),
+      attemptCount: Number(claimed.attempt_count),
+      maxAttempts: Number(claimed.max_attempts),
+    };
+    const client: JobRpcClient = {
+      rpc: async (name, args) => {
+        const functionName = String(name);
+        const result = await psql(`set role service_role; select public.${functionName}(
+          '${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)}${
+            functionName === 'decline_outbox_job_send' ? `,'${String(args.p_reason)}'` : ''
+          })`);
+        if (functionName === 'authorize_outbox_job_send')
+          await new Promise((resolve) => setTimeout(resolve, 1_000));
+        return { data: result.stdout.trim(), error: null };
+      },
+    };
+    let providerCalls = 0;
+    const provider = {
+      async send() {
+        providerCalls += 1;
+        return { providerMessageId: randomUUID() };
+      },
+    } satisfies EmailProvider;
+
+    await expect(dispatchJob(client, provider, leasedJob)).resolves.toBe('retry_scheduled');
+    expect(providerCalls).toBe(0);
+    expect(
+      (
+        await psql(`select status||'|'||last_error_code||'|'||(provider_submission_started_at is null)||'|'||
+          (select count(*) from public.outbox_provider_handoffs where job_id=job.id)
+          from public.outbox_jobs job where id='${queued}'`)
+      ).stdout.trim(),
+    ).toBe('pending|provider_deadline_elapsed|true|0');
+    await psql(`update public.outbox_jobs set available_at='1400-01-01' where id='${queued}'`);
+    expect(
+      (
+        await psql(`set role service_role; select count(*) from public.claim_outbox_jobs(
+          'worker-delayed-auth-retry',1,90)`)
+      ).stdout.trim(),
+    ).toBe('1');
+  });
+
+  it('serializes a known-not-sent decline against lease reclaim without erasing another generation', async () => {
+    const queued = (
+      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+          '${ids.guardian}','registration_reminder','Decline race','Body','${keyPrefix}-decline-race')`)
+    ).stdout.trim();
+    await psql(`update public.outbox_jobs set available_at='1300-01-01' where id='${queued}'`);
+    const [token, generation] = (
+      await psql(`set role service_role; select lease_token||'|'||lease_generation
+        from public.claim_outbox_jobs('worker-decline-race-old',1,60)`)
+    ).stdout
+      .trim()
+      .split('|');
+    expect(
+      (
+        await psql(`set role service_role; select public.authorize_outbox_job_send(
+          '${queued}','${token}',${generation})`)
+      ).stdout.trim(),
+    ).toBe('authorized');
+    await psql(
+      `update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${queued}'`,
+    );
+
+    const [decline, reclaim] = await Promise.all([
+      psql(`set role service_role; select public.decline_outbox_job_send(
+        '${queued}','${token}',${generation},'provider_deadline_elapsed')`),
+      psql(`set role service_role; select count(*) from public.claim_outbox_jobs(
+        'worker-decline-race-new',1,60)`),
+    ]);
+    expect(['retry_scheduled', 'lease_conflict']).toContain(decline.stdout.trim());
+    expect(['0', '1']).toContain(reclaim.stdout.trim());
+    const final = (
+      await psql(`select status||'|'||lease_generation||'|'||(provider_submission_started_at is null)||'|'||
+        (select count(*) from public.outbox_provider_handoffs where job_id=job.id)
+        from public.outbox_jobs job where id='${queued}'`)
+    ).stdout.trim();
+    expect([`pending|${generation}|true|0`, `leased|${Number(generation) + 1}|false|1`]).toContain(
+      final,
+    );
   });
 
   it('runs the FakeEmailProvider through claim, dispatch, and durable database completion', async () => {

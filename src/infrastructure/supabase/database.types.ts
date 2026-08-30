@@ -3177,6 +3177,15 @@ export type Database = {
         Args: { p_organization_id: string; p_preview_rows: Json; p_row: number };
         Returns: Json;
       };
+      decline_outbox_job_send: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_reason: string;
+        };
+        Returns: string;
+      };
       evaluator_has_active_context: {
         Args: {
           p_evaluator_user_id: string;

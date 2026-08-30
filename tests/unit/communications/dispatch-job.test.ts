@@ -85,6 +85,59 @@ describe('communication dispatch fencing', () => {
     expect(rpc).not.toHaveBeenCalledWith('authorize_outbox_job_send', expect.any(Object));
   });
 
+  it('releases an authorized handoff as known-not-sent when authorization consumes the lease budget', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    const leasedJob = {
+      ...job(),
+      leaseExpiresAt: new Date('2026-08-30T12:01:00.000Z').toISOString(),
+    };
+    const rpc = vi.fn(async (name: string) => {
+      if (name === 'authorize_outbox_job_send') {
+        vi.setSystemTime(new Date('2026-08-30T12:00:45.500Z'));
+        return { data: 'authorized', error: null };
+      }
+      if (name === 'decline_outbox_job_send') return { data: 'retry_scheduled', error: null };
+      return { data: null, error: new Error('unexpected RPC') };
+    });
+    const provider = { send: vi.fn() } satisfies EmailProvider;
+
+    await expect(dispatchJob({ rpc }, provider, leasedJob)).resolves.toBe('retry_scheduled');
+    expect(provider.send).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenLastCalledWith(
+      'decline_outbox_job_send',
+      expect.objectContaining({
+        p_job_id: leasedJob.jobId,
+        p_lease_token: leasedJob.leaseToken,
+        p_lease_generation: leasedJob.leaseGeneration,
+        p_reason: 'provider_deadline_elapsed',
+      }),
+    );
+  });
+
+  it('checks the clock again immediately before invoking the provider', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    const leasedJob = {
+      ...job(),
+      leaseExpiresAt: new Date('2026-08-30T12:01:00.000Z').toISOString(),
+    };
+    const rpc = vi
+      .fn()
+      .mockImplementationOnce(async () => ({ data: 'authorized', error: null }))
+      .mockImplementationOnce(async () => ({ data: 'retry_scheduled', error: null }));
+    const provider = { send: vi.fn() } satisfies EmailProvider;
+    const dateNow = vi
+      .spyOn(Date, 'now')
+      .mockReturnValueOnce(new Date('2026-08-30T12:00:00.000Z').valueOf())
+      .mockReturnValueOnce(new Date('2026-08-30T12:00:45.500Z').valueOf());
+
+    await expect(dispatchJob({ rpc }, provider, leasedJob)).resolves.toBe('retry_scheduled');
+    expect(provider.send).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenLastCalledWith('decline_outbox_job_send', expect.any(Object));
+    dateNow.mockRestore();
+  });
+
   it('reports durable delivery uncertainty when reauthorization finds an invalid source after handoff', async () => {
     const rpc = vi.fn().mockResolvedValueOnce({ data: 'needs_attention', error: null });
     const provider = { send: vi.fn() } satisfies EmailProvider;
