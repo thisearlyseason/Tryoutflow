@@ -13,6 +13,15 @@ if (!goPath || !/^[0-9a-f]{32}$/u.test(nonce ?? '')) {
 while (!existsSync(goPath)) await new Promise((resolve) => setTimeout(resolve, 10));
 const [executable, ...args] = command;
 const child = spawn(executable, args, { env: process.env, stdio: 'inherit' });
+const forward = (signal) => {
+  try {
+    child.kill(signal);
+  } catch {
+    // The command has already stopped. Keep the launcher alive until close confirms it.
+  }
+};
+process.on('SIGINT', () => forward('SIGINT'));
+process.on('SIGTERM', () => forward('SIGTERM'));
 const result = await new Promise((resolve) => {
   child.once('error', (error) => resolve({ code: 1, error }));
   child.once('close', (code, signal) => resolve({ code, signal }));

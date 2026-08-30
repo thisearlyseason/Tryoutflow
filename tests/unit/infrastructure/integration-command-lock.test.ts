@@ -86,6 +86,34 @@ describe('authenticated integration supervisor state', () => {
       createSupervisorStateStore({ baseDirectory: openBase, identity: '7'.repeat(64) }),
     ).toThrow(/private directory/u);
   });
+
+  it('accepts only an authentic current-command reaping completion', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-reaping-proof-'));
+    chmodSync(baseDirectory, 0o700);
+    const identity = '8'.repeat(64);
+    const firstRunId = '9'.repeat(16);
+    const secondRunId = 'a'.repeat(16);
+    const store = createSupervisorStateStore({ baseDirectory, identity });
+    const firstCommand = { nonce: 'b'.repeat(32) };
+    const secondCommand = { nonce: 'c'.repeat(32) };
+    store.writeCommand(firstRunId, firstCommand);
+    writeFileSync(store.commandCompletionPath(firstRunId), '{"completion":{}}');
+    expect(() => store.readCommandCompletion(firstRunId)).toThrow();
+
+    store.removeCommandCompletion(firstRunId);
+    store.writeCommandCompletion(firstRunId, firstCommand);
+    expect(store.readCommandCompletion(firstRunId)).toEqual({
+      phase: 'command-group-stopped',
+      command: firstCommand,
+    });
+
+    store.writeCommand(secondRunId, secondCommand);
+    writeFileSync(
+      store.commandCompletionPath(secondRunId),
+      readFileSync(store.commandCompletionPath(firstRunId)),
+    );
+    expect(() => store.readCommandCompletion(secondRunId)).toThrow(/body|stale/u);
+  });
 });
 
 function start(
@@ -146,6 +174,24 @@ async function waitForFile(path: string, pattern: RegExp, timeout = 5_000) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error(`fixture did not write ${pattern}`);
+}
+
+async function waitForProcess(
+  predicate: (record: { pid: number; command: string }) => boolean,
+  timeout = 5_000,
+) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const match = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+      .split('\n')
+      .map((line) => /^(\s*\d+)\s+(.+)$/u.exec(line))
+      .filter(Boolean)
+      .map((record) => ({ pid: Number(record![1]), command: record![2]! }))
+      .find(predicate);
+    if (match) return match;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error('expected process did not appear');
 }
 
 function residue(prefix: string, counterKey: string) {
@@ -646,6 +692,168 @@ describe('full integration command database lock', () => {
       `delete from public.registration_rate_counters where key_hash in('${counters.join("','")}')`,
     ]);
   }, 20_000);
+
+  it('replaces a killed reaper and proves the predecessor absent before a follower acquires the lock', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-killed-reaper-lock-'));
+    const firstOutput = join(directory, 'first.jsonl');
+    const secondOutput = join(directory, 'second.jsonl');
+    const hooks = join(directory, 'hooks.jsonl');
+    const first = start(firstOutput, 30_000, undefined, {
+      hookFile: hooks,
+      pausePhase: 'active',
+      fixtureArguments: ['ignore-term'],
+    });
+    let predecessorPgid = 0;
+    try {
+      await waitForFile(firstOutput, /"event":"start"/u, 10_000);
+      await waitForFile(hooks, /"phase":"active"/u, 10_000);
+      const firstEvent = JSON.parse(readFileSync(firstOutput, 'utf8').trim().split('\n')[0]!) as {
+        pid: number;
+        runId: string;
+      };
+      const firstHook = readFileSync(hooks, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { phase: string; runId: string; supervisorPid?: number })
+        .find((event) => event.phase === 'active')!;
+      predecessorPgid = Number(
+        execFileSync('ps', ['-o', 'pgid=', '-p', String(firstEvent.pid)], {
+          encoding: 'utf8',
+        }).trim(),
+      );
+      const firstReaper = await waitForProcess(
+        ({ command }) =>
+          command.includes('integration-command-reaper.mjs') && command.includes(firstEvent.runId),
+      );
+      process.kill(firstReaper.pid, 'SIGKILL');
+      process.kill(firstHook.supervisorPid!, 'SIGKILL');
+
+      const replacementReaper = await waitForProcess(
+        ({ pid, command }) =>
+          pid !== firstReaper.pid &&
+          command.includes('integration-command-reaper.mjs') &&
+          command.includes(firstEvent.runId),
+      );
+      process.kill(replacementReaper.pid, 'SIGKILL');
+
+      const second = start(secondOutput, 0, undefined, { hookFile: hooks });
+      const [firstResult, secondResult] = await Promise.all([
+        completion(first),
+        completion(second),
+      ]);
+      expect(firstResult.code).toBe(137);
+      expect(secondResult.code).toBe(0);
+      expect(() => process.kill(firstEvent.pid, 0)).toThrow();
+
+      const events = readFileSync(hooks, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { phase: string; runId: string });
+      const oldStopped = events.findIndex(
+        (event) => event.runId === firstEvent.runId && event.phase === 'command-group-stopped',
+      );
+      const newPostLock = events.findIndex(
+        (event) => event.runId !== firstEvent.runId && event.phase === 'post-lock',
+      );
+      expect(oldStopped).toBeGreaterThan(-1);
+      expect(newPostLock).toBeGreaterThan(oldStopped);
+    } finally {
+      first.kill('SIGKILL');
+      if (predecessorPgid > 1) {
+        try {
+          process.kill(-predecessorPgid, 'SIGKILL');
+        } catch {
+          // The replacement reaper already stopped the exact group.
+        }
+      }
+      await completion(start(join(directory, 'recovery.jsonl'), 0));
+      for (const path of [firstOutput, secondOutput]) {
+        if (!existsSync(path)) continue;
+        const counterKey = (
+          JSON.parse(readFileSync(path, 'utf8').trim().split('\n')[0]!) as { counterKey?: string }
+        ).counterKey;
+        if (counterKey)
+          execFileSync('psql', [
+            databaseUrl,
+            '-c',
+            `delete from public.registration_rate_counters where key_hash='${counterKey}'`,
+          ]);
+      }
+    }
+  }, 25_000);
+
+  it('fails closed on lost launcher identity until the exact old group is externally absent', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-reaper-identity-failure-'));
+    const firstOutput = join(directory, 'first.jsonl');
+    const secondOutput = join(directory, 'second.jsonl');
+    const hooks = join(directory, 'hooks.jsonl');
+    const first = start(firstOutput, 30_000, undefined, {
+      hookFile: hooks,
+      pausePhase: 'active',
+      fixtureArguments: ['ignore-term'],
+    });
+    let predecessorPgid = 0;
+    let persistedCounters: string[] = [];
+    try {
+      await waitForFile(firstOutput, /"event":"start"/u, 10_000);
+      await waitForFile(hooks, /"phase":"active"/u, 10_000);
+      const firstEvent = JSON.parse(readFileSync(firstOutput, 'utf8').trim().split('\n')[0]!) as {
+        pid: number;
+        runId: string;
+        counterKey: string;
+      };
+      persistedCounters.push(firstEvent.counterKey);
+      const hook = readFileSync(hooks, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { phase: string; supervisorPid?: number })
+        .find((event) => event.phase === 'active')!;
+      const processFields = execFileSync(
+        'ps',
+        ['-o', 'ppid=,pgid=', '-p', String(firstEvent.pid)],
+        { encoding: 'utf8' },
+      )
+        .trim()
+        .split(/\s+/u)
+        .map(Number);
+      const launcherPid = processFields[0]!;
+      predecessorPgid = processFields[1]!;
+      process.kill(launcherPid, 'SIGKILL');
+      process.kill(hook.supervisorPid!, 'SIGKILL');
+
+      const second = start(secondOutput, 0, undefined, { hookFile: hooks });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(existsSync(secondOutput)).toBe(false);
+      expect(() => process.kill(firstEvent.pid, 0)).not.toThrow();
+
+      process.kill(-predecessorPgid, 'SIGKILL');
+      predecessorPgid = 0;
+      const [firstResult, secondResult] = await Promise.all([
+        completion(first),
+        completion(second),
+      ]);
+      expect(firstResult.code).toBe(137);
+      expect(secondResult.code).toBe(0);
+      const secondEvent = JSON.parse(readFileSync(secondOutput, 'utf8').trim().split('\n')[0]!) as {
+        counterKey: string;
+      };
+      persistedCounters.push(secondEvent.counterKey);
+    } finally {
+      first.kill('SIGKILL');
+      if (predecessorPgid > 1) {
+        try {
+          process.kill(-predecessorPgid, 'SIGKILL');
+        } catch {}
+      }
+      await completion(start(join(directory, 'recovery.jsonl'), 0));
+      if (persistedCounters.length > 0)
+        execFileSync('psql', [
+          databaseUrl,
+          '-c',
+          `delete from public.registration_rate_counters where key_hash in('${persistedCounters.join("','")}')`,
+        ]);
+    }
+  }, 25_000);
 
   it.each(['databases', 'roots', 'registry'] as const)(
     'retains authenticated retry state when cleanup fails at %s',

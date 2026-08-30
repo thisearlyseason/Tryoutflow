@@ -408,7 +408,6 @@ async function supervise() {
     if (commandChild) await commandCompletion;
     if (escalation) clearTimeout(escalation);
     await phase('cleanup', { allowCancellation: true });
-    state?.removeCommand(runId);
     if (!recoveryOnly) {
       const errors = cleanupRun(runId);
       if (errors.length)

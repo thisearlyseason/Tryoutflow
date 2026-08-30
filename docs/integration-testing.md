@@ -5,6 +5,14 @@ outer runner owns the PostgreSQL advisory-lock session. If its supervisor dies, 
 that lock while the independent reaper stops the exact authenticated command process group and a
 recovery-only supervisor attempts authenticated staged cleanup.
 
+The reaper's exit is not proof of cleanup. It must durably publish an HMAC-authenticated completion
+bound to the run nonce and the launcher's exact PID, process-group ID, start time, and private
+capability. The outer runner independently verifies that the recorded group is absent before it can
+release the lock. A killed, failed, missing, forged, or stale reaper is replaced without releasing
+the lock. If the exact launcher identity disappears while members of its recorded group remain,
+automatic signaling stops and the runner deliberately holds the lock until an operator has safely
+terminated the old command tree; a reused PID or process-group ID is never treated as ownership.
+
 Normal completion, command failure, `SIGINT`, and `SIGTERM` automatically stop the owned command
 group and clean exact authenticated database roots. Registration rate-counter rows are deliberately
 not part of harness cleanup. Integration-only keys include an unguessable per-run namespace, so

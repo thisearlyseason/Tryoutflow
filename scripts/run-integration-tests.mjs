@@ -3,6 +3,8 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
 import { resolveAndValidateLocalDatabase } from './lib/local-supabase-database.mjs';
+import { commandIsProvenAbsent } from './lib/integration-process-identity.mjs';
+import { createSupervisorStateStore } from './lib/integration-supervisor-state.mjs';
 
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
@@ -48,6 +50,7 @@ const lockKey = BigInt.asIntN(
     .readBigUInt64BE(0),
 );
 const lockMarker = `lock-acquired-${randomUUID()}`;
+const supervisorState = createSupervisorStateStore({ identity: validated.identity });
 const holder = spawn('psql', ['-X', '-qAt', operationalDatabase.toString()], {
   env: { ...process.env, PGAPPNAME: `tryoutflow-integration-runner:${runId}` },
   stdio: ['pipe', 'pipe', 'inherit'],
@@ -68,7 +71,7 @@ const lockAcquired = new Promise((resolveAcquired, rejectAcquired) => {
 holder.stdin.write(`select pg_advisory_lock(${lockKey}); select '${lockMarker}';\n`);
 
 let supervisor;
-let reaper;
+let reaperAttempt;
 let requestedExitCode = null;
 const forward = (signal, exitCode) => {
   requestedExitCode ??= exitCode;
@@ -119,26 +122,53 @@ const supervisorStartedAt = execFileSync('ps', ['-o', 'lstart=', '-p', String(su
   encoding: 'utf8',
 }).trim();
 if (!supervisorStartedAt) throw new Error('unable to bind integration supervisor identity');
-reaper = spawn(
-  process.execPath,
-  [
-    resolve('scripts/lib/integration-command-reaper.mjs'),
-    String(supervisor.pid),
-    supervisorStartedAt,
-    runId,
-    validated.identity,
-  ],
-  { env: process.env, stdio: 'inherit' },
-);
+const spawnReaper = () => {
+  const child = spawn(
+    process.execPath,
+    [
+      resolve('scripts/lib/integration-command-reaper.mjs'),
+      String(supervisor.pid),
+      supervisorStartedAt,
+      runId,
+      validated.identity,
+    ],
+    { env: process.env, stdio: 'inherit' },
+  );
+  const completion = new Promise((resolveResult) => {
+    child.once('error', (error) => resolveResult({ code: 1, error }));
+    child.once('close', (code, signal) => resolveResult({ code, signal }));
+  });
+  return { child, completion };
+};
+reaperAttempt = spawnReaper();
 
 const result = await new Promise((resolveResult) => {
   supervisor.once('error', (error) => resolveResult({ code: 1, error }));
   supervisor.once('close', (code, signal) => resolveResult({ code, signal }));
 });
-const reaperResult = await new Promise((resolveResult) => {
-  reaper.once('error', (error) => resolveResult({ code: 1, error }));
-  reaper.once('close', (code, signal) => resolveResult({ code, signal }));
-});
+let reaperResult;
+for (;;) {
+  reaperResult = await reaperAttempt.completion;
+  let confirmed = false;
+  try {
+    const completion = supervisorState.readCommandCompletion(runId);
+    const command = supervisorState.readCommand(runId);
+    confirmed = Boolean(
+      reaperResult.code === 0 &&
+      !reaperResult.signal &&
+      !reaperResult.error &&
+      completion &&
+      JSON.stringify(completion.command ?? null) === JSON.stringify(command) &&
+      commandIsProvenAbsent(command),
+    );
+  } catch {
+    // A missing, corrupt, forged, or stale completion is not authority to release the lock.
+  }
+  if (confirmed) break;
+  supervisorState.removeCommandCompletion(runId);
+  await new Promise((resolveRetry) => setTimeout(resolveRetry, 100));
+  reaperAttempt = spawnReaper();
+}
 let recoveryResult = { code: 0, signal: null };
 if (result.signal) {
   const recoveryEnvironment = { ...process.env, SUPABASE_DB_URL: databaseUrl };
@@ -162,6 +192,7 @@ if (result.signal) {
     recovery.once('close', (code, signal) => resolveResult({ code, signal }));
   });
 }
+supervisorState.removeCommand(runId);
 holder.stdin.end('\\q\n');
 await holderClosed;
 if (result.error) console.error(result.error);

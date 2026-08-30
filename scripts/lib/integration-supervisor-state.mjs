@@ -170,6 +170,7 @@ export function createSupervisorStateStore(options) {
   const manifestPath = (runId) => join(directory, `${runId}.json`);
   const commandPath = (runId) => join(directory, `${runId}.command.json`);
   const commandGoPath = (runId) => join(directory, `${runId}.command.go`);
+  const commandCompletionPath = (runId) => join(directory, `${runId}.command.reaped.json`);
   const quarantine = (path) => {
     try {
       renameSync(path, `${path}.quarantine-${Date.now()}-${randomBytes(4).toString('hex')}`);
@@ -183,6 +184,7 @@ export function createSupervisorStateStore(options) {
     manifestPath,
     commandPath,
     commandGoPath,
+    commandCompletionPath,
     manifestBody: (runId) => manifestBody(identity, runId),
     writeManifest(body) {
       if (!validBody(body, identity, body?.runId)) {
@@ -285,6 +287,7 @@ export function createSupervisorStateStore(options) {
         throw new Error('invalid integration command identity');
       }
       const payload = { body, command: { nonce: command.nonce } };
+      rmSync(commandCompletionPath(runId), { force: true });
       atomicWrite(
         commandPath(runId),
         JSON.stringify({
@@ -337,17 +340,58 @@ export function createSupervisorStateStore(options) {
       }
       return parsed.command;
     },
+    writeCommandCompletion(runId, command) {
+      const current = this.readCommand(runId);
+      if (JSON.stringify(current) !== JSON.stringify(command ?? null)) {
+        throw new Error('reaping completion does not match authenticated command identity');
+      }
+      const body = manifestBody(identity, runId);
+      const completion = { phase: 'command-group-stopped', command: command ?? null };
+      const payload = { body, completion };
+      atomicWrite(
+        commandCompletionPath(runId),
+        JSON.stringify({ ...payload, authentication: authenticatedPayload(secret, payload) }),
+        directory,
+      );
+    },
+    readCommandCompletion(runId) {
+      const path = commandCompletionPath(runId);
+      if (!existsSync(path)) return null;
+      const parsed = JSON.parse(readFileSync(path, 'utf8'));
+      if (!validBody(parsed?.body, identity, runId)) {
+        throw new Error('invalid reaping completion body');
+      }
+      const payload = { body: parsed.body, completion: parsed.completion };
+      const expected = authenticatedPayload(secret, payload);
+      if (
+        typeof parsed.authentication !== 'string' ||
+        parsed.authentication.length !== expected.length ||
+        !timingSafeEqual(Buffer.from(parsed.authentication), Buffer.from(expected))
+      ) {
+        throw new Error('unauthenticated reaping completion');
+      }
+      const current = this.readCommand(runId);
+      if (
+        parsed.completion?.phase !== 'command-group-stopped' ||
+        JSON.stringify(parsed.completion.command ?? null) !== JSON.stringify(current)
+      ) {
+        throw new Error('stale reaping completion');
+      }
+      return parsed.completion;
+    },
+    removeCommandCompletion(runId) {
+      rmSync(commandCompletionPath(runId), { force: true });
+    },
     permitCommand(runId) {
       atomicWrite(commandGoPath(runId), runId, directory);
     },
     removeCommand(runId) {
       rmSync(commandPath(runId), { force: true });
       rmSync(commandGoPath(runId), { force: true });
+      rmSync(commandCompletionPath(runId), { force: true });
     },
     removeRunState(runId) {
       rmSync(manifestPath(runId), { force: true });
-      rmSync(commandPath(runId), { force: true });
-      rmSync(commandGoPath(runId), { force: true });
       const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
       try {
         fsyncSync(descriptor);
