@@ -37,30 +37,77 @@ describe('EmailProvider contract', () => {
 
   it('passes one stable idempotency key to Resend and normalizes its errors', async () => {
     const calls: unknown[][] = [];
-    const client = {
-      emails: {
-        async send(...args: unknown[]) {
-          calls.push(args);
-          return { data: { id: 'resend-1' }, error: null, headers: null };
-        },
-      },
+    const request = async (...args: [string | URL | Request, RequestInit?]) => {
+      calls.push(args);
+      return Response.json({ id: '55555555-5555-4555-8555-555555555555' });
     };
     const provider = new ResendEmailProvider(
       { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com' },
-      client as never,
+      request,
     );
     await expect(
       provider.send(
         { to: 'guardian@example.com', subject: 'Subject', text: 'Body' },
         'communication:33333333-3333-4333-8333-333333333333',
       ),
-    ).resolves.toEqual({ providerMessageId: 'resend-1' });
-    expect(calls[0]?.[1]).toEqual({
-      idempotencyKey: 'communication:33333333-3333-4333-8333-333333333333',
-    });
+    ).resolves.toEqual({ providerMessageId: '55555555-5555-4555-8555-555555555555' });
+    expect(calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          'idempotency-key': 'communication:33333333-3333-4333-8333-333333333333',
+        }),
+        signal: expect.any(AbortSignal),
+      }),
+    );
   });
 
   it('rejects incomplete server configuration without exposing its values', () => {
     expect(() => new ResendEmailProvider({ apiKey: 'short', from: 'bad' })).toThrow();
+  });
+
+  it('classifies permanent and retryable HTTP failures without provider content', async () => {
+    const configuration = { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com' };
+    const message = { to: 'private@example.com', subject: 'Private subject', text: 'Private body' };
+    const permanent = new ResendEmailProvider(
+      configuration,
+      async () => new Response('private rejection', { status: 400 }),
+    );
+    await expect(
+      permanent.send(message, 'communication:33333333-3333-4333-8333-333333333333'),
+    ).rejects.toEqual({ code: 'provider_rejected', retryable: false });
+    const retryable = new ResendEmailProvider(
+      configuration,
+      async () => new Response('private outage', { status: 503 }),
+    );
+    await expect(
+      retryable.send(message, 'communication:33333333-3333-4333-8333-333333333333'),
+    ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
+  });
+
+  it('rejects malformed provider IDs and aborts stalled Resend requests', async () => {
+    const malformed = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com', timeoutMs: 1_000 },
+      async () => Response.json({ id: 'not-a-provider-uuid' }),
+    );
+    await expect(
+      malformed.send(
+        { to: 'guardian@example.com', subject: 'Subject', text: 'Body' },
+        'communication:33333333-3333-4333-8333-333333333333',
+      ),
+    ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
+
+    const stalled = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com', timeoutMs: 1_000 },
+      async (_input, options) =>
+        new Promise((_resolve, reject) =>
+          options?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted'))),
+        ),
+    );
+    await expect(
+      stalled.send(
+        { to: 'guardian@example.com', subject: 'Subject', text: 'Body' },
+        'communication:33333333-3333-4333-8333-333333333333',
+      ),
+    ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
   });
 });

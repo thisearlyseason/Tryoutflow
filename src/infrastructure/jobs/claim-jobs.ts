@@ -3,6 +3,7 @@ export type ClaimedEmailJob = Readonly<{
   messageId: string;
   leaseToken: string;
   leaseGeneration: number;
+  leaseExpiresAt: string;
   providerIdempotencyKey: string;
   recipientEmail: string;
   subject: string;
@@ -35,6 +36,7 @@ export async function claimJobs(
       messageId: String(value.message_id),
       leaseToken: String(value.lease_token),
       leaseGeneration: Number(value.lease_generation),
+      leaseExpiresAt: String(value.lease_expires_at),
       providerIdempotencyKey: String(value.provider_idempotency_key),
       recipientEmail: String(value.recipient_email),
       subject: String(value.subject),

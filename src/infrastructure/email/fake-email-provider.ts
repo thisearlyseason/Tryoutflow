@@ -7,7 +7,9 @@ export class FakeEmailProvider implements EmailProvider {
 
   constructor(private readonly options: { failWith?: 'temporary' | 'rejected' } = {}) {}
 
-  async send(message: EmailMessage, idempotencyKey: string) {
+  async send(message: EmailMessage, idempotencyKey: string, options?: { signal?: AbortSignal }) {
+    if (options?.signal?.aborted)
+      throw { code: 'provider_temporary', retryable: true } satisfies EmailProviderError;
     const existing = this.submissions.get(idempotencyKey);
     if (existing) return { providerMessageId: existing.providerMessageId };
     if (this.options.failWith) {

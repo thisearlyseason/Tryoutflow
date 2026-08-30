@@ -15,7 +15,9 @@ type ProcessDependencies = {
     batchSize: number;
     leaseSeconds: number;
   }): Promise<ClaimedEmailJob[]>;
-  dispatch(job: ClaimedEmailJob): Promise<'completed' | 'retry_scheduled' | 'dead_lettered'>;
+  dispatch(
+    job: ClaimedEmailJob,
+  ): Promise<'completed' | 'retry_scheduled' | 'dead_lettered' | 'cancelled'>;
 };
 
 function jsonError(status: number, code: string) {
@@ -80,25 +82,29 @@ export async function processJobsRequest(request: Request, dependencies: Process
     const jobs = await dependencies.claim({
       leaseOwner: `vercel:${randomUUID()}`,
       batchSize: parsed.data.batchSize,
-      leaseSeconds: 120,
+      leaseSeconds: 90,
     });
     const summary = {
       claimed: jobs.length,
       completed: 0,
       retryScheduled: 0,
       deadLettered: 0,
+      cancelled: 0,
       failed: 0,
     };
-    for (const job of jobs) {
-      try {
-        const outcome = await dependencies.dispatch(job);
-        if (outcome === 'completed') summary.completed += 1;
-        else if (outcome === 'retry_scheduled') summary.retryScheduled += 1;
-        else summary.deadLettered += 1;
-      } catch {
-        summary.failed += 1;
-      }
-    }
+    await Promise.all(
+      jobs.map(async (job) => {
+        try {
+          const outcome = await dependencies.dispatch(job);
+          if (outcome === 'completed') summary.completed += 1;
+          else if (outcome === 'retry_scheduled') summary.retryScheduled += 1;
+          else if (outcome === 'dead_lettered') summary.deadLettered += 1;
+          else summary.cancelled += 1;
+        } catch {
+          summary.failed += 1;
+        }
+      }),
+    );
     return NextResponse.json(summary);
   } catch (error) {
     const status =

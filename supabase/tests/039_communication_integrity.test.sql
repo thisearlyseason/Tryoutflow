@@ -15,19 +15,19 @@ select has_function('public','fail_outbox_job',array['uuid','uuid','bigint','tex
 select has_function('public','queue_roster_decision_communication',array['uuid','uuid','uuid','uuid','text','text','text','text','text','text'],'finalized decision queue RPC exists');
 select has_function('public','queue_registration_confirmation_communication',array['uuid','text','text','text','text'],'service registration adapter RPC exists');
 select has_function('public','queue_invitation_communication',array['uuid','uuid','text','text','text'],'service invitation adapter RPC exists');
-select ok(has_function_privilege('authenticated','public.queue_registration_communication(uuid,uuid,uuid,text,text,text,text,text)','execute'),'authenticated actors may enter the guarded queue boundary');
+select ok(not has_function_privilege('authenticated','public.queue_registration_communication(uuid,uuid,uuid,text,text,text,text,text)','execute'),'legacy caller-classified queue boundary is closed');
 select ok(not has_function_privilege('anon','public.queue_registration_communication(uuid,uuid,uuid,text,text,text,text,text)','execute'),'anonymous callers cannot queue messages');
 select ok(has_function_privilege('service_role','public.claim_outbox_jobs(text,integer,integer)','execute'),'service worker may claim jobs');
 select ok(not has_function_privilege('authenticated','public.claim_outbox_jobs(text,integer,integer)','execute'),'authenticated callers cannot claim jobs');
 select ok(not has_table_privilege('authenticated','public.outbox_jobs','insert'),'authenticated callers cannot forge jobs');
 select ok(not has_table_privilege('authenticated','public.communication_messages','update'),'authenticated callers cannot forge provider state');
 select ok(not has_table_privilege('anon','public.communication_messages','select'),'anonymous callers cannot read recipient/content snapshots');
-select ok(has_function_privilege('authenticated','public.queue_roster_decision_communication(uuid,uuid,uuid,uuid,text,text,text,text,text,text)','execute'),'authenticated actors may enter the guarded decision boundary');
+select ok(not has_function_privilege('authenticated','public.queue_roster_decision_communication(uuid,uuid,uuid,uuid,text,text,text,text,text,text)','execute'),'legacy caller-classified decision boundary is closed');
 select ok(not has_function_privilege('anon','public.queue_roster_decision_communication(uuid,uuid,uuid,uuid,text,text,text,text,text,text)','execute'),'anonymous callers cannot queue decision messages');
-select ok(has_function_privilege('service_role','public.queue_registration_confirmation_communication(uuid,text,text,text,text)','execute'),'service registration adapter may queue its exact snapshot');
+select ok(not has_function_privilege('service_role','public.queue_registration_confirmation_communication(uuid,text,text,text,text)','execute'),'legacy confirmation adapter without token proof is closed');
 select ok(not has_function_privilege('authenticated','public.queue_registration_confirmation_communication(uuid,text,text,text,text)','execute'),'authenticated callers cannot use the service registration adapter');
-select ok(has_function_privilege('service_role','public.queue_invitation_communication(uuid,uuid,text,text,text)','execute'),'service invitation adapter may queue its exact snapshot');
-select ok(has_function_privilege('authenticated','public.queue_invitation_communication(uuid,uuid,text,text,text)','execute'),'authenticated actors may enter the guarded invitation adapter');
+select ok(not has_function_privilege('service_role','public.queue_invitation_communication(uuid,uuid,text,text,text)','execute'),'legacy invitation adapter without token proof is closed');
+select ok(not has_function_privilege('authenticated','public.queue_invitation_communication(uuid,uuid,text,text,text)','execute'),'authenticated actors cannot use the legacy invitation adapter');
 select ok(not has_function_privilege('authenticated','public.complete_outbox_job(uuid,uuid,bigint,text)','execute'),'authenticated callers cannot acknowledge jobs');
 select ok(not has_function_privilege('authenticated','public.fail_outbox_job(uuid,uuid,bigint,text,boolean)','execute'),'authenticated callers cannot fail jobs');
 

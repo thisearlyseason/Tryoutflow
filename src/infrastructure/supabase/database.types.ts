@@ -492,6 +492,7 @@ export type Database = {
         Row: {
           attention_required_at: string | null;
           business_idempotency_key: string;
+          cancellation_reason: string | null;
           content_snapshot: Json;
           created_at: string;
           id: string;
@@ -501,8 +502,16 @@ export type Database = {
           provider_message_id: string | null;
           recipient_snapshot: Json;
           request_digest: string;
+          source_authorizing_user_id: string | null;
+          source_binding_version: number;
+          source_confirmation_token_digest: string | null;
+          source_expected_decision: string | null;
+          source_guardian_id: string | null;
           source_id: string;
+          source_invitation_token_digest: string | null;
           source_kind: string;
+          source_registration_id: string | null;
+          source_roster_version_id: string | null;
           state: string;
           submitted_at: string | null;
           updated_at: string;
@@ -510,6 +519,7 @@ export type Database = {
         Insert: {
           attention_required_at?: string | null;
           business_idempotency_key: string;
+          cancellation_reason?: string | null;
           content_snapshot: Json;
           created_at?: string;
           id?: string;
@@ -519,8 +529,16 @@ export type Database = {
           provider_message_id?: string | null;
           recipient_snapshot: Json;
           request_digest: string;
+          source_authorizing_user_id?: string | null;
+          source_binding_version?: number;
+          source_confirmation_token_digest?: string | null;
+          source_expected_decision?: string | null;
+          source_guardian_id?: string | null;
           source_id: string;
+          source_invitation_token_digest?: string | null;
           source_kind: string;
+          source_registration_id?: string | null;
+          source_roster_version_id?: string | null;
           state?: string;
           submitted_at?: string | null;
           updated_at?: string;
@@ -528,6 +546,7 @@ export type Database = {
         Update: {
           attention_required_at?: string | null;
           business_idempotency_key?: string;
+          cancellation_reason?: string | null;
           content_snapshot?: Json;
           created_at?: string;
           id?: string;
@@ -537,8 +556,16 @@ export type Database = {
           provider_message_id?: string | null;
           recipient_snapshot?: Json;
           request_digest?: string;
+          source_authorizing_user_id?: string | null;
+          source_binding_version?: number;
+          source_confirmation_token_digest?: string | null;
+          source_expected_decision?: string | null;
+          source_guardian_id?: string | null;
           source_id?: string;
+          source_invitation_token_digest?: string | null;
           source_kind?: string;
+          source_registration_id?: string | null;
+          source_roster_version_id?: string | null;
           state?: string;
           submitted_at?: string | null;
           updated_at?: string;
@@ -1158,6 +1185,7 @@ export type Database = {
           organization_id: string;
           payload_version: number;
           provider_idempotency_key: string;
+          provider_submission_started_at: string | null;
           status: string;
           updated_at: string;
         };
@@ -1180,6 +1208,7 @@ export type Database = {
           organization_id: string;
           payload_version?: number;
           provider_idempotency_key: string;
+          provider_submission_started_at?: string | null;
           status?: string;
           updated_at?: string;
         };
@@ -1202,6 +1231,7 @@ export type Database = {
           organization_id?: string;
           payload_version?: number;
           provider_idempotency_key?: string;
+          provider_submission_started_at?: string | null;
           status?: string;
           updated_at?: string;
         };
@@ -2716,6 +2746,14 @@ export type Database = {
         };
         Returns: undefined;
       };
+      authorize_outbox_job_send: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+        };
+        Returns: string;
+      };
       can_access_evaluation: {
         Args: {
           evaluator_user_id: string;
@@ -3428,12 +3466,47 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      queue_invitation_communication_v2: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_invitation_id: string;
+          p_invitation_token_digest: string;
+          p_organization_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       queue_registration_communication: {
         Args: {
           p_business_idempotency_key: string;
           p_guardian_id: string;
           p_message_kind: string;
           p_notice_class: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      queue_registration_communication_v2: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_command_kind: string;
+          p_guardian_id: string;
           p_organization_id: string;
           p_registration_id: string;
           p_subject: string;
@@ -3463,6 +3536,23 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      queue_registration_confirmation_communication_v2: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_confirmation_token_digest: string;
+          p_guardian_email: string;
+          p_registration_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       queue_roster_decision_communication: {
         Args: {
           p_business_idempotency_key: string;
@@ -3470,6 +3560,26 @@ export type Database = {
           p_guardian_id: string;
           p_message_kind: string;
           p_notice_class: string;
+          p_organization_id: string;
+          p_registration_id: string;
+          p_roster_version_id: string;
+          p_subject: string;
+          p_text: string;
+        };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      queue_roster_decision_communication_v2: {
+        Args: {
+          p_business_idempotency_key: string;
+          p_command_kind: string;
+          p_expected_decision: string;
+          p_guardian_id: string;
           p_organization_id: string;
           p_registration_id: string;
           p_roster_version_id: string;

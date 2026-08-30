@@ -6,7 +6,7 @@ import type { RegistrationConfirmationNotifier } from '../../registration/applic
 
 type RpcClient = {
   rpc(
-    name: 'queue_registration_communication',
+    name: 'queue_registration_communication_v2',
     args: Record<string, unknown>,
   ): PromiseLike<{ data: unknown; error: { code?: string } | null }>;
 };
@@ -18,12 +18,11 @@ export async function queueCommunication(
   const parsed = communicationCommandSchema.safeParse(input);
   if (!parsed.success) return { outcome: 'invalid_input' };
   const command = parsed.data;
-  const { data, error } = await dependencies.client.rpc('queue_registration_communication', {
+  const { data, error } = await dependencies.client.rpc('queue_registration_communication_v2', {
     p_organization_id: command.organizationId,
     p_registration_id: command.registrationId,
     p_guardian_id: command.guardianId,
-    p_message_kind: command.messageKind,
-    p_notice_class: command.noticeClass,
+    p_command_kind: command.commandKind,
     p_subject: command.subject,
     p_text: command.text,
     p_business_idempotency_key: command.businessIdempotencyKey,
@@ -69,10 +68,11 @@ export class DurableRegistrationConfirmationNotifier implements RegistrationConf
       const content = this.render(input);
       const tokenDigest = createHash('sha256').update(input.confirmationToken).digest('hex');
       const { data, error } = await this.client.rpc(
-        'queue_registration_confirmation_communication',
+        'queue_registration_confirmation_communication_v2',
         {
           p_registration_id: input.registrationId,
           p_guardian_email: input.guardianEmail,
+          p_confirmation_token_digest: tokenDigest,
           p_subject: content.subject,
           p_text: content.text,
           p_business_idempotency_key: `registration-confirmation:${input.registrationId}:${tokenDigest}`,
@@ -104,9 +104,11 @@ export class DurableInvitationNotifier implements InvitationNotifier {
     expiresAt: Date;
   }): Promise<void> {
     const content = this.render({ token: input.token, expiresAt: input.expiresAt });
-    const { data, error } = await this.client.rpc('queue_invitation_communication', {
+    const tokenDigest = createHash('sha256').update(input.token).digest('hex');
+    const { data, error } = await this.client.rpc('queue_invitation_communication_v2', {
       p_organization_id: input.organizationId,
       p_invitation_id: input.invitationId,
+      p_invitation_token_digest: tokenDigest,
       p_subject: content.subject,
       p_text: content.text,
       p_business_idempotency_key: `invitation:${input.invitationId}`,

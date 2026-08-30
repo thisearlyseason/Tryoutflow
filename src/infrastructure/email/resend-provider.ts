@@ -1,6 +1,5 @@
 import 'server-only';
 
-import { Resend } from 'resend';
 import { z } from 'zod';
 
 import type { EmailMessage, EmailProvider, EmailProviderError } from './email-provider';
@@ -8,40 +7,64 @@ import type { EmailMessage, EmailProvider, EmailProviderError } from './email-pr
 const configurationSchema = z.object({
   apiKey: z.string().min(20).max(300),
   from: z.email().max(320),
+  timeoutMs: z.number().int().min(1_000).max(60_000).default(45_000),
 });
 
-type ResendClient = Pick<Resend, 'emails'>;
+const providerResponseSchema = z.object({ id: z.uuid() }).strict();
+
+type ResendFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 export class ResendEmailProvider implements EmailProvider {
-  private readonly client: ResendClient;
+  private readonly apiKey: string;
+  private readonly request: ResendFetch;
   private readonly from: string;
+  private readonly timeoutMs: number;
 
-  constructor(configuration: unknown, client?: ResendClient) {
+  constructor(configuration: unknown, request: ResendFetch = fetch) {
     const parsed = configurationSchema.safeParse(configuration);
     if (!parsed.success) {
       throw { code: 'provider_configuration', retryable: false } satisfies EmailProviderError;
     }
+    this.apiKey = parsed.data.apiKey;
     this.from = parsed.data.from;
-    this.client = client ?? new Resend(parsed.data.apiKey);
+    this.timeoutMs = parsed.data.timeoutMs;
+    this.request = request;
   }
 
-  async send(message: EmailMessage, idempotencyKey: string) {
+  async send(message: EmailMessage, idempotencyKey: string, options?: { signal?: AbortSignal }) {
     try {
-      const response = await this.client.emails.send(
-        { from: this.from, to: message.to, subject: message.subject, text: message.text },
-        { idempotencyKey },
-      );
-      if (response.error) {
+      const timeoutSignal = AbortSignal.timeout(this.timeoutMs);
+      const signal = options?.signal
+        ? AbortSignal.any([options.signal, timeoutSignal])
+        : timeoutSignal;
+      const response = await this.request('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.apiKey}`,
+          'content-type': 'application/json',
+          'idempotency-key': idempotencyKey,
+        },
+        body: JSON.stringify({
+          from: this.from,
+          to: message.to,
+          subject: message.subject,
+          text: message.text,
+        }),
+        signal,
+      });
+      if (!response.ok) {
         const retryable =
-          response.error.statusCode === null ||
-          response.error.statusCode === 429 ||
-          response.error.statusCode >= 500;
+          response.status === 408 || response.status === 429 || response.status >= 500;
         throw {
           code: retryable ? 'provider_temporary' : 'provider_rejected',
           retryable,
         } satisfies EmailProviderError;
       }
-      return { providerMessageId: response.data.id };
+      const providerResponse = providerResponseSchema.safeParse((await response.json()) as unknown);
+      if (!providerResponse.success) {
+        throw { code: 'provider_temporary', retryable: true } satisfies EmailProviderError;
+      }
+      return { providerMessageId: providerResponse.data.id };
     } catch (error) {
       if (isEmailProviderError(error)) throw error;
       throw { code: 'provider_temporary', retryable: true } satisfies EmailProviderError;

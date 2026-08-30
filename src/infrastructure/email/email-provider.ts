@@ -6,5 +6,9 @@ export type EmailProviderError = Readonly<{
 }>;
 
 export interface EmailProvider {
-  send(message: EmailMessage, idempotencyKey: string): Promise<{ providerMessageId: string }>;
+  send(
+    message: EmailMessage,
+    idempotencyKey: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<{ providerMessageId: string }>;
 }

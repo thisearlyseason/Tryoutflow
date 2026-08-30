@@ -36,6 +36,7 @@ describe('job processor route security', () => {
       messageId: '22222222-2222-4222-8222-222222222222',
       leaseToken: '33333333-3333-4333-8333-333333333333',
       leaseGeneration: 1,
+      leaseExpiresAt: new Date(Date.now() + 90_000).toISOString(),
       providerIdempotencyKey: 'communication:22222222-2222-4222-8222-222222222222',
       recipientEmail: 'private@example.com',
       subject: 'Private subject',

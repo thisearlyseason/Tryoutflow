@@ -25,8 +25,9 @@ describe('durable communication adapters', () => {
       }),
     ).resolves.toEqual({ queued: true });
     expect(rpc).toHaveBeenCalledWith(
-      'queue_registration_confirmation_communication',
+      'queue_registration_confirmation_communication_v2',
       expect.objectContaining({
+        p_confirmation_token_digest: createHash('sha256').update('a'.repeat(64)).digest('hex'),
         p_business_idempotency_key: `registration-confirmation:11111111-1111-4111-8111-111111111111:${createHash('sha256').update('a'.repeat(64)).digest('hex')}`,
       }),
     );
@@ -60,8 +61,9 @@ describe('durable communication adapters', () => {
       }),
     ).resolves.toBeUndefined();
     expect(rpc).toHaveBeenCalledWith(
-      'queue_invitation_communication',
+      'queue_invitation_communication_v2',
       expect.objectContaining({
+        p_invitation_token_digest: createHash('sha256').update('secret-token').digest('hex'),
         p_business_idempotency_key: 'invitation:22222222-2222-4222-8222-222222222222',
       }),
     );
@@ -75,8 +77,7 @@ describe('durable communication adapters', () => {
           organizationId: '33333333-3333-4333-8333-333333333333',
           registrationId: '11111111-1111-4111-8111-111111111111',
           guardianId: '44444444-4444-4444-8444-444444444444',
-          messageKind: 'registration_confirmation',
-          noticeClass: 'operational',
+          commandKind: 'registration_reminder',
           subject: 'Confirm',
           text: 'Body',
           businessIdempotencyKey: 'registration:test:1234567890',
@@ -86,5 +87,40 @@ describe('durable communication adapters', () => {
       ),
     ).resolves.toEqual({ outcome: 'invalid_input' });
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('accepts only server-owned registration command kinds and never accepts a notice class', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: [{ outcome: 'queued', message_id: 'm', job_id: 'j' }],
+      error: null,
+    });
+    const base = {
+      organizationId: '33333333-3333-4333-8333-333333333333',
+      registrationId: '11111111-1111-4111-8111-111111111111',
+      guardianId: '44444444-4444-4444-8444-444444444444',
+      subject: 'Reminder',
+      text: 'Body',
+      businessIdempotencyKey: 'registration:test:1234567890',
+    };
+    await expect(
+      queueCommunication(
+        { ...base, commandKind: 'registration_confirmation' },
+        { client: { rpc } },
+      ),
+    ).resolves.toEqual({ outcome: 'invalid_input' });
+    await expect(
+      queueCommunication(
+        { ...base, commandKind: 'registration_reminder', noticeClass: 'operational' },
+        { client: { rpc } },
+      ),
+    ).resolves.toEqual({ outcome: 'invalid_input' });
+    await expect(
+      queueCommunication({ ...base, commandKind: 'registration_reminder' }, { client: { rpc } }),
+    ).resolves.toEqual({ outcome: 'queued', messageId: 'm', jobId: 'j' });
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith(
+      'queue_registration_communication_v2',
+      expect.not.objectContaining({ p_notice_class: expect.anything() }),
+    );
   });
 });

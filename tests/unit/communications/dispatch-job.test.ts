@@ -1,0 +1,89 @@
+// @vitest-environment node
+
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { EmailProvider } from '../../../src/infrastructure/email/email-provider';
+import type { ClaimedEmailJob } from '../../../src/infrastructure/jobs/claim-jobs';
+import { dispatchJob } from '../../../src/infrastructure/jobs/dispatch-job';
+
+const job = (): ClaimedEmailJob => ({
+  jobId: '11111111-1111-4111-8111-111111111111',
+  messageId: '22222222-2222-4222-8222-222222222222',
+  leaseToken: '33333333-3333-4333-8333-333333333333',
+  leaseGeneration: 1,
+  leaseExpiresAt: new Date(Date.now() + 90_000).toISOString(),
+  providerIdempotencyKey: 'communication:22222222-2222-4222-8222-222222222222',
+  recipientEmail: 'private@example.com',
+  subject: 'Private subject',
+  bodyText: 'Private body',
+  attemptCount: 1,
+  maxAttempts: 5,
+});
+
+afterEach(() => vi.useRealTimers());
+
+describe('communication dispatch fencing', () => {
+  it('reauthorizes immediately before provider submission and skips cancelled sources', async () => {
+    const rpc = vi.fn().mockResolvedValueOnce({ data: 'cancelled', error: null });
+    const provider = { send: vi.fn() } satisfies EmailProvider;
+    await expect(dispatchJob({ rpc }, provider, job())).resolves.toBe('cancelled');
+    expect(rpc).toHaveBeenCalledWith('authorize_outbox_job_send', expect.any(Object));
+    expect(provider.send).not.toHaveBeenCalled();
+  });
+
+  it('aborts a stalled provider before the lease safety margin and schedules a stable-key retry', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
+    const leasedJob = job();
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ data: 'authorized', error: null })
+      .mockResolvedValueOnce({ data: 'retry_scheduled', error: null });
+    const send = vi.fn(
+      (_message, _key, options?: { signal?: AbortSignal }) =>
+        new Promise<{ providerMessageId: string }>((_resolve, reject) => {
+          options?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          );
+        }),
+    );
+    const dispatch = dispatchJob({ rpc }, { send }, leasedJob);
+    await vi.advanceTimersByTimeAsync(45_001);
+    await expect(dispatch).resolves.toBe('retry_scheduled');
+    expect(send).toHaveBeenCalledWith(
+      expect.any(Object),
+      leasedJob.providerIdempotencyKey,
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(rpc).toHaveBeenLastCalledWith(
+      'fail_outbox_job',
+      expect.objectContaining({ p_error_code: 'provider_temporary', p_retryable: true }),
+    );
+  });
+
+  it('does not record provider failure after a lost completion response', async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ data: 'authorized', error: null })
+      .mockResolvedValueOnce({ data: null, error: { code: 'network' } });
+    const provider = {
+      send: vi
+        .fn()
+        .mockResolvedValue({ providerMessageId: '55555555-5555-4555-8555-555555555555' }),
+    } satisfies EmailProvider;
+    await expect(dispatchJob({ rpc }, provider, job())).rejects.toThrow('completion_failed');
+    expect(provider.send).toHaveBeenCalledTimes(1);
+    expect(rpc).not.toHaveBeenCalledWith('fail_outbox_job', expect.any(Object));
+  });
+
+  it('does not start a provider request after the lease safety deadline', async () => {
+    const nearlyExpired = { ...job(), leaseExpiresAt: new Date(Date.now() + 15_500).toISOString() };
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ data: 'authorized', error: null })
+      .mockResolvedValueOnce({ data: 'retry_scheduled', error: null });
+    const provider = { send: vi.fn() } satisfies EmailProvider;
+    await expect(dispatchJob({ rpc }, provider, nearlyExpired)).resolves.toBe('retry_scheduled');
+    expect(provider.send).not.toHaveBeenCalled();
+  });
+});
