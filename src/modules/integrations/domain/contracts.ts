@@ -258,8 +258,21 @@ export const finalizedRosterSnapshotSchema = z
 
 export const finalizedRosterExportRequestSchema = z.strictObject({
   destination: externalRosterDestinationSchema,
+  // Adapters may project only these fields. When both name fields are not approved,
+  // item labels use the opaque registration reference (or an approved tryout number),
+  // never a partial name or another field from the full authoritative snapshot.
   approvedFields: uniqueFields(rosterExportFieldSchema, 7),
   roster: finalizedRosterSnapshotSchema,
+});
+
+export const rosterExportProjectedFieldsSchema = z.strictObject({
+  firstName: boundedName.optional(),
+  lastName: boundedName.optional(),
+  email: z.email().max(320).optional(),
+  phone: z.string().trim().min(3).max(32).optional(),
+  position: boundedName.optional(),
+  teamName: boundedName.optional(),
+  tryoutNumber: z.number().int().min(0).max(999_999).optional(),
 });
 
 export const rosterExportPreviewItemSchema = z.strictObject({
@@ -267,6 +280,7 @@ export const rosterExportPreviewItemSchema = z.strictObject({
   registrationId: z.uuid(),
   operation: z.enum(['create', 'update', 'skip', 'requires_review']),
   displayLabel: boundedLabel,
+  fields: rosterExportProjectedFieldsSchema,
 });
 
 export const rosterExportPreviewSchema = z
@@ -341,37 +355,62 @@ export const syncItemStateSchema = z.enum([
   'requires_review',
 ]);
 
+const syncJobItemShape = {
+  itemKey: z.string().regex(/^[a-z][a-z0-9_-]{1,39}:[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u),
+  entityType: z.enum(['athlete', 'team', 'roster_version']),
+  attempts: z.number().int().min(0).max(100),
+  externalRef: externalEntityRefSchema.nullable(),
+  error: teamManagementProviderErrorSchema.nullable(),
+};
+
+function validateSyncItem(
+  value: z.infer<typeof providerSyncJobItemStatusSchema>,
+  context: z.RefinementCtx,
+) {
+  if (value.state === 'completed' && value.externalRef === null) {
+    context.addIssue({
+      code: 'custom',
+      message: 'completed item requires an external reference',
+    });
+  }
+  if (value.state === 'pending' && value.attempts !== 0) {
+    context.addIssue({ code: 'custom', message: 'pending item must not have an attempt' });
+  }
+  if (value.state === 'processing' && value.attempts === 0) {
+    context.addIssue({ code: 'custom', message: 'processing item requires an attempt' });
+  }
+  if (['pending', 'processing'].includes(value.state) && value.externalRef !== null) {
+    context.addIssue({
+      code: 'custom',
+      message: 'in-flight item cannot contain a completed external reference',
+    });
+  }
+  if (['failed', 'requires_review'].includes(value.state) && value.error === null) {
+    context.addIssue({ code: 'custom', message: 'failed or review item requires an error' });
+  }
+  if (!['failed', 'requires_review'].includes(value.state) && value.error !== null) {
+    context.addIssue({
+      code: 'custom',
+      message: 'only failed or review items may contain an error',
+    });
+  }
+  if (value.externalRef !== null && value.externalRef.entityType !== value.entityType) {
+    context.addIssue({ code: 'custom', message: 'external reference type must match the item' });
+  }
+}
+
+export const providerSyncJobItemStatusSchema = z
+  .strictObject({ ...syncJobItemShape, state: syncItemStateSchema })
+  .superRefine(validateSyncItem);
+
 export const syncJobItemResultSchema = z
   .strictObject({
-    itemKey: z.string().regex(/^[a-z][a-z0-9_-]{1,39}:[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u),
-    entityType: z.enum(['athlete', 'team', 'roster_version']),
-    state: syncItemStateSchema,
-    attempts: z.number().int().min(0).max(100),
-    externalRef: externalEntityRefSchema.nullable(),
-    error: teamManagementProviderErrorSchema.nullable(),
+    ...syncJobItemShape,
+    state: z.enum(['completed', 'failed', 'skipped', 'requires_review']),
   })
-  .superRefine((value, context) => {
-    if (value.state === 'completed' && value.externalRef === null) {
-      context.addIssue({
-        code: 'custom',
-        message: 'completed item requires an external reference',
-      });
-    }
-    if (['failed', 'requires_review'].includes(value.state) && value.error === null) {
-      context.addIssue({ code: 'custom', message: 'failed or review item requires an error' });
-    }
-    if (!['failed', 'requires_review'].includes(value.state) && value.error !== null) {
-      context.addIssue({
-        code: 'custom',
-        message: 'only failed or review items may contain an error',
-      });
-    }
-    if (value.externalRef !== null && value.externalRef.entityType !== value.entityType) {
-      context.addIssue({ code: 'custom', message: 'external reference type must match the item' });
-    }
-  });
+  .superRefine(validateSyncItem);
 
-function derivedJobState(items: readonly z.infer<typeof syncJobItemResultSchema>[]) {
+function derivedJobState(items: readonly { state: z.infer<typeof syncItemStateSchema> }[]) {
   const completed = items.filter((item) => ['completed', 'skipped'].includes(item.state)).length;
   const failed = items.filter((item) => ['failed', 'requires_review'].includes(item.state)).length;
   if (failed === 0 && completed === items.length) return 'completed' as const;
@@ -406,7 +445,36 @@ export const syncJobResultSchema = z
     });
   });
 
-export const providerSyncStatusSchema = syncJobResultSchema;
+function derivedProviderStatus(items: readonly z.infer<typeof providerSyncJobItemStatusSchema>[]) {
+  if (items.some((item) => item.state === 'processing')) return 'processing' as const;
+  if (items.some((item) => item.state === 'pending')) return 'pending' as const;
+  return derivedJobState(items);
+}
+
+export const providerSyncStatusSchema = z
+  .strictObject({
+    externalJobId: externalIdSchema,
+    state: z.enum(['pending', 'processing', 'completed', 'partially_completed', 'failed']),
+    items: z.array(providerSyncJobItemStatusSchema).max(5_100),
+    mockData: z.boolean(),
+  })
+  .superRefine((value, context) => {
+    if (new Set(value.items.map((item) => item.itemKey)).size !== value.items.length) {
+      context.addIssue({ code: 'custom', message: 'sync item keys must be unique' });
+    }
+    if (derivedProviderStatus(value.items) !== value.state) {
+      context.addIssue({ code: 'custom', message: 'status must be derived from item states' });
+    }
+    value.items.forEach((item, index) => {
+      if (item.externalRef !== null && item.externalRef.mockData !== value.mockData) {
+        context.addIssue({
+          code: 'custom',
+          message: 'job and external-reference mock-data labels must match',
+          path: ['items', index, 'externalRef', 'mockData'],
+        });
+      }
+    });
+  });
 
 export type ProviderContext = z.infer<typeof providerContextSchema>;
 export type ConnectionRequest = z.infer<typeof connectionRequestSchema>;
@@ -422,6 +490,7 @@ export type AthleteImportPreview = z.infer<typeof athleteImportPreviewSchema>;
 export type ConfirmedAthleteImport = z.infer<typeof confirmedAthleteImportSchema>;
 export type FinalizedRosterExportRequest = z.infer<typeof finalizedRosterExportRequestSchema>;
 export type RosterExportPreview = z.infer<typeof rosterExportPreviewSchema>;
+export type RosterExportProjectedFields = z.infer<typeof rosterExportProjectedFieldsSchema>;
 export type ConfirmedRosterExport = z.infer<typeof confirmedRosterExportSchema>;
 export type SyncJobResult = z.infer<typeof syncJobResultSchema>;
 export type ProviderSyncStatus = z.infer<typeof providerSyncStatusSchema>;

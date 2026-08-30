@@ -23,6 +23,7 @@ import {
   externalRosterDestinationListSchema,
   finalizedRosterExportRequestSchema,
   providerContextSchema,
+  providerSyncStatusSchema,
   rosterExportPreviewSchema,
   syncJobResultSchema,
   type ConfirmedAthleteImport,
@@ -30,6 +31,8 @@ import {
   type ExternalEntityRef,
   type FinalizedRosterExportRequest,
   type ProviderContext,
+  type ProviderSyncStatus,
+  type RosterExportProjectedFields,
   type SyncJobResult,
   type TeamManagementProviderError,
 } from '../../modules/integrations/domain/contracts';
@@ -62,20 +65,34 @@ type StoredJob = {
   result: SyncJobResult;
 };
 
+type ConnectionRecord = {
+  providerKey: 'the-squad';
+  connectionId: string;
+  organizationId: string;
+  creatorActorId: string;
+  connected: boolean;
+};
+
 export type MockTheSquadProviderOptions = Readonly<{
   fixture: 'success' | 'partial-failure';
+  syncStatusTransitions?: readonly ('pending' | 'processing')[];
 }>;
 
 export class MockTheSquadProvider implements TeamManagementProvider {
   readonly providerKey = 'the-squad';
 
   private readonly fixture: Fixture;
+  private readonly syncStatusTransitions: readonly ('pending' | 'processing')[];
   private readonly challenges = new Map<string, { organizationId: string; actorId: string }>();
+  private readonly connections = new Map<string, ConnectionRecord>();
   private readonly jobsById = new Map<string, StoredJob>();
   private readonly jobsByIdempotencyKey = new Map<string, string>();
-  private readonly completedExportRegistrations = new Map<string, ExternalEntityRef>();
+  private readonly completedExportRegistrations = new Map<
+    string,
+    { externalRef: ExternalEntityRef; fields: RosterExportProjectedFields }
+  >();
   private readonly failedOnce = new Set<string>();
-  private readonly disconnectedConnectionIds = new Set<string>();
+  private readonly statusTransitionsByJob = new Map<string, ('pending' | 'processing')[]>();
 
   constructor(options: MockTheSquadProviderOptions) {
     const raw = options.fixture === 'success' ? successFixtureJson : partialFailureFixtureJson;
@@ -84,6 +101,7 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       fixtureBase.destination,
     ])[0]!;
     this.fixture = { ...fixtureBase, destination };
+    this.syncStatusTransitions = [...(options.syncStatusTransitions ?? [])];
   }
 
   async beginConnection(input: Parameters<TeamManagementProvider['beginConnection']>[0]) {
@@ -113,10 +131,21 @@ export class MockTheSquadProvider implements TeamManagementProvider {
     ) {
       throw providerError('connection_invalid');
     }
-    this.disconnectedConnectionIds.delete(stableUuid('mock-connection', parsed.organizationId));
+    const connectionId = stableUuid('mock-connection', [
+      this.providerKey,
+      parsed.organizationId,
+      parsed.actorId,
+    ]);
+    this.connections.set(connectionId, {
+      providerKey: this.providerKey,
+      connectionId,
+      organizationId: parsed.organizationId,
+      creatorActorId: parsed.actorId,
+      connected: true,
+    });
     return immutableClone(
       parseOutput(connectionResultSchema, {
-        connectionId: stableUuid('mock-connection', parsed.organizationId),
+        connectionId,
         providerKey: this.providerKey,
         state: 'connected',
         displayName: 'The Squad (demo/mock)',
@@ -138,8 +167,9 @@ export class MockTheSquadProvider implements TeamManagementProvider {
   }
 
   async disconnect(context: ProviderContext) {
-    const parsed = parseInput(providerContextSchema, context);
-    this.disconnectedConnectionIds.add(parsed.connectionId);
+    const parsed = this.parseConnectedContext(context);
+    const connection = this.connections.get(parsed.connectionId)!;
+    this.connections.set(parsed.connectionId, { ...connection, connected: false });
   }
 
   async listOrganizations(context: ProviderContext) {
@@ -166,10 +196,13 @@ export class MockTheSquadProvider implements TeamManagementProvider {
     context: ProviderContext,
     request: Parameters<TeamManagementProvider['previewAthleteImport']>[1],
   ) {
-    this.parseConnectedContext(context);
+    const parsedContext = this.parseConnectedContext(context);
     const parsed = parseInput(athleteImportRequestSchema, request);
     this.assertSourceOrganization(parsed.sourceOrganization);
-    const previewId = stableToken('mock-import-preview', parsed);
+    const previewId = stableToken('mock-import-preview', {
+      scope: this.contextScope(parsedContext),
+      previewRequest: parsed,
+    });
     const items = this.importCandidatesFor(parsed.approvedFields);
     return immutableClone(
       parseOutput(athleteImportPreviewSchema, {
@@ -182,14 +215,15 @@ export class MockTheSquadProvider implements TeamManagementProvider {
   }
 
   async importAthletes(context: ProviderContext, request: ConfirmedAthleteImport) {
-    this.parseConnectedContext(context);
+    const parsedContext = this.parseConnectedContext(context);
     const parsed = parseInput(confirmedAthleteImportSchema, request);
     this.assertSourceOrganization(parsed.sourceOrganization);
     const previewRequest = {
       sourceOrganization: parsed.sourceOrganization,
       approvedFields: parsed.approvedFields,
     };
-    const expectedPreviewId = stableToken('mock-import-preview', previewRequest);
+    const scope = this.contextScope(parsedContext);
+    const expectedPreviewId = stableToken('mock-import-preview', { scope, previewRequest });
     const expectedConfirmation = stableToken('mock-import-confirmation', {
       previewId: expectedPreviewId,
       parsed: previewRequest,
@@ -203,9 +237,12 @@ export class MockTheSquadProvider implements TeamManagementProvider {
     }
 
     const handoffDigest = digest(parsed);
-    const existing = this.existingJob(context.idempotencyKey, handoffDigest);
+    const existing = this.existingJob(parsedContext, 'import', handoffDigest);
     if (existing) return existing;
-    const externalJobId = stableExternalId('mock-import-job', context.idempotencyKey);
+    const externalJobId = stableExternalId('mock-import-job', [
+      scope,
+      parsedContext.idempotencyKey,
+    ]);
     const items = parsed.items.map((item) => ({
       itemKey: `athlete:${item.externalAthlete.externalId}`,
       entityType: 'athlete' as const,
@@ -233,49 +270,57 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       items,
       mockData: true,
     });
-    this.storeJob(context.idempotencyKey, handoffDigest, result);
+    this.storeJob(parsedContext, 'import', handoffDigest, result);
     return immutableClone(result);
   }
 
   async previewRosterExport(context: ProviderContext, request: FinalizedRosterExportRequest) {
-    this.parseConnectedContext(context);
+    const parsedContext = this.parseConnectedContext(context);
     const parsed = parseInput(finalizedRosterExportRequestSchema, request);
     this.assertDestination(parsed.destination);
-    this.assertOrganization(context, parsed.roster.organizationId);
+    this.assertOrganization(parsedContext, parsed.roster.organizationId);
+    const scope = this.contextScope(parsedContext);
     const snapshotDigest = digest(parsed);
-    const previewId = stableToken('mock-export-preview', snapshotDigest);
+    const previewId = stableToken('mock-export-preview', { scope, snapshotDigest });
     const result = parseOutput(rosterExportPreviewSchema, {
       previewId,
       confirmationToken: stableToken('mock-export-confirmation', { previewId, snapshotDigest }),
       snapshotDigest,
       totalItems: parsed.roster.athletes.length,
-      items: parsed.roster.athletes.map((athlete) => ({
-        itemKey: `athlete:${athlete.registrationId}`,
-        registrationId: athlete.registrationId,
-        operation: this.completedExportRegistrations.has(athlete.registrationId)
-          ? 'update'
-          : this.fixture.exportExternalIds[athlete.registrationId]
-            ? 'create'
-            : 'requires_review',
-        displayLabel: `${athlete.firstName} ${athlete.lastName}`,
-      })),
+      items: parsed.roster.athletes.map((athlete) => {
+        const teamName = parsed.roster.teams.find((team) => team.id === athlete.teamId)!.name;
+        return {
+          itemKey: `athlete:${athlete.registrationId}`,
+          registrationId: athlete.registrationId,
+          operation: this.completedExportRegistrations.has(
+            this.mappingKey(parsedContext, athlete.registrationId),
+          )
+            ? 'update'
+            : this.fixture.exportExternalIds[athlete.registrationId]
+              ? 'create'
+              : 'requires_review',
+          displayLabel: exportedAthleteLabel(athlete, parsed.approvedFields),
+          fields: projectRosterFields(athlete, teamName, parsed.approvedFields),
+        };
+      }),
       mockData: true,
     });
     return immutableClone(result);
   }
 
   async exportFinalizedRoster(context: ProviderContext, request: ConfirmedRosterExport) {
-    this.parseConnectedContext(context);
+    const parsedContext = this.parseConnectedContext(context);
     const parsed = parseInput(confirmedRosterExportSchema, request);
     this.assertDestination(parsed.destination);
-    this.assertOrganization(context, parsed.roster.organizationId);
+    this.assertOrganization(parsedContext, parsed.roster.organizationId);
+    const scope = this.contextScope(parsedContext);
     const previewRequest = {
       destination: parsed.destination,
       approvedFields: parsed.approvedFields,
       roster: parsed.roster,
     };
     const snapshotDigest = digest(previewRequest);
-    const expectedPreviewId = stableToken('mock-export-preview', snapshotDigest);
+    const expectedPreviewId = stableToken('mock-export-preview', { scope, snapshotDigest });
     const expectedConfirmation = stableToken('mock-export-confirmation', {
       previewId: expectedPreviewId,
       snapshotDigest,
@@ -288,22 +333,28 @@ export class MockTheSquadProvider implements TeamManagementProvider {
     }
 
     const handoffDigest = digest(parsed);
-    const priorJobId = this.jobsByIdempotencyKey.get(context.idempotencyKey);
+    const idempotencyScope = this.idempotencyScope(parsedContext, 'export');
+    const priorJobId = this.jobsByIdempotencyKey.get(idempotencyScope);
     if (priorJobId) {
-      const prior = this.jobsById.get(priorJobId);
+      const prior = this.jobsById.get(this.jobKey(parsedContext, priorJobId));
       if (!prior || prior.digest !== handoffDigest) throw providerError('conflict');
       if (prior.result.state === 'completed') return immutableClone(prior.result);
     }
 
-    const externalJobId = priorJobId ?? stableExternalId('mock-export-job', context.idempotencyKey);
+    const externalJobId =
+      priorJobId ?? stableExternalId('mock-export-job', [scope, parsedContext.idempotencyKey]);
     const priorItems = new Map(
-      (priorJobId ? this.jobsById.get(priorJobId)?.result.items : [])?.map((item) => [
-        item.itemKey,
-        item,
-      ]),
+      (priorJobId
+        ? this.jobsById.get(this.jobKey(parsedContext, priorJobId))?.result.items
+        : []
+      )?.map((item) => [item.itemKey, item]),
     );
     const newlyFailedRegistrationIds: string[] = [];
-    const completedMappings: { registrationId: string; externalRef: ExternalEntityRef }[] = [];
+    const completedMappings: {
+      registrationId: string;
+      externalRef: ExternalEntityRef;
+      fields: RosterExportProjectedFields;
+    }[] = [];
     const items = parsed.roster.athletes.map((athlete) => {
       const itemKey = `athlete:${athlete.registrationId}`;
       const prior = priorItems.get(itemKey);
@@ -322,7 +373,9 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       }
       if (
         this.fixture.failOnceRegistrationIds.includes(athlete.registrationId) &&
-        !this.failedOnce.has(`${context.idempotencyKey}:${athlete.registrationId}`)
+        !this.failedOnce.has(
+          this.itemOperationKey(parsedContext, 'export-fail-once', athlete.registrationId),
+        )
       ) {
         newlyFailedRegistrationIds.push(athlete.registrationId);
         return {
@@ -337,11 +390,16 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       const externalRef = parseOutput(externalEntityRefSchema, {
         providerKey: this.providerKey,
         entityType: 'athlete',
-        externalId,
-        displayName: `${athlete.firstName} ${athlete.lastName}`,
+        externalId: stableExternalId('mock-athlete', [scope, externalId]),
+        displayName: exportedAthleteLabel(athlete, parsed.approvedFields),
         mockData: true,
       });
-      completedMappings.push({ registrationId: athlete.registrationId, externalRef });
+      const teamName = parsed.roster.teams.find((team) => team.id === athlete.teamId)!.name;
+      completedMappings.push({
+        registrationId: athlete.registrationId,
+        externalRef,
+        fields: projectRosterFields(athlete, teamName, parsed.approvedFields),
+      });
       return {
         itemKey,
         entityType: 'athlete' as const,
@@ -361,30 +419,50 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       mockData: true,
     });
     for (const registrationId of newlyFailedRegistrationIds) {
-      this.failedOnce.add(`${context.idempotencyKey}:${registrationId}`);
+      this.failedOnce.add(this.itemOperationKey(parsedContext, 'export-fail-once', registrationId));
     }
     for (const mapping of completedMappings) {
-      this.completedExportRegistrations.set(mapping.registrationId, mapping.externalRef);
+      this.completedExportRegistrations.set(
+        this.mappingKey(parsedContext, mapping.registrationId),
+        { externalRef: mapping.externalRef, fields: mapping.fields },
+      );
     }
-    this.storeJob(context.idempotencyKey, handoffDigest, result);
+    this.storeJob(parsedContext, 'export', handoffDigest, result);
     return immutableClone(result);
   }
 
   async getSyncStatus(context: ProviderContext, externalJobId: string) {
-    this.parseConnectedContext(context);
+    const parsedContext = this.parseConnectedContext(context);
     const parsedJobId = parseInput(
       z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u),
       externalJobId,
     );
-    const stored = this.jobsById.get(parsedJobId);
+    const scopedJobKey = this.jobKey(parsedContext, parsedJobId);
+    const stored = this.jobsById.get(scopedJobKey);
     if (!stored) throw providerError('not_found');
-    return immutableClone(parseOutput(syncJobResultSchema, stored.result));
+    const transitions = this.statusTransitionsByJob.get(scopedJobKey);
+    const transition = transitions?.shift();
+    if (transition) {
+      return immutableClone(
+        parseOutput(providerSyncStatusSchema, inFlightStatus(stored.result, transition)),
+      );
+    }
+    return immutableClone(parseOutput(providerSyncStatusSchema, stored.result));
   }
 
   private parseConnectedContext(context: ProviderContext) {
     const parsed = parseInput(providerContextSchema, context);
-    if (this.disconnectedConnectionIds.has(parsed.connectionId)) {
+    const connection = this.connections.get(parsed.connectionId);
+    if (!connection || !connection.connected) {
       throw providerError('authentication_required');
+    }
+    if (
+      connection.providerKey !== this.providerKey ||
+      connection.connectionId !== parsed.connectionId ||
+      connection.organizationId !== parsed.organizationId ||
+      connection.creatorActorId !== parsed.actorId
+    ) {
+      throw providerError('permission_denied');
     }
     return parsed;
   }
@@ -431,18 +509,53 @@ export class MockTheSquadProvider implements TeamManagementProvider {
     }));
   }
 
-  private existingJob(idempotencyKey: string, handoffDigest: string) {
-    const jobId = this.jobsByIdempotencyKey.get(idempotencyKey);
+  private existingJob(
+    context: ProviderContext,
+    operation: 'import' | 'export',
+    handoffDigest: string,
+  ) {
+    const jobId = this.jobsByIdempotencyKey.get(this.idempotencyScope(context, operation));
     if (!jobId) return null;
-    const stored = this.jobsById.get(jobId);
+    const stored = this.jobsById.get(this.jobKey(context, jobId));
     if (!stored || stored.digest !== handoffDigest) throw providerError('conflict');
     return immutableClone(stored.result);
   }
 
-  private storeJob(idempotencyKey: string, handoffDigest: string, result: SyncJobResult) {
+  private storeJob(
+    context: ProviderContext,
+    operation: 'import' | 'export',
+    handoffDigest: string,
+    result: SyncJobResult,
+  ) {
     const stored = structuredClone(result);
-    this.jobsById.set(result.externalJobId, { digest: handoffDigest, result: stored });
-    this.jobsByIdempotencyKey.set(idempotencyKey, result.externalJobId);
+    const scopedJobKey = this.jobKey(context, result.externalJobId);
+    this.jobsById.set(scopedJobKey, { digest: handoffDigest, result: stored });
+    this.jobsByIdempotencyKey.set(this.idempotencyScope(context, operation), result.externalJobId);
+    if (!this.statusTransitionsByJob.has(scopedJobKey) && this.syncStatusTransitions.length > 0) {
+      this.statusTransitionsByJob.set(scopedJobKey, [...this.syncStatusTransitions]);
+    }
+  }
+
+  private contextScope(context: ProviderContext) {
+    return [this.providerKey, context.organizationId, context.connectionId, context.actorId].join(
+      ':',
+    );
+  }
+
+  private idempotencyScope(context: ProviderContext, operation: 'import' | 'export') {
+    return `${this.contextScope(context)}:${operation}:${context.idempotencyKey}`;
+  }
+
+  private jobKey(context: ProviderContext, externalJobId: string) {
+    return `${this.contextScope(context)}:job:${externalJobId}`;
+  }
+
+  private mappingKey(context: ProviderContext, registrationId: string) {
+    return `${this.contextScope(context)}:registration:${registrationId}`;
+  }
+
+  private itemOperationKey(context: ProviderContext, operation: string, externalId: string) {
+    return `${this.contextScope(context)}:${operation}:${context.idempotencyKey}:${externalId}`;
   }
 }
 
@@ -450,6 +563,77 @@ function providerError(code: TeamManagementProviderError['code']): TeamManagemen
   return {
     code,
     retryable: ['rate_limited', 'provider_temporary', 'timeout'].includes(code),
+  };
+}
+
+function exportedAthleteLabel(
+  athlete: {
+    registrationId: string;
+    firstName: string;
+    lastName: string;
+    tryoutNumber?: number;
+  },
+  approvedFields: readonly string[],
+) {
+  const approved = new Set(approvedFields);
+  if (approved.has('first_name') && approved.has('last_name')) {
+    return `${athlete.firstName} ${athlete.lastName}`;
+  }
+  if (approved.has('tryout_number') && athlete.tryoutNumber !== undefined) {
+    return `Tryout #${athlete.tryoutNumber}`;
+  }
+  // Registration IDs are opaque TryoutFlow references required to correlate item outcomes.
+  return `Registration ${athlete.registrationId}`;
+}
+
+function projectRosterFields(
+  athlete: {
+    firstName: string;
+    lastName: string;
+    email?: string;
+    phone?: string;
+    position?: string;
+    tryoutNumber?: number;
+  },
+  teamName: string,
+  approvedFields: readonly string[],
+): RosterExportProjectedFields {
+  const approved = new Set(approvedFields);
+  return {
+    ...(approved.has('first_name') ? { firstName: athlete.firstName } : {}),
+    ...(approved.has('last_name') ? { lastName: athlete.lastName } : {}),
+    ...(approved.has('email') && athlete.email ? { email: athlete.email } : {}),
+    ...(approved.has('phone') && athlete.phone ? { phone: athlete.phone } : {}),
+    ...(approved.has('position') && athlete.position ? { position: athlete.position } : {}),
+    ...(approved.has('team_name') ? { teamName } : {}),
+    ...(approved.has('tryout_number') && athlete.tryoutNumber !== undefined
+      ? { tryoutNumber: athlete.tryoutNumber }
+      : {}),
+  };
+}
+
+function inFlightStatus(
+  terminal: SyncJobResult,
+  state: 'pending' | 'processing',
+): ProviderSyncStatus {
+  if (terminal.items.length === 0) return terminal;
+  const retainedCompletedItems = terminal.items.length > 1 ? 1 : 0;
+  return {
+    externalJobId: terminal.externalJobId,
+    state,
+    items: terminal.items.map((item, index) =>
+      index < retainedCompletedItems
+        ? item
+        : {
+            itemKey: item.itemKey,
+            entityType: item.entityType,
+            state,
+            attempts: state === 'processing' ? Math.max(1, item.attempts) : 0,
+            externalRef: null,
+            error: null,
+          },
+    ),
+    mockData: terminal.mockData,
   };
 }
 
