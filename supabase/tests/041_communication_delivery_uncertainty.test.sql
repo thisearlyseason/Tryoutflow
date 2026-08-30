@@ -42,9 +42,9 @@ select ok((select provider_submission_started_at is not null from public.outbox_
   'provider-started marker is retained');
 select ok((select delivery_uncertain_reason ~ '^[a-z][a-z0-9_]{2,63}$' from public.outbox_jobs where id='a1000000-0000-4000-8000-000000000005'),
   'uncertainty reason is a bounded code');
-select ok(not has_function_privilege('authenticated','public.complete_outbox_job(uuid,uuid,bigint,text)','execute'),
+select ok(not has_function_privilege('authenticated','public.complete_outbox_job_v2(uuid,uuid,bigint,uuid,text)','execute'),
   'late completion remains service-only');
-select ok(has_function_privilege('service_role','public.complete_outbox_job(uuid,uuid,bigint,text)','execute'),
+select ok(has_function_privilege('service_role','public.complete_outbox_job_v2(uuid,uuid,bigint,uuid,text)','execute'),
   'service can reconcile an exact provider handoff');
 select ok(not has_table_privilege('service_role','public.outbox_provider_handoffs','insert'),
   'service cannot forge a provider handoff outside the authorization RPC');

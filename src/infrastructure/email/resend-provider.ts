@@ -77,9 +77,12 @@ export function isEmailProviderError(error: unknown): error is EmailProviderErro
     typeof error === 'object' &&
     error !== null &&
     'code' in error &&
-    ['provider_temporary', 'provider_rejected', 'provider_configuration'].includes(
-      String((error as { code: unknown }).code),
-    ) &&
+    [
+      'provider_temporary',
+      'provider_rejected',
+      'provider_configuration',
+      'provider_timeout_uncertain',
+    ].includes(String((error as { code: unknown }).code)) &&
     typeof (error as { retryable?: unknown }).retryable === 'boolean'
   );
 }

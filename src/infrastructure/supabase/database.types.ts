@@ -1253,27 +1253,52 @@ export type Database = {
       };
       outbox_provider_handoffs: {
         Row: {
+          attempt_state: string;
           job_id: string;
           lease_generation: number;
           lease_token: string;
+          message_id: string;
           organization_id: string;
+          provider_idempotency_key: string;
+          provider_message_id: string | null;
+          resolved_at: string | null;
+          send_attempt_token: string;
           started_at: string;
         };
         Insert: {
+          attempt_state?: string;
           job_id: string;
           lease_generation: number;
           lease_token: string;
+          message_id: string;
           organization_id: string;
+          provider_idempotency_key: string;
+          provider_message_id?: string | null;
+          resolved_at?: string | null;
+          send_attempt_token?: string;
           started_at?: string;
         };
         Update: {
+          attempt_state?: string;
           job_id?: string;
           lease_generation?: number;
           lease_token?: string;
+          message_id?: string;
           organization_id?: string;
+          provider_idempotency_key?: string;
+          provider_message_id?: string | null;
+          resolved_at?: string | null;
+          send_attempt_token?: string;
           started_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: 'outbox_provider_handoffs_message_fkey';
+            columns: ['organization_id', 'message_id'];
+            isOneToOne: false;
+            referencedRelation: 'communication_messages';
+            referencedColumns: ['organization_id', 'id'];
+          },
           {
             foreignKeyName: 'outbox_provider_handoffs_organization_id_job_id_fkey';
             columns: ['organization_id', 'job_id'];
@@ -2792,6 +2817,16 @@ export type Database = {
         };
         Returns: string;
       };
+      authorize_outbox_job_send_v2: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_provider_timeout_ms: number;
+          p_safety_margin_ms: number;
+        };
+        Returns: Json;
+      };
       can_access_evaluation: {
         Args: {
           evaluator_user_id: string;
@@ -3049,6 +3084,16 @@ export type Database = {
         };
         Returns: string;
       };
+      complete_outbox_job_v2: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_provider_message_id: string;
+          p_send_attempt_token: string;
+        };
+        Returns: string;
+      };
       configure_evaluation_note_tag: {
         Args: {
           p_active: boolean;
@@ -3186,6 +3231,16 @@ export type Database = {
         };
         Returns: string;
       };
+      decline_outbox_job_send_v2: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_reason: string;
+          p_send_attempt_token: string;
+        };
+        Returns: string;
+      };
       evaluator_has_active_context: {
         Args: {
           p_evaluator_user_id: string;
@@ -3203,6 +3258,17 @@ export type Database = {
           p_lease_generation: number;
           p_lease_token: string;
           p_retryable: boolean;
+        };
+        Returns: string;
+      };
+      fail_outbox_job_v2: {
+        Args: {
+          p_error_code: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_retryable: boolean;
+          p_send_attempt_token: string;
         };
         Returns: string;
       };

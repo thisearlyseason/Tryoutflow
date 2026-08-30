@@ -4,7 +4,7 @@ import { execFile as execFileCallback } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import { FakeEmailProvider } from '../../../src/infrastructure/email/fake-email-provider';
 import type { EmailProvider } from '../../../src/infrastructure/email/email-provider';
@@ -30,9 +30,67 @@ const ids = {
 };
 const keyPrefix = `task22-${randomUUID()}`;
 
+const authorizeSend = async (
+  jobId: string,
+  leaseToken: string,
+  leaseGeneration: string | number,
+) => {
+  const result = await psql(`set role service_role; select public.authorize_outbox_job_send_v2(
+    '${jobId}','${leaseToken}',${Number(leaseGeneration)},30000,10000)`);
+  return JSON.parse(result.stdout.trim()) as {
+    outcome: string;
+    send_attempt_token: string | null;
+    send_budget_ms: number;
+  };
+};
+
+const completeSend = async (
+  jobId: string,
+  leaseToken: string,
+  leaseGeneration: string | number,
+  sendAttemptToken: string,
+  providerMessageId: string,
+) =>
+  psql(`set role service_role; select public.complete_outbox_job_v2(
+    '${jobId}','${leaseToken}',${Number(leaseGeneration)},'${sendAttemptToken}','${providerMessageId}')`);
+
+const failSend = async (
+  jobId: string,
+  leaseToken: string,
+  leaseGeneration: string | number,
+  sendAttemptToken: string,
+  errorCode = 'provider_temporary',
+  retryable = true,
+) =>
+  psql(`set role service_role; select public.fail_outbox_job_v2(
+    '${jobId}','${leaseToken}',${Number(leaseGeneration)},'${sendAttemptToken}','${errorCode}',${retryable})`);
+
+const databaseJobRpc = async (name: string, args: Record<string, unknown>) => {
+  const functionName = String(name);
+  const argumentsSql =
+    functionName === 'authorize_outbox_job_send_v2'
+      ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},${Number(args.p_provider_timeout_ms)},${Number(args.p_safety_margin_ms)}`
+      : functionName === 'complete_outbox_job_v2'
+        ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_provider_message_id)}'`
+        : functionName === 'decline_outbox_job_send_v2'
+          ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_reason)}'`
+          : `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_error_code)}',${Boolean(args.p_retryable)}`;
+  const result = await psql(
+    `set role service_role; select public.${functionName}(${argumentsSql})`,
+  );
+  return {
+    data:
+      functionName === 'authorize_outbox_job_send_v2'
+        ? (JSON.parse(result.stdout.trim()) as unknown)
+        : result.stdout.trim(),
+    error: null,
+  };
+};
+
 afterAll(async () => {
   await psql(`
     set session_replication_role=replica;
+    delete from public.outbox_provider_handoffs where organization_id='${ids.organization}';
     delete from public.outbox_jobs where organization_id='${ids.organization}';
     delete from public.communication_messages where organization_id='${ids.organization}';
     delete from public.notification_preferences where organization_id='${ids.organization}';
@@ -129,29 +187,37 @@ describe('transactional communication outbox', () => {
     expect(nextToken).not.toBe(token);
     expect(
       (
-        await psql(
-          `set role service_role; select public.complete_outbox_job('${jobId}','${token}',${generation},'66666666-6666-4666-8666-666666666666')`,
+        await completeSend(
+          jobId!,
+          token!,
+          generation!,
+          '66666666-6666-4666-8666-666666666667',
+          '66666666-6666-4666-8666-666666666666',
         )
       ).stdout.trim(),
-    ).toBe('lease_conflict');
+    ).toBe('attempt_conflict');
+    const authorization = await authorizeSend(jobId!, nextToken!, nextGeneration!);
+    expect(authorization.outcome).toBe('authorized');
+    expect(authorization.send_attempt_token).toMatch(/[0-9a-f-]{36}/u);
     expect(
       (
-        await psql(
-          `set role service_role; select public.authorize_outbox_job_send('${jobId}','${nextToken}',${nextGeneration})`,
-        )
-      ).stdout.trim(),
-    ).toBe('authorized');
-    expect(
-      (
-        await psql(
-          `set role service_role; select public.complete_outbox_job('${jobId}','${nextToken}',${nextGeneration},'55555555-5555-4555-8555-555555555555')`,
+        await completeSend(
+          jobId!,
+          nextToken!,
+          nextGeneration!,
+          authorization.send_attempt_token!,
+          '55555555-5555-4555-8555-555555555555',
         )
       ).stdout.trim(),
     ).toBe('completed');
     expect(
       (
-        await psql(
-          `set role service_role; select public.complete_outbox_job('${jobId}','${nextToken}',${nextGeneration},'55555555-5555-4555-8555-555555555555')`,
+        await completeSend(
+          jobId!,
+          nextToken!,
+          nextGeneration!,
+          authorization.send_attempt_token!,
+          '55555555-5555-4555-8555-555555555555',
         )
       ).stdout.trim(),
     ).toBe('replayed');
@@ -215,11 +281,11 @@ describe('transactional communication outbox', () => {
       `set role service_role; select job_id||'|'||lease_token||'|'||lease_generation from public.claim_outbox_jobs('worker-retry',1,60)`,
     );
     const [jobId, token, generation] = retryClaim.stdout.trim().split('|');
+    const retryAuthorization = await authorizeSend(jobId!, token!, generation!);
+    expect(retryAuthorization.outcome).toBe('authorized');
     expect(
       (
-        await psql(
-          `set role service_role; select public.fail_outbox_job('${jobId}','${token}',${generation},'provider_temporary',true)`,
-        )
+        await failSend(jobId!, token!, generation!, retryAuthorization.send_attempt_token!)
       ).stdout.trim(),
     ).toBe('retry_scheduled');
     expect(
@@ -236,10 +302,15 @@ describe('transactional communication outbox', () => {
       `set role service_role; select lease_token||'|'||lease_generation from public.claim_outbox_jobs('worker-final',1,60)`,
     );
     const [finalToken, finalGeneration] = finalClaim.stdout.trim().split('|');
+    const finalAuthorization = await authorizeSend(jobId!, finalToken!, finalGeneration!);
+    expect(finalAuthorization.outcome).toBe('authorized');
     expect(
       (
-        await psql(
-          `set role service_role; select public.fail_outbox_job('${jobId}','${finalToken}',${finalGeneration},'provider_temporary',true)`,
+        await failSend(
+          jobId!,
+          finalToken!,
+          finalGeneration!,
+          finalAuthorization.send_attempt_token!,
         )
       ).stdout.trim(),
     ).toBe('dead_lettered');
@@ -337,13 +408,7 @@ describe('transactional communication outbox', () => {
         )
       ).stdout.trim(),
     ).toBe('cancelled|confirmation_token_superseded');
-    expect(
-      (
-        await psql(
-          `set role service_role; select public.authorize_outbox_job_send('${confirmationJob}','${leaseToken}',1)`,
-        )
-      ).stdout.trim(),
-    ).toBe('lease_conflict');
+    expect((await authorizeSend(confirmationJob, leaseToken, 1)).outcome).toBe('lease_conflict');
     expect(
       (
         await psql(
@@ -366,13 +431,8 @@ describe('transactional communication outbox', () => {
     await psql(`update public.outbox_jobs set status='leased',attempt_count=1,lease_owner='in-flight-worker',
       lease_token='${inFlightLease}',lease_generation=1,lease_expires_at=clock_timestamp()+interval '1 minute'
       where id='${inFlightJob}'`);
-    expect(
-      (
-        await psql(
-          `set role service_role; select public.authorize_outbox_job_send('${inFlightJob}','${inFlightLease}',1)`,
-        )
-      ).stdout.trim(),
-    ).toBe('authorized');
+    const inFlightAuthorization = await authorizeSend(inFlightJob, inFlightLease, 1);
+    expect(inFlightAuthorization.outcome).toBe('authorized');
     await psql(`select public.rotate_registration_confirmation_token('${ids.registration}')`);
     expect(
       (
@@ -383,8 +443,12 @@ describe('transactional communication outbox', () => {
     ).toBe('needs_attention|true');
     expect(
       (
-        await psql(
-          `set role service_role; select public.complete_outbox_job('${inFlightJob}','${inFlightLease}',1,'77777777-7777-4777-8777-777777777777')`,
+        await completeSend(
+          inFlightJob,
+          inFlightLease,
+          1,
+          inFlightAuthorization.send_attempt_token!,
+          '77777777-7777-4777-8777-777777777777',
         )
       ).stdout.trim(),
     ).toBe('completed');
@@ -519,12 +583,8 @@ describe('transactional communication outbox', () => {
     ).stdout
       .trim()
       .split('|');
-    expect(
-      (
-        await psql(`set role service_role; select public.authorize_outbox_job_send(
-          '${queued}','${claim[0]}',${claim[1]})`)
-      ).stdout.trim(),
-    ).toBe('authorized');
+    const authorization = await authorizeSend(queued, claim[0]!, claim[1]!);
+    expect(authorization.outcome).toBe('authorized');
     await psql(`update public.tryout_registrations set status='withdrawn' where id='${ids.registration}';
       update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${queued}'`);
     await psql(
@@ -539,14 +599,24 @@ describe('transactional communication outbox', () => {
     ).toBe('needs_attention|delivery_uncertain|registration_ineligible|true');
     expect(
       (
-        await psql(`set role service_role; select public.complete_outbox_job(
-          '${queued}','${claim[0]}',${claim[1]},'88888888-8888-4888-8888-888888888888')`)
+        await completeSend(
+          queued,
+          claim[0]!,
+          claim[1]!,
+          authorization.send_attempt_token!,
+          '88888888-8888-4888-8888-888888888888',
+        )
       ).stdout.trim(),
     ).toBe('completed');
     expect(
       (
-        await psql(`set role service_role; select public.complete_outbox_job(
-          '${queued}','${claim[0]}',${claim[1]},'88888888-8888-4888-8888-888888888888')`)
+        await completeSend(
+          queued,
+          claim[0]!,
+          claim[1]!,
+          authorization.send_attempt_token!,
+          '88888888-8888-4888-8888-888888888888',
+        )
       ).stdout.trim(),
     ).toBe('replayed');
     await psql(
@@ -570,13 +640,9 @@ describe('transactional communication outbox', () => {
       ).stdout
         .trim()
         .split('|');
-      expect(
-        (
-          await psql(`set role service_role; select public.authorize_outbox_job_send(
-            '${jobId}','${token}',${generation})`)
-        ).stdout.trim(),
-      ).toBe('authorized');
-      return { token, generation };
+      const authorization = await authorizeSend(jobId, token!, generation!);
+      expect(authorization.outcome).toBe('authorized');
+      return { token, generation, sendAttemptToken: authorization.send_attempt_token };
     };
 
     const offboardedJob = await queue('uncertain-offboard');
@@ -630,6 +696,8 @@ describe('transactional communication outbox', () => {
       return JSON.parse(rows.stdout.trim()) as Array<Record<string, unknown>>;
     })();
     if (!claimed) throw new Error('delayed authorization job was not claimed');
+    await psql(`update public.outbox_jobs set lease_expires_at=clock_timestamp()+interval '60.5 seconds'
+      where id='${queued}'`);
     const leasedJob = {
       jobId: String(claimed.job_id),
       messageId: String(claimed.message_id),
@@ -646,13 +714,22 @@ describe('transactional communication outbox', () => {
     const client: JobRpcClient = {
       rpc: async (name, args) => {
         const functionName = String(name);
-        const result = await psql(`set role service_role; select public.${functionName}(
-          '${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)}${
-            functionName === 'decline_outbox_job_send' ? `,'${String(args.p_reason)}'` : ''
-          })`);
-        if (functionName === 'authorize_outbox_job_send')
+        if (functionName === 'authorize_outbox_job_send_v2')
           await new Promise((resolve) => setTimeout(resolve, 1_000));
-        return { data: result.stdout.trim(), error: null };
+        const argumentSql =
+          functionName === 'authorize_outbox_job_send_v2'
+            ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},${Number(args.p_provider_timeout_ms)},${Number(args.p_safety_margin_ms)}`
+            : `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_reason)}'`;
+        const result = await psql(
+          `set role service_role; select public.${functionName}(${argumentSql})`,
+        );
+        return {
+          data:
+            functionName === 'authorize_outbox_job_send_v2'
+              ? (JSON.parse(result.stdout.trim()) as unknown)
+              : result.stdout.trim(),
+          error: null,
+        };
       },
     };
     let providerCalls = 0;
@@ -667,18 +744,121 @@ describe('transactional communication outbox', () => {
     expect(providerCalls).toBe(0);
     expect(
       (
-        await psql(`select status||'|'||last_error_code||'|'||(provider_submission_started_at is null)||'|'||
+        await psql(`select status||'|'||coalesce(last_error_code,'NULL')||'|'||(provider_submission_started_at is null)||'|'||
           (select count(*) from public.outbox_provider_handoffs where job_id=job.id)
           from public.outbox_jobs job where id='${queued}'`)
       ).stdout.trim(),
-    ).toBe('pending|provider_deadline_elapsed|true|0');
-    await psql(`update public.outbox_jobs set available_at='1400-01-01' where id='${queued}'`);
+    ).toBe('leased|NULL|true|0');
+    await psql(`update public.outbox_jobs set available_at='1400-01-01',
+      lease_expires_at=clock_timestamp()-interval '1 second' where id='${queued}'`);
     expect(
       (
         await psql(`set role service_role; select count(*) from public.claim_outbox_jobs(
           'worker-delayed-auth-retry',1,90)`)
       ).stdout.trim(),
     ).toBe('1');
+  });
+
+  it('grants concurrent dispatch routines exactly one provider invocation', async () => {
+    const queued = (
+      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+          '${ids.guardian}','registration_reminder','Exclusive dispatch','Body','${keyPrefix}-exclusive-dispatch')`)
+    ).stdout.trim();
+    await psql(`update public.outbox_jobs set available_at='1350-01-01' where id='${queued}'`);
+    const claimed = JSON.parse(
+      (
+        await psql(`set role service_role; select row_to_json(claim) from public.claim_outbox_jobs(
+          'worker-exclusive-dispatch',1,90) claim`)
+      ).stdout.trim(),
+    ) as Record<string, unknown>;
+    const leasedJob = {
+      jobId: String(claimed.job_id),
+      messageId: String(claimed.message_id),
+      leaseToken: String(claimed.lease_token),
+      leaseGeneration: Number(claimed.lease_generation),
+      leaseExpiresAt: String(claimed.lease_expires_at),
+      providerIdempotencyKey: String(claimed.provider_idempotency_key),
+      recipientEmail: String(claimed.recipient_email),
+      subject: String(claimed.subject),
+      bodyText: String(claimed.body_text),
+      attemptCount: Number(claimed.attempt_count),
+      maxAttempts: Number(claimed.max_attempts),
+    };
+    let providerCalls = 0;
+    const provider = {
+      async send() {
+        providerCalls += 1;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return { providerMessageId: randomUUID() };
+      },
+    } satisfies EmailProvider;
+    const client = { rpc: databaseJobRpc };
+
+    const outcomes = await Promise.all([
+      dispatchJob(client, provider, leasedJob),
+      dispatchJob(client, provider, leasedJob),
+    ]);
+    expect(outcomes.sort()).toEqual(['completed', 'needs_attention']);
+    expect(providerCalls).toBe(1);
+    expect(
+      (
+        await psql(`select count(*)||'|'||bool_and(attempt_state='completed')
+          from public.outbox_provider_handoffs where job_id='${queued}'`)
+      ).stdout.trim(),
+    ).toBe('1|true');
+  });
+
+  it('retains exclusive truth when the authorization response is lost', async () => {
+    const queued = (
+      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+          '${ids.guardian}','registration_reminder','Lost authorization','Body','${keyPrefix}-lost-authorization')`)
+    ).stdout.trim();
+    await psql(`update public.outbox_jobs set available_at='1325-01-01' where id='${queued}'`);
+    const claimed = JSON.parse(
+      (
+        await psql(`set role service_role; select row_to_json(claim) from public.claim_outbox_jobs(
+          'worker-lost-authorization',1,90) claim`)
+      ).stdout.trim(),
+    ) as Record<string, unknown>;
+    const leasedJob = {
+      jobId: String(claimed.job_id),
+      messageId: String(claimed.message_id),
+      leaseToken: String(claimed.lease_token),
+      leaseGeneration: Number(claimed.lease_generation),
+      leaseExpiresAt: String(claimed.lease_expires_at),
+      providerIdempotencyKey: String(claimed.provider_idempotency_key),
+      recipientEmail: String(claimed.recipient_email),
+      subject: String(claimed.subject),
+      bodyText: String(claimed.body_text),
+      attemptCount: Number(claimed.attempt_count),
+      maxAttempts: Number(claimed.max_attempts),
+    };
+    let loseAuthorization = true;
+    const client: JobRpcClient = {
+      rpc: async (name, args) => {
+        const result = await databaseJobRpc(name, args);
+        if (name === 'authorize_outbox_job_send_v2' && loseAuthorization) {
+          loseAuthorization = false;
+          return { data: null, error: { code: 'network' } };
+        }
+        return result;
+      },
+    };
+    const provider = { send: vi.fn() } satisfies EmailProvider;
+
+    await expect(dispatchJob(client, provider, leasedJob)).rejects.toThrow('authorization_failed');
+    await expect(dispatchJob(client, provider, leasedJob)).resolves.toBe('needs_attention');
+    expect(provider.send).not.toHaveBeenCalled();
+    expect(
+      (
+        await psql(`select count(*)||'|'||bool_and(attempt_state='authorized')
+          from public.outbox_provider_handoffs where job_id='${queued}'`)
+      ).stdout.trim(),
+    ).toBe('1|true');
   });
 
   it('serializes a known-not-sent decline against lease reclaim without erasing another generation', async () => {
@@ -695,19 +875,15 @@ describe('transactional communication outbox', () => {
     ).stdout
       .trim()
       .split('|');
-    expect(
-      (
-        await psql(`set role service_role; select public.authorize_outbox_job_send(
-          '${queued}','${token}',${generation})`)
-      ).stdout.trim(),
-    ).toBe('authorized');
+    const authorization = await authorizeSend(queued, token!, generation!);
+    expect(authorization.outcome).toBe('authorized');
     await psql(
       `update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${queued}'`,
     );
 
     const [decline, reclaim] = await Promise.all([
-      psql(`set role service_role; select public.decline_outbox_job_send(
-        '${queued}','${token}',${generation},'provider_deadline_elapsed')`),
+      psql(`set role service_role; select public.decline_outbox_job_send_v2(
+        '${queued}','${token}',${generation},'${authorization.send_attempt_token}','provider_deadline_elapsed')`),
       psql(`set role service_role; select count(*) from public.claim_outbox_jobs(
         'worker-decline-race-new',1,60)`),
     ]);
@@ -718,7 +894,7 @@ describe('transactional communication outbox', () => {
         (select count(*) from public.outbox_provider_handoffs where job_id=job.id)
         from public.outbox_jobs job where id='${queued}'`)
     ).stdout.trim();
-    expect([`pending|${generation}|true|0`, `leased|${Number(generation) + 1}|false|1`]).toContain(
+    expect([`pending|${generation}|true|1`, `needs_attention|${generation}|false|1`]).toContain(
       final,
     );
   });
@@ -741,26 +917,32 @@ describe('transactional communication outbox', () => {
               from public.claim_outbox_jobs('${String(args.p_lease_owner)}',${Number(args.p_batch_size)},${Number(args.p_lease_seconds)}) claim`);
             return { data: JSON.parse(result.stdout.trim()) as unknown, error: null };
           }
-          if (name === 'complete_outbox_job' && loseFirstCompletionResponse) {
-            loseFirstCompletionResponse = false;
-            return { data: null, error: { code: 'network' } };
-          }
           const functionName =
-            name === 'authorize_outbox_job_send'
+            name === 'authorize_outbox_job_send_v2'
               ? name
-              : name === 'complete_outbox_job'
+              : name === 'complete_outbox_job_v2'
                 ? name
-                : 'fail_outbox_job';
+                : 'fail_outbox_job_v2';
           const argumentsSql =
-            functionName === 'authorize_outbox_job_send'
-              ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)}`
-              : functionName === 'complete_outbox_job'
-                ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_provider_message_id)}'`
-                : `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_error_code)}',${Boolean(args.p_retryable)}`;
+            functionName === 'authorize_outbox_job_send_v2'
+              ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},${Number(args.p_provider_timeout_ms)},${Number(args.p_safety_margin_ms)}`
+              : functionName === 'complete_outbox_job_v2'
+                ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_provider_message_id)}'`
+                : `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_error_code)}',${Boolean(args.p_retryable)}`;
           const result = await psql(
             `set role service_role; select public.${functionName}(${argumentsSql})`,
           );
-          return { data: result.stdout.trim(), error: null };
+          if (functionName === 'complete_outbox_job_v2' && loseFirstCompletionResponse) {
+            loseFirstCompletionResponse = false;
+            return { data: null, error: { code: 'network' } };
+          }
+          return {
+            data:
+              functionName === 'authorize_outbox_job_send_v2'
+                ? (JSON.parse(result.stdout.trim()) as unknown)
+                : result.stdout.trim(),
+            error: null,
+          };
         } catch (error) {
           return { data: null, error };
         }
@@ -774,16 +956,6 @@ describe('transactional communication outbox', () => {
     expect(job?.jobId).toBe(queued);
     const provider = new FakeEmailProvider();
     await expect(dispatchJob(client, provider, job!)).rejects.toThrow('completion_failed');
-    await psql(
-      `update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${queued}'`,
-    );
-    const [retry] = await claimJobs(client, {
-      leaseOwner: 'worker-fake-contract-retry',
-      batchSize: 1,
-      leaseSeconds: 90,
-    });
-    expect(retry?.providerIdempotencyKey).toBe(job?.providerIdempotencyKey);
-    await expect(dispatchJob(client, provider, retry!)).resolves.toBe('completed');
     expect(provider.submissions.size).toBe(1);
     expect(
       (

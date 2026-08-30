@@ -1,11 +1,11 @@
 begin;
 select plan(26);
 
-select has_function('public','decline_outbox_job_send',array['uuid','uuid','bigint','text'],
+select has_function('public','decline_outbox_job_send_v2',array['uuid','uuid','bigint','uuid','text'],
   'authorized but known-not-sent handoffs have an exact fenced release RPC');
-select ok(has_function_privilege('service_role','public.decline_outbox_job_send(uuid,uuid,bigint,text)','execute'),
+select ok(has_function_privilege('service_role','public.decline_outbox_job_send_v2(uuid,uuid,bigint,uuid,text)','execute'),
   'service worker may release its exact known-not-sent handoff');
-select ok(not has_function_privilege('authenticated','public.decline_outbox_job_send(uuid,uuid,bigint,text)','execute'),
+select ok(not has_function_privilege('authenticated','public.decline_outbox_job_send_v2(uuid,uuid,bigint,uuid,text)','execute'),
   'clients cannot release provider handoffs');
 
 select ok(not has_table_privilege('service_role','public.communication_messages','insert'),'service cannot insert messages directly');
@@ -45,13 +45,16 @@ insert into public.outbox_jobs(
   'communication:b2000000-0000-4000-8000-000000000002','leased',1,'worker-decline',
   'b2000000-0000-4000-8000-000000000005',1,clock_timestamp()+interval '60 seconds',clock_timestamp()
 );
-insert into public.outbox_provider_handoffs(organization_id,job_id,lease_token,lease_generation)
-values('b2000000-0000-4000-8000-000000000001','b2000000-0000-4000-8000-000000000004',
-  'b2000000-0000-4000-8000-000000000005',1);
+insert into public.outbox_provider_handoffs(
+  organization_id,job_id,message_id,lease_token,lease_generation,provider_idempotency_key,send_attempt_token
+) values('b2000000-0000-4000-8000-000000000001','b2000000-0000-4000-8000-000000000004',
+  'b2000000-0000-4000-8000-000000000002','b2000000-0000-4000-8000-000000000005',1,
+  'communication:b2000000-0000-4000-8000-000000000002','b2000000-0000-4000-8000-000000000006');
 
 set local role service_role;
-select is(public.decline_outbox_job_send(
+select is(public.decline_outbox_job_send_v2(
   'b2000000-0000-4000-8000-000000000004','b2000000-0000-4000-8000-000000000005',1,
+  'b2000000-0000-4000-8000-000000000006',
   'provider_deadline_elapsed'
 ),'retry_scheduled','exact authorized handoff can be durably classified as known not sent');
 reset role;
@@ -62,13 +65,14 @@ select is((select last_error_code from public.outbox_jobs where id='b2000000-000
 select ok((select provider_submission_started_at is null from public.outbox_jobs where id='b2000000-0000-4000-8000-000000000004'),
   'decline clears the provider-start ambiguity marker');
 select is((select count(*) from public.outbox_provider_handoffs where job_id='b2000000-0000-4000-8000-000000000004'),
-  0::bigint,'decline removes only its exact unsubmitted handoff authority');
+  1::bigint,'decline retains its exact unsubmitted handoff lineage');
 select ok((select lease_token is null and lease_owner is null and lease_expires_at is null
   from public.outbox_jobs where id='b2000000-0000-4000-8000-000000000004'),
   'decline releases the exact lease');
 set local role service_role;
-select is(public.decline_outbox_job_send(
+select is(public.decline_outbox_job_send_v2(
   'b2000000-0000-4000-8000-000000000004','b2000000-0000-4000-8000-000000000005',1,
+  'b2000000-0000-4000-8000-000000000006',
   'provider_deadline_elapsed'
 ),'lease_conflict','stale decline cannot alter the rescheduled generation');
 select throws_ok($$delete from public.outbox_jobs where id='b2000000-0000-4000-8000-000000000004'$$,
