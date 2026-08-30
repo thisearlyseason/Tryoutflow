@@ -13,6 +13,8 @@ export interface DockerDatabaseContainer {
 export interface ResolvedDatabaseContainer extends DockerDatabaseContainer {
   database: string;
   username: string;
+  password: string;
+  identity?: string;
 }
 
 export function selectDatabaseContainer(
@@ -25,5 +27,9 @@ export function assertDatabaseIdentity(
   containerIdentity: string,
   selected: Pick<ResolvedDatabaseContainer, 'name' | 'database'>,
 ): void;
+export function canonicalDatabaseIdentity(identity: string): string;
+export function resolveAndValidateLocalDatabase(
+  databaseUrl: string,
+): ResolvedDatabaseContainer & { identity: string };
 export function resolveAndValidateDatabaseContainer(databaseUrl: string): ResolvedDatabaseContainer;
 export function dumpLocalSupabaseSchemas(databaseUrl: string, schemas: string[]): string;

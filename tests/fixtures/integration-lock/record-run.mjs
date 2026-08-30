@@ -1,7 +1,8 @@
 import { appendFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 
-const [output, holdMillisecondsText, counterKey] = process.argv.slice(2);
+const [output, holdMillisecondsText, counterKey, behavior] = process.argv.slice(2);
 if (!output || !holdMillisecondsText || !counterKey) {
   throw new Error('output path, hold duration, and counter key are required');
 }
@@ -31,6 +32,34 @@ execFileSync(
   ],
   { stdio: 'pipe' },
 );
-appendFileSync(output, `${JSON.stringify({ event: 'start', pid: process.pid })}\n`);
+const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+if (!runId || !/^[0-9a-f]{16}$/u.test(runId))
+  throw new Error('validated integration run id required');
+const databasePrefix = `tryoutflow_fixture_${runId}_`;
+let organizationId;
+let userId;
+if (behavior === 'create-owned-resources') {
+  organizationId = randomUUID();
+  userId = randomUUID();
+  execFileSync('psql', [databaseUrl, '-c', `create database ${databasePrefix}owned`], {
+    stdio: 'pipe',
+  });
+  execFileSync(
+    'psql',
+    [
+      databaseUrl,
+      '-c',
+      `insert into auth.users(id) values('${userId}'); insert into public.organizations(id,name,slug) values('${organizationId}','Owned integration fixture','owned-${runId}')`,
+    ],
+    { stdio: 'pipe' },
+  );
+}
+if (behavior === 'ignore-term') process.on('SIGTERM', () => {});
+appendFileSync(
+  output,
+  `${JSON.stringify({ event: 'start', pid: process.pid, runId, databasePrefix, organizationId, userId })}\n`,
+);
+if (behavior === 'self-kill') process.kill(process.pid, 'SIGKILL');
+if (behavior === 'exit-23') process.exit(23);
 await new Promise((resolve) => setTimeout(resolve, holdMilliseconds));
 appendFileSync(output, `${JSON.stringify({ event: 'end', pid: process.pid })}\n`);

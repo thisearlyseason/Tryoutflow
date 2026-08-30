@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 /**
  * @typedef {{HostIp: string, HostPort: string}} DockerPortBinding
@@ -28,6 +29,7 @@ function parseDatabaseUrl(databaseUrl) {
     port: parsed.port,
     database,
     username: decodeURIComponent(parsed.username || 'postgres'),
+    password: decodeURIComponent(parsed.password),
   };
 }
 
@@ -64,7 +66,12 @@ export function selectDatabaseContainer(databaseUrl, candidates) {
       `multiple Supabase database containers match ${target.hostname}:${target.port}/${target.database}`,
     );
   }
-  return { ...matches[0], database: target.database, username: target.username };
+  return {
+    ...matches[0],
+    database: target.database,
+    username: target.username,
+    password: target.password,
+  };
 }
 
 /** @returns {DockerDatabaseContainer[]} */
@@ -99,47 +106,66 @@ export function assertDatabaseIdentity(endpointIdentity, containerIdentity, sele
   }
 }
 
-export function resolveAndValidateDatabaseContainer(databaseUrl) {
+export function canonicalDatabaseIdentity(identity) {
+  const match = /^([^|]+)\|([1-9][0-9]*)\|([1-9][0-9]*)$/u.exec(identity);
+  if (!match) throw new Error('invalid database identity');
+  return createHash('sha256').update(`${match[3]}:${match[2]}:${match[1]}`).digest('hex');
+}
+
+export function resolveAndValidateLocalDatabase(databaseUrl) {
   const selected = selectDatabaseContainer(databaseUrl, inspectRunningSupabaseDatabaseContainers());
   const identitySql =
-    "select current_database()||'|'||(pg_control_system()).system_identifier::text";
+    "select current_database()||'|'||(select oid::text from pg_database where datname=current_database())||'|'||(pg_control_system()).system_identifier::text";
   const endpointIdentity = databaseIdentity('psql', ['-X', '-At', databaseUrl, '-c', identitySql]);
+  const containerUrl = new URL(databaseUrl);
+  containerUrl.hostname = '127.0.0.1';
+  containerUrl.port = '5432';
+  containerUrl.pathname = `/${selected.database}`;
+  containerUrl.search = '';
+  containerUrl.hash = '';
   const containerIdentity = databaseIdentity('docker', [
     'exec',
     selected.name,
     'psql',
     '-X',
-    '-U',
-    selected.username,
-    '-d',
-    selected.database,
+    containerUrl.toString(),
     '-At',
     '-c',
     identitySql,
   ]);
   assertDatabaseIdentity(endpointIdentity, containerIdentity, selected);
-  return selected;
+  return { ...selected, identity: canonicalDatabaseIdentity(endpointIdentity) };
+}
+
+export function resolveAndValidateDatabaseContainer(databaseUrl) {
+  return resolveAndValidateLocalDatabase(databaseUrl);
 }
 
 export function dumpLocalSupabaseSchemas(databaseUrl, schemas) {
   const selected = resolveAndValidateDatabaseContainer(databaseUrl);
+  const containerUrl = new URL(databaseUrl);
+  containerUrl.hostname = '127.0.0.1';
+  containerUrl.port = '5432';
+  containerUrl.pathname = `/${selected.database}`;
+  containerUrl.search = '';
+  containerUrl.hash = '';
   return execFileSync(
     'docker',
     [
       'exec',
       selected.name,
       'pg_dump',
-      '-U',
-      selected.username,
-      '-d',
-      selected.database,
       '--schema-only',
       '--no-owner',
       ...schemas.map((schema) => `--schema=${schema}`),
+      containerUrl.toString(),
     ],
     { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 },
   )
     .split('\n')
-    .filter((line) => !line.startsWith('ALTER DEFAULT PRIVILEGES'))
+    .filter(
+      (line) =>
+        !line.startsWith('ALTER DEFAULT PRIVILEGES') && !line.includes('tryoutflow_capture_'),
+    )
     .join('\n');
 }

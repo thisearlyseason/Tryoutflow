@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertDatabaseIdentity,
+  canonicalDatabaseIdentity,
   selectDatabaseContainer,
   type DockerDatabaseContainer,
 } from '../../../scripts/lib/local-supabase-database.mjs';
@@ -97,5 +98,20 @@ describe('local Supabase database container resolution', () => {
         database: 'postgres',
       }),
     ).not.toThrow();
+  });
+
+  it('derives one lock identity from server facts rather than URL spelling or credentials', () => {
+    expect(canonicalDatabaseIdentity('postgres|16384|761234567890')).toBe(
+      canonicalDatabaseIdentity('postgres|16384|761234567890'),
+    );
+    expect(canonicalDatabaseIdentity('postgres|16385|761234567890')).not.toBe(
+      canonicalDatabaseIdentity('postgres|16384|761234567890'),
+    );
+  });
+
+  it('rejects malformed server identity before it can become a coordination key', () => {
+    for (const identity of ['', 'postgres|cluster', 'postgres|abc|123', 'postgres|1|abc']) {
+      expect(() => canonicalDatabaseIdentity(identity)).toThrow(/database identity/u);
+    }
   });
 });

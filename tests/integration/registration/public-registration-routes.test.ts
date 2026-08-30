@@ -16,6 +16,8 @@ let reissueConfirmation: Route;
 let apiKeys: ReturnType<typeof localApiKeys>;
 
 const origin = 'http://localhost';
+const databaseUrl =
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const validSubmission = {
   givenName: 'Ava',
   familyName: 'Smith',
@@ -48,17 +50,9 @@ function localApiKeys() {
 }
 
 function psql(sql: string) {
-  return execFileSync(
-    'psql',
-    [
-      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-Atc',
-      sql,
-    ],
-    { encoding: 'utf8' },
-  ).trim();
+  return execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-Atc', sql], {
+    encoding: 'utf8',
+  }).trim();
 }
 
 function jsonRequest(path: string, body: unknown, headers: Record<string, string> = {}) {
@@ -83,13 +77,7 @@ beforeAll(async () => {
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
   execFileSync(
     'psql',
-    [
-      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-f',
-      resolve('tests/fixtures/registration/seed.sql'),
-    ],
+    [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-f', resolve('tests/fixtures/registration/seed.sql')],
     { stdio: 'pipe' },
   );
   submitRegistration = (await import('../../../src/app/api/public/registrations/route')).POST;

@@ -11,8 +11,14 @@ import { dumpLocalSupabaseSchemas } from '../../../scripts/lib/local-supabase-da
 const execFile = promisify(execFileCallback);
 const primaryDatabaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
-const isolatedDatabaseName = `tryoutflow_roster_${randomUUID().replaceAll('-', '')}`;
-const databaseUrl = primaryDatabaseUrl.replace(/\/[^/]+$/u, `/${isolatedDatabaseName}`);
+const integrationRunId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+if (!integrationRunId || !/^[0-9a-f]{16}$/u.test(integrationRunId)) {
+  throw new Error('roster integration requires a validated run ID');
+}
+const isolatedDatabaseName = `tryoutflow_roster_${integrationRunId}_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+const isolatedDatabaseUrl = new URL(primaryDatabaseUrl);
+isolatedDatabaseUrl.pathname = `/${isolatedDatabaseName}`;
+const databaseUrl = isolatedDatabaseUrl.toString();
 
 beforeAll(() => {
   execFileSync(
