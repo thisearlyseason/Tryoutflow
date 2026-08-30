@@ -56,6 +56,23 @@ const fixtureSchema = z.strictObject({
   failOnceRegistrationIds: z.array(z.uuid()).max(5_000),
 });
 
+const syncStatusTransitionsSchema = z
+  .array(z.enum(['pending', 'processing']))
+  .max(2)
+  .superRefine((transitions, context) => {
+    const rank = { pending: 0, processing: 1 } as const;
+    transitions.forEach((transition, index) => {
+      const previous = transitions[index - 1];
+      if (previous !== undefined && rank[transition] <= rank[previous]) {
+        context.addIssue({
+          code: 'custom',
+          message: 'sync status transitions must be strictly monotonic',
+          path: [index],
+        });
+      }
+    });
+  });
+
 type Fixture = Omit<z.infer<typeof fixtureSchema>, 'destination'> & {
   destination: z.infer<(typeof externalRosterDestinationListSchema)['element']>;
 };
@@ -93,6 +110,7 @@ export class MockTheSquadProvider implements TeamManagementProvider {
   >();
   private readonly failedOnce = new Set<string>();
   private readonly statusTransitionsByJob = new Map<string, ('pending' | 'processing')[]>();
+  private challengeSequence = 0;
 
   constructor(options: MockTheSquadProviderOptions) {
     const raw = options.fixture === 'success' ? successFixtureJson : partialFailureFixtureJson;
@@ -101,12 +119,19 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       fixtureBase.destination,
     ])[0]!;
     this.fixture = { ...fixtureBase, destination };
-    this.syncStatusTransitions = [...(options.syncStatusTransitions ?? [])];
+    this.syncStatusTransitions = parseConfiguration(
+      syncStatusTransitionsSchema,
+      options.syncStatusTransitions ?? [],
+    );
   }
 
   async beginConnection(input: Parameters<TeamManagementProvider['beginConnection']>[0]) {
     const parsed = parseInput(connectionRequestSchema, input);
-    const challengeId = stableToken('mock-challenge', parsed);
+    this.challengeSequence += 1;
+    const challengeId = stableToken('mock-challenge', {
+      request: parsed,
+      issuance: this.challengeSequence,
+    });
     this.challenges.set(challengeId, {
       organizationId: parsed.organizationId,
       actorId: parsed.actorId,
@@ -124,11 +149,18 @@ export class MockTheSquadProvider implements TeamManagementProvider {
 
   async completeConnection(input: Parameters<TeamManagementProvider['completeConnection']>[0]) {
     const parsed = parseInput(connectionCallbackSchema, input);
+    const challenge = this.challenges.get(parsed.challengeId);
     if (
-      this.challenges.get(parsed.challengeId)?.organizationId !== parsed.organizationId ||
-      this.challenges.get(parsed.challengeId)?.actorId !== parsed.actorId ||
-      parsed.callbackParameters.mockApproval !== 'approved'
+      challenge?.organizationId !== parsed.organizationId ||
+      challenge.actorId !== parsed.actorId
     ) {
+      throw providerError('connection_invalid');
+    }
+    // The exact scoped callback owns this one-time challenge from this point forward.
+    // Consume before interpreting the provider result so denial and concurrent replay
+    // cannot leave reusable authorization state behind.
+    this.challenges.delete(parsed.challengeId);
+    if (parsed.callbackParameters.mockApproval !== 'approved') {
       throw providerError('connection_invalid');
     }
     const connectionId = stableUuid('mock-connection', [

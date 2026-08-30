@@ -128,26 +128,35 @@ export const externalRosterDestinationListSchema = z
   .array(externalRosterDestinationSchema)
   .max(2_000);
 
-export const athleteImportFieldSchema = z.enum([
+const athleteImportFields = [
   'first_name',
   'last_name',
   'email',
   'phone',
   'birth_year',
   'position',
-]);
+] as const;
 
-const uniqueFields = <T extends z.ZodType>(schema: T, maximum: number) =>
-  z
+export const athleteImportFieldSchema = z.enum(athleteImportFields);
+
+const uniqueFields = <T extends string>(
+  schema: z.ZodType<T>,
+  maximum: number,
+  canonicalOrder: readonly T[],
+) => {
+  const order = new Map(canonicalOrder.map((field, index) => [field, index]));
+  return z
     .array(schema)
     .min(1)
     .max(maximum)
-    .refine((fields) => new Set(fields).size === fields.length, 'fields must be unique');
+    .refine((fields) => new Set(fields).size === fields.length, 'fields must be unique')
+    .transform((fields) => [...fields].sort((left, right) => order.get(left)! - order.get(right)!));
+};
 
 export const athleteImportRequestSchema = z
   .strictObject({
     sourceOrganization: externalOrganizationSchema,
-    approvedFields: uniqueFields(athleteImportFieldSchema, 6),
+    approvedFields: uniqueFields(athleteImportFieldSchema, 6, athleteImportFields),
   })
   .refine(
     (value) =>
@@ -198,7 +207,7 @@ export const confirmedAthleteImportSchema = athleteImportRequestSchema.extend({
   items: z.array(athleteImportPreviewItemSchema).max(5_000),
 });
 
-export const rosterExportFieldSchema = z.enum([
+const rosterExportFields = [
   'first_name',
   'last_name',
   'email',
@@ -206,7 +215,9 @@ export const rosterExportFieldSchema = z.enum([
   'position',
   'team_name',
   'tryout_number',
-]);
+] as const;
+
+export const rosterExportFieldSchema = z.enum(rosterExportFields);
 
 export const finalizedRosterTeamSchema = z.strictObject({
   id: z.uuid(),
@@ -261,7 +272,7 @@ export const finalizedRosterExportRequestSchema = z.strictObject({
   // Adapters may project only these fields. When both name fields are not approved,
   // item labels use the opaque registration reference (or an approved tryout number),
   // never a partial name or another field from the full authoritative snapshot.
-  approvedFields: uniqueFields(rosterExportFieldSchema, 7),
+  approvedFields: uniqueFields(rosterExportFieldSchema, 7, rosterExportFields),
   roster: finalizedRosterSnapshotSchema,
 });
 

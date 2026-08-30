@@ -825,4 +825,262 @@ describe('TeamManagementProvider contract', () => {
       }),
     ).rejects.toEqual({ code: 'connection_invalid', retryable: false });
   });
+
+  it('consumes an exact-scoped connection challenge on its first callback attempt', async () => {
+    const provider = new MockTheSquadProvider({ fixture: 'success' });
+    const begin = () =>
+      provider.beginConnection({
+        organizationId: ids.organization,
+        actorId: ids.actor,
+        correlationId: 'correlation-contract-once-0001',
+        idempotencyKey: 'connection-contract-once-0001',
+        callbackUrl: 'https://tryoutflow.example.test/integrations/callback',
+      });
+    const callback = (challengeId: string, mockApproval: string) => ({
+      organizationId: ids.organization,
+      actorId: ids.actor,
+      correlationId: 'correlation-contract-once-0002',
+      idempotencyKey: 'connection-contract-once-0002',
+      challengeId,
+      callbackParameters: { mockApproval },
+    });
+
+    const deniedChallenge = await begin();
+    await expect(
+      provider.completeConnection(callback(deniedChallenge.challengeId, 'denied')),
+    ).rejects.toEqual({ code: 'connection_invalid', retryable: false });
+    await expect(
+      provider.completeConnection(callback(deniedChallenge.challengeId, 'approved')),
+    ).rejects.toEqual({ code: 'connection_invalid', retryable: false });
+
+    const approvedChallenge = await begin();
+    const attempts = await Promise.allSettled([
+      provider.completeConnection(callback(approvedChallenge.challengeId, 'approved')),
+      provider.completeConnection(callback(approvedChallenge.challengeId, 'approved')),
+    ]);
+    expect(attempts.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(attempts.filter((result) => result.status === 'rejected')).toEqual([
+      expect.objectContaining({ reason: { code: 'connection_invalid', retryable: false } }),
+    ]);
+
+    const connection = attempts.find((result) => result.status === 'fulfilled')!.value;
+    const connectedContext = { ...context, connectionId: connection.connectionId };
+    await provider.disconnect(connectedContext);
+    await expect(
+      provider.completeConnection(callback(approvedChallenge.challengeId, 'approved')),
+    ).rejects.toEqual({ code: 'connection_invalid', retryable: false });
+    await expect(provider.verifyConnection(connectedContext)).rejects.toEqual({
+      code: 'authentication_required',
+      retryable: false,
+    });
+
+    const freshChallenge = await begin();
+    expect(freshChallenge.challengeId).not.toBe(approvedChallenge.challengeId);
+    await expect(
+      provider.completeConnection(callback(approvedChallenge.challengeId, 'approved')),
+    ).rejects.toEqual({ code: 'connection_invalid', retryable: false });
+    await expect(
+      provider.completeConnection(callback(freshChallenge.challengeId, 'approved')),
+    ).resolves.toMatchObject({ connectionId: connection.connectionId, state: 'connected' });
+  });
+
+  it('does not let a cross-scope callback consume another scope challenge', async () => {
+    const provider = new MockTheSquadProvider({ fixture: 'success' });
+    const challenge = await provider.beginConnection({
+      organizationId: ids.organization,
+      actorId: ids.actor,
+      correlationId: 'correlation-contract-cross-scope-0001',
+      idempotencyKey: 'connection-contract-cross-scope-0001',
+      callbackUrl: 'https://tryoutflow.example.test/integrations/callback',
+    });
+    await expect(
+      provider.completeConnection({
+        organizationId: '50000000-0000-4000-8000-000000000001',
+        actorId: ids.actor,
+        correlationId: 'correlation-contract-cross-scope-0002',
+        idempotencyKey: 'connection-contract-cross-scope-0002',
+        challengeId: challenge.challengeId,
+        callbackParameters: { mockApproval: 'approved' },
+      }),
+    ).rejects.toEqual({ code: 'connection_invalid', retryable: false });
+    await expect(
+      provider.completeConnection({
+        organizationId: ids.organization,
+        actorId: ids.actor,
+        correlationId: 'correlation-contract-cross-scope-0003',
+        idempotencyKey: 'connection-contract-cross-scope-0003',
+        challengeId: challenge.challengeId,
+        callbackParameters: { mockApproval: 'approved' },
+      }),
+    ).resolves.toMatchObject({ state: 'connected' });
+  });
+
+  it('canonicalizes approved field sets before import and export derivations', async () => {
+    const provider = new MockTheSquadProvider({ fixture: 'success' });
+    const connectedContext = await connectProvider(provider);
+    const sourceOrganization = (await provider.listOrganizations(connectedContext))[0]!;
+
+    const importFirstRequest: Parameters<TeamManagementProvider['previewAthleteImport']>[1] = {
+      sourceOrganization,
+      approvedFields: ['position', 'last_name', 'first_name'],
+    };
+    const importFirstInput = structuredClone(importFirstRequest);
+    const importFirst = await provider.previewAthleteImport(connectedContext, importFirstInput);
+    expect(importFirstInput).toEqual(importFirstRequest);
+    const importReordered = await provider.previewAthleteImport(connectedContext, {
+      sourceOrganization,
+      approvedFields: ['first_name', 'position', 'last_name'],
+    });
+    expect(JSON.stringify(importReordered)).toBe(JSON.stringify(importFirst));
+    const imported = await provider.importAthletes(
+      { ...connectedContext, idempotencyKey: 'canonical-import-fields-0001' },
+      {
+        sourceOrganization,
+        approvedFields: ['position', 'first_name', 'last_name'],
+        previewId: importFirst.previewId,
+        confirmationToken: importFirst.confirmationToken,
+        items: importFirst.items,
+      },
+    );
+    await expect(
+      provider.importAthletes(
+        { ...connectedContext, idempotencyKey: 'canonical-import-fields-0001' },
+        {
+          sourceOrganization,
+          approvedFields: ['last_name', 'position', 'first_name'],
+          previewId: importFirst.previewId,
+          confirmationToken: importFirst.confirmationToken,
+          items: importFirst.items,
+        },
+      ),
+    ).resolves.toEqual(imported);
+    const changedImportPreview = await provider.previewAthleteImport(connectedContext, {
+      sourceOrganization,
+      approvedFields: ['first_name', 'last_name'],
+    });
+    await expect(
+      provider.importAthletes(
+        { ...connectedContext, idempotencyKey: 'canonical-import-fields-0001' },
+        {
+          sourceOrganization,
+          approvedFields: ['first_name', 'last_name'],
+          previewId: changedImportPreview.previewId,
+          confirmationToken: changedImportPreview.confirmationToken,
+          items: changedImportPreview.items,
+        },
+      ),
+    ).rejects.toEqual({ code: 'conflict', retryable: false });
+
+    const exportFirstRequest = exportRequest();
+    exportFirstRequest.approvedFields = ['team_name', 'last_name', 'first_name', 'position'];
+    const exportReorderedRequest = structuredClone(exportFirstRequest);
+    exportReorderedRequest.approvedFields = ['position', 'first_name', 'team_name', 'last_name'];
+    const exportFirst = await provider.previewRosterExport(
+      connectedContext,
+      exportPreviewRequest(exportFirstRequest),
+    );
+    expect(exportFirstRequest.approvedFields).toEqual([
+      'team_name',
+      'last_name',
+      'first_name',
+      'position',
+    ]);
+    const exportReordered = await provider.previewRosterExport(
+      connectedContext,
+      exportPreviewRequest(exportReorderedRequest),
+    );
+    expect(JSON.stringify(exportReordered)).toBe(JSON.stringify(exportFirst));
+    const exportContext = {
+      ...connectedContext,
+      idempotencyKey: 'canonical-export-fields-0001',
+    };
+    const exported = await provider.exportFinalizedRoster(exportContext, {
+      ...exportFirstRequest,
+      previewId: exportFirst.previewId,
+      confirmationToken: exportFirst.confirmationToken,
+    });
+    await expect(
+      provider.exportFinalizedRoster(exportContext, {
+        ...exportReorderedRequest,
+        previewId: exportFirst.previewId,
+        confirmationToken: exportFirst.confirmationToken,
+      }),
+    ).resolves.toEqual(exported);
+
+    const changedRequest = structuredClone(exportFirstRequest);
+    changedRequest.approvedFields = ['first_name', 'last_name'];
+    const changedPreview = await provider.previewRosterExport(
+      exportContext,
+      exportPreviewRequest(changedRequest),
+    );
+    await expect(
+      provider.exportFinalizedRoster(exportContext, {
+        ...changedRequest,
+        previewId: changedPreview.previewId,
+        confirmationToken: changedPreview.confirmationToken,
+      }),
+    ).rejects.toEqual({ code: 'conflict', retryable: false });
+  });
+
+  it('rejects non-monotonic mock status transition fixtures before any job runs', () => {
+    const invalidTransitions: readonly (readonly string[])[] = [
+      ['processing', 'pending'],
+      ['pending', 'pending'],
+      ['processing', 'processing'],
+      ['completed', 'processing'],
+    ];
+    for (const syncStatusTransitions of invalidTransitions) {
+      expect(
+        () =>
+          new MockTheSquadProvider({
+            fixture: 'success',
+            syncStatusTransitions: syncStatusTransitions as never,
+          }),
+      ).toThrowError(expect.objectContaining({ code: 'provider_configuration', retryable: false }));
+    }
+    for (const syncStatusTransitions of [
+      [],
+      ['pending'],
+      ['processing'],
+      ['pending', 'processing'],
+    ] as const) {
+      expect(
+        () => new MockTheSquadProvider({ fixture: 'success', syncStatusTransitions }),
+      ).not.toThrow();
+    }
+  });
+
+  it('reports valid configured statuses without state or attempt regression', async () => {
+    const provider = new MockTheSquadProvider({
+      fixture: 'success',
+      syncStatusTransitions: ['pending', 'processing'],
+    });
+    const connectedContext = await connectProvider(provider);
+    const request = exportRequest();
+    const preview = await provider.previewRosterExport(
+      connectedContext,
+      exportPreviewRequest(request),
+    );
+    const terminal = await provider.exportFinalizedRoster(connectedContext, {
+      ...request,
+      previewId: preview.previewId,
+      confirmationToken: preview.confirmationToken,
+    });
+    const statuses = [
+      await provider.getSyncStatus(connectedContext, terminal.externalJobId),
+      await provider.getSyncStatus(connectedContext, terminal.externalJobId),
+      await provider.getSyncStatus(connectedContext, terminal.externalJobId),
+      await provider.getSyncStatus(connectedContext, terminal.externalJobId),
+    ];
+    expect(statuses.map((status) => status.state)).toEqual([
+      'pending',
+      'processing',
+      'completed',
+      'completed',
+    ]);
+    for (let itemIndex = 0; itemIndex < terminal.items.length; itemIndex += 1) {
+      const attempts = statuses.map((status) => status.items[itemIndex]!.attempts);
+      expect(attempts).toEqual([...attempts].sort((left, right) => left - right));
+    }
+  });
 });
