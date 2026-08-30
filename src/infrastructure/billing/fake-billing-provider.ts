@@ -6,6 +6,7 @@ import type {
   CheckoutSessionInput,
   PortalSessionInput,
 } from './billing-provider';
+import { isValidBillingSessionUrl } from './provider-session-url';
 
 type Submission = Readonly<{
   digest: string;
@@ -54,6 +55,8 @@ export class FakeBillingProvider implements BillingProvider {
       kind === 'checkout'
         ? `https://checkout.stripe.com/c/pay/${sessionId}`
         : `https://billing.stripe.com/p/session/test_${portalToken}`;
+    if (!isValidBillingSessionUrl(sessionId, url, kind))
+      throw new Error('fake_billing_session_contract_drift');
     this.submissions.set(idempotencyKey, { digest, input, sessionId, url });
     return { sessionId, url };
   }

@@ -1,5 +1,5 @@
 begin;
-select plan(32);
+select plan(33);
 
 select has_column('public','subscription_checkout_intents','initiating_owner_user_id','intent binds initiating owner');
 select has_function('public','reserve_subscription_checkout_intent',array['uuid','uuid','text','uuid'],'owner-bound reservation RPC exists');
@@ -33,6 +33,15 @@ select is((select outcome from public.reserve_subscription_checkout_intent('5600
 select is((select outcome from public.reserve_subscription_checkout_intent('56000000-0000-4000-8000-000000000010','56000000-0000-4000-8000-000000000102','club','56000000-0000-4000-8000-000000000002')),'in_progress','co-owner receives non-oracular active fence');
 reset role;
 
+select throws_ok(
+  $$select public.complete_subscription_checkout_intent(
+    '56000000-0000-4000-8000-000000000010',
+    '56000000-0000-4000-8000-000000000101',
+    'cs_test_'||repeat('A',201),
+    'https://checkout.stripe.com/c/pay/cs_test_'||repeat('A',201)
+  )$$,
+  '22023',null,'durable completion rejects checkout object ID suffix over cap'
+);
 select is(public.complete_subscription_checkout_intent('56000000-0000-4000-8000-000000000010','56000000-0000-4000-8000-000000000101','cs_test_Task25FixResult01','https://checkout.stripe.com/c/pay/cs_test_Task25FixResult01#fidkdWxOYHwnPyd1blpx'),'completed','exact checkout URL completes');
 select ok(private.is_valid_billing_session_url('cs_test_Task25LongFragment','https://checkout.stripe.com/c/pay/cs_test_Task25LongFragment#'||repeat('A',300),'checkout'),'bounded real Stripe opaque fragments are accepted');
 select ok(not private.is_valid_billing_session_url('cs_test_Task25Newline','https://checkout.stripe.com/c/pay/cs_test_Task25Newline'||chr(10),'checkout'),'terminal newline is rejected');

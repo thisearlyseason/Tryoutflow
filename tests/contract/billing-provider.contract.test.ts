@@ -12,7 +12,10 @@ import {
   type BillingProvider,
 } from '../../src/infrastructure/billing/billing-provider';
 import { StripeBillingProvider } from '../../src/infrastructure/billing/stripe-provider';
-import { isValidBillingSessionUrl } from '../../src/infrastructure/billing/provider-session-url';
+import {
+  BILLING_SESSION_LIMITS,
+  isValidBillingSessionUrl,
+} from '../../src/infrastructure/billing/provider-session-url';
 import { parseProviderSession } from '../../src/modules/subscriptions/application/billing-session-shared';
 
 async function expectBillingProviderContract(factory: () => BillingProvider) {
@@ -27,6 +30,7 @@ async function expectBillingProviderContract(factory: () => BillingProvider) {
   const first = await provider.createCheckoutSession(checkout, 'billing:checkout:one');
   const replay = await provider.createCheckoutSession(checkout, 'billing:checkout:one');
   expect(replay).toEqual(first);
+  expect(isValidBillingSessionUrl(first.sessionId, first.url, 'checkout')).toBe(true);
 
   const portal = await provider.createPortalSession(
     {
@@ -36,7 +40,7 @@ async function expectBillingProviderContract(factory: () => BillingProvider) {
     },
     'billing:portal:one',
   );
-  expect(portal.url).toMatch(/^https:\/\//u);
+  expect(isValidBillingSessionUrl(portal.sessionId, portal.url, 'portal')).toBe(true);
 }
 
 describe('BillingProvider contract', () => {
@@ -46,6 +50,10 @@ describe('BillingProvider contract', () => {
 
   it('validates the shared provider identifier format', () => {
     expect(billingProviderIdSchema.safeParse('cus_1234567890abcdef').success).toBe(true);
+    expect(billingProviderIdSchema.safeParse('cs_test_A').success).toBe(true);
+    expect(billingProviderIdSchema.safeParse('bps_A').success).toBe(true);
+    expect(billingProviderIdSchema.safeParse(`cs_test_${'A'.repeat(201)}`).success).toBe(false);
+    expect(billingProviderIdSchema.safeParse(`bps_${'A'.repeat(201)}`).success).toBe(false);
     expect(billingProviderIdSchema.safeParse('bad id').success).toBe(false);
   });
 
@@ -59,6 +67,116 @@ describe('BillingProvider contract', () => {
     expect(stripeSubscriptionIdSchema.safeParse('sub_1234567').success).toBe(false);
     expect(stripePriceIdSchema.safeParse('price_12345678-').success).toBe(false);
   });
+
+  it('publishes one conservative hosted-session size contract', () => {
+    expect(BILLING_SESSION_LIMITS).toEqual({
+      checkoutFragmentLength: 2_048,
+      checkoutSessionIdSuffixLength: 200,
+      maximumUrlLength: 4_096,
+      portalBearerTokenSuffixLength: 2_048,
+      portalSessionIdSuffixLength: 200,
+    });
+  });
+
+  it.each([
+    [
+      'checkout object ID at cap',
+      `cs_test_${'A'.repeat(200)}`,
+      `https://checkout.stripe.com/c/pay/cs_test_${'A'.repeat(200)}`,
+      'checkout',
+      true,
+    ],
+    [
+      'checkout object ID over cap',
+      `cs_test_${'A'.repeat(201)}`,
+      `https://checkout.stripe.com/c/pay/cs_test_${'A'.repeat(201)}`,
+      'checkout',
+      false,
+    ],
+    [
+      'checkout object ID minimum',
+      'cs_live_A',
+      'https://checkout.stripe.com/c/pay/cs_live_A',
+      'checkout',
+      true,
+    ],
+    [
+      'checkout object ID empty',
+      'cs_live_',
+      'https://checkout.stripe.com/c/pay/cs_live_',
+      'checkout',
+      false,
+    ],
+    [
+      'portal object ID at cap',
+      `bps_${'A'.repeat(200)}`,
+      'https://billing.stripe.com/p/session/test_A',
+      'portal',
+      true,
+    ],
+    [
+      'portal object ID over cap',
+      `bps_${'A'.repeat(201)}`,
+      'https://billing.stripe.com/p/session/test_A',
+      'portal',
+      false,
+    ],
+    [
+      'portal object ID minimum',
+      'bps_A',
+      'https://billing.stripe.com/p/session/live_A',
+      'portal',
+      true,
+    ],
+    [
+      'portal object ID empty',
+      'bps_',
+      'https://billing.stripe.com/p/session/live_A',
+      'portal',
+      false,
+    ],
+    [
+      'portal bearer at cap',
+      'bps_A',
+      `https://billing.stripe.com/p/session/test_${'A'.repeat(2_048)}`,
+      'portal',
+      true,
+    ],
+    [
+      'portal bearer over cap',
+      'bps_A',
+      `https://billing.stripe.com/p/session/test_${'A'.repeat(2_049)}`,
+      'portal',
+      false,
+    ],
+    [
+      'percent-encoded checkout fragment at raw cap',
+      'cs_test_A',
+      `https://checkout.stripe.com/c/pay/cs_test_A#${'%41'.repeat(682)}AA`,
+      'checkout',
+      true,
+    ],
+    [
+      'percent-encoded checkout fragment over raw cap',
+      'cs_test_A',
+      `https://checkout.stripe.com/c/pay/cs_test_A#${'%41'.repeat(683)}`,
+      'checkout',
+      false,
+    ],
+    [
+      'total URL over cap',
+      'bps_A',
+      `https://billing.stripe.com/p/session/test_${'A'.repeat(4_055)}`,
+      'portal',
+      false,
+    ],
+  ] as const)(
+    'enforces the central size boundary: %s',
+    (_label, sessionId, url, kind, expected) => {
+      expect(isValidBillingSessionUrl(sessionId, url, kind)).toBe(expected);
+      expect(parseProviderSession({ sessionId, url }, kind).success).toBe(expected);
+    },
+  );
 
   it('sends strict Stripe requests with timeout and idempotency', async () => {
     const request = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
@@ -94,6 +212,67 @@ describe('BillingProvider contract', () => {
       }),
     );
   });
+
+  it.each([
+    [
+      'checkout at cap',
+      'checkout',
+      `cs_test_${'A'.repeat(200)}`,
+      `https://checkout.stripe.com/c/pay/cs_test_${'A'.repeat(200)}`,
+      true,
+    ],
+    [
+      'checkout over cap',
+      'checkout',
+      `cs_test_${'A'.repeat(201)}`,
+      `https://checkout.stripe.com/c/pay/cs_test_${'A'.repeat(201)}`,
+      false,
+    ],
+    [
+      'portal bearer at cap',
+      'portal',
+      'bps_A',
+      `https://billing.stripe.com/p/session/test_${'A'.repeat(2_048)}`,
+      true,
+    ],
+    [
+      'portal bearer over cap',
+      'portal',
+      'bps_A',
+      `https://billing.stripe.com/p/session/test_${'A'.repeat(2_049)}`,
+      false,
+    ],
+  ] as const)(
+    'routes the %s Stripe response through the central contract',
+    async (_label, kind, id, url, expected) => {
+      const provider = new StripeBillingProvider(
+        { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
+        async () => Response.json({ id, url }),
+      );
+      const pending =
+        kind === 'checkout'
+          ? provider.createCheckoutSession(
+              {
+                organizationId: '11111111-1111-4111-8111-111111111111',
+                plan: 'team',
+                priceId: 'price_TeamTest123',
+                successUrl: 'https://app.example.com/success',
+                cancelUrl: 'https://app.example.com/cancel',
+              },
+              `billing:checkout:size-${id.length}`,
+            )
+          : provider.createPortalSession(
+              {
+                organizationId: '11111111-1111-4111-8111-111111111111',
+                customerId: 'cus_1234567890abcdef',
+                returnUrl: 'https://app.example.com/billing',
+              },
+              `billing:portal:size-${url.length}`,
+            );
+      if (expected) await expect(pending).resolves.toEqual({ sessionId: id, url });
+      else await expect(pending).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+    },
+  );
 
   it.each([
     ['checkout', 'https://evil.example/c/pay/test'],
