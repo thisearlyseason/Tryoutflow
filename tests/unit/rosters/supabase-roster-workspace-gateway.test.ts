@@ -69,6 +69,50 @@ describe('SupabaseRosterWorkspaceGateway', () => {
     });
   });
 
+  it.each([
+    ['leading and trailing whitespace', '  Ana María  '],
+    ['significant internal whitespace', 'Ana  María'],
+    ['Turkish dotted I', 'İPEK'],
+    ['NFC text', 'Élodie'],
+    ['NFD text', 'E\u0301lodie'],
+    ['mixed case', 'McKay'],
+  ])('preserves the RPC %s display label byte-for-byte', async (_, displayName) => {
+    const exactPayload = {
+      ...payload,
+      snapshot: {
+        ...payload.snapshot,
+        members: [{ ...payload.snapshot.members[0], displayName }],
+      },
+    };
+    const rpc = vi.fn().mockResolvedValue({ data: [{ result: exactPayload }], error: null });
+    const gateway = new SupabaseRosterWorkspaceGateway({ rpc } as never);
+
+    const result = await gateway.load({
+      organizationId: ids.organization,
+      tryoutId: ids.tryout,
+      divisionId: ids.division,
+      rosterVersionId: ids.roster,
+    });
+
+    expect(result).toEqual(exactPayload);
+    if (result.outcome !== 'ok') throw new Error('expected an authorized workspace');
+    expect(result.snapshot.members[0]?.displayName).toBe(displayName);
+  });
+
+  it('rejects blank or overlong RPC display labels without repairing them', () => {
+    for (const displayName of [' \t ', 'A'.repeat(242)]) {
+      expect(() =>
+        parseRosterWorkspaceResponse({
+          ...payload,
+          snapshot: {
+            ...payload.snapshot,
+            members: [{ ...payload.snapshot.members[0], displayName }],
+          },
+        }),
+      ).toThrow(/roster workspace projection/i);
+    }
+  });
+
   it('fails closed on malformed identity, placement, or decision data', () => {
     expect(() =>
       parseRosterWorkspaceResponse({

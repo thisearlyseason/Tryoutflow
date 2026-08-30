@@ -27,7 +27,7 @@ insert into public.registration_form_versions(id,organization_id,tryout_id,regis
 values ('f4100000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001','f2000000-0000-4000-8000-000000000001','f4000000-0000-4000-8000-000000000001',1,'{"fields":[]}','published',clock_timestamp());
 insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date) values
   ('f5000000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001','Ava','Enrolled','ava','enrolled','2012-01-01'),
-  ('f5000000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000001','Mia','Snapshot','mia','snapshot','2012-01-02');
+  ('f5000000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000001','  İPEK ','Snapshot  ','ipek','snapshot','2012-01-02');
 insert into public.tryout_registrations(id,organization_id,tryout_id,athlete_id,division_id,position_id,registration_form_version_id,responses,submission_key_digest,submission_digest) values
   ('f6000000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001','f2000000-0000-4000-8000-000000000001','f5000000-0000-4000-8000-000000000001','f3000000-0000-4000-8000-000000000001','f3100000-0000-4000-8000-000000000001','f4100000-0000-4000-8000-000000000001','{}',repeat('a',64),repeat('1',64)),
   ('f6000000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000001','f2000000-0000-4000-8000-000000000001','f5000000-0000-4000-8000-000000000002','f3000000-0000-4000-8000-000000000001',null,'f4100000-0000-4000-8000-000000000001','{}',repeat('b',64),repeat('2',64));
@@ -50,10 +50,12 @@ select is(
     'f1000000-0000-4000-8000-000000000001','f2000000-0000-4000-8000-000000000001','f3000000-0000-4000-8000-000000000001',(select roster_version_id from workspace_roster))),
   2,'projection retains submitted snapshot members without requiring session enrollment'
 );
+-- displayName is the RPC's canonical roster-operational label, intentionally
+-- constructed from stored given/family names; it is not a raw-name export API.
 select is(
   (select result#>>'{snapshot,members,1,displayName}' from public.load_roster_workspace(
     'f1000000-0000-4000-8000-000000000001','f2000000-0000-4000-8000-000000000001','f3000000-0000-4000-8000-000000000001',(select roster_version_id from workspace_roster))),
-  'Mia Snapshot','projection provides minimum roster identity independently of ranking eligibility'
+  'İPEK  Snapshot','projection constructs the canonical roster display label by trimming only the outside of stored operational names'
 );
 select ok(
   (select result::text not like '%birth_date%' and result::text not like '%2012-01-%' from public.load_roster_workspace(

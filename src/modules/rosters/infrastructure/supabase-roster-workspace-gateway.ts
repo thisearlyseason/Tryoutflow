@@ -9,6 +9,10 @@ import type {
 
 const id = z.uuid();
 const safeVersion = z.number().int().safe().positive();
+const rosterDisplayLabel = z
+  .string()
+  .max(241)
+  .refine((value) => value.trim().length > 0, 'display label must not be blank');
 const namedId = z.strictObject({ id, name: z.string().trim().min(1).max(120) });
 const team = z.strictObject({
   id,
@@ -18,7 +22,7 @@ const team = z.strictObject({
 });
 const member = z.strictObject({
   registrationId: id,
-  displayName: z.string().trim().min(1).max(241),
+  displayName: rosterDisplayLabel,
   tryoutNumber: z.number().int().min(1).max(9999).nullable(),
   positionId: id.nullable(),
   positionName: z.string().trim().min(1).max(120).nullable(),

@@ -572,6 +572,7 @@ describe('RosterBuilder', () => {
     ['NFC accent', 'Élodie'],
     ['NFD accent', 'E\u0301lodie'],
     ['mixed case', 'McKay'],
+    ['leading and trailing whitespace', '  Ana María  '],
     ['significant internal whitespace', 'Ana  María'],
   ])(
     'renders the authorized %s display name verbatim in every roster identity label',
@@ -597,7 +598,7 @@ describe('RosterBuilder', () => {
       const move = buttons.find((button) => button.textContent === `Move ${displayName}`);
 
       expect(heading.textContent).toBe(displayName);
-      expect(heading).toHaveAccessibleName(displayName.replaceAll(/\s+/gu, ' '));
+      expect(heading).toHaveAccessibleName(displayName.trim().replaceAll(/\s+/gu, ' '));
       expect(drag).toHaveAttribute('aria-label', `Drag ${displayName}`);
       expect(select.textContent).toBe(`Select ${displayName}`);
       expect(move).toBeDefined();
