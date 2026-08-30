@@ -89,6 +89,19 @@ function authenticatedPayload(secret, body) {
   return createHmac('sha256', secret).update(JSON.stringify(body)).digest('hex');
 }
 
+const cleanupStages = [
+  'active',
+  'sessions-terminated',
+  'fixtures-removed',
+  'roots-removed',
+  'rate-keys-removed',
+  'registry-removed',
+];
+
+function authenticatedStatePayload(secret, body, cleanupStage) {
+  return createHmac('sha256', secret).update(JSON.stringify({ body, cleanupStage })).digest('hex');
+}
+
 function validBody(candidate, identity, filenameRunId) {
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return false;
   const expected = manifestBody(identity, filenameRunId);
@@ -121,6 +134,28 @@ function atomicWrite(path, value, directory) {
   }
 }
 
+function atomicReplace(path, value, directory) {
+  const temporaryPath = `${path}.tmp-${process.pid}-${randomBytes(8).toString('hex')}`;
+  const descriptor = openSync(
+    temporaryPath,
+    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    writeSync(descriptor, value);
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+  renameSync(temporaryPath, path);
+  const directoryDescriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+  try {
+    fsyncSync(directoryDescriptor);
+  } finally {
+    closeSync(directoryDescriptor);
+  }
+}
+
 export function createSupervisorStateStore(options) {
   const identity = options?.identity;
   if (!identityPattern.test(identity ?? ''))
@@ -134,6 +169,8 @@ export function createSupervisorStateStore(options) {
 
   const manifestPath = (runId) => join(directory, `${runId}.json`);
   const rateKeyPath = (runId) => join(directory, `${runId}.rate-keys`);
+  const commandPath = (runId) => join(directory, `${runId}.command.json`);
+  const commandGoPath = (runId) => join(directory, `${runId}.command.go`);
   const quarantine = (path) => {
     try {
       renameSync(path, `${path}.quarantine-${Date.now()}-${randomBytes(4).toString('hex')}`);
@@ -146,6 +183,8 @@ export function createSupervisorStateStore(options) {
     directory,
     manifestPath,
     rateKeyPath,
+    commandPath,
+    commandGoPath,
     manifestBody: (runId) => manifestBody(identity, runId),
     writeManifest(body) {
       if (!validBody(body, identity, body?.runId)) {
@@ -154,7 +193,43 @@ export function createSupervisorStateStore(options) {
       const path = manifestPath(body.runId);
       atomicWrite(
         path,
-        JSON.stringify({ body, authentication: authenticatedPayload(secret, body) }),
+        JSON.stringify({
+          body,
+          cleanupStage: 'active',
+          authentication: authenticatedStatePayload(secret, body, 'active'),
+        }),
+        directory,
+      );
+    },
+    advanceCleanup(runId, cleanupStage) {
+      if (!cleanupStages.includes(cleanupStage)) throw new Error('invalid cleanup stage');
+      const path = manifestPath(runId);
+      const parsed = JSON.parse(readFileSync(path, 'utf8'));
+      if (!validBody(parsed?.body, identity, runId)) throw new Error('invalid cleanup manifest');
+      const currentStage = parsed.cleanupStage ?? 'active';
+      const currentIndex = cleanupStages.indexOf(currentStage);
+      const nextIndex = cleanupStages.indexOf(cleanupStage);
+      if (currentIndex < 0 || nextIndex < currentIndex || nextIndex > currentIndex + 1) {
+        throw new Error(`invalid cleanup stage transition ${currentStage} -> ${cleanupStage}`);
+      }
+      const currentAuthentication =
+        parsed.cleanupStage === undefined
+          ? authenticatedPayload(secret, parsed.body)
+          : authenticatedStatePayload(secret, parsed.body, currentStage);
+      if (
+        typeof parsed.authentication !== 'string' ||
+        parsed.authentication.length !== currentAuthentication.length ||
+        !timingSafeEqual(Buffer.from(parsed.authentication), Buffer.from(currentAuthentication))
+      ) {
+        throw new Error('unauthenticated cleanup manifest');
+      }
+      atomicReplace(
+        path,
+        JSON.stringify({
+          body: parsed.body,
+          cleanupStage,
+          authentication: authenticatedStatePayload(secret, parsed.body, cleanupStage),
+        }),
         directory,
       );
     },
@@ -180,7 +255,12 @@ export function createSupervisorStateStore(options) {
           }
           const parsed = JSON.parse(readFileSync(path, 'utf8'));
           if (!validBody(parsed?.body, identity, match[1])) throw new Error('mixed manifest');
-          const expected = authenticatedPayload(secret, parsed.body);
+          const cleanupStage = parsed.cleanupStage ?? 'active';
+          if (!cleanupStages.includes(cleanupStage)) throw new Error('invalid cleanup stage');
+          const expected =
+            parsed.cleanupStage === undefined
+              ? authenticatedPayload(secret, parsed.body)
+              : authenticatedStatePayload(secret, parsed.body, cleanupStage);
           if (
             typeof parsed.authentication !== 'string' ||
             parsed.authentication.length !== expected.length ||
@@ -188,7 +268,7 @@ export function createSupervisorStateStore(options) {
           ) {
             throw new Error('forged manifest');
           }
-          manifests.push({ body: parsed.body, path });
+          manifests.push({ body: parsed.body, cleanupStage, path });
         } catch {
           quarantine(path);
         }
@@ -205,19 +285,87 @@ export function createSupervisorStateStore(options) {
         (stat.mode & 0o077) !== 0 ||
         stat.size > 1024 * 1024
       ) {
-        quarantine(path);
         throw new Error('unsafe integration rate-key ownership log');
       }
       const lines = readFileSync(path, 'utf8').split('\n').filter(Boolean);
-      if (lines.some((line) => !/^[0-9a-f]{64}$/u.test(line))) {
-        quarantine(path);
+      if (lines.length > 0 && lines.every((line) => /^[0-9a-f]{64}$/u.test(line))) {
+        throw new Error('ambiguous legacy integration rate-key ownership log');
+      }
+      if (lines.some((line) => !/^v2:[0-9a-f]{64}$/u.test(line))) {
         throw new Error('corrupt integration rate-key ownership log');
       }
-      return [...new Set(lines)];
+      return [...new Set(lines.map((line) => line.slice(3)))];
+    },
+    writeCommand(runId, command) {
+      const body = manifestBody(identity, runId);
+      if (!command || !/^[0-9a-f]{32}$/u.test(command.nonce ?? '')) {
+        throw new Error('invalid integration command identity');
+      }
+      const payload = { body, command: { nonce: command.nonce } };
+      atomicWrite(
+        commandPath(runId),
+        JSON.stringify({
+          ...payload,
+          authentication: authenticatedPayload(secret, payload),
+        }),
+        directory,
+      );
+    },
+    bindCommand(runId, command) {
+      if (
+        !Number.isSafeInteger(command?.pid) ||
+        command.pid <= 1 ||
+        command.pgid !== command.pid ||
+        typeof command.startedAt !== 'string' ||
+        command.startedAt.length < 8 ||
+        command.startedAt.length > 80 ||
+        !/^[0-9a-f]{32}$/u.test(command.nonce ?? '')
+      ) {
+        throw new Error('invalid bound integration command identity');
+      }
+      const pending = this.readCommand(runId);
+      if (!pending || pending.nonce !== command.nonce || pending.pid !== undefined) {
+        throw new Error('integration command capability changed before binding');
+      }
+      const body = manifestBody(identity, runId);
+      const payload = { body, command };
+      atomicReplace(
+        commandPath(runId),
+        JSON.stringify({
+          ...payload,
+          authentication: authenticatedPayload(secret, payload),
+        }),
+        directory,
+      );
+    },
+    readCommand(runId) {
+      const path = commandPath(runId);
+      if (!existsSync(path)) return null;
+      const parsed = JSON.parse(readFileSync(path, 'utf8'));
+      if (!validBody(parsed?.body, identity, runId)) throw new Error('invalid command body');
+      const payload = { body: parsed.body, command: parsed.command };
+      const expected = authenticatedPayload(secret, payload);
+      if (
+        typeof parsed.authentication !== 'string' ||
+        parsed.authentication.length !== expected.length ||
+        !timingSafeEqual(Buffer.from(parsed.authentication), Buffer.from(expected))
+      ) {
+        throw new Error('unauthenticated integration command identity');
+      }
+      return parsed.command;
+    },
+    permitCommand(runId) {
+      atomicWrite(commandGoPath(runId), runId, directory);
+    },
+    removeCommand(runId) {
+      rmSync(commandPath(runId), { force: true });
+      rmSync(commandGoPath(runId), { force: true });
     },
     removeRunState(runId) {
       rmSync(manifestPath(runId), { force: true });
       rmSync(rateKeyPath(runId), { force: true });
+      rmSync(commandPath(runId), { force: true });
+      rmSync(commandGoPath(runId), { force: true });
       const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
       try {
         fsyncSync(descriptor);

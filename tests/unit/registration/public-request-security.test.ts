@@ -82,9 +82,33 @@ describe('shared public registration request defenses', () => {
     expect(guarded.ok).toBe(true);
     if (guarded.ok) {
       expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual([
-        guarded.contextRateKey,
-        guarded.rateKey,
+        `v2:${guarded.contextRateKey}`,
+        `v2:${guarded.rateKey}`,
       ]);
+    }
+  });
+
+  it('namespaces supervised rate keys by the unguessable integration run id', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-rate-key-namespace-'));
+    chmodSync(directory, 0o700);
+    const firstRunId = '8'.repeat(16);
+    process.env.TRYOUTFLOW_INTEGRATION_RUN_ID = firstRunId;
+    process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG = join(directory, `${firstRunId}.rate-keys`);
+    const first = await guardPublicJsonRequest(request('{"target":"fall-camp"}'), {
+      bucket: 'consume',
+      parse,
+    });
+    const secondRunId = '9'.repeat(16);
+    process.env.TRYOUTFLOW_INTEGRATION_RUN_ID = secondRunId;
+    process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG = join(directory, `${secondRunId}.rate-keys`);
+    const second = await guardPublicJsonRequest(request('{"target":"fall-camp"}'), {
+      bucket: 'consume',
+      parse,
+    });
+    expect(first.ok && second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.contextRateKey).not.toBe(second.contextRateKey);
+      expect(first.rateKey).not.toBe(second.rateKey);
     }
   });
 

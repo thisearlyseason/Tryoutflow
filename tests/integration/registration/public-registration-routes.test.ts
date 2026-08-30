@@ -16,7 +16,7 @@ let submitRegistration: Route;
 let consumeConfirmation: Route;
 let reissueConfirmation: Route;
 let apiKeys: ReturnType<typeof localApiKeys>;
-const directCanonicalRateKey = 'c'.repeat(64);
+let directCanonicalRateKey = 'c'.repeat(64);
 
 const origin = 'http://localhost';
 const databaseUrl =
@@ -78,7 +78,7 @@ beforeAll(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
-  recordIntegrationRateKey(directCanonicalRateKey);
+  directCanonicalRateKey = recordIntegrationRateKey(directCanonicalRateKey);
   execFileSync(
     'psql',
     [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-f', resolve('tests/fixtures/registration/seed.sql')],

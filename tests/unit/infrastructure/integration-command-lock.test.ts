@@ -36,7 +36,9 @@ describe('authenticated integration supervisor state', () => {
     const body = store.manifestBody(runId);
 
     store.writeManifest(body);
-    expect(store.readRecoverableManifests()).toEqual([{ body, path: store.manifestPath(runId) }]);
+    expect(store.readRecoverableManifests()).toEqual([
+      { body, cleanupStage: 'active', path: store.manifestPath(runId) },
+    ]);
 
     const serialized = JSON.parse(readFileSync(store.manifestPath(runId), 'utf8')) as {
       body: typeof body;
@@ -46,6 +48,33 @@ describe('authenticated integration supervisor state', () => {
     writeFileSync(store.manifestPath(runId), JSON.stringify(serialized));
     expect(store.readRecoverableManifests()).toEqual([]);
     expect(readdirSync(store.directory).some((entry) => entry.includes('.quarantine-'))).toBe(true);
+  });
+
+  it('persists authenticated cleanup progress without discarding retry evidence', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-supervisor-stage-'));
+    chmodSync(baseDirectory, 0o700);
+    const identity = 'a'.repeat(64);
+    const runId = 'b'.repeat(16);
+    const store = createSupervisorStateStore({ baseDirectory, identity });
+    const body = store.manifestBody(runId);
+    store.writeManifest(body);
+    store.advanceCleanup(runId, 'sessions-terminated');
+    store.advanceCleanup(runId, 'fixtures-removed');
+    expect(store.readRecoverableManifests()).toEqual([
+      expect.objectContaining({ cleanupStage: 'fixtures-removed', body }),
+    ]);
+    expect(existsSync(store.manifestPath(runId))).toBe(true);
+  });
+
+  it('retains an ambiguous legacy rate-key log instead of losing evidence on retry', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-supervisor-legacy-rate-'));
+    chmodSync(baseDirectory, 0o700);
+    const runId = 'c'.repeat(16);
+    const store = createSupervisorStateStore({ baseDirectory, identity: 'd'.repeat(64) });
+    writeFileSync(store.rateKeyPath(runId), `${'e'.repeat(64)}\n`, { mode: 0o600 });
+    expect(() => store.readRateKeys(runId)).toThrow(/legacy|ambiguous/u);
+    expect(existsSync(store.rateKeyPath(runId))).toBe(true);
+    expect(() => store.readRateKeys(runId)).toThrow(/legacy|ambiguous/u);
   });
 
   it('quarantines torn state and rejects symlinked or non-private state directories', () => {
@@ -77,7 +106,7 @@ function start(
   options: {
     databaseUrl?: string;
     fixtureArguments?: string[];
-    fixtureEnvironment?: NodeJS.ProcessEnv;
+    fixtureEnvironment?: Record<string, string | undefined>;
     hookFile?: string;
     pausePhase?: string;
   } = {},
@@ -146,6 +175,10 @@ function residue(prefix: string, counterKey: string) {
   ).trim();
 }
 
+function supervisedCounterKey(runId: string, baseKey: string) {
+  return createHash('sha256').update(`${runId}|${baseKey}`).digest('hex');
+}
+
 function ownedFixtureResidue(
   runId: string,
   databasePrefix: string,
@@ -193,7 +226,10 @@ describe('full integration command database lock', () => {
     try {
       const result = await completion(start(join(directory, 'run.jsonl'), 0, fixtureCounter));
       expect(result).toEqual({ code: 0, signal: null, stderr: '' });
-      expect(residue('tryoutflow_fixture_never_', fixtureCounter)).toBe('0|0');
+      const event = JSON.parse(
+        readFileSync(join(directory, 'run.jsonl'), 'utf8').trim().split('\n')[0]!,
+      ) as { counterKey: string };
+      expect(residue('tryoutflow_fixture_never_', event.counterKey)).toBe('0|0');
       expect(residue('tryoutflow_fixture_never_', unrelatedCounter)).toBe('0|1');
     } finally {
       execFileSync('psql', [
@@ -202,6 +238,38 @@ describe('full integration command database lock', () => {
         `delete from public.registration_rate_counters where key_hash in('${fixtureCounter}','${unrelatedCounter}')`,
       ]);
     }
+  });
+
+  it('preserves a byte-equivalent inherited counter even when the command targets its exact key', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-inherited-counter-'));
+    const output = join(directory, 'run.jsonl');
+    const result = await completion(
+      start(output, 0, createHash('sha256').update(randomUUID()).digest('hex'), {
+        fixtureArguments: ['inherited-rate-state'],
+      }),
+    );
+    expect(result.code).toBe(1);
+    const event = JSON.parse(readFileSync(output, 'utf8').trim().split('\n')[0]!) as {
+      counterKey: string;
+      counterSnapshot: string;
+    };
+    const after = execFileSync(
+      'psql',
+      [
+        '-X',
+        '-At',
+        databaseUrl,
+        '-c',
+        `select row_to_json(counter)::text from public.registration_rate_counters counter where key_hash='${event.counterKey}'`,
+      ],
+      { encoding: 'utf8' },
+    ).trim();
+    expect(after).toBe(event.counterSnapshot);
+    execFileSync('psql', [
+      databaseUrl,
+      '-c',
+      `delete from public.registration_rate_counters where key_hash='${event.counterKey}'`,
+    ]);
   });
 
   it.each(
@@ -250,7 +318,9 @@ describe('full integration command database lock', () => {
 
         const recovery = await completion(start(join(directory, 'recovery.jsonl'), 0));
         expect(recovery.code).toBe(0);
-        expect(supervisorResidue(hook.runId, fixtureCounter)).toBe('0|0|0|0|0');
+        expect(
+          supervisorResidue(hook.runId, supervisedCounterKey(hook.runId, fixtureCounter)),
+        ).toBe('0|0|0|0|0');
         expect(residue('tryoutflow_fixture_never_', unrelatedCounter)).toBe('0|1');
         if (phaseName !== 'cleanup') expect(existsSync(output)).toBe(false);
       } finally {
@@ -485,6 +555,100 @@ describe('full integration command database lock', () => {
     ).toBe('0');
   }, 15_000);
 
+  it.each(['pre-spawn', 'spawned-unbound', 'post-spawn', 'active', 'cleanup'] as const)(
+    'reaps the exact command group when the supervisor is directly killed during %s',
+    async (phaseName) => {
+      const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-direct-supervisor-kill-'));
+      const output = join(directory, 'command.jsonl');
+      const hooks = join(directory, 'hooks.jsonl');
+      const unrelated = spawn('sleep', ['30']);
+      const child = start(output, phaseName === 'cleanup' ? 0 : 30_000, undefined, {
+        hookFile: hooks,
+        pausePhase: phaseName,
+        fixtureArguments: ['ignore-term'],
+      });
+      try {
+        await waitForFile(hooks, new RegExp(`"phase":"${phaseName}"`, 'u'), 10_000);
+        const hook = readFileSync(hooks, 'utf8')
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as { phase: string; supervisorPid: number })
+          .find((entry) => entry.phase === phaseName)!;
+        if (phaseName === 'active') await waitForFile(output, /"event":"start"/u, 10_000);
+        process.kill(hook.supervisorPid, 'SIGKILL');
+        const result = await completion(child);
+        expect(result.code).toBe(137);
+        if (existsSync(output)) {
+          const event = JSON.parse(readFileSync(output, 'utf8').trim().split('\n')[0]!) as {
+            pid: number;
+          };
+          await expect(
+            new Promise<void>((resolveGone, rejectGone) => {
+              const deadline = Date.now() + 4_000;
+              const poll = () => {
+                try {
+                  process.kill(event.pid, 0);
+                } catch {
+                  return resolveGone();
+                }
+                if (Date.now() >= deadline)
+                  return rejectGone(new Error('direct-supervisor child survived'));
+                setTimeout(poll, 20);
+              };
+              poll();
+            }),
+          ).resolves.toBeUndefined();
+        }
+        expect(() => process.kill(unrelated.pid!, 0)).not.toThrow();
+      } finally {
+        unrelated.kill('SIGKILL');
+        child.kill('SIGKILL');
+        await completion(start(join(directory, 'recovery.jsonl'), 0));
+      }
+    },
+    20_000,
+  );
+
+  it.each(['databases', 'roots', 'rate-keys', 'registry'] as const)(
+    'retains authenticated retry state when cleanup fails at %s',
+    async (cleanupStage) => {
+      const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-cleanup-retry-'));
+      const output = join(directory, 'command.jsonl');
+      const failed = await completion(
+        start(output, 0, undefined, {
+          fixtureArguments: ['create-owned-resources'],
+          fixtureEnvironment: {
+            TRYOUTFLOW_INTEGRATION_TEST_FAIL_CLEANUP_STAGE: cleanupStage,
+          },
+        }),
+      );
+      expect(failed.code).toBe(1);
+      const event = JSON.parse(readFileSync(output, 'utf8').trim().split('\n')[0]!) as {
+        runId: string;
+        databasePrefix: string;
+        organizationId: string;
+        userId: string;
+        counterKey: string;
+      };
+      const validated = resolveAndValidateLocalDatabase(databaseUrl);
+      const store = createSupervisorStateStore({ identity: validated.identity });
+      expect(existsSync(store.manifestPath(event.runId))).toBe(true);
+      const recovered = await completion(start(join(directory, 'recovery.jsonl'), 0));
+      expect(recovered.code).toBe(0);
+      expect(
+        ownedFixtureResidue(
+          event.runId,
+          event.databasePrefix,
+          event.counterKey,
+          event.organizationId,
+          event.userId,
+        ),
+      ).toBe('0|0|0|0|0');
+      expect(existsSync(store.manifestPath(event.runId))).toBe(false);
+    },
+    20_000,
+  );
+
   it.each([
     ['SIGTERM', 143],
     ['SIGKILL', 137],
@@ -503,6 +667,7 @@ describe('full integration command database lock', () => {
         databasePrefix: string;
         organizationId: string;
         userId: string;
+        counterKey: string;
       };
       const unrelatedOrganizationId = randomUUID();
       const unrelatedUserId = randomUUID();
@@ -522,7 +687,7 @@ describe('full integration command database lock', () => {
         ownedFixtureResidue(
           event.runId,
           event.databasePrefix,
-          counterKey,
+          event.counterKey,
           event.organizationId,
           event.userId,
         ) !== '0|0|0|0|0'
@@ -533,7 +698,7 @@ describe('full integration command database lock', () => {
         ownedFixtureResidue(
           event.runId,
           event.databasePrefix,
-          counterKey,
+          event.counterKey,
           event.organizationId,
           event.userId,
         ),

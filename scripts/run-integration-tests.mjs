@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 
@@ -51,6 +51,21 @@ const supervisor = spawn(
     detached: true,
   },
 );
+const supervisorStartedAt = execFileSync('ps', ['-o', 'lstart=', '-p', String(supervisor.pid)], {
+  encoding: 'utf8',
+}).trim();
+if (!supervisorStartedAt) throw new Error('unable to bind integration supervisor identity');
+const reaper = spawn(
+  process.execPath,
+  [
+    resolve('scripts/lib/integration-command-reaper.mjs'),
+    String(supervisor.pid),
+    supervisorStartedAt,
+    runId,
+    validated.identity,
+  ],
+  { env: process.env, stdio: 'inherit' },
+);
 
 let requestedExitCode = null;
 const forward = (signal, exitCode) => {
@@ -68,9 +83,16 @@ const result = await new Promise((resolveResult) => {
   supervisor.once('error', (error) => resolveResult({ code: 1, error }));
   supervisor.once('close', (code, signal) => resolveResult({ code, signal }));
 });
+const reaperResult = await new Promise((resolveResult) => {
+  reaper.once('error', (error) => resolveResult({ code: 1, error }));
+  reaper.once('close', (code, signal) => resolveResult({ code, signal }));
+});
 if (result.error) console.error(result.error);
+if (reaperResult.error) console.error(reaperResult.error);
 const signalNumbers = { SIGINT: 2, SIGTERM: 15, SIGKILL: 9 };
 process.exitCode =
   requestedExitCode ??
-  result.code ??
-  (result.signal ? 128 + (signalNumbers[result.signal] ?? 0) : 1);
+  (result.code === 0 && reaperResult.code !== 0
+    ? 1
+    : (result.code ??
+      (result.signal ? 128 + (signalNumbers[result.signal] ?? 0) : (reaperResult.code ?? 1))));

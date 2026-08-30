@@ -8,6 +8,14 @@ import { getServerEnvironment } from '../../../../lib/env';
 
 export const MAX_PUBLIC_REGISTRATION_BODY_BYTES = 32 * 1024;
 
+function integrationRateNamespace() {
+  if (process.env.NODE_ENV !== 'test') return '';
+  const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+  if (!runId) return '';
+  if (!/^[0-9a-f]{16}$/u.test(runId)) throw new Error('invalid integration run id');
+  return `integration-run:${runId}|`;
+}
+
 export function recordIntegrationRateKeys(keys: string[]) {
   if (process.env.NODE_ENV !== 'test') return;
   const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
@@ -37,7 +45,7 @@ export function recordIntegrationRateKeys(keys: string[]) {
       throw new Error('unsafe integration rate-key ownership log');
     }
   }
-  appendFileSync(path, `${keys.join('\n')}\n`, { mode: 0o600 });
+  appendFileSync(path, `${keys.map((key) => `v2:${key}`).join('\n')}\n`, { mode: 0o600 });
 }
 
 type GuardFailure = { ok: false; status: 400 | 403 | 413 };
@@ -124,11 +132,12 @@ export async function guardPublicJsonRequest<T>(
       return { ok: false, status: 400 };
     }
     const secret = getServerEnvironment().PUBLIC_REGISTRATION_RATE_LIMIT_SECRET;
+    const namespace = integrationRateNamespace();
     const contextRateKey = createHmac('sha256', secret)
-      .update(`${options.bucket}|context|${address}`)
+      .update(`${namespace}${options.bucket}|context|${address}`)
       .digest('hex');
     const rateKey = createHmac('sha256', secret)
-      .update(`${options.bucket}|target|${parsed.target}|${address}`)
+      .update(`${namespace}${options.bucket}|target|${parsed.target}|${address}`)
       .digest('hex');
     recordIntegrationRateKeys([contextRateKey, rateKey]);
     return { ok: true, ...parsed, contextRateKey, rateKey };

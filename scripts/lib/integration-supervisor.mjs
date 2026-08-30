@@ -1,5 +1,6 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import { appendFileSync } from 'node:fs';
 
 import { createSupervisorStateStore } from './integration-supervisor-state.mjs';
@@ -21,6 +22,7 @@ let requestedExitCode = null;
 let cancellationGeneration = 0;
 let supervisorState = 'validating-identity';
 let commandChild;
+let commandCompletion = Promise.resolve({ code: null, signal: null });
 let holder;
 let lockAcquired = false;
 let escalation;
@@ -81,6 +83,15 @@ async function phase(name, { allowCancellation = false } = {}) {
 }
 
 const signalExitCode = (signal) => 128 + ({ SIGINT: 2, SIGTERM: 15, SIGKILL: 9 }[signal] ?? 0);
+
+function processIdentity(pid) {
+  const output = execFileSync('ps', ['-o', 'pid=,pgid=,lstart=', '-p', String(pid)], {
+    encoding: 'utf8',
+  }).trim();
+  const match = /^(\d+)\s+(\d+)\s+(.{24})$/u.exec(output);
+  if (!match) throw new Error('unable to bind integration command process identity');
+  return { pid: Number(match[1]), pgid: Number(match[2]), startedAt: match[3].trim() };
+}
 
 async function supervise() {
   const databaseUrl = process.env.SUPABASE_DB_URL;
@@ -148,8 +159,12 @@ async function supervise() {
     if (
       psql(`select exists(select 1 from pg_namespace where nspname='${exact.ownershipSchema}')`) !==
       't'
-    )
+    ) {
+      if (psql(`select exists(select 1 from pg_roles where rolname='${exact.role}')`) === 't') {
+        throw new Error('integration ownership registry is missing while its run role remains');
+      }
       return { organizationIds: [], userIds: [] };
+    }
     const ids = (table) =>
       containerSuperuserPsql(`select id from ${exact.ownershipSchema}.${table} order by id`)
         .split('\n')
@@ -214,25 +229,106 @@ async function supervise() {
   }
 
   function cleanupRun(exactRunId) {
-    const errors = [];
-    let owned = { organizationIds: [], userIds: [] };
-    const attempt = (operation) => {
-      try {
-        operation();
-      } catch (error) {
-        errors.push(error);
+    const manifest = state
+      .readRecoverableManifests()
+      .find((candidate) => candidate.body.runId === exactRunId);
+    if (!manifest) return [];
+    let cleanupStage = manifest.cleanupStage;
+    const failHook = (name) => {
+      if (
+        process.env.NODE_ENV === 'test' &&
+        process.env.TRYOUTFLOW_INTEGRATION_TEST_FAIL_CLEANUP_STAGE === name
+      ) {
+        throw new Error(`injected integration cleanup failure at ${name}`);
       }
     };
-    attempt(() => terminateRunSessions(exactRunId));
-    attempt(() => {
-      owned = readOwnedRoots(exactRunId);
-    });
-    attempt(() => cleanupDatabases(exactRunId));
-    attempt(() => cleanupOwnedPrimaryFixtures(owned));
-    attempt(() => cleanupRateKeys(exactRunId));
-    attempt(() => cleanupRegistryAndRole(exactRunId));
-    if (errors.length === 0) state.removeRunState(exactRunId);
-    return errors;
+    try {
+      if (cleanupStage === 'active') {
+        terminateRunSessions(exactRunId);
+        const exact = state.manifestBody(exactRunId);
+        if (
+          containerSuperuserPsql(
+            `select count(*) from pg_stat_activity where usename='${exact.role}' and pid<>pg_backend_pid()`,
+          ) !== '0'
+        ) {
+          throw new Error('owned integration sessions remain');
+        }
+        state.advanceCleanup(exactRunId, 'sessions-terminated');
+        cleanupStage = 'sessions-terminated';
+      }
+      if (cleanupStage === 'sessions-terminated') {
+        failHook('databases');
+        cleanupDatabases(exactRunId);
+        const prefixes = state.manifestBody(exactRunId).databasePrefixes;
+        const remaining = prefixes.reduce(
+          (count, prefix) =>
+            count +
+            Number(
+              psql(
+                `select count(*) from pg_database where left(datname,${prefix.length})='${prefix}'`,
+              ),
+            ),
+          0,
+        );
+        if (remaining !== 0) throw new Error('owned integration databases remain');
+        state.advanceCleanup(exactRunId, 'fixtures-removed');
+        cleanupStage = 'fixtures-removed';
+      }
+      if (cleanupStage === 'fixtures-removed') {
+        failHook('roots');
+        const owned = readOwnedRoots(exactRunId);
+        cleanupOwnedPrimaryFixtures(owned);
+        const uuidList = (ids) => ids.map((id) => `'${id}'::uuid`).join(',');
+        const organizations = owned.organizationIds.length
+          ? `array[${uuidList(owned.organizationIds)}]`
+          : 'array[]::uuid[]';
+        const users = owned.userIds.length
+          ? `array[${uuidList(owned.userIds)}]`
+          : 'array[]::uuid[]';
+        if (
+          psql(
+            `select (select count(*) from public.organizations where id=any(${organizations}))+(select count(*) from auth.users where id=any(${users}))`,
+          ) !== '0'
+        ) {
+          throw new Error('owned integration roots remain');
+        }
+        state.advanceCleanup(exactRunId, 'roots-removed');
+        cleanupStage = 'roots-removed';
+      }
+      if (cleanupStage === 'roots-removed') {
+        failHook('rate-keys');
+        cleanupRateKeys(exactRunId);
+        const keys = state.readRateKeys(exactRunId);
+        if (
+          keys.length &&
+          psql(
+            `select count(*) from public.registration_rate_counters where key_hash in(${keys.map((key) => `'${key}'`).join(',')})`,
+          ) !== '0'
+        ) {
+          throw new Error('owned integration rate counters remain');
+        }
+        state.advanceCleanup(exactRunId, 'rate-keys-removed');
+        cleanupStage = 'rate-keys-removed';
+      }
+      if (cleanupStage === 'rate-keys-removed') {
+        failHook('registry');
+        cleanupRegistryAndRole(exactRunId);
+        const exact = state.manifestBody(exactRunId);
+        if (
+          psql(
+            `select (select count(*) from pg_roles where rolname='${exact.role}')+(select count(*) from pg_namespace where nspname='${exact.ownershipSchema}')+(select count(*) from pg_trigger where tgname in('tryoutflow_capture_org_${exactRunId}','tryoutflow_capture_user_${exactRunId}'))`,
+          ) !== '0'
+        ) {
+          throw new Error('owned integration registry remains');
+        }
+        state.advanceCleanup(exactRunId, 'registry-removed');
+        cleanupStage = 'registry-removed';
+      }
+      if (cleanupStage === 'registry-removed') state.removeRunState(exactRunId);
+      return [];
+    } catch (error) {
+      return [error];
+    }
   }
 
   function recoverStaleManifests() {
@@ -316,23 +412,44 @@ async function supervise() {
     const testDatabase = new URL(operationalDatabaseUrl);
     testDatabase.username = body.role;
     testDatabase.password = runPassword;
-    const [executable, ...args] = command;
+    const commandNonce = randomBytes(16).toString('hex');
+    state.writeCommand(runId, { nonce: commandNonce });
     transition('running-command', ['preparing-command']);
-    commandChild = spawn(executable, args, {
-      env: {
-        ...process.env,
-        PGAPPNAME: `tryoutflow-integration-run:${runId}`,
-        SUPABASE_DB_URL: testDatabase.toString(),
-        TRYOUTFLOW_INTEGRATION_RUN_ID: runId,
-        TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG: state.rateKeyPath(runId),
+    commandChild = spawn(
+      process.execPath,
+      [
+        resolve('scripts/lib/integration-command-launcher.mjs'),
+        JSON.stringify(command),
+        state.commandGoPath(runId),
+        commandNonce,
+      ],
+      {
+        env: {
+          ...process.env,
+          PGAPPNAME: `tryoutflow-integration-run:${runId}`,
+          SUPABASE_DB_URL: testDatabase.toString(),
+          TRYOUTFLOW_INTEGRATION_RUN_ID: runId,
+          TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG: state.rateKeyPath(runId),
+        },
+        stdio: 'inherit',
+        detached: true,
       },
-      stdio: 'inherit',
-      detached: true,
-    });
-    childResult = await new Promise((resolve) => {
+    );
+    commandCompletion = new Promise((resolve) => {
       commandChild.once('error', (error) => resolve({ code: 1, signal: null, error }));
       commandChild.once('close', (code, signal) => resolve({ code, signal }));
     });
+    await phase('spawned-unbound');
+    const commandIdentity = processIdentity(commandChild.pid);
+    if (commandIdentity.pid !== commandIdentity.pgid) {
+      throw new Error('integration command launcher did not create an isolated process group');
+    }
+    state.bindCommand(runId, { ...commandIdentity, nonce: commandNonce });
+    await phase('post-spawn');
+    fence();
+    state.permitCommand(runId);
+    await phase('active');
+    childResult = await commandCompletion;
   } catch (error) {
     executionError = error;
     beginTermination(requestedExitCode ?? 1);
@@ -341,8 +458,10 @@ async function supervise() {
     signalOwnedGroup('SIGTERM');
     await new Promise((resolve) => setTimeout(resolve, 50));
     signalOwnedGroup('SIGKILL');
+    if (commandChild) await commandCompletion;
     if (escalation) clearTimeout(escalation);
     await phase('cleanup', { allowCancellation: true });
+    state?.removeCommand(runId);
     if (lockAcquired) {
       const errors = cleanupRun(runId);
       if (errors.length)

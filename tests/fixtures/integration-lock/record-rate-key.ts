@@ -1,4 +1,5 @@
 import { appendFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 
 export function recordIntegrationRateKey(key: string) {
@@ -7,6 +8,7 @@ export function recordIntegrationRateKey(key: string) {
   const log = process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG;
   if (!runId || !/^[0-9a-f]{16}$/u.test(runId) || !log || basename(log) !== `${runId}.rate-keys`)
     throw new Error('supervised integration rate-key log required');
-  appendFileSync(log, `${key}\n`, { mode: 0o600 });
-  return key;
+  const namespacedKey = createHash('sha256').update(`${runId}|${key}`).digest('hex');
+  appendFileSync(log, `v2:${namespacedKey}\n`, { mode: 0o600 });
+  return namespacedKey;
 }
