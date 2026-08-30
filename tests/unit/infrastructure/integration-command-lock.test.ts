@@ -5,14 +5,17 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
+  fstatSync,
   linkSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
   renameSync,
   rmSync,
   symlinkSync,
+  writeSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,6 +31,15 @@ const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const runner = resolve('scripts/run-integration-tests.mjs');
 const fixture = resolve('tests/fixtures/integration-lock/record-run.mjs');
+type TestSupervisorStateOptions = Parameters<typeof createSupervisorStateStore>[0] & {
+  completionProofOperations: Partial<{
+    fstatSync: (descriptor: number) => ReturnType<typeof fstatSync>;
+    openSync: (path: string, flags: number, mode?: number) => number;
+    writeSync: (descriptor: number, buffer: Uint8Array, offset: number, length: number) => number;
+  }>;
+};
+const createTestSupervisorStateStore = (options: TestSupervisorStateOptions) =>
+  createSupervisorStateStore(options);
 
 describe('authenticated integration supervisor state', () => {
   it('accepts only an identity-bound, internally consistent, authentic manifest', () => {
@@ -173,6 +185,136 @@ describe('authenticated integration supervisor state', () => {
       /replace|exist/u,
     );
     expect(readFileSync(proof, 'utf8')).toBe('operator evidence');
+  });
+
+  it('retains a proof raced into place before its exclusive create', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-proof-exclusive-race-'));
+    chmodSync(baseDirectory, 0o700);
+    const runId = 'e'.repeat(16);
+    const capability = 'f'.repeat(32);
+    let proof = '';
+    const store = createTestSupervisorStateStore({
+      baseDirectory,
+      identity: '1'.repeat(64),
+      completionProofOperations: {
+        openSync(path, flags, mode) {
+          writeFileSync(proof, 'raced evidence', { mode: 0o600 });
+          return openSync(path, flags, mode);
+        },
+      },
+    });
+    proof = store.commandCompletionPath(runId, capability);
+    const command = { nonce: '2'.repeat(32) };
+    store.writeCommand(runId, command);
+
+    expect(() => store.writeCommandCompletion(runId, capability, command)).toThrow(/exist/u);
+    expect(readFileSync(proof, 'utf8')).toBe('raced evidence');
+  });
+
+  it('retains a partially written proof and succeeds only at a fresh capability path', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-partial-proof-'));
+    chmodSync(baseDirectory, 0o700);
+    const runId = '1'.repeat(16);
+    let failWrite = true;
+    const store = createTestSupervisorStateStore({
+      baseDirectory,
+      identity: '2'.repeat(64),
+      completionProofOperations: {
+        writeSync(descriptor, buffer, offset, length) {
+          if (!failWrite) return writeSync(descriptor, buffer, offset, length);
+          failWrite = false;
+          writeSync(descriptor, buffer, offset, Math.min(17, length));
+          throw new Error('forced partial completion-proof write');
+        },
+      },
+    });
+    const command = { nonce: '3'.repeat(32) };
+    const failedCapability = '4'.repeat(32);
+    const successfulCapability = '5'.repeat(32);
+    store.writeCommand(runId, command);
+
+    expect(() => store.writeCommandCompletion(runId, failedCapability, command)).toThrow(
+      /forced partial/u,
+    );
+    const partialPath = store.commandCompletionPath(runId, failedCapability);
+    const partialBytes = readFileSync(partialPath);
+    expect(partialBytes.length).toBe(17);
+    expect(() => store.readCommandCompletion(runId, failedCapability)).toThrow();
+
+    store.writeCommandCompletion(runId, successfulCapability, command);
+    expect(store.readCommandCompletion(runId, successfulCapability)).toEqual({
+      phase: 'command-group-stopped',
+      command,
+    });
+    expect(readFileSync(partialPath)).toEqual(partialBytes);
+  });
+
+  it('retains both path entries when the proof inode is substituted immediately after open', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-open-swap-proof-'));
+    chmodSync(baseDirectory, 0o700);
+    const runId = '6'.repeat(16);
+    const capability = '7'.repeat(32);
+    let proof = '';
+    let original = '';
+    let firstFstat = true;
+    const store = createTestSupervisorStateStore({
+      baseDirectory,
+      identity: '8'.repeat(64),
+      completionProofOperations: {
+        fstatSync(descriptor) {
+          const stat = fstatSync(descriptor);
+          if (firstFstat) {
+            firstFstat = false;
+            renameSync(proof, original);
+            writeFileSync(proof, 'substitute evidence', { mode: 0o600 });
+          }
+          return stat;
+        },
+      },
+    });
+    proof = store.commandCompletionPath(runId, capability);
+    original = `${proof}.original`;
+    const command = { nonce: '9'.repeat(32) };
+    store.writeCommand(runId, command);
+
+    expect(() => store.writeCommandCompletion(runId, capability, command)).toThrow(/unsafe/u);
+    expect(readFileSync(original)).toHaveLength(0);
+    expect(readFileSync(proof, 'utf8')).toBe('substitute evidence');
+    expect(() => store.readCommandCompletion(runId, capability)).toThrow();
+  });
+
+  it('retains both path entries when the proof path is swapped after descriptor writing', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-written-swap-proof-'));
+    chmodSync(baseDirectory, 0o700);
+    const runId = 'a'.repeat(16);
+    const capability = 'b'.repeat(32);
+    let proof = '';
+    let original = '';
+    let swapped = false;
+    const store = createTestSupervisorStateStore({
+      baseDirectory,
+      identity: 'c'.repeat(64),
+      completionProofOperations: {
+        writeSync(descriptor, buffer, offset, length) {
+          const written = writeSync(descriptor, buffer, offset, length);
+          if (!swapped) {
+            swapped = true;
+            renameSync(proof, original);
+            writeFileSync(proof, 'replacement evidence', { mode: 0o600 });
+          }
+          return written;
+        },
+      },
+    });
+    proof = store.commandCompletionPath(runId, capability);
+    original = `${proof}.original`;
+    const command = { nonce: 'd'.repeat(32) };
+    store.writeCommand(runId, command);
+
+    expect(() => store.writeCommandCompletion(runId, capability, command)).toThrow(/unsafe/u);
+    expect(readFileSync(original, 'utf8')).toContain('command-group-stopped');
+    expect(readFileSync(proof, 'utf8')).toBe('replacement evidence');
+    expect(() => store.readCommandCompletion(runId, capability)).toThrow();
   });
 
   it('rejects a socket completion proof without connecting to it', async () => {

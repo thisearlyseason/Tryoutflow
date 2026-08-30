@@ -25,9 +25,10 @@ release the lock; if evidence is unsafe or the group remains, it continues holdi
 or mixed signals neither trigger default termination nor duplicate reapers, cleanup, or diagnostics.
 At most five immutable attempt proofs are retained per run for manual inspection.
 To prune retained proof evidence, first stop every integration runner, supervisor, reaper, and
-launcher for that local database identity and finish any authenticated artifact recovery. Then
-archive or remove the whole identity directory printed in the recovery diagnostic; do not remove
-individual proof pathnames while a runner holds the canonical lock.
+launcher for that local database identity, verify that its PostgreSQL advisory-lock session is
+absent, and finish any authenticated artifact recovery. Only after all of those conditions hold may
+you archive or remove the whole identity directory printed in the recovery diagnostic; never remove
+individual proof pathnames.
 
 Normal completion, command failure, `SIGINT`, and `SIGTERM` automatically stop the owned command
 group and clean exact authenticated database roots. Registration rate-counter rows are deliberately

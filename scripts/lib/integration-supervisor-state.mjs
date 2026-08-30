@@ -112,6 +112,136 @@ function writeBounded(descriptor, value) {
   }
 }
 
+function immutableCompletionProofOperations(overrides) {
+  return {
+    closeSync,
+    fstatSync,
+    fsyncSync,
+    lstatSync,
+    openSync,
+    writeSync,
+    ...overrides,
+  };
+}
+
+function validatePathMatchesDescriptor(path, descriptorStat, operations, exactBytes) {
+  const pathStat = operations.lstatSync(path);
+  validatePrivateRegularFile(
+    pathStat,
+    'integration command completion',
+    maximumStateBytes,
+    exactBytes,
+  );
+  if (pathStat.dev !== descriptorStat.dev || pathStat.ino !== descriptorStat.ino) {
+    throw new Error('unsafe integration command completion path identity');
+  }
+}
+
+function fsyncValidatedPrivateDirectory(directory, directoryIdentity, validateStateDirectory) {
+  validateStateDirectory();
+  const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+  try {
+    const opened = fstatSync(descriptor);
+    if (
+      !opened.isDirectory() ||
+      opened.uid !== currentUid(opened.uid) ||
+      (opened.mode & 0o777) !== 0o700 ||
+      opened.dev !== directoryIdentity.dev ||
+      opened.ino !== directoryIdentity.ino
+    ) {
+      throw new Error('unsafe integration supervisor private directory');
+    }
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+  validateStateDirectory();
+}
+
+function writeImmutableCompletionProof(
+  path,
+  value,
+  directory,
+  directoryIdentity,
+  validateStateDirectory,
+  operations,
+) {
+  const serialized = Buffer.from(value);
+  if (serialized.length > maximumStateBytes) {
+    throw new Error('integration supervisor state exceeds the safe size limit');
+  }
+
+  validateStateDirectory();
+  let descriptor;
+  let failure;
+  try {
+    descriptor = operations.openSync(
+      path,
+      constants.O_CREAT |
+        constants.O_EXCL |
+        constants.O_WRONLY |
+        constants.O_NOFOLLOW |
+        constants.O_CLOEXEC,
+      0o600,
+    );
+    const opened = operations.fstatSync(descriptor);
+    validatePrivateRegularFile(opened, 'integration command completion', maximumStateBytes, 0);
+    validatePathMatchesDescriptor(path, opened, operations, 0);
+
+    let offset = 0;
+    while (offset < serialized.length) {
+      const written = operations.writeSync(
+        descriptor,
+        serialized,
+        offset,
+        serialized.length - offset,
+      );
+      if (!Number.isSafeInteger(written) || written <= 0) {
+        throw new Error('unable to make progress writing integration command completion');
+      }
+      offset += written;
+    }
+    operations.fsyncSync(descriptor);
+    const completed = operations.fstatSync(descriptor);
+    validatePrivateRegularFile(
+      completed,
+      'integration command completion',
+      maximumStateBytes,
+      serialized.length,
+    );
+    if (completed.dev !== opened.dev || completed.ino !== opened.ino) {
+      throw new Error('unsafe integration command completion descriptor identity');
+    }
+    validatePathMatchesDescriptor(path, completed, operations, serialized.length);
+  } catch (error) {
+    failure = error;
+    if (descriptor !== undefined) {
+      try {
+        operations.fsyncSync(descriptor);
+      } catch {
+        // Retain the partial inode; the reader rejects it and a fresh capability is required.
+      }
+    }
+  } finally {
+    if (descriptor !== undefined) {
+      try {
+        operations.closeSync(descriptor);
+      } catch (error) {
+        failure ??= error;
+      }
+    }
+  }
+
+  if (descriptor !== undefined) {
+    try {
+      fsyncValidatedPrivateDirectory(directory, directoryIdentity, validateStateDirectory);
+    } catch (error) {
+      failure ??= error;
+    }
+  }
+  if (failure) throw failure;
+}
+
 function ensurePrivateDirectory(path) {
   if (!existsSync(path)) mkdirSync(path, { recursive: true, mode: 0o700 });
   const stat = lstatSync(path);
@@ -231,6 +361,20 @@ function atomicReplace(path, value, directory) {
   fsyncDirectory(directory);
 }
 
+/**
+ * @param {{
+ *   identity: string,
+ *   baseDirectory?: string,
+ *   completionProofOperations?: Partial<{
+ *     closeSync: typeof closeSync,
+ *     fstatSync: typeof fstatSync,
+ *     fsyncSync: typeof fsyncSync,
+ *     lstatSync: typeof lstatSync,
+ *     openSync: typeof openSync,
+ *     writeSync: typeof writeSync,
+ *   }>,
+ * }} options
+ */
 export function createSupervisorStateStore(options) {
   const identity = options?.identity;
   if (!identityPattern.test(identity ?? ''))
@@ -241,6 +385,9 @@ export function createSupervisorStateStore(options) {
   const secret = readOrCreateSecret(baseDirectory);
   const directory = join(baseDirectory, identity);
   const directoryIdentity = ensurePrivateDirectory(directory);
+  const completionProofOperations = immutableCompletionProofOperations(
+    options?.completionProofOperations,
+  );
   const validateStateDirectory = () => {
     const current = ensurePrivateDirectory(directory);
     if (current.dev !== directoryIdentity.dev || current.ino !== directoryIdentity.ino) {
@@ -439,10 +586,13 @@ export function createSupervisorStateStore(options) {
       }
       const completion = { phase: 'command-group-stopped', command: command ?? null };
       const payload = { body, capability, completion };
-      atomicWrite(
+      writeImmutableCompletionProof(
         commandCompletionPath(runId, capability),
         JSON.stringify({ ...payload, authentication: authenticatedPayload(secret, payload) }),
         directory,
+        directoryIdentity,
+        validateStateDirectory,
+        completionProofOperations,
       );
     },
     readCommandCompletion(runId, capability) {
