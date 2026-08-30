@@ -2,115 +2,147 @@
 
 ## Status
 
-Complete. Implementation commit: `07e396c` (`feat: add idempotent mock roster export`).
+Complete after review fix round 1/5.
 
-The implementation persists actor-scoped integration connections, exact export previews, sync jobs/items, stable external mappings, and leased outbox attempts. It also adds the disabled-by-default The Squad demo/mock connection page, finalized-roster review/confirmation flow, partial-result history, and failed/reviewable-item retry UI.
+- Original implementation: `07e396c` (`feat: add idempotent mock roster export`)
+- Review hardening: `7054702` (`fix(integrations): harden durable export execution`)
+
+The implementation now persists actor-scoped integration connections, immutable export sources and approved projections, sync jobs/items, provider attempts, and athlete/team/roster-version mappings. It also provides truthful retry/manual-attention UI, a discoverable finalized-roster export entry point, and a production-route browser traversal through local authentication, RPC persistence, the protected processor, and refreshed durable state.
 
 ## Requirements and design gate
 
-The approved Task 27 brief plus design specification sections 14 and 15 were used as the brainstorming/approval gate. Task 26's provider contract and Task 20's finalized-roster snapshot remained authoritative. The binding collision ruling was followed: the only new migration is `202608280077_integrations.sql` and the only new pgTAP file is `059_integration_integrity.test.sql`; no historical migration was edited.
+The approved Task 27 brief, design specification sections 14 and 15, Task 26 provider report/contracts, and Task 20 finalized-roster interfaces were the design gate. The binding filename ruling was followed:
 
-The durable model has six tenant-scoped tables:
+- additive migration `202608280078_harden_integration_execution.sql`
+- additive pgTAP `060_integration_hardening.test.sql`
+- historical migration 077 was not edited
+- historical pgTAP 059 was updated only where its direct-preview-read expectation contradicted the new private-preview ACL; its original 56-test plan remains intact
 
-- `integration_connections` — one stable actor/provider connection per organization.
-- `integration_export_previews` — short-lived, actor-owned, exact destination/approved-fields/roster/provider-token snapshots and payload digest.
-- `integration_sync_jobs` — top-level business idempotency, immutable confirmed request snapshot, terminal/partial truth, and normalized last error.
-- `integration_sync_items` — item attempts and pending/processing/completed/failed/skipped/requires-review state.
-- `external_entity_mappings` — unique internal and external keys for athlete/team/roster-version entity classes.
-- `integration_outbox_jobs` — bounded claim ordering, available time, maximum attempts, lease owner/token/generation/expiry, provider-handoff marker, backoff, completion, dead-letter, and needs-attention truth.
+Task 26 remains contract machinery, not durable authority. The Squad is disabled unless `ENABLE_MOCK_THE_SQUAD_PROVIDER=true`, all user-facing provider text identifies demo/mock behavior, the callback uses the reserved `.invalid` domain, and no live endpoint or provider credential was added.
 
-Every table includes `organization_id`, has RLS enabled, and uses tenant-composite foreign keys where it has tenant-owned parents. Direct authenticated writes and all direct outbox access are revoked. Owner/administrator reads are RLS-filtered, previews additionally require the exact creator, and privileged state changes are exposed only through strict RPC boundaries.
+## Durable design
 
-Confirmation serializes on organization plus provider preview, verifies the exact creator, organization, connected actor-owned connection, unexpired/unconsumed preview, provider confirmation token, finalized roster ID/version, destination snapshot, approved fields, and persisted payload digest. Reusing the same business idempotency key and request digest returns the same job; changing the bound request returns conflict. An empty finalized roster creates an immediately completed and replayable durable job without provider work, preserving Task 26's empty-export no-op behavior.
+### Immutable preview and privacy
 
-The protected scheduled processor now claims integration work under the existing cron-secret boundary. Claims are limited to 1–50 rows, use `FOR UPDATE SKIP LOCKED`, and increment a fencing generation with a unique lease token. Provider handoff is authorized immediately before submission. A pre-handoff normalized retryable failure schedules exponential backoff with bounded deterministic jitter; expired post-handoff work and post-handoff errors become `needs_attention` instead of being blindly resent. Explicit user retry creates a new provider idempotency attempt for failed/reviewable keys only and leaves completed/skipped items unchanged.
+`issue_roster_export_source` executes under actor authorization and creates one database-issued immutable source containing the exact organization, actor, connection, destination, approved-field list, finalized roster version, teams, and athlete/contact source bytes. Its SHA-256 source digest binds that complete snapshot.
 
-Task 26 remains process-local contract machinery. Durable jobs rehydrate only the exact The Squad mock connection after a process restart, using a `.invalid` callback URL and exact organization/actor/connection identity. `ENABLE_MOCK_THE_SQUAD_PROVIDER` remains false by default, every surface says demo/mock, and no live endpoint, credential, or credential name was added.
+Provider preview operates only on that returned source. `save_roster_export_preview_v2` locks the source and performs compare-and-save validation: provider preview identity/token/digest, item keys, and every approved projected value must match the same immutable source. Authoritative athlete or guardian changes after issuance cannot silently change the reviewed projection.
+
+Raw preview rows and provider confirmation tokens are not directly selectable by authenticated users. Confirmed jobs retain only the approved projection, token digest, source reference, and privacy-safe request metadata. Raw sources/tokens are redacted after completion, cancellation, delivery uncertainty, or empty no-op confirmation; unconfirmed expired sources are deleted by the bounded protected purge.
+
+### Confirmation and retry serialization
+
+Confirmation takes an advisory transaction lock on organization, connection, and business idempotency key before lookup/mutation. This lock is independent of provider preview identity. Byte-equivalent replay returns the original job; a different immutable source using the same business key returns a typed conflict. The exact creator, active owner/administrator membership, actor-bound connected connection, confirmation token, finalized roster ID/version, destination, approved fields, and digest must still match.
+
+Retry takes an advisory lock on organization, job, and retry idempotency key, then row-locks the job before examining prior attempts or changing items. A repeated key replays only when the organization, job, and request digest are identical. Only durable `failed`/`requires_review` items marked `retry_eligible` become pending; completed and skipped items remain untouched. Attempt numbers and provider keys are durable and bounded.
+
+### Worker, authorization, uncertainty, and mappings
+
+Claims are bounded, ordered, leased, and fenced by token plus generation. Expired work with a recorded provider handoff becomes `needs_attention`/`delivery_uncertain`; it is never automatically reclaimed.
+
+The worker performs a non-handoff execution validation before process-local registry/connection rehydration, again after that await, and again after retry preview. The separate handoff authorization rechecks and locks immediately before export, then records `provider_submission_started_at`. A second authorization check after the provider await catches offboarding, disconnect, source invalidation, lease expiry, or roster invalidation. Revocation before handoff cancels with no export call; revocation or expiry after handoff records delivery uncertainty and exposes no ordinary retry.
+
+Provider completion must supply explicit team and roster-version mapping proofs in addition to athlete item results. The database validates exact set coverage, provider/mock identity, tenant/connection scope, and stable external references; it acquires mapping locks in deterministic entity/internal-ID order. No team or roster mapping is fabricated. Durable mappings drive create/update preview behavior after a fresh provider registry and prevent cold-restart duplicates.
+
+### UI truth
+
+The review screen renders the exact approved projected values before confirmation. Confirmation inserts the newly returned job immediately. Completed and skipped counts are distinct. An empty roster returns `completed` with explicit “no transfer” copy and creates no outbox row. Retry is shown only for provably failed-safe items; delivery uncertainty uses separate manual-attention language and has no retry control. Connection, destination, history, and empty-state failures are explicit rather than swallowed.
 
 ## TDD evidence
 
 ### RED
 
-- The first focused application/unit run failed because `preview-roster-export`, `start-roster-export`, `retry-sync-job`, durable gateway, worker dispatch, and UI modules did not exist.
-- The first focused pgTAP run failed because the six integration tables, tenant constraints, RLS policies, indexes, and RPCs did not exist.
-- The first real-database integration path failed before the migration and durable confirmation/claim/completion/retry transitions existed.
-- The protected-processor test failed with `claimIntegrations` called zero times, proving the integration outbox was not wired into the authenticated worker boundary.
-- The organization navigation test could not find the `Integrations` link before the route was made discoverable.
-- The empty-roster real-database test exposed a concrete defect after fixture setup: PostgreSQL `array_agg` returned `NULL`, and confirmation attempted to insert a null `item_keys` outbox value. Production SQL was then changed to persist an immediately completed no-op job and omit outbox work.
+The review findings were reproduced before their production changes:
+
+- New hardening pgTAP initially failed 15 of 18 assertions because immutable-source, private-preview, typed-outbox, and worker-authorization boundaries did not exist.
+- Worker tests initially showed authorization after retry preview and no post-provider recheck; the later await-boundary self-review test failed 3 of 5 cases because validation was never called and provider verification still occurred after revocation.
+- Preview application tests failed three cases around database-issued sources, exact projection CAS, and mutable authoritative reloads.
+- Provider contracts failed two cases for explicit team/roster proof and cold-registry retry behavior.
+- UI tests failed exact projected-value, immediate status, skipped/count, empty no-op, manual-attention, discoverability, and explicit-error expectations.
+- Real database race/privacy coverage failed until confirmation and retry acquired their independent locks and raw previews were removed from authenticated table access.
+- The first post-migration 059/060 compatibility run aborted on historical preview inserts missing `source_digest`; the next aborted on historical outbox inserts missing `request_digest`. Tenant-bound compatibility triggers now derive both without weakening `NOT NULL` or digest checks.
+- After the privacy ACL landed, historical 059 still expected authenticated raw preview reads. That obsolete assertion was changed to require SQLSTATE `42501`; migration 077 remained untouched.
 
 ### GREEN
 
-- Focused integration unit and processor suites: 7 files / 24 tests passed.
-- Navigation boundary: 1 file / 4 tests passed.
-- Focused pgTAP: 1 file / 56 assertions passed.
-- Focused real database export: 1 file / 1 end-to-end test passed, including repeat confirmation, partial completion, mapping stability, retry subset preservation, and empty-roster no-op.
-- Task 26 provider contracts: 3 files / 142 tests passed.
-- Chromium and Mobile Chrome: 4 tests passed, covering destination/field review, confirmation, retry, 375 px overflow, 44 px targets, and axe accessibility.
+- Focused worker/outbox unit tests: 2 files / 7 tests passed, including validation before provider activity, retry-preview revalidation, pre-handoff cancellation, and post-handoff uncertainty.
+- Focused pgTAP 059 + 060: 2 files / 81 assertions passed.
+- Full pgTAP after clean reset: 60 files / 1,643 assertions passed.
+- Full isolated integration suite, run twice: 26 files / 192 tests passed on each run, including two-session confirmation/retry races, immutable identity/contact source behavior, cold registry, mappings, empty no-op, offboarding, disconnect during provider await, privacy, and cleanup.
+- Task 26/provider contracts: 3 files / 143 tests passed.
+- Full application verification: formatting, ESLint, strict TypeScript, 58 unit files / 760 tests, and production Next.js build passed.
+- Independent production build passed.
+- Production-path Chromium: 1 test passed through real local auth, actual app pages/components, feature registry, server actions, RPCs, outbox worker, persistence, refresh, and axe scan without route interception.
+- Chromium + Mobile Chrome fixture: 4 tests passed, including retry UI, 375 px overflow, target sizing, and critical axe accessibility.
 
 ## Files
 
 ### Database and generated types
 
-- `supabase/migrations/202608280077_integrations.sql`
+- `supabase/migrations/202608280078_harden_integration_execution.sql`
 - `supabase/tests/059_integration_integrity.test.sql`
+- `supabase/tests/060_integration_hardening.test.sql`
 - `src/infrastructure/supabase/database.types.ts`
 
-### Application, persistence, and worker
+### Application, provider, and worker
 
-- `src/modules/integrations/application/connect-demo-provider.ts`
+- `src/modules/integrations/domain/contracts.ts`
 - `src/modules/integrations/application/preview-roster-export.ts`
 - `src/modules/integrations/application/start-roster-export.ts`
 - `src/modules/integrations/application/retry-sync-job.ts`
 - `src/modules/integrations/infrastructure/supabase-integration-gateway.ts`
 - `src/infrastructure/integrations/dispatch-integration-job.ts`
 - `src/infrastructure/integrations/integration-outbox.ts`
-- `src/infrastructure/integrations/ensure-demo-mock-connection.ts`
-- `src/infrastructure/integrations/server-provider-registry.ts`
+- `src/infrastructure/integrations/mock-the-squad-provider.ts`
 - `src/app/api/jobs/process/route.ts`
-- `src/infrastructure/integrations/mock-the-squad-provider.ts` — fail-once item identity was made stable across durable retry attempt keys.
 
-### Authorization, routes, and UI
+### Routes and UI
 
-- `src/modules/organizations/application/capabilities.ts`
-- `src/modules/organizations/components/organization-navigation.tsx`
 - `src/modules/integrations/ui/integration-card.tsx`
 - `src/modules/integrations/ui/roster-export-wizard.tsx`
+- `src/modules/integrations/ui/roster-export-link.tsx`
 - `src/app/(app)/app/[organizationSlug]/organization/integrations/page.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rosters/page.tsx`
 - `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rosters/[rosterVersionId]/export/page.tsx`
 
-### Tests and browser fixture
+### Tests and browser evidence
 
 - `tests/unit/integrations/*`
 - `tests/unit/communications/process-jobs-route.test.ts`
-- `tests/unit/organizations/organization-route-context.test.tsx`
+- `tests/contract/team-management-provider.contract.test.ts`
 - `tests/integration/integrations/roster-export.test.ts`
 - `tests/e2e/mock-roster-export.spec.ts`
-- `tests/fixtures/integrations/*`
-- `playwright.integrations.config.ts`
+- `tests/e2e/production-roster-export.spec.ts`
+- `tests/fixtures/integrations/app/page.tsx`
+- `playwright.integrations-production.config.ts`
 
 ## Release gates
 
-- Clean schema application: `npm run supabase:reset` passed and applied migrations 001–077 in order.
-- Full database suite: `npm run test:db` passed 59 files / 1,618 assertions.
-- Full isolated-database integration suite: `npm run test:integration` passed 26 files / 192 tests.
-- Task 26 contracts: `npm run test:contract` passed 3 files / 142 tests.
-- Full application verification: `npm run verify` passed formatting, ESLint, strict TypeScript, 58 unit files / 753 tests, and the production Next.js build.
-- Browser: `npx playwright test --config=playwright.integrations.config.ts --project=chromium --project='Mobile Chrome'` passed 4 tests.
-- Dependency audit: `npm audit --audit-level=high` reported 0 vulnerabilities.
-- Database type reproducibility: two consecutive `npm run db:types` runs retained SHA-256 `13da20fd258bc61d8aa09cbe1726133fb41a9721e0cf512f7bda95f19586fb52`.
-- `git diff --check` passed.
-- Strictness/secret audit found no broad TypeScript `any`, suppression directives, live provider URL, API key, client secret, access token, refresh token, or password in the Task 27 implementation. The only provider callback literal uses the reserved `.invalid` domain.
+- Clean schema application: migrations 001–078 applied in order.
+- Full database: 60 files / 1,643 assertions passed.
+- Integration repeatability: 26 files / 192 tests passed twice.
+- Contracts: 3 files / 143 tests passed.
+- `npm run verify`: passed formatting, lint, typecheck, 58 files / 760 unit tests, and build.
+- Independent `npm run build`: passed.
+- Production Chromium: 1/1 passed.
+- Chromium + Mobile Chrome/a11y: 4/4 passed.
+- Dependency audit: `npm audit --omit=dev` reported 0 vulnerabilities.
+- Type reproducibility: consecutive generated type runs retained SHA-256 `97240dca22a76d3981626112e86a4c7e0af6b1c73fe80e4c6a69d1cdcf2e33a7`.
+- `git diff --check`: passed.
+- Strictness/secret scan: no added broad `any`, suppression directive, live Squad URL, JWT-like token, Stripe-like key, or client-secret literal.
 
 ## Self-review
 
-- Selection, roster decisions, finalization, preview, confirmation, and synchronization remain separate operations. Finalization still performs no export.
-- Provider submission cannot begin until the current lease token/generation is fenced in the database.
-- Provider results are schema-validated, item keys are restricted to the claimed subset, job state is derived from durable items, stable mapping uniqueness rejects conflicting identity, and persistence stores normalized error code/retryability only.
-- Completed/skipped items are never reset by retry or by later result handling.
-- Previewing is read-only with respect to the provider; only explicit reviewed confirmation creates durable work.
-- The shared processor's response contains counters only and cannot echo payloads, recipients, roster fields, provider tokens, or errors.
-- The integration worker and pages use the existing server-authenticated Supabase boundaries; no browser-held service credentials or provider credential surfaces were introduced.
+- RLS/ACL/search path: all integration tables retain tenant RLS and composite tenant constraints; worker tables/previews have no direct authenticated access; every new security-definer function sets `search_path=''`; private helpers and legacy mutable-context RPCs are revoked.
+- Locking/deadlocks: confirmation and retry use separate stable advisory namespaces; mapping locks use deterministic entity/internal-ID order; row locks follow advisory locks; bounded claims use `FOR UPDATE SKIP LOCKED`.
+- Replay/token consumption: exact-digest replay is checked after business-key serialization, so a consumed preview can still truthfully replay the original job while changed bytes conflict.
+- Lease fencing: validate/authorize/complete/fail require the same lease token and generation; stale or expired leases cannot complete. Expired post-handoff leases become delivery uncertainty.
+- Mapping collision: internal and external unique keys are tenant/connection/entity scoped; exact provider proof is required. A conflicting provider external ID aborts completion rather than silently remapping.
+- Revocation during await: execution state is checked around connection/preview awaits and immediately before/after export. Pre-handoff revocation cancels; post-handoff revocation requires manual attention.
+- Retention/privacy: jobs store only approved projection and hashes/refs; raw private preview data is redacted on terminal outcomes and purged in bounded batches; normalized errors and processor responses contain codes/counters only.
+- Task 26 compatibility: the provider contract remains intact with additive mapping proofs; disabled-by-default demo/mock behavior and no-live-transfer labeling remain unchanged.
+- Workflow separation: selection, roster decisions, finalization, preview, confirmation, synchronization, and retry remain distinct. A finalized roster is exported only after explicit destination/field review and confirmation.
 
 ## Release concerns
 
-No blocking concern. The Squad remains intentionally synthetic and disabled unless `ENABLE_MOCK_THE_SQUAD_PROVIDER=true`. Production must keep the existing protected job-processor schedule and environment configured; enabling this mock flag demonstrates the workflow but does not authorize or imply a live provider transfer.
+No blocking concern. The production-path browser evidence uses the real application and local Supabase, but the provider remains intentionally synthetic. Operations must keep the protected processor schedule active so preview retention and queued work progress. Enabling `ENABLE_MOCK_THE_SQUAD_PROVIDER` demonstrates mock behavior only; it does not configure or authorize a live Squad integration.
