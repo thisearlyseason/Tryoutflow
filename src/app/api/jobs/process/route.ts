@@ -17,7 +17,7 @@ type ProcessDependencies = {
   }): Promise<ClaimedEmailJob[]>;
   dispatch(
     job: ClaimedEmailJob,
-  ): Promise<'completed' | 'retry_scheduled' | 'dead_lettered' | 'cancelled'>;
+  ): Promise<'completed' | 'retry_scheduled' | 'dead_lettered' | 'cancelled' | 'needs_attention'>;
 };
 
 function jsonError(status: number, code: string) {
@@ -90,6 +90,7 @@ export async function processJobsRequest(request: Request, dependencies: Process
       retryScheduled: 0,
       deadLettered: 0,
       cancelled: 0,
+      needsAttention: 0,
       failed: 0,
     };
     await Promise.all(
@@ -99,7 +100,8 @@ export async function processJobsRequest(request: Request, dependencies: Process
           if (outcome === 'completed') summary.completed += 1;
           else if (outcome === 'retry_scheduled') summary.retryScheduled += 1;
           else if (outcome === 'dead_lettered') summary.deadLettered += 1;
-          else summary.cancelled += 1;
+          else if (outcome === 'cancelled') summary.cancelled += 1;
+          else summary.needsAttention += 1;
         } catch {
           summary.failed += 1;
         }

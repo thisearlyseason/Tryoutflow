@@ -25,6 +25,22 @@ describe('EmailProvider contract', () => {
     await expectEmailProviderContract(() => new FakeEmailProvider());
   });
 
+  it('returns one deterministic RFC 4122 version-5 UUID across fake provider instances', async () => {
+    const message = {
+      to: 'guardian@example.com',
+      subject: 'Registration received',
+      text: 'Your registration was received.',
+    };
+    const key = 'communication:11111111-1111-4111-8111-111111111111';
+    const first = await new FakeEmailProvider().send(message, key);
+    const second = await new FakeEmailProvider().send(message, key);
+
+    expect(first.providerMessageId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    );
+    expect(second).toEqual(first);
+  });
+
   it('normalizes provider failure without returning recipient or content', async () => {
     const provider = new FakeEmailProvider({ failWith: 'temporary' });
     await expect(

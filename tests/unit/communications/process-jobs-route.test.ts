@@ -58,4 +58,32 @@ describe('job processor route security', () => {
     expect(text).toContain('"completed":1');
     expect(text).not.toMatch(/private|subject|body|recipient/iu);
   });
+
+  it('counts delivery uncertainty separately from cancellation and failure', async () => {
+    const response = await processJobsRequest(request('{}'), {
+      secret,
+      claim: vi.fn().mockResolvedValue([
+        {
+          jobId: '11111111-1111-4111-8111-111111111111',
+          messageId: '22222222-2222-4222-8222-222222222222',
+          leaseToken: '33333333-3333-4333-8333-333333333333',
+          leaseGeneration: 1,
+          leaseExpiresAt: new Date(Date.now() + 90_000).toISOString(),
+          providerIdempotencyKey: 'communication:22222222-2222-4222-8222-222222222222',
+          recipientEmail: 'private@example.com',
+          subject: 'Private subject',
+          bodyText: 'Private body',
+          attemptCount: 5,
+          maxAttempts: 5,
+        },
+      ]),
+      dispatch: vi.fn().mockResolvedValue('needs_attention'),
+    });
+
+    await expect(response.json()).resolves.toMatchObject({
+      needsAttention: 1,
+      cancelled: 0,
+      failed: 0,
+    });
+  });
 });

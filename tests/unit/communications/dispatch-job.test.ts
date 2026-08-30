@@ -78,12 +78,36 @@ describe('communication dispatch fencing', () => {
 
   it('does not start a provider request after the lease safety deadline', async () => {
     const nearlyExpired = { ...job(), leaseExpiresAt: new Date(Date.now() + 15_500).toISOString() };
-    const rpc = vi
-      .fn()
-      .mockResolvedValueOnce({ data: 'authorized', error: null })
-      .mockResolvedValueOnce({ data: 'retry_scheduled', error: null });
+    const rpc = vi.fn().mockResolvedValueOnce({ data: 'retry_scheduled', error: null });
     const provider = { send: vi.fn() } satisfies EmailProvider;
     await expect(dispatchJob({ rpc }, provider, nearlyExpired)).resolves.toBe('retry_scheduled');
     expect(provider.send).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalledWith('authorize_outbox_job_send', expect.any(Object));
+  });
+
+  it('reports durable delivery uncertainty when reauthorization finds an invalid source after handoff', async () => {
+    const rpc = vi.fn().mockResolvedValueOnce({ data: 'needs_attention', error: null });
+    const provider = { send: vi.fn() } satisfies EmailProvider;
+
+    await expect(dispatchJob({ rpc }, provider, job())).resolves.toBe('needs_attention');
+    expect(provider.send).not.toHaveBeenCalled();
+  });
+
+  it('reports durable delivery uncertainty when a started retry reaches its attempt limit', async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({ data: 'authorized', error: null })
+      .mockResolvedValueOnce({ data: 'needs_attention', error: null });
+    const provider = new FakeTemporaryProvider();
+
+    await expect(
+      dispatchJob({ rpc }, provider, { ...job(), attemptCount: 5, maxAttempts: 5 }),
+    ).resolves.toBe('needs_attention');
   });
 });
+
+class FakeTemporaryProvider implements EmailProvider {
+  async send(): Promise<never> {
+    throw { code: 'provider_temporary', retryable: true };
+  }
+}

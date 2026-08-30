@@ -18,7 +18,16 @@ export class FakeEmailProvider implements EmailProvider {
         retryable: this.options.failWith === 'temporary',
       } satisfies EmailProviderError;
     }
-    const providerMessageId = `fake_${createHash('sha256').update(idempotencyKey).digest('hex').slice(0, 24)}`;
+    const bytes = createHash('sha256')
+      .update(JSON.stringify([idempotencyKey, message.to, message.subject, message.text]))
+      .digest()
+      .subarray(0, 16);
+    // RFC 4122 variant, deterministic version 5. The fake intentionally binds
+    // the identifier to both the provider idempotency key and exact handoff.
+    bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
+    bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+    const hex = bytes.toString('hex');
+    const providerMessageId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
     this.submissions.set(idempotencyKey, { message: { ...message }, providerMessageId });
     return { providerMessageId };
   }

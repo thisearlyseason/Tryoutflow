@@ -1173,6 +1173,8 @@ export type Database = {
           completed_at: string | null;
           created_at: string;
           dead_lettered_at: string | null;
+          delivery_uncertain_at: string | null;
+          delivery_uncertain_reason: string | null;
           id: string;
           job_type: string;
           last_error_code: string | null;
@@ -1196,6 +1198,8 @@ export type Database = {
           completed_at?: string | null;
           created_at?: string;
           dead_lettered_at?: string | null;
+          delivery_uncertain_at?: string | null;
+          delivery_uncertain_reason?: string | null;
           id?: string;
           job_type?: string;
           last_error_code?: string | null;
@@ -1219,6 +1223,8 @@ export type Database = {
           completed_at?: string | null;
           created_at?: string;
           dead_lettered_at?: string | null;
+          delivery_uncertain_at?: string | null;
+          delivery_uncertain_reason?: string | null;
           id?: string;
           job_type?: string;
           last_error_code?: string | null;
@@ -1241,6 +1247,38 @@ export type Database = {
             columns: ['organization_id', 'message_id'];
             isOneToOne: false;
             referencedRelation: 'communication_messages';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      outbox_provider_handoffs: {
+        Row: {
+          job_id: string;
+          lease_generation: number;
+          lease_token: string;
+          organization_id: string;
+          started_at: string;
+        };
+        Insert: {
+          job_id: string;
+          lease_generation: number;
+          lease_token: string;
+          organization_id: string;
+          started_at?: string;
+        };
+        Update: {
+          job_id?: string;
+          lease_generation?: number;
+          lease_token?: string;
+          organization_id?: string;
+          started_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'outbox_provider_handoffs_organization_id_job_id_fkey';
+            columns: ['organization_id', 'job_id'];
+            isOneToOne: false;
+            referencedRelation: 'outbox_jobs';
             referencedColumns: ['organization_id', 'id'];
           },
         ];

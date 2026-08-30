@@ -6,6 +6,10 @@ import { promisify } from 'node:util';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
+import { FakeEmailProvider } from '../../../src/infrastructure/email/fake-email-provider';
+import { claimJobs, type JobRpcClient } from '../../../src/infrastructure/jobs/claim-jobs';
+import { dispatchJob } from '../../../src/infrastructure/jobs/dispatch-job';
+
 const execFile = promisify(execFileCallback);
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
@@ -129,6 +133,13 @@ describe('transactional communication outbox', () => {
         )
       ).stdout.trim(),
     ).toBe('lease_conflict');
+    expect(
+      (
+        await psql(
+          `set role service_role; select public.authorize_outbox_job_send('${jobId}','${nextToken}',${nextGeneration})`,
+        )
+      ).stdout.trim(),
+    ).toBe('authorized');
     expect(
       (
         await psql(
@@ -368,7 +379,7 @@ describe('transactional communication outbox', () => {
           `select status||'|'||(provider_submission_started_at is not null) from public.outbox_jobs where id='${inFlightJob}'`,
         )
       ).stdout.trim(),
-    ).toBe('leased|true');
+    ).toBe('needs_attention|true');
     expect(
       (
         await psql(
@@ -489,5 +500,258 @@ describe('transactional communication outbox', () => {
       from public.outbox_jobs job where job.business_idempotency_key='${keyPrefix}-roster';
     `);
     expect(result.stdout.trim()).toBe('queued|forbidden|cancelled|roster_decision_superseded');
+  });
+
+  it('preserves uncertain handoff truth after source withdrawal and accepts an exact late completion', async () => {
+    const queued = (
+      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+          '${ids.guardian}','registration_reminder','Uncertain subject','Uncertain body','${keyPrefix}-uncertain-withdraw')`)
+    ).stdout.trim();
+    await psql(
+      `update public.outbox_jobs set available_at='1700-01-01',max_attempts=5 where id='${queued}'`,
+    );
+    const claim = (
+      await psql(`set role service_role; select lease_token||'|'||lease_generation
+        from public.claim_outbox_jobs('worker-uncertain',1,60)`)
+    ).stdout
+      .trim()
+      .split('|');
+    expect(
+      (
+        await psql(`set role service_role; select public.authorize_outbox_job_send(
+          '${queued}','${claim[0]}',${claim[1]})`)
+      ).stdout.trim(),
+    ).toBe('authorized');
+    await psql(`update public.tryout_registrations set status='withdrawn' where id='${ids.registration}';
+      update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${queued}'`);
+    await psql(
+      `set role service_role; select count(*) from public.claim_outbox_jobs('worker-withdrawn-after-handoff',1,60)`,
+    );
+    expect(
+      (
+        await psql(`select job.status||'|'||message.state||'|'||job.delivery_uncertain_reason||'|'||
+          (job.provider_submission_started_at is not null) from public.outbox_jobs job
+          join public.communication_messages message on message.id=job.message_id where job.id='${queued}'`)
+      ).stdout.trim(),
+    ).toBe('needs_attention|delivery_uncertain|registration_ineligible|true');
+    expect(
+      (
+        await psql(`set role service_role; select public.complete_outbox_job(
+          '${queued}','${claim[0]}',${claim[1]},'88888888-8888-4888-8888-888888888888')`)
+      ).stdout.trim(),
+    ).toBe('completed');
+    expect(
+      (
+        await psql(`set role service_role; select public.complete_outbox_job(
+          '${queued}','${claim[0]}',${claim[1]},'88888888-8888-4888-8888-888888888888')`)
+      ).stdout.trim(),
+    ).toBe('replayed');
+    await psql(
+      `update public.tryout_registrations set status='submitted' where id='${ids.registration}'`,
+    );
+  });
+
+  it('marks offboarded and exhausted post-handoff work uncertain without automatic resend', async () => {
+    const queue = async (suffix: string) =>
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+          select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+            '${ids.guardian}','registration_reminder','Attention ${suffix}','Body','${keyPrefix}-${suffix}')`)
+      ).stdout.trim();
+    const authorize = async (jobId: string, owner: string) => {
+      await psql(`update public.outbox_jobs set available_at='1650-01-01' where id='${jobId}'`);
+      const [token, generation] = (
+        await psql(`set role service_role; select lease_token||'|'||lease_generation
+          from public.claim_outbox_jobs('${owner}',1,60)`)
+      ).stdout
+        .trim()
+        .split('|');
+      expect(
+        (
+          await psql(`set role service_role; select public.authorize_outbox_job_send(
+            '${jobId}','${token}',${generation})`)
+        ).stdout.trim(),
+      ).toBe('authorized');
+      return { token, generation };
+    };
+
+    const offboardedJob = await queue('uncertain-offboard');
+    await authorize(offboardedJob, 'worker-uncertain-offboard');
+    await psql(`set session_replication_role=replica;
+      update public.organization_members set role='owner' where organization_id='${ids.organization}' and user_id='${ids.member}';
+      update public.organization_members set status='disabled' where organization_id='${ids.organization}' and user_id='${ids.owner}';
+      set session_replication_role=origin;
+      update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${offboardedJob}'`);
+    await psql(
+      `set role service_role; select count(*) from public.claim_outbox_jobs('worker-offboard-sweep',1,60)`,
+    );
+    expect(
+      (
+        await psql(
+          `select status||'|'||delivery_uncertain_reason from public.outbox_jobs where id='${offboardedJob}'`,
+        )
+      ).stdout.trim(),
+    ).toBe('needs_attention|authorizer_offboarded');
+    await psql(`set session_replication_role=replica;
+      update public.organization_members set status='active' where organization_id='${ids.organization}' and user_id='${ids.owner}';
+      update public.organization_members set role='member' where organization_id='${ids.organization}' and user_id='${ids.member}';
+      set session_replication_role=origin`);
+
+    const exhaustedJob = await queue('uncertain-exhausted');
+    await psql(`update public.outbox_jobs set max_attempts=1 where id='${exhaustedJob}'`);
+    await authorize(exhaustedJob, 'worker-uncertain-exhausted');
+    await psql(`update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${exhaustedJob}';
+      set role service_role; select count(*) from public.claim_outbox_jobs('worker-exhausted-sweep',1,60)`);
+    expect(
+      (
+        await psql(
+          `select status||'|'||delivery_uncertain_reason from public.outbox_jobs where id='${exhaustedJob}'`,
+        )
+      ).stdout.trim(),
+    ).toBe('needs_attention|lease_attempts_exhausted');
+  });
+
+  it('runs the FakeEmailProvider through claim, dispatch, and durable database completion', async () => {
+    const queued = (
+      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+          '${ids.guardian}','registration_reminder','Fake contract','Fake body','${keyPrefix}-fake-dispatch')`)
+    ).stdout.trim();
+    await psql(`update public.outbox_jobs set available_at='1600-01-01' where id='${queued}'`);
+    let loseFirstCompletionResponse = true;
+    const client: JobRpcClient = {
+      rpc: async (name, args) => {
+        try {
+          if (name === 'claim_outbox_jobs') {
+            const result =
+              await psql(`set role service_role; select coalesce(json_agg(row_to_json(claim)),'[]')
+              from public.claim_outbox_jobs('${String(args.p_lease_owner)}',${Number(args.p_batch_size)},${Number(args.p_lease_seconds)}) claim`);
+            return { data: JSON.parse(result.stdout.trim()) as unknown, error: null };
+          }
+          if (name === 'complete_outbox_job' && loseFirstCompletionResponse) {
+            loseFirstCompletionResponse = false;
+            return { data: null, error: { code: 'network' } };
+          }
+          const functionName =
+            name === 'authorize_outbox_job_send'
+              ? name
+              : name === 'complete_outbox_job'
+                ? name
+                : 'fail_outbox_job';
+          const argumentsSql =
+            functionName === 'authorize_outbox_job_send'
+              ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)}`
+              : functionName === 'complete_outbox_job'
+                ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_provider_message_id)}'`
+                : `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_error_code)}',${Boolean(args.p_retryable)}`;
+          const result = await psql(
+            `set role service_role; select public.${functionName}(${argumentsSql})`,
+          );
+          return { data: result.stdout.trim(), error: null };
+        } catch (error) {
+          return { data: null, error };
+        }
+      },
+    };
+    const [job] = await claimJobs(client, {
+      leaseOwner: 'worker-fake-contract',
+      batchSize: 1,
+      leaseSeconds: 90,
+    });
+    expect(job?.jobId).toBe(queued);
+    const provider = new FakeEmailProvider();
+    await expect(dispatchJob(client, provider, job!)).rejects.toThrow('completion_failed');
+    await psql(
+      `update public.outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${queued}'`,
+    );
+    const [retry] = await claimJobs(client, {
+      leaseOwner: 'worker-fake-contract-retry',
+      batchSize: 1,
+      leaseSeconds: 90,
+    });
+    expect(retry?.providerIdempotencyKey).toBe(job?.providerIdempotencyKey);
+    await expect(dispatchJob(client, provider, retry!)).resolves.toBe('completed');
+    expect(provider.submissions.size).toBe(1);
+    expect(
+      (
+        await psql(`select job.status||'|'||message.state||'|'||message.provider_message_id
+          from public.outbox_jobs job join public.communication_messages message on message.id=job.message_id
+          where job.id='${queued}'`)
+      ).stdout.trim(),
+    ).toMatch(
+      /^completed\|submitted\|[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+    );
+  });
+
+  it('serializes confirmation queue and token rotation in both natural start orders without deadlock', async () => {
+    const firstRaw = (
+      await psql(`select public.rotate_registration_confirmation_token('${ids.registration}')`)
+    ).stdout.trim();
+    const firstDigest = createHash('sha256').update(firstRaw).digest('hex');
+    const queueFirstName = `task22_queue_first_${randomUUID().replaceAll('-', '')}`;
+    const queueFirst =
+      psql(`set application_name='${queueFirstName}'; begin; set local role service_role;
+      select outcome from public.queue_registration_confirmation_communication_v2('${ids.registration}',
+        'guardian@example.com','${firstDigest}','Lock order','Queue first','${keyPrefix}-queue-first');
+      reset role; select pg_sleep(0.8); commit`);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const state = await psql(
+        `select coalesce(bool_or(wait_event='PgSleep'),false) from pg_stat_activity where application_name='${queueFirstName}'`,
+      );
+      if (state.stdout.trim() === 't') break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const rotateAfterQueue = psql(
+      `select public.rotate_registration_confirmation_token('${ids.registration}')`,
+    );
+    await queueFirst;
+    const secondRaw = (await rotateAfterQueue).stdout.trim();
+    expect(secondRaw).toMatch(/^[0-9a-f]{64}$/u);
+    const firstJobState = (
+      await psql(`select job.status from public.outbox_jobs job join public.communication_messages message on message.id=job.message_id
+        where message.business_idempotency_key='${keyPrefix}-queue-first'`)
+    ).stdout.trim();
+    expect(firstJobState).toBe('cancelled');
+
+    const rotationFirstName = `task22_rotation_first_${randomUUID().replaceAll('-', '')}`;
+    const rotationFirst = psql(`set application_name='${rotationFirstName}'; begin;
+      create temporary table task22_rotated_token as
+        select public.rotate_registration_confirmation_token('${ids.registration}') raw_token;
+      select pg_sleep(0.8); commit; select raw_token from task22_rotated_token`);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const state = await psql(
+        `select coalesce(bool_or(wait_event='PgSleep'),false) from pg_stat_activity where application_name='${rotationFirstName}'`,
+      );
+      if (state.stdout.trim() === 't') break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const staleQueue =
+      psql(`set role service_role; select outcome from public.queue_registration_confirmation_communication_v2(
+      '${ids.registration}','guardian@example.com','${createHash('sha256').update(secondRaw).digest('hex')}',
+      'Lock order','Rotation first','${keyPrefix}-rotation-first-stale')`);
+    const rotationOutput = await rotationFirst;
+    expect((await staleQueue).stdout.trim()).toBe('forbidden');
+    const thirdRaw = rotationOutput.stdout
+      .trim()
+      .split('\n')
+      .find((line) => /^[0-9a-f]{64}$/u.test(line));
+    expect(thirdRaw).toBeDefined();
+    const current = (
+      await psql(`set role service_role; select outcome from public.queue_registration_confirmation_communication_v2(
+        '${ids.registration}','guardian@example.com','${createHash('sha256').update(thirdRaw!).digest('hex')}',
+        'Lock order','Current token','${keyPrefix}-rotation-first-current')`)
+    ).stdout.trim();
+    expect(current).toBe('queued');
+    expect(
+      (
+        await psql(`select count(*) from public.outbox_jobs job join public.communication_messages message on message.id=job.message_id
+          where message.source_registration_id='${ids.registration}' and message.message_kind='registration_confirmation'
+            and job.status in ('pending','leased')`)
+      ).stdout.trim(),
+    ).toBe('1');
   });
 });
