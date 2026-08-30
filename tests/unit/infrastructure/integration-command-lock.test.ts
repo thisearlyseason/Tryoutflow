@@ -5,15 +5,18 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
+  linkSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -101,6 +104,7 @@ describe('authenticated integration supervisor state', () => {
     expect(() => store.readCommandCompletion(firstRunId)).toThrow();
 
     store.removeCommandCompletion(firstRunId);
+    rmSync(store.commandCompletionPath(firstRunId), { force: true });
     store.writeCommandCompletion(firstRunId, firstCommand);
     expect(store.readCommandCompletion(firstRunId)).toEqual({
       phase: 'command-group-stopped',
@@ -111,8 +115,93 @@ describe('authenticated integration supervisor state', () => {
     writeFileSync(
       store.commandCompletionPath(secondRunId),
       readFileSync(store.commandCompletionPath(firstRunId)),
+      { mode: 0o600 },
     );
     expect(() => store.readCommandCompletion(secondRunId)).toThrow(/body|stale/u);
+  });
+
+  it.each(['directory', 'fifo', 'symlink', 'hardlink', 'oversize', 'permissions'] as const)(
+    'rejects a hostile %s completion proof without blocking or deleting it',
+    (kind) => {
+      const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-hostile-proof-'));
+      chmodSync(baseDirectory, 0o700);
+      const identity = 'd'.repeat(64);
+      const runId = 'e'.repeat(16);
+      const store = createSupervisorStateStore({ baseDirectory, identity });
+      const command = { nonce: 'f'.repeat(32) };
+      store.writeCommand(runId, command);
+      const proof = store.commandCompletionPath(runId);
+      const sibling = join(store.directory, 'proof-source');
+      if (kind === 'directory') mkdirSync(proof, { mode: 0o700 });
+      if (kind === 'fifo') execFileSync('mkfifo', [proof]);
+      if (kind === 'symlink') {
+        writeFileSync(sibling, '{}', { mode: 0o600 });
+        symlinkSync(sibling, proof);
+      }
+      if (kind === 'hardlink') {
+        writeFileSync(sibling, '{}', { mode: 0o600 });
+        linkSync(sibling, proof);
+      }
+      if (kind === 'oversize') writeFileSync(proof, 'x'.repeat(4_097), { mode: 0o600 });
+      if (kind === 'permissions') writeFileSync(proof, '{}', { mode: 0o644 });
+
+      const startedAt = Date.now();
+      expect(() => store.readCommandCompletion(runId)).toThrow(/unsafe|completion/u);
+      expect(Date.now() - startedAt).toBeLessThan(1_000);
+      store.removeCommandCompletion(runId);
+      expect(existsSync(proof)).toBe(true);
+    },
+  );
+
+  it('never replaces an existing completion proof during a write race', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-proof-no-replace-'));
+    chmodSync(baseDirectory, 0o700);
+    const runId = '1'.repeat(16);
+    const store = createSupervisorStateStore({ baseDirectory, identity: '2'.repeat(64) });
+    const command = { nonce: '3'.repeat(32) };
+    store.writeCommand(runId, command);
+    const proof = store.commandCompletionPath(runId);
+    writeFileSync(proof, 'operator evidence', { mode: 0o600 });
+
+    expect(() => store.writeCommandCompletion(runId, command)).toThrow(/replace|exist/u);
+    expect(readFileSync(proof, 'utf8')).toBe('operator evidence');
+  });
+
+  it('rejects a socket completion proof without connecting to it', async () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-socket-proof-'));
+    chmodSync(baseDirectory, 0o700);
+    const runId = '4'.repeat(16);
+    const store = createSupervisorStateStore({ baseDirectory, identity: '5'.repeat(64) });
+    store.writeCommand(runId, { nonce: '6'.repeat(32) });
+    const proof = store.commandCompletionPath(runId);
+    const shortSocketPath = join(tmpdir(), `tf-${randomUUID()}.sock`);
+    const server = createServer();
+    await new Promise<void>((resolveListen, rejectListen) => {
+      server.once('error', rejectListen);
+      server.listen(shortSocketPath, resolveListen);
+    });
+    renameSync(shortSocketPath, proof);
+    try {
+      expect(() => store.readCommandCompletion(runId)).toThrow(/unsafe/u);
+      store.removeCommandCompletion(runId);
+      expect(existsSync(proof)).toBe(true);
+    } finally {
+      await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+    }
+  });
+
+  it('rejects completion proof access after the private directory identity changes', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-replaced-proof-directory-'));
+    chmodSync(baseDirectory, 0o700);
+    const identity = '7'.repeat(64);
+    const runId = '8'.repeat(16);
+    const store = createSupervisorStateStore({ baseDirectory, identity });
+    const originalDirectory = `${store.directory}.original`;
+    renameSync(store.directory, originalDirectory);
+    symlinkSync(originalDirectory, store.directory);
+
+    expect(() => store.readCommandCompletion(runId)).toThrow(/directory|identity/u);
+    expect(() => store.removeCommandCompletion(runId)).not.toThrow();
   });
 });
 
@@ -781,6 +870,132 @@ describe('full integration command database lock', () => {
       }
     }
   }, 25_000);
+
+  it('quiesces after bounded persistent reaper failures while retaining the lock', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-bounded-reaper-'));
+    const firstOutput = join(directory, 'first.jsonl');
+    const secondOutput = join(directory, 'second.jsonl');
+    const hooks = join(directory, 'hooks.jsonl');
+    const first = start(firstOutput, 0, undefined, {
+      hookFile: hooks,
+      fixtureEnvironment: { TRYOUTFLOW_INTEGRATION_TEST_FORCE_REAPER_FAILURE: '1' },
+    });
+    let firstStderr = '';
+    first.stderr?.setEncoding('utf8').on('data', (chunk: string) => (firstStderr += chunk));
+    const unrelated = spawn(process.execPath, ['-e', 'setTimeout(()=>{},30000)']);
+    let persistedCounters: string[] = [];
+    try {
+      const deadline = Date.now() + 8_000;
+      while (!/failed closed after 5 attempts/u.test(firstStderr) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(firstStderr.match(/failed closed after 5 attempts/gu)).toHaveLength(1);
+      const reaperStarts = () =>
+        readFileSync(hooks, 'utf8')
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as { phase: string })
+          .filter((event) => event.phase === 'reaper-started').length;
+      expect(reaperStarts()).toBe(5);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(reaperStarts()).toBe(5);
+
+      const second = start(secondOutput, 0);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(existsSync(secondOutput)).toBe(false);
+      expect(() => process.kill(unrelated.pid!, 0)).not.toThrow();
+
+      first.kill('SIGTERM');
+      const [firstResult, secondResult] = await Promise.all([
+        completion(first),
+        completion(second),
+      ]);
+      expect(firstResult.code).toBe(143);
+      expect(secondResult.code).toBe(0);
+      expect(() => process.kill(unrelated.pid!, 0)).not.toThrow();
+      persistedCounters = [firstOutput, secondOutput].map(
+        (path) =>
+          (
+            JSON.parse(readFileSync(path, 'utf8').trim().split('\n')[0]!) as {
+              counterKey: string;
+            }
+          ).counterKey,
+      );
+    } finally {
+      first.kill('SIGKILL');
+      unrelated.kill('SIGTERM');
+      if (persistedCounters.length > 0)
+        execFileSync('psql', [
+          databaseUrl,
+          '-c',
+          `delete from public.registration_rate_counters where key_hash in('${persistedCounters.join("','")}')`,
+        ]);
+    }
+  }, 20_000);
+
+  it('keeps a follower pre-lock when hostile proof storage defeats every reaper', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-hostile-reaper-proof-'));
+    const firstOutput = join(directory, 'first.jsonl');
+    const secondOutput = join(directory, 'second.jsonl');
+    const hooks = join(directory, 'hooks.jsonl');
+    const first = start(firstOutput, 0, undefined, {
+      hookFile: hooks,
+      pausePhase: 'cleanup',
+    });
+    let firstStderr = '';
+    first.stderr?.setEncoding('utf8').on('data', (chunk: string) => (firstStderr += chunk));
+    let proof = '';
+    let persistedCounters: string[] = [];
+    try {
+      await waitForFile(hooks, /"phase":"cleanup"/u, 10_000);
+      const cleanup = readFileSync(hooks, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as { phase: string; runId: string; supervisorPid?: number })
+        .find((event) => event.phase === 'cleanup')!;
+      const validated = resolveAndValidateLocalDatabase(databaseUrl);
+      const store = createSupervisorStateStore({ identity: validated.identity });
+      proof = store.commandCompletionPath(cleanup.runId);
+      execFileSync('mkfifo', [proof]);
+      process.kill(cleanup.supervisorPid!, 'SIGKILL');
+
+      const deadline = Date.now() + 8_000;
+      while (!/failed closed after 5 attempts/u.test(firstStderr) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(firstStderr.match(/failed closed after 5 attempts/gu)).toHaveLength(1);
+      const second = start(secondOutput, 0);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(existsSync(secondOutput)).toBe(false);
+
+      rmSync(proof);
+      proof = '';
+      first.kill('SIGTERM');
+      const [firstResult, secondResult] = await Promise.all([
+        completion(first),
+        completion(second),
+      ]);
+      expect(firstResult.code).toBe(143);
+      expect(secondResult.code).toBe(0);
+      persistedCounters = [firstOutput, secondOutput].map(
+        (path) =>
+          (
+            JSON.parse(readFileSync(path, 'utf8').trim().split('\n')[0]!) as {
+              counterKey: string;
+            }
+          ).counterKey,
+      );
+    } finally {
+      first.kill('SIGKILL');
+      if (proof) rmSync(proof, { force: true });
+      if (persistedCounters.length > 0)
+        execFileSync('psql', [
+          databaseUrl,
+          '-c',
+          `delete from public.registration_rate_counters where key_hash in('${persistedCounters.join("','")}')`,
+        ]);
+    }
+  }, 20_000);
 
   it('fails closed on lost launcher identity until the exact old group is externally absent', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-reaper-identity-failure-'));

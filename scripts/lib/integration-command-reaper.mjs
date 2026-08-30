@@ -31,6 +31,12 @@ function hook(phase) {
 }
 
 hook('reaper-started');
+if (
+  process.env.NODE_ENV === 'test' &&
+  process.env.TRYOUTFLOW_INTEGRATION_TEST_FORCE_REAPER_FAILURE === '1'
+) {
+  process.exit(86);
+}
 while (processRecord(supervisorPid)?.startedAt === supervisorStartedAt) {
   await new Promise((resolve) => setTimeout(resolve, 25));
 }

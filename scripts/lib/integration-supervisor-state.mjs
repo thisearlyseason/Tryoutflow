@@ -3,14 +3,16 @@ import {
   closeSync,
   constants,
   existsSync,
+  fstatSync,
   fsyncSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   openSync,
-  readFileSync,
+  readSync,
   readdirSync,
   renameSync,
-  rmSync,
+  unlinkSync,
   writeSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -19,11 +21,100 @@ import { join } from 'node:path';
 const runIdPattern = /^[0-9a-f]{16}$/u;
 const identityPattern = /^[0-9a-f]{64}$/u;
 const manifestEntryPattern = /^([0-9a-f]{16})\.json$/u;
+const maximumStateBytes = 4_096;
+
+function currentUid(fallback) {
+  return typeof process.getuid === 'function' ? process.getuid() : fallback;
+}
+
+function validatePrivateRegularFile(stat, label, maximumBytes, exactBytes) {
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== currentUid(stat.uid) ||
+    stat.nlink !== 1 ||
+    (stat.mode & 0o777) !== 0o600 ||
+    stat.size < 0 ||
+    stat.size > maximumBytes ||
+    (exactBytes !== undefined && stat.size !== exactBytes)
+  ) {
+    throw new Error(`unsafe ${label}`);
+  }
+}
+
+function readPrivateRegularFile(
+  path,
+  label,
+  { missing = false, maximumBytes = maximumStateBytes, exactBytes } = {},
+) {
+  let before;
+  try {
+    before = lstatSync(path);
+  } catch (error) {
+    if (missing && error?.code === 'ENOENT') return null;
+    throw error;
+  }
+  validatePrivateRegularFile(before, label, maximumBytes, exactBytes);
+  const descriptor = openSync(
+    path,
+    constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+  );
+  try {
+    const opened = fstatSync(descriptor);
+    validatePrivateRegularFile(opened, label, maximumBytes, exactBytes);
+    if (opened.dev !== before.dev || opened.ino !== before.ino) throw new Error(`unsafe ${label}`);
+    const buffer = Buffer.alloc(opened.size + 1);
+    const bytesRead = readSync(descriptor, buffer, 0, buffer.length, 0);
+    const after = fstatSync(descriptor);
+    validatePrivateRegularFile(after, label, maximumBytes, exactBytes);
+    if (
+      bytesRead !== opened.size ||
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size
+    ) {
+      throw new Error(`unsafe ${label}`);
+    }
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function fsyncDirectory(directory) {
+  const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
+  try {
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function bestEffortRemovePrivateRegularFile(path) {
+  try {
+    const stat = lstatSync(path);
+    validatePrivateRegularFile(stat, 'integration supervisor state file', maximumStateBytes);
+    unlinkSync(path);
+  } catch {
+    // Untrusted or concurrently replaced evidence is retained and never escapes fail-closed control.
+  }
+}
+
+function writeBounded(descriptor, value) {
+  const serialized = Buffer.from(value);
+  if (serialized.length > maximumStateBytes) {
+    throw new Error('integration supervisor state exceeds the safe size limit');
+  }
+  let offset = 0;
+  while (offset < serialized.length) {
+    offset += writeSync(descriptor, serialized, offset, serialized.length - offset);
+  }
+}
 
 function ensurePrivateDirectory(path) {
   if (!existsSync(path)) mkdirSync(path, { recursive: true, mode: 0o700 });
   const stat = lstatSync(path);
-  const uid = typeof process.getuid === 'function' ? process.getuid() : stat.uid;
+  const uid = currentUid(stat.uid);
   if (
     stat.isSymbolicLink() ||
     !stat.isDirectory() ||
@@ -32,6 +123,7 @@ function ensurePrivateDirectory(path) {
   ) {
     throw new Error(`integration supervisor private directory is unsafe: ${path}`);
   }
+  return stat;
 }
 
 function readOrCreateSecret(directory) {
@@ -48,25 +140,12 @@ function readOrCreateSecret(directory) {
     } finally {
       closeSync(descriptor);
     }
-    const directoryDescriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
-    try {
-      fsyncSync(directoryDescriptor);
-    } finally {
-      closeSync(directoryDescriptor);
-    }
+    fsyncDirectory(directory);
   }
-  const stat = lstatSync(path);
-  const uid = typeof process.getuid === 'function' ? process.getuid() : stat.uid;
-  if (
-    stat.isSymbolicLink() ||
-    !stat.isFile() ||
-    stat.uid !== uid ||
-    (stat.mode & 0o777) !== 0o600 ||
-    stat.size !== 32
-  ) {
-    throw new Error('integration supervisor installation secret is unsafe');
-  }
-  return readFileSync(path);
+  return readPrivateRegularFile(path, 'integration supervisor installation secret', {
+    maximumBytes: 32,
+    exactBytes: 32,
+  });
 }
 
 function manifestBody(identity, runId) {
@@ -110,27 +189,27 @@ function validBody(candidate, identity, filenameRunId) {
 
 function atomicWrite(path, value, directory) {
   const temporaryPath = `${path}.tmp-${process.pid}-${randomBytes(8).toString('hex')}`;
-  const descriptor = openSync(
-    temporaryPath,
-    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
-    0o600,
-  );
+  let descriptor;
   try {
-    writeSync(descriptor, value);
+    descriptor = openSync(
+      temporaryPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      0o600,
+    );
+    writeBounded(descriptor, value);
     fsyncSync(descriptor);
-  } finally {
     closeSync(descriptor);
-  }
-  if (existsSync(path)) {
-    rmSync(temporaryPath, { force: true });
-    throw new Error('refusing to replace an existing integration run manifest');
-  }
-  renameSync(temporaryPath, path);
-  const directoryDescriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
-  try {
-    fsyncSync(directoryDescriptor);
+    descriptor = undefined;
+    linkSync(temporaryPath, path);
+    unlinkSync(temporaryPath);
+    fsyncDirectory(directory);
   } finally {
-    closeSync(directoryDescriptor);
+    if (descriptor !== undefined) closeSync(descriptor);
+    try {
+      unlinkSync(temporaryPath);
+    } catch {
+      // The temporary file was already linked and removed, or cleanup is best effort.
+    }
   }
 }
 
@@ -142,18 +221,13 @@ function atomicReplace(path, value, directory) {
     0o600,
   );
   try {
-    writeSync(descriptor, value);
+    writeBounded(descriptor, value);
     fsyncSync(descriptor);
   } finally {
     closeSync(descriptor);
   }
   renameSync(temporaryPath, path);
-  const directoryDescriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
-  try {
-    fsyncSync(directoryDescriptor);
-  } finally {
-    closeSync(directoryDescriptor);
-  }
+  fsyncDirectory(directory);
 }
 
 export function createSupervisorStateStore(options) {
@@ -165,7 +239,13 @@ export function createSupervisorStateStore(options) {
   ensurePrivateDirectory(baseDirectory);
   const secret = readOrCreateSecret(baseDirectory);
   const directory = join(baseDirectory, identity);
-  ensurePrivateDirectory(directory);
+  const directoryIdentity = ensurePrivateDirectory(directory);
+  const validateStateDirectory = () => {
+    const current = ensurePrivateDirectory(directory);
+    if (current.dev !== directoryIdentity.dev || current.ino !== directoryIdentity.ino) {
+      throw new Error(`integration supervisor private directory identity changed: ${directory}`);
+    }
+  };
 
   const manifestPath = (runId) => join(directory, `${runId}.json`);
   const commandPath = (runId) => join(directory, `${runId}.command.json`);
@@ -187,6 +267,7 @@ export function createSupervisorStateStore(options) {
     commandCompletionPath,
     manifestBody: (runId) => manifestBody(identity, runId),
     writeManifest(body) {
+      validateStateDirectory();
       if (!validBody(body, identity, body?.runId)) {
         throw new Error('refusing inconsistent integration run manifest');
       }
@@ -202,9 +283,10 @@ export function createSupervisorStateStore(options) {
       );
     },
     advanceCleanup(runId, cleanupStage) {
+      validateStateDirectory();
       if (!cleanupStages.includes(cleanupStage)) throw new Error('invalid cleanup stage');
       const path = manifestPath(runId);
-      const parsed = JSON.parse(readFileSync(path, 'utf8'));
+      const parsed = JSON.parse(readPrivateRegularFile(path, 'cleanup manifest').toString('utf8'));
       if (!validBody(parsed?.body, identity, runId)) throw new Error('invalid cleanup manifest');
       const currentStage = parsed.cleanupStage ?? 'active';
       const currentIndex = cleanupStages.indexOf(currentStage);
@@ -240,6 +322,7 @@ export function createSupervisorStateStore(options) {
       );
     },
     readRecoverableManifests(excludedRunId) {
+      validateStateDirectory();
       const manifests = [];
       for (const entry of readdirSync(directory)) {
         const match = manifestEntryPattern.exec(entry);
@@ -250,16 +333,9 @@ export function createSupervisorStateStore(options) {
         if (match[1] === excludedRunId) continue;
         const path = join(directory, entry);
         try {
-          const stat = lstatSync(path);
-          if (
-            stat.isSymbolicLink() ||
-            !stat.isFile() ||
-            (stat.mode & 0o077) !== 0 ||
-            stat.size > 4_096
-          ) {
-            throw new Error('unsafe manifest file');
-          }
-          const parsed = JSON.parse(readFileSync(path, 'utf8'));
+          const parsed = JSON.parse(
+            readPrivateRegularFile(path, 'integration manifest').toString('utf8'),
+          );
           if (!validBody(parsed?.body, identity, match[1])) throw new Error('mixed manifest');
           const cleanupStage = parsed.cleanupStage ?? 'active';
           if (!cleanupStages.includes(cleanupStage)) throw new Error('invalid cleanup stage');
@@ -282,12 +358,13 @@ export function createSupervisorStateStore(options) {
       return manifests;
     },
     writeCommand(runId, command) {
+      validateStateDirectory();
       const body = manifestBody(identity, runId);
       if (!command || !/^[0-9a-f]{32}$/u.test(command.nonce ?? '')) {
         throw new Error('invalid integration command identity');
       }
       const payload = { body, command: { nonce: command.nonce } };
-      rmSync(commandCompletionPath(runId), { force: true });
+      bestEffortRemovePrivateRegularFile(commandCompletionPath(runId));
       atomicWrite(
         commandPath(runId),
         JSON.stringify({
@@ -298,6 +375,7 @@ export function createSupervisorStateStore(options) {
       );
     },
     bindCommand(runId, command) {
+      validateStateDirectory();
       if (
         !Number.isSafeInteger(command?.pid) ||
         command.pid <= 1 ||
@@ -325,9 +403,13 @@ export function createSupervisorStateStore(options) {
       );
     },
     readCommand(runId) {
+      validateStateDirectory();
       const path = commandPath(runId);
-      if (!existsSync(path)) return null;
-      const parsed = JSON.parse(readFileSync(path, 'utf8'));
+      const serialized = readPrivateRegularFile(path, 'integration command identity', {
+        missing: true,
+      });
+      if (!serialized) return null;
+      const parsed = JSON.parse(serialized.toString('utf8'));
       if (!validBody(parsed?.body, identity, runId)) throw new Error('invalid command body');
       const payload = { body: parsed.body, command: parsed.command };
       const expected = authenticatedPayload(secret, payload);
@@ -341,6 +423,7 @@ export function createSupervisorStateStore(options) {
       return parsed.command;
     },
     writeCommandCompletion(runId, command) {
+      validateStateDirectory();
       const current = this.readCommand(runId);
       if (JSON.stringify(current) !== JSON.stringify(command ?? null)) {
         throw new Error('reaping completion does not match authenticated command identity');
@@ -355,9 +438,13 @@ export function createSupervisorStateStore(options) {
       );
     },
     readCommandCompletion(runId) {
+      validateStateDirectory();
       const path = commandCompletionPath(runId);
-      if (!existsSync(path)) return null;
-      const parsed = JSON.parse(readFileSync(path, 'utf8'));
+      const serialized = readPrivateRegularFile(path, 'integration command completion', {
+        missing: true,
+      });
+      if (!serialized) return null;
+      const parsed = JSON.parse(serialized.toString('utf8'));
       if (!validBody(parsed?.body, identity, runId)) {
         throw new Error('invalid reaping completion body');
       }
@@ -380,18 +467,30 @@ export function createSupervisorStateStore(options) {
       return parsed.completion;
     },
     removeCommandCompletion(runId) {
-      rmSync(commandCompletionPath(runId), { force: true });
+      try {
+        validateStateDirectory();
+        bestEffortRemovePrivateRegularFile(commandCompletionPath(runId));
+      } catch {
+        // Directory replacement is untrusted evidence and cannot make fail-closed control throw.
+      }
     },
     permitCommand(runId) {
+      validateStateDirectory();
       atomicWrite(commandGoPath(runId), runId, directory);
     },
     removeCommand(runId) {
-      rmSync(commandPath(runId), { force: true });
-      rmSync(commandGoPath(runId), { force: true });
-      rmSync(commandCompletionPath(runId), { force: true });
+      try {
+        validateStateDirectory();
+        bestEffortRemovePrivateRegularFile(commandPath(runId));
+        bestEffortRemovePrivateRegularFile(commandGoPath(runId));
+        bestEffortRemovePrivateRegularFile(commandCompletionPath(runId));
+      } catch {
+        // Untrusted directory replacement is retained for explicit operator recovery.
+      }
     },
     removeRunState(runId) {
-      rmSync(manifestPath(runId), { force: true });
+      validateStateDirectory();
+      bestEffortRemovePrivateRegularFile(manifestPath(runId));
       const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
       try {
         fsyncSync(descriptor);

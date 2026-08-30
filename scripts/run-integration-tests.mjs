@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 
 import { resolveAndValidateLocalDatabase } from './lib/local-supabase-database.mjs';
 import { commandIsProvenAbsent } from './lib/integration-process-identity.mjs';
+import { createReaperRetryPolicy } from './lib/integration-reaper-policy.mjs';
 import { createSupervisorStateStore } from './lib/integration-supervisor-state.mjs';
 
 const databaseUrl =
@@ -72,14 +73,23 @@ holder.stdin.write(`select pg_advisory_lock(${lockKey}); select '${lockMarker}';
 
 let supervisor;
 let reaperAttempt;
+let supervisorClosed = false;
+let quiescent = false;
+let resolveQuiescent;
 let requestedExitCode = null;
 const forward = (signal, exitCode) => {
   requestedExitCode ??= exitCode;
-  if (supervisor) {
+  if (supervisor && !supervisorClosed) {
     try {
       supervisor.kill(signal);
     } catch {
       // The directly owned supervisor is already gone.
+    }
+  } else if (quiescent) {
+    try {
+      if (commandIsProvenAbsent(supervisorState.readCommand(runId))) resolveQuiescent?.();
+    } catch {
+      // Unsafe state remains fail closed. The operator must inspect and resolve it manually.
     }
   } else {
     holder.kill('SIGTERM');
@@ -140,12 +150,22 @@ const spawnReaper = () => {
   });
   return { child, completion };
 };
-reaperAttempt = spawnReaper();
+const retryPolicy = createReaperRetryPolicy();
+const spawnNextReaper = async () => {
+  const retry = retryPolicy.next();
+  if (retry.exhausted) return null;
+  if (retry.delayMilliseconds > 0) {
+    await new Promise((resolveRetry) => setTimeout(resolveRetry, retry.delayMilliseconds));
+  }
+  return spawnReaper();
+};
+reaperAttempt = await spawnNextReaper();
 
 const result = await new Promise((resolveResult) => {
   supervisor.once('error', (error) => resolveResult({ code: 1, error }));
   supervisor.once('close', (code, signal) => resolveResult({ code, signal }));
 });
+supervisorClosed = true;
 let reaperResult;
 for (;;) {
   reaperResult = await reaperAttempt.completion;
@@ -166,8 +186,29 @@ for (;;) {
   }
   if (confirmed) break;
   supervisorState.removeCommandCompletion(runId);
-  await new Promise((resolveRetry) => setTimeout(resolveRetry, 100));
-  reaperAttempt = spawnReaper();
+  reaperAttempt = await spawnNextReaper();
+  if (!reaperAttempt) {
+    quiescent = true;
+    console.error(
+      `Integration reaping failed closed after 5 attempts for run ${runId}. The canonical database lock remains held. Inspect the exact launcher identity in ${supervisorState.commandPath(runId)}, terminate only its verified process group if it remains, then send SIGTERM to runner PID ${process.pid}.`,
+    );
+    await new Promise((resolveManualAction) => {
+      resolveQuiescent = resolveManualAction;
+      try {
+        if (
+          requestedExitCode !== null &&
+          commandIsProvenAbsent(supervisorState.readCommand(runId))
+        ) {
+          resolveManualAction();
+        }
+      } catch {
+        // Unsafe state remains fail closed.
+      }
+    });
+    quiescent = false;
+    reaperResult = { code: 1, signal: null };
+    break;
+  }
 }
 let recoveryResult = { code: 0, signal: null };
 if (result.signal) {

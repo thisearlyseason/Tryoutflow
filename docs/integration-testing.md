@@ -12,6 +12,12 @@ release the lock. A killed, failed, missing, forged, or stale reaper is replaced
 the lock. If the exact launcher identity disappears while members of its recorded group remain,
 automatic signaling stops and the runner deliberately holds the lock until an operator has safely
 terminated the old command tree; a reused PID or process-group ID is never treated as ownership.
+Reaper replacement is bounded to five attempts with capped exponential backoff. Persistent failure
+enters a quiescent state: no more reapers are spawned, one diagnostic identifies the authenticated
+command-state path and runner PID, and the advisory lock remains held. To terminate that tree, first
+use the exact identity procedure below to establish the old group is absent (terminating it if
+necessary), then send `SIGTERM` to the reported runner PID. The runner rechecks absence before it can
+release the lock; if evidence is unsafe or the group remains, it continues holding the lock.
 
 Normal completion, command failure, `SIGINT`, and `SIGTERM` automatically stop the owned command
 group and clean exact authenticated database roots. Registration rate-counter rows are deliberately
