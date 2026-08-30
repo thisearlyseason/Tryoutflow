@@ -6,7 +6,11 @@ import { promisify } from 'node:util';
 
 import { afterAll, describe, expect, it } from 'vitest';
 
-import { handleStripeWebhook as POST } from '../../../src/app/api/webhooks/stripe/route';
+import {
+  handleStripeWebhook as POST,
+  parseStripeSignatureTimestamp,
+} from '../../../src/app/api/webhooks/stripe/route';
+import { FixedClock } from '../../../src/lib/clock';
 import { entitlementsFor } from '../../../src/modules/subscriptions/domain/entitlements';
 
 const execFile = promisify(execFileCallback);
@@ -25,8 +29,13 @@ const rpcClient = {
       const result = await psql(`select public.apply_stripe_subscription_event(
         ${sqlLiteral(args.p_event_id)},${sqlLiteral(args.p_event_type)},
         ${sqlLiteral(args.p_provider_created_at)}::timestamptz,${sqlLiteral(args.p_customer_id)},
-        ${sqlLiteral(args.p_subscription_id)},${sqlLiteral(args.p_organization_id)}::uuid,
-        ${sqlLiteral(args.p_plan_key)},${sqlLiteral(args.p_state)},${sqlLiteral(args.p_payload)}::jsonb,
+        ${sqlLiteral(args.p_subscription_id)},${sqlLiteral(args.p_price_id)},
+        ${sqlLiteral(args.p_organization_id)}::uuid,${sqlLiteral(args.p_plan_key)},
+        ${sqlLiteral(args.p_state)},${sqlLiteral(args.p_current_period_start)}::timestamptz,
+        ${sqlLiteral(args.p_current_period_end)}::timestamptz,
+        ${sqlLiteral(args.p_cancel_at_period_end)}::boolean,${sqlLiteral(args.p_cancel_at)}::timestamptz,
+        ${sqlLiteral(args.p_canceled_at)}::timestamptz,${sqlLiteral(args.p_trial_end)}::timestamptz,
+        ${sqlLiteral(args.p_payload)}::jsonb,
         ${sqlLiteral(args.p_payload_digest)});`);
       return { data: result.stdout.trim(), error: null };
     } catch (error) {
@@ -45,9 +54,9 @@ const ids = {
 const webhookSecret = 'whsec_task24_webhook_secret_1234567890';
 const webhookEnvironment = {
   STRIPE_WEBHOOK_SECRET: webhookSecret,
-  STRIPE_PRICE_TEAM: 'price_team_task24',
-  STRIPE_PRICE_CLUB: 'price_club_task24',
-  STRIPE_PRICE_ASSOCIATION: 'price_association_task24',
+  STRIPE_PRICE_TEAM: 'price_TeamTask2401',
+  STRIPE_PRICE_CLUB: 'price_ClubTask2401',
+  STRIPE_PRICE_ASSOCIATION: 'price_AssociationTask2401',
 };
 const signedRequest = (body: string, timestamp = Math.floor(Date.now() / 1_000)) => {
   const signature = createHmac('sha256', webhookSecret)
@@ -71,6 +80,12 @@ const event = (input: {
   price?: string;
   status?: string;
   type?: string;
+  currentPeriodStart?: number;
+  currentPeriodEnd?: number;
+  cancelAtPeriodEnd?: boolean;
+  cancelAt?: number | null;
+  canceledAt?: number | null;
+  trialEnd?: number | null;
 }) =>
   JSON.stringify({
     id: input.id,
@@ -84,7 +99,20 @@ const event = (input: {
         customer: input.customer ?? 'cus_task24canonical',
         status: input.status ?? 'active',
         metadata: { organization_id: input.organizationId },
-        items: { data: [{ price: { id: input.price ?? 'price_team_task24' } }] },
+        items: {
+          has_more: false,
+          data: [
+            {
+              price: { id: input.price ?? 'price_TeamTask2401' },
+              current_period_start: input.currentPeriodStart ?? input.created - 60,
+              current_period_end: input.currentPeriodEnd ?? input.created + 3_600,
+            },
+          ],
+        },
+        cancel_at_period_end: input.cancelAtPeriodEnd ?? false,
+        cancel_at: input.cancelAt ?? null,
+        canceled_at: input.canceledAt ?? null,
+        trial_end: input.trialEnd ?? null,
       },
     },
   });
@@ -133,6 +161,110 @@ describe('verified Stripe subscription authority', () => {
     ).toBe(413);
   });
 
+  it('rejects ambiguous, stale, and excessively future signature timestamps using the injected clock', async () => {
+    const now = 1_800_000_000;
+    const body = event({
+      id: 'evt_timestampcanonical',
+      created: now,
+      organizationId: ids.organization,
+    });
+    const clock = new FixedClock(new Date(now * 1_000));
+    expect(parseStripeSignatureTimestamp(`t=${now - 300},v1=ignored`, clock)).toBe(now - 300);
+    expect(parseStripeSignatureTimestamp(`t=${now + 30},v1=ignored`, clock)).toBe(now + 30);
+    const dependencies = { environment: webhookEnvironment, clock };
+    const missing = signedRequest(body, now);
+    missing.headers.set('stripe-signature', 'v1=abc');
+    expect((await POST(missing, dependencies)).status).toBe(400);
+    const multiple = signedRequest(body, now);
+    multiple.headers.set('stripe-signature', `t=${now},t=${now},v1=abc`);
+    expect((await POST(multiple, dependencies)).status).toBe(400);
+    expect((await POST(signedRequest(body, now - 301), dependencies)).status).toBe(400);
+    expect((await POST(signedRequest(body, now + 31), dependencies)).status).toBe(400);
+  });
+
+  it('rejects wrong-kind and noncanonical Stripe IDs before invoking the RPC', async () => {
+    let calls = 0;
+    const client = {
+      rpc: async () => {
+        calls += 1;
+        return { data: 'applied', error: null };
+      },
+    };
+    const created = Math.floor(Date.now() / 1_000);
+    for (const body of [
+      event({ id: 'evt_bad_suffix', created, organizationId: ids.organization }),
+      event({
+        id: 'evt_12345678Ab',
+        created,
+        organizationId: ids.organization,
+        customer: 'sub_12345678Ab',
+      }),
+      event({
+        id: 'evt_12345678Ac',
+        created,
+        organizationId: ids.organization,
+        subscription: 'cus_12345678Ab',
+      }),
+      event({
+        id: 'evt_12345678Ad',
+        created,
+        organizationId: ids.organization,
+        price: 'price_bad_suffix',
+      }),
+    ]) {
+      expect(
+        (await POST(signedRequest(body), { environment: webhookEnvironment, client })).status,
+      ).toBe(400);
+    }
+    expect(calls).toBe(0);
+  });
+
+  it('rejects incomplete or contradictory subscription periods before invoking the RPC', async () => {
+    let calls = 0;
+    const client = {
+      rpc: async () => {
+        calls += 1;
+        return { data: 'applied', error: null };
+      },
+    };
+    const created = Math.floor(Date.now() / 1_000);
+    const missing = JSON.parse(
+      event({ id: 'evt_MissingPeriod01', created, organizationId: ids.organization }),
+    ) as { data: { object: Record<string, unknown> } };
+    const missingItem = (missing.data.object.items as { data: Record<string, unknown>[] }).data[0]!;
+    delete missingItem.current_period_end;
+    const reversed = JSON.parse(
+      event({
+        id: 'evt_ReversedPeriod1',
+        created,
+        organizationId: ids.organization,
+        currentPeriodStart: created + 10,
+        currentPeriodEnd: created,
+      }),
+    ) as unknown;
+    const futureCancellation = event({
+      id: 'evt_FutureCancel001',
+      created,
+      organizationId: ids.organization,
+      canceledAt: created + 1,
+    });
+    const truncatedItems = JSON.parse(
+      event({ id: 'evt_TruncatedItems1', created, organizationId: ids.organization }),
+    ) as { data: { object: { items: { has_more: boolean } } } };
+    truncatedItems.data.object.items.has_more = true;
+    for (const body of [
+      JSON.stringify(missing),
+      JSON.stringify(reversed),
+      futureCancellation,
+      JSON.stringify(truncatedItems),
+    ]) {
+      expect(
+        (await POST(signedRequest(body), { environment: webhookEnvironment, client })).status,
+      ).toBe(400);
+    }
+    expect(calls).toBe(0);
+  });
+
   it('returns retryable server status for configuration and database failures', async () => {
     const body = event({
       id: 'evt_task24failure',
@@ -151,9 +283,9 @@ describe('verified Stripe subscription authority', () => {
         await POST(signedRequest(body), {
           environment: {
             STRIPE_WEBHOOK_SECRET: webhookSecret,
-            STRIPE_PRICE_TEAM: 'price_team_task24',
-            STRIPE_PRICE_CLUB: 'price_club_task24',
-            STRIPE_PRICE_ASSOCIATION: 'price_association_task24',
+            STRIPE_PRICE_TEAM: 'price_TeamTask2401',
+            STRIPE_PRICE_CLUB: 'price_ClubTask2401',
+            STRIPE_PRICE_ASSOCIATION: 'price_AssociationTask2401',
           },
           client: { rpc: async () => ({ data: null, error: new Error('database unavailable') }) },
         })
@@ -170,13 +302,15 @@ describe('verified Stripe subscription authority', () => {
       id: 'evt_task24active',
       created: now,
       organizationId: ids.organization,
+      cancelAtPeriodEnd: true,
+      cancelAt: now + 3_600,
     });
     const deps = {
       environment: {
         STRIPE_WEBHOOK_SECRET: webhookSecret,
-        STRIPE_PRICE_TEAM: 'price_team_task24',
-        STRIPE_PRICE_CLUB: 'price_club_task24',
-        STRIPE_PRICE_ASSOCIATION: 'price_association_task24',
+        STRIPE_PRICE_TEAM: 'price_TeamTask2401',
+        STRIPE_PRICE_CLUB: 'price_ClubTask2401',
+        STRIPE_PRICE_ASSOCIATION: 'price_AssociationTask2401',
       },
       client: rpcClient,
     };
@@ -202,7 +336,7 @@ describe('verified Stripe subscription authority', () => {
       organizationId: ids.other,
       customer: 'cus_task24unknown',
       subscription: 'sub_task24unknown',
-      price: 'price_unknownprice',
+      price: 'price_UnknownPrice01',
     });
     expect(await (await POST(signedRequest(unknown), deps)).json()).toEqual({
       outcome: 'unknown_price',
@@ -210,10 +344,13 @@ describe('verified Stripe subscription authority', () => {
     expect(
       (
         await psql(
-          `select plan_key||'|'||state||'|'||entitlement_source from public.subscription_accounts where organization_id='${ids.organization}'`,
+          `select plan_key||'|'||state||'|'||entitlement_source||'|'||provider_price_id||'|'||
+            extract(epoch from current_period_start)::bigint||'|'||extract(epoch from current_period_end)::bigint||'|'||
+            cancel_at_period_end||'|'||extract(epoch from cancel_at)::bigint
+            from public.subscription_accounts where organization_id='${ids.organization}'`,
         )
       ).stdout.trim(),
-    ).toBe('team|active|stripe');
+    ).toBe(`team|active|stripe|price_TeamTask2401|${now - 60}|${now + 3_600}|true|${now + 3_600}`);
     expect(
       (
         await psql(
@@ -246,9 +383,9 @@ describe('verified Stripe subscription authority', () => {
     const response = await POST(signedRequest(conflicting), {
       environment: {
         STRIPE_WEBHOOK_SECRET: webhookSecret,
-        STRIPE_PRICE_TEAM: 'price_team_task24',
-        STRIPE_PRICE_CLUB: 'price_club_task24',
-        STRIPE_PRICE_ASSOCIATION: 'price_association_task24',
+        STRIPE_PRICE_TEAM: 'price_TeamTask2401',
+        STRIPE_PRICE_CLUB: 'price_ClubTask2401',
+        STRIPE_PRICE_ASSOCIATION: 'price_AssociationTask2401',
       },
       client: rpcClient,
     });
@@ -274,11 +411,15 @@ describe('verified Stripe subscription authority', () => {
       subscription: string;
       state: string;
       digest: string;
+      cancelAtPeriodEnd?: boolean;
+      canceledAt?: string | null;
     }) =>
       psql(`select public.apply_stripe_subscription_event(
         '${input.eventId}','customer.subscription.updated','${input.createdAt}',
-        '${input.customer}','${input.subscription}','${input.organizationId}',
-        'team','${input.state}','{"concurrent":true}','${input.digest}');`);
+        '${input.customer}','${input.subscription}','price_TeamTask2401','${input.organizationId}',
+        'team','${input.state}','2026-08-01T00:00:00Z','2026-09-01T00:00:00Z',
+        ${input.cancelAtPeriodEnd ?? false},null,${sqlLiteral(input.canceledAt)}::timestamptz,null,
+        '{"concurrent":true}','${input.digest}');`);
     const claims = await Promise.all([
       apply({
         eventId: 'evt_task24claimA',

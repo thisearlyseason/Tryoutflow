@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { FakeBillingProvider } from '../../src/infrastructure/billing/fake-billing-provider';
 import {
   billingProviderIdSchema,
+  stripeCustomerIdSchema,
+  stripeEventIdSchema,
+  stripePriceIdSchema,
+  stripeSubscriptionIdSchema,
   type BillingProvider,
 } from '../../src/infrastructure/billing/billing-provider';
 import { StripeBillingProvider } from '../../src/infrastructure/billing/stripe-provider';
@@ -14,7 +18,7 @@ async function expectBillingProviderContract(factory: () => BillingProvider) {
   const checkout = {
     organizationId: '11111111-1111-4111-8111-111111111111',
     plan: 'team' as const,
-    priceId: 'price_team_test',
+    priceId: 'price_TeamTest123',
     successUrl: 'https://app.example.com/billing?checkout=complete',
     cancelUrl: 'https://app.example.com/billing',
   };
@@ -43,6 +47,17 @@ describe('BillingProvider contract', () => {
     expect(billingProviderIdSchema.safeParse('bad id').success).toBe(false);
   });
 
+  it('validates each canonical Stripe identifier kind without suffix underscores', () => {
+    expect(stripeEventIdSchema.safeParse('evt_12345678Ab').success).toBe(true);
+    expect(stripeCustomerIdSchema.safeParse('cus_12345678Ab').success).toBe(true);
+    expect(stripeSubscriptionIdSchema.safeParse('sub_12345678Ab').success).toBe(true);
+    expect(stripePriceIdSchema.safeParse('price_12345678Ab').success).toBe(true);
+    expect(stripeEventIdSchema.safeParse('cus_12345678Ab').success).toBe(false);
+    expect(stripeCustomerIdSchema.safeParse('cus_1234_678Ab').success).toBe(false);
+    expect(stripeSubscriptionIdSchema.safeParse('sub_1234567').success).toBe(false);
+    expect(stripePriceIdSchema.safeParse('price_12345678-').success).toBe(false);
+  });
+
   it('sends strict Stripe requests with timeout and idempotency', async () => {
     const request = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
       Response.json({ id: 'cs_test_1234567890', url: 'https://checkout.stripe.com/c/pay/test' }),
@@ -56,7 +71,7 @@ describe('BillingProvider contract', () => {
         {
           organizationId: '11111111-1111-4111-8111-111111111111',
           plan: 'team',
-          priceId: 'price_team_test',
+          priceId: 'price_TeamTest123',
           successUrl: 'https://app.example.com/success',
           cancelUrl: 'https://app.example.com/cancel',
         },
@@ -126,7 +141,7 @@ describe('BillingProvider contract', () => {
         {
           organizationId: '11111111-1111-4111-8111-111111111111',
           plan: 'team',
-          priceId: 'price_team_test',
+          priceId: 'price_TeamTest123',
           successUrl: 'https://app.example.com/success',
           cancelUrl: 'https://app.example.com/cancel',
         },
@@ -159,5 +174,64 @@ describe('BillingProvider contract', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('enforces the same deadline while a successful response body stalls and aborts the transport', async () => {
+    vi.useFakeTimers();
+    try {
+      let observedSignal: AbortSignal | undefined;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"id":"bps_1234567890abcdef","url":'));
+        },
+      });
+      const provider = new StripeBillingProvider(
+        { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 250 },
+        async (_input, init) => {
+          observedSignal = init?.signal ?? undefined;
+          return new Response(body, {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          });
+        },
+      );
+      const pending = provider.createPortalSession(
+        {
+          organizationId: '11111111-1111-4111-8111-111111111111',
+          customerId: 'cus_1234567890abcdef',
+          returnUrl: 'https://app.example.com/billing',
+        },
+        'billing:portal:body-deadline',
+      );
+      const rejection = expect(pending).rejects.toEqual({
+        code: 'delivery_uncertain',
+        retryable: false,
+      });
+      await vi.advanceTimersByTimeAsync(250);
+      await rejection;
+      expect(observedSignal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ['text/plain', '{"id":"bps_1234567890abcdef","url":"https://billing.stripe.com/test"}'],
+    ['application/json', `{"padding":"${'x'.repeat(70_000)}"}`],
+  ])('rejects unsafe provider response %s bodies', async (contentType, body) => {
+    const provider = new StripeBillingProvider(
+      { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
+      async () => new Response(body, { headers: { 'content-type': contentType } }),
+    );
+    await expect(
+      provider.createPortalSession(
+        {
+          organizationId: '11111111-1111-4111-8111-111111111111',
+          customerId: 'cus_1234567890abcdef',
+          returnUrl: 'https://app.example.com/billing',
+        },
+        'billing:portal:unsafe-response',
+      ),
+    ).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
   });
 });

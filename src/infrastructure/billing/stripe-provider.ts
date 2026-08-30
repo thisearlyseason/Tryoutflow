@@ -8,6 +8,8 @@ import {
   type BillingProviderError,
   type CheckoutSessionInput,
   type PortalSessionInput,
+  stripeCustomerIdSchema,
+  stripePriceIdSchema,
 } from './billing-provider';
 
 const configurationSchema = z.object({
@@ -27,20 +29,58 @@ const portalResponseSchema = z
 const checkoutInputSchema = z.object({
   organizationId: z.uuid(),
   plan: z.enum(['team', 'club', 'association']),
-  priceId: z.string().regex(/^price_[A-Za-z0-9_]{6,200}$/u),
+  priceId: stripePriceIdSchema,
   successUrl: secureUrlSchema,
   cancelUrl: secureUrlSchema,
-  customerId: z
-    .string()
-    .regex(/^cus_[A-Za-z0-9]{8,200}$/u)
-    .optional(),
+  customerId: z.string().pipe(stripeCustomerIdSchema).optional(),
 });
 const portalInputSchema = z.object({
   organizationId: z.uuid(),
-  customerId: z.string().regex(/^cus_[A-Za-z0-9]{8,200}$/u),
+  customerId: stripeCustomerIdSchema,
   returnUrl: secureUrlSchema,
 });
 type StripeFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+const maximumResponseBytes = 64 * 1024;
+
+async function readBoundedJsonResponse(response: Response, signal: AbortSignal) {
+  const mime = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
+  if (mime !== 'application/json') throw new Error('invalid_provider_mime');
+  const announced = response.headers.get('content-length');
+  if (announced !== null) {
+    const size = Number(announced);
+    if (!Number.isSafeInteger(size) || size < 0 || size > maximumResponseBytes)
+      throw new Error('invalid_provider_size');
+  }
+  if (!response.body) throw new Error('missing_provider_body');
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  const abort = () => void reader.cancel().catch(() => undefined);
+  signal.addEventListener('abort', abort, { once: true });
+  try {
+    for (;;) {
+      if (signal.aborted) throw new DOMException('Provider deadline exceeded', 'AbortError');
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maximumResponseBytes) {
+        void reader.cancel().catch(() => undefined);
+        throw new Error('provider_body_too_large');
+      }
+      chunks.push(value);
+    }
+  } finally {
+    signal.removeEventListener('abort', abort);
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
+}
 
 export class StripeBillingProvider implements BillingProvider {
   private readonly secretKey: string;
@@ -68,6 +108,7 @@ export class StripeBillingProvider implements BillingProvider {
       ? AbortSignal.any([signal, controller.signal])
       : controller.signal;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadlineAt = performance.now() + this.timeoutMs;
     try {
       const deadline = new Promise<never>((_resolve, reject) => {
         timer = setTimeout(() => {
@@ -75,29 +116,37 @@ export class StripeBillingProvider implements BillingProvider {
           reject(new DOMException('Provider deadline exceeded', 'AbortError'));
         }, this.timeoutMs);
       });
-      const request = this.request(`https://api.stripe.com/v1/${path}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.secretKey}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Idempotency-Key': idempotencyKey,
-        },
-        body: body.toString(),
-        signal: combinedSignal,
-      });
-      // Promise.race enforces the deadline even when an injected/custom fetch ignores abort.
-      const response = await Promise.race([request, deadline]);
-      if (!response.ok) {
-        const retryable = response.status === 429 || response.status >= 500;
-        throw {
-          code: retryable ? 'provider_temporary' : 'provider_rejected',
-          retryable,
-        } satisfies BillingProviderError;
-      }
-      const parsed = responseSchema.safeParse((await response.json()) as unknown);
-      if (!parsed.success)
-        throw { code: 'delivery_uncertain', retryable: false } satisfies BillingProviderError;
-      return { sessionId: parsed.data.id, url: parsed.data.url };
+      const operation = (async () => {
+        const response = await this.request(`https://api.stripe.com/v1/${path}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Idempotency-Key': idempotencyKey,
+          },
+          body: body.toString(),
+          signal: combinedSignal,
+        });
+        if (!response.ok) {
+          const retryable = response.status === 429 || response.status >= 500;
+          throw {
+            code: retryable ? 'provider_temporary' : 'provider_rejected',
+            retryable,
+          } satisfies BillingProviderError;
+        }
+        const json = await readBoundedJsonResponse(response, combinedSignal);
+        if (performance.now() >= deadlineAt)
+          throw new DOMException('Provider deadline exceeded', 'AbortError');
+        const parsed = responseSchema.safeParse(json);
+        if (!parsed.success)
+          throw { code: 'delivery_uncertain', retryable: false } satisfies BillingProviderError;
+        if (performance.now() >= deadlineAt)
+          throw new DOMException('Provider deadline exceeded', 'AbortError');
+        return { sessionId: parsed.data.id, url: parsed.data.url };
+      })();
+      // The single race covers headers, bounded body consumption, decoding, parsing, and schema
+      // validation. Promise.race observes a transport that settles late after the caller timed out.
+      return await Promise.race([operation, deadline]);
     } catch (error) {
       if (isBillingProviderError(error)) throw error;
       throw { code: 'delivery_uncertain', retryable: false } satisfies BillingProviderError;

@@ -14,6 +14,28 @@ import { getStripePriceMapping } from '../../../../modules/subscriptions/domain/
 
 const maximumBodyBytes = 64 * 1024;
 const signatureToleranceSeconds = 5 * 60;
+// A small positive skew admits ordinary clock drift without accepting far-future signed replays.
+const signatureFutureSkewSeconds = 30;
+
+export function parseStripeSignatureTimestamp(signature: string, clock: Clock) {
+  const timestamps: string[] = [];
+  for (const component of signature.split(',')) {
+    const separator = component.indexOf('=');
+    if (separator <= 0) continue;
+    const key = component.slice(0, separator).trim();
+    const value = component.slice(separator + 1).trim();
+    if (key === 't') timestamps.push(value);
+  }
+  if (timestamps.length !== 1 || !/^(?:0|[1-9][0-9]*)$/u.test(timestamps[0]!))
+    throw new Error('invalid_signature_timestamp');
+  const timestamp = Number(timestamps[0]);
+  if (!Number.isSafeInteger(timestamp)) throw new Error('invalid_signature_timestamp');
+  const now = Math.floor(clock.now().getTime() / 1_000);
+  if (!Number.isSafeInteger(now)) throw new Error('invalid_clock');
+  if (now - timestamp > signatureToleranceSeconds || timestamp - now > signatureFutureSkewSeconds)
+    throw new Error('signature_timestamp_out_of_range');
+  return timestamp;
+}
 
 export async function readBoundedStripeBody(request: Request, maximumBytes = maximumBodyBytes) {
   const announced = request.headers.get('content-length');
@@ -64,6 +86,12 @@ export async function handleStripeWebhook(
   const signature = request.headers.get('stripe-signature');
   if (!signature || signature.length > 2_000)
     return Response.json({ error: 'invalid_webhook' }, { status: 400 });
+  const clock = dependencies.clock ?? new SystemClock();
+  try {
+    parseStripeSignatureTimestamp(signature, clock);
+  } catch {
+    return Response.json({ error: 'invalid_webhook' }, { status: 400 });
+  }
   let body: Uint8Array;
   try {
     body = await readBoundedStripeBody(request);
@@ -80,7 +108,6 @@ export async function handleStripeWebhook(
   } catch {
     return Response.json({ error: 'webhook_unavailable' }, { status: 500 });
   }
-  const clock = dependencies.clock ?? new SystemClock();
   let verified: Stripe.Event;
   try {
     // Stripe's maintained implementation verifies every v1 signature over the exact bytes and

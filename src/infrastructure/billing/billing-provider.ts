@@ -2,9 +2,23 @@ import { z } from 'zod';
 
 import type { PaidPlanKey } from '../../modules/subscriptions/domain/plans';
 
+const stripeIdentifierSuffix = '[A-Za-z0-9]{8,200}';
+export const stripeEventIdSchema = z.string().regex(new RegExp(`^evt_${stripeIdentifierSuffix}$`));
+export const stripeCustomerIdSchema = z
+  .string()
+  .regex(new RegExp(`^cus_${stripeIdentifierSuffix}$`));
+export const stripeSubscriptionIdSchema = z
+  .string()
+  .regex(new RegExp(`^sub_${stripeIdentifierSuffix}$`));
+export const stripePriceIdSchema = z
+  .string()
+  .regex(new RegExp(`^price_${stripeIdentifierSuffix}$`));
+
 export const billingProviderIdSchema = z
   .string()
-  .regex(/^(?:cus|sub|price|cs_(?:test|live)|bps)_[A-Za-z0-9_]{8,200}$/u);
+  .regex(
+    /^(?:(?:cus|sub|price)_[A-Za-z0-9]{8,200}|(?:cs_(?:test|live)|bps)_[A-Za-z0-9_]{8,200})$/u,
+  );
 
 export type BillingProviderError = Readonly<{
   code:

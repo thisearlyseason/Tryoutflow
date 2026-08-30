@@ -2,6 +2,8 @@ import 'server-only';
 
 import { z } from 'zod';
 
+import { stripePriceIdSchema } from '../../../infrastructure/billing/billing-provider';
+
 export const planKeySchema = z.enum(['trial', 'team', 'club', 'association']);
 export type PlanKey = z.infer<typeof planKeySchema>;
 
@@ -17,9 +19,9 @@ export const launchPlans = Object.freeze({
 
 const stripePriceEnvironmentSchema = z
   .object({
-    STRIPE_PRICE_TEAM: z.string().regex(/^price_[A-Za-z0-9_]{6,200}$/u),
-    STRIPE_PRICE_CLUB: z.string().regex(/^price_[A-Za-z0-9_]{6,200}$/u),
-    STRIPE_PRICE_ASSOCIATION: z.string().regex(/^price_[A-Za-z0-9_]{6,200}$/u),
+    STRIPE_PRICE_TEAM: stripePriceIdSchema,
+    STRIPE_PRICE_CLUB: stripePriceIdSchema,
+    STRIPE_PRICE_ASSOCIATION: stripePriceIdSchema,
   })
   .refine(
     (value) => new Set(Object.values(value)).size === 3,

@@ -110,5 +110,26 @@ nullableFunctionFields('revise_roster_version', {
   roster_version_id: 'string',
   version: 'number',
 });
+nullableFunctionFields('get_owned_subscription_account', {
+  cancel_at: 'string',
+  cancel_at_period_end: 'boolean',
+  canceled_at: 'string',
+  current_period_end: 'string',
+  current_period_start: 'string',
+  plan_key: 'string',
+  provider_customer_id: 'string',
+  provider_price_id: 'string',
+  provider_subscription_id: 'string',
+  trial_end: 'string',
+});
+nullableFunctionArgs('apply_stripe_subscription_event', {
+  p_cancel_at: 'string',
+  p_canceled_at: 'string',
+  p_organization_id: 'string',
+  p_plan_key: 'string',
+  p_price_id: 'string',
+  p_state: 'string',
+  p_trial_end: 'string',
+});
 
 await writeFile(path, source);
