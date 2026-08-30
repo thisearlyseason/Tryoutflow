@@ -8,6 +8,7 @@ export type ClaimedEmailJob = Readonly<{
   recipientEmail: string;
   subject: string;
   bodyText: string;
+  bodyHtml?: string;
   attemptCount: number;
   maxAttempts: number;
 }>;
@@ -41,6 +42,7 @@ export async function claimJobs(
       recipientEmail: String(value.recipient_email),
       subject: String(value.subject),
       bodyText: String(value.body_text),
+      bodyHtml: typeof value.body_html === 'string' ? value.body_html : undefined,
       attemptCount: Number(value.attempt_count),
       maxAttempts: Number(value.max_attempts),
     };

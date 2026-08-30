@@ -488,17 +488,115 @@ export type Database = {
           },
         ];
       };
+      communication_batches: {
+        Row: {
+          created_at: string;
+          created_by_user_id: string;
+          decision: string;
+          editable_text: string;
+          id: string;
+          organization_id: string;
+          preview_digest: string;
+          recipient_count: number;
+          roster_version: number;
+          roster_version_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_id: string;
+          decision: string;
+          editable_text: string;
+          id?: string;
+          organization_id: string;
+          preview_digest: string;
+          recipient_count: number;
+          roster_version: number;
+          roster_version_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string;
+          decision?: string;
+          editable_text?: string;
+          id?: string;
+          organization_id?: string;
+          preview_digest?: string;
+          recipient_count?: number;
+          roster_version?: number;
+          roster_version_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'communication_batches_organization_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'communication_batches_roster_fkey';
+            columns: ['organization_id', 'roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      communication_delivery_events: {
+        Row: {
+          applied_state: string;
+          event_id: string;
+          event_type: string;
+          message_id: string;
+          occurred_at: string;
+          organization_id: string;
+          provider_message_id: string;
+          received_at: string;
+        };
+        Insert: {
+          applied_state: string;
+          event_id: string;
+          event_type: string;
+          message_id: string;
+          occurred_at: string;
+          organization_id: string;
+          provider_message_id: string;
+          received_at?: string;
+        };
+        Update: {
+          applied_state?: string;
+          event_id?: string;
+          event_type?: string;
+          message_id?: string;
+          occurred_at?: string;
+          organization_id?: string;
+          provider_message_id?: string;
+          received_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'communication_delivery_events_message_fkey';
+            columns: ['organization_id', 'message_id'];
+            isOneToOne: false;
+            referencedRelation: 'communication_messages';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       communication_messages: {
         Row: {
           attention_required_at: string | null;
           business_idempotency_key: string;
           cancellation_reason: string | null;
+          communication_batch_id: string | null;
           content_snapshot: Json;
           created_at: string;
+          delivery_state_at: string | null;
           id: string;
           message_kind: string;
           notice_class: string;
           organization_id: string;
+          protected_facts_snapshot: Json;
           provider_message_id: string | null;
           recipient_snapshot: Json;
           request_digest: string;
@@ -520,12 +618,15 @@ export type Database = {
           attention_required_at?: string | null;
           business_idempotency_key: string;
           cancellation_reason?: string | null;
+          communication_batch_id?: string | null;
           content_snapshot: Json;
           created_at?: string;
+          delivery_state_at?: string | null;
           id?: string;
           message_kind: string;
           notice_class: string;
           organization_id: string;
+          protected_facts_snapshot?: Json;
           provider_message_id?: string | null;
           recipient_snapshot: Json;
           request_digest: string;
@@ -547,12 +648,15 @@ export type Database = {
           attention_required_at?: string | null;
           business_idempotency_key?: string;
           cancellation_reason?: string | null;
+          communication_batch_id?: string | null;
           content_snapshot?: Json;
           created_at?: string;
+          delivery_state_at?: string | null;
           id?: string;
           message_kind?: string;
           notice_class?: string;
           organization_id?: string;
+          protected_facts_snapshot?: Json;
           provider_message_id?: string | null;
           recipient_snapshot?: Json;
           request_digest?: string;
@@ -572,7 +676,52 @@ export type Database = {
         };
         Relationships: [
           {
+            foreignKeyName: 'communication_messages_batch_fkey';
+            columns: ['organization_id', 'communication_batch_id'];
+            isOneToOne: false;
+            referencedRelation: 'communication_batches';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
             foreignKeyName: 'communication_messages_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      communication_templates: {
+        Row: {
+          created_at: string;
+          editable_text: string;
+          message_kind: string;
+          organization_id: string;
+          updated_at: string;
+          updated_by_user_id: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          editable_text: string;
+          message_kind: string;
+          organization_id: string;
+          updated_at?: string;
+          updated_by_user_id: string;
+          version?: number;
+        };
+        Update: {
+          created_at?: string;
+          editable_text?: string;
+          message_kind?: string;
+          organization_id?: string;
+          updated_at?: string;
+          updated_by_user_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'communication_templates_organization_fkey';
             columns: ['organization_id'];
             isOneToOne: false;
             referencedRelation: 'organizations';
@@ -2769,6 +2918,16 @@ export type Database = {
           outcome: string;
         }[];
       };
+      apply_resend_delivery_event: {
+        Args: {
+          p_event_id: string;
+          p_event_type: string;
+          p_message_id: string;
+          p_occurred_at: string;
+          p_provider_message_id: string;
+        };
+        Returns: string;
+      };
       assign_evaluator: {
         Args: {
           p_division_id?: string;
@@ -3134,6 +3293,25 @@ export type Database = {
           expires_at: string;
           preview_id: string;
         }[];
+      };
+      create_decision_message_batch: {
+        Args: {
+          p_confirmation: string;
+          p_decision: string;
+          p_editable_text: string;
+          p_expected_recipient_ids: string[];
+          p_expected_version: number;
+          p_organization_id: string;
+          p_preview_digest: string;
+          p_roster_version_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['decision_message_batch_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'decision_message_batch_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       create_organization_with_owner: {
         Args: {
@@ -3508,6 +3686,15 @@ export type Database = {
         }[];
       };
       normalize_registration_text: { Args: { value: string }; Returns: string };
+      preview_decision_message_batch: {
+        Args: {
+          p_decision: string;
+          p_editable_text: string;
+          p_organization_id: string;
+          p_roster_version_id: string;
+        };
+        Returns: Json;
+      };
       public_registration_tryout: {
         Args: { p_tryout_slug: string };
         Returns: {
@@ -4025,6 +4212,12 @@ export type Database = {
         body_text: string | null;
         attempt_count: number | null;
         max_attempts: number | null;
+        body_html: string | null;
+      };
+      decision_message_batch_result: {
+        outcome: string | null;
+        batch_id: string | null;
+        queued_count: number | null;
       };
       queue_communication_result: {
         outcome: string | null;

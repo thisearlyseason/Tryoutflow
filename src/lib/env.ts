@@ -20,6 +20,12 @@ const communicationEnvironmentSchema = z.object({
 });
 export type CommunicationEnvironment = z.infer<typeof communicationEnvironmentSchema>;
 
+const resendWebhookEnvironmentSchema = z.object({
+  RESEND_API_KEY: z.string().min(20).max(300),
+  RESEND_WEBHOOK_SECRET: z.string().regex(/^whsec_[A-Za-z0-9+/=_-]{16,500}$/u),
+});
+export type ResendWebhookEnvironment = z.infer<typeof resendWebhookEnvironmentSchema>;
+
 /** Validates the single canonical origin used in externally shared links. */
 export function getPublicAppOrigin(
   environment: Record<string, string | undefined> = process.env,
@@ -62,4 +68,12 @@ export function getCommunicationEnvironment(
   if (typeof window !== 'undefined')
     throw new Error('Server environment cannot be read in the browser');
   return communicationEnvironmentSchema.parse(environment);
+}
+
+export function getResendWebhookEnvironment(
+  environment: Record<string, string | undefined> = process.env,
+): ResendWebhookEnvironment {
+  if (typeof window !== 'undefined')
+    throw new Error('Server environment cannot be read in the browser');
+  return resendWebhookEnvironmentSchema.parse(environment);
 }

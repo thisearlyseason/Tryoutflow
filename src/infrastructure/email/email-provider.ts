@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-export type EmailMessage = Readonly<{ to: string; subject: string; text: string }>;
+export type EmailMessage = Readonly<{
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+  messageId?: string;
+}>;
 
 export const providerMessageIdSchema = z
   .string()

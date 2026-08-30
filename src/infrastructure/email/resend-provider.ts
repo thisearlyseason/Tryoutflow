@@ -54,6 +54,10 @@ export class ResendEmailProvider implements EmailProvider {
           to: message.to,
           subject: message.subject,
           text: message.text,
+          ...(message.html ? { html: message.html } : {}),
+          ...(message.messageId
+            ? { tags: [{ name: 'message_id', value: message.messageId }] }
+            : {}),
         }),
         signal,
       });

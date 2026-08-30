@@ -64,7 +64,13 @@ export async function dispatchJob(
     const providerRequest = Promise.resolve()
       .then(() =>
         provider.send(
-          { to: job.recipientEmail, subject: job.subject, text: job.bodyText },
+          {
+            to: job.recipientEmail,
+            subject: job.subject,
+            text: job.bodyText,
+            ...(job.bodyHtml ? { html: job.bodyHtml } : {}),
+            messageId: job.messageId,
+          },
           job.providerIdempotencyKey,
           { signal: controller.signal },
         ),

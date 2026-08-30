@@ -86,6 +86,31 @@ describe('EmailProvider contract', () => {
     );
   });
 
+  it('submits escaped HTML and the exact internal message tag for webhook reconciliation', async () => {
+    const request = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      Response.json({ id: '55555555-5555-4555-8555-555555555555' }),
+    );
+    const provider = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com' },
+      request,
+    );
+    await provider.send(
+      {
+        to: 'guardian@example.com',
+        subject: 'Subject',
+        text: 'Body',
+        html: '<main><p>Safe body</p></main>',
+        messageId: '33333333-3333-4333-8333-333333333333',
+      },
+      'communication:33333333-3333-4333-8333-333333333333',
+    );
+    const body = JSON.parse(String(request.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      html: '<main><p>Safe body</p></main>',
+      tags: [{ name: 'message_id', value: '33333333-3333-4333-8333-333333333333' }],
+    });
+  });
+
   it('rejects incomplete server configuration without exposing its values', () => {
     expect(() => new ResendEmailProvider({ apiKey: 'short', from: 'bad' })).toThrow();
   });
