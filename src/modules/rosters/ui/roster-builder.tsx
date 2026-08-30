@@ -48,6 +48,7 @@ export type RosterWorkspaceSnapshot = Readonly<{
   basedOnRosterVersionId: string | null;
   revisionReason: string | null;
   finalizedAt: string | null;
+  evidenceAvailability: 'available' | 'unavailable' | 'not_authorized';
   teams: readonly RosterTeamView[];
   positions: readonly RosterWorkspacePosition[];
   athletes: readonly RosterWorkspaceAthlete[];
@@ -63,16 +64,25 @@ export type RosterBuilderProps = {
   canEdit: boolean;
   initial: RosterWorkspaceSnapshot;
   onMove(input: {
+    rosterVersionId: string;
     registrationId: string;
     teamId: string | null;
     expectedVersion: number;
   }): Promise<RosterMutationResult>;
   onChangeDecisions(input: {
+    rosterVersionId: string;
     changes: readonly { registrationId: string; status: DecisionStatus }[];
     expectedVersion: number;
   }): Promise<RosterMutationResult>;
-  onFinalize(input: { expectedVersion: number }): Promise<RosterMutationResult>;
-  onRevise(input: { expectedVersion: number; reason: string }): Promise<RosterRevisionResult>;
+  onFinalize(input: {
+    rosterVersionId: string;
+    expectedVersion: number;
+  }): Promise<RosterMutationResult>;
+  onRevise(input: {
+    rosterVersionId: string;
+    expectedVersion: number;
+    reason: string;
+  }): Promise<RosterRevisionResult>;
 };
 
 export type CreateRosterUiResult =
@@ -302,6 +312,7 @@ export function RosterBuilder({
   onMove,
   onRevise,
 }: RosterBuilderProps) {
+  const [hydrated, setHydrated] = useState(false);
   const [snapshot, setSnapshot] = useState(initial);
   const [positionFilter, setPositionFilter] = useState('all');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -312,13 +323,18 @@ export function RosterBuilder({
   const [revisionOpen, setRevisionOpen] = useState(false);
   const [revisionReason, setRevisionReason] = useState('');
   const [busy, setBusy] = useState(false);
-  const [staleVersion, setStaleVersion] = useState<number | null>(null);
+  const [staleVersion, setStaleVersion] = useState<number | 'unknown' | null>(null);
   const [message, setMessage] = useState('');
   const statusRef = useRef<HTMLDivElement>(null);
+  const recoveryRef = useRef<HTMLElement>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
   );
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     setSnapshot(initial);
@@ -331,7 +347,12 @@ export function RosterBuilder({
     if (message.includes('placement saved')) statusRef.current?.focus();
   }, [message]);
 
-  const editable = canEdit && snapshot.state === 'draft' && staleVersion === null && !busy;
+  useEffect(() => {
+    if (staleVersion !== null) recoveryRef.current?.focus();
+  }, [staleVersion]);
+
+  const editable =
+    hydrated && canEdit && snapshot.state === 'draft' && staleVersion === null && !busy;
   const visibleAthletes = useMemo(
     () =>
       snapshot.athletes.filter(
@@ -341,8 +362,12 @@ export function RosterBuilder({
   );
 
   function fail(result: Exclude<RosterMutationResult, { ok: true }>) {
-    if (result.code === 'conflict') {
-      setStaleVersion(result.currentVersion ?? snapshot.version);
+    if (['conflict', 'invalid_roster', 'invalid_state'].includes(result.code)) {
+      setMoveTarget(null);
+      setBulkOpen(false);
+      setFinalizeOpen(false);
+      setRevisionOpen(false);
+      setStaleVersion(result.currentVersion ?? 'unknown');
       setMessage('');
       return;
     }
@@ -367,7 +392,12 @@ export function RosterBuilder({
     setMessage('Saving roster placement…');
     let result: RosterMutationResult;
     try {
-      result = await onMove({ registrationId, teamId, expectedVersion: snapshot.version });
+      result = await onMove({
+        rosterVersionId: snapshot.rosterVersionId,
+        registrationId,
+        teamId,
+        expectedVersion: snapshot.version,
+      });
     } catch {
       setBusy(false);
       setMoveTarget(null);
@@ -400,7 +430,11 @@ export function RosterBuilder({
     setMessage('Saving decision changes…');
     let result: RosterMutationResult;
     try {
-      result = await onChangeDecisions({ changes, expectedVersion: snapshot.version });
+      result = await onChangeDecisions({
+        rosterVersionId: snapshot.rosterVersionId,
+        changes,
+        expectedVersion: snapshot.version,
+      });
     } catch {
       setBusy(false);
       setBulkOpen(false);
@@ -432,7 +466,10 @@ export function RosterBuilder({
     setMessage('Finalizing roster…');
     let result: RosterMutationResult;
     try {
-      result = await onFinalize({ expectedVersion: snapshot.version });
+      result = await onFinalize({
+        rosterVersionId: snapshot.rosterVersionId,
+        expectedVersion: snapshot.version,
+      });
     } catch {
       setBusy(false);
       setFinalizeOpen(false);
@@ -462,7 +499,11 @@ export function RosterBuilder({
     setMessage('Creating audited revision…');
     let result: RosterRevisionResult;
     try {
-      result = await onRevise({ expectedVersion: snapshot.version, reason });
+      result = await onRevise({
+        rosterVersionId: snapshot.rosterVersionId,
+        expectedVersion: snapshot.version,
+        reason,
+      });
     } catch {
       setBusy(false);
       setRevisionOpen(false);
@@ -531,11 +572,14 @@ export function RosterBuilder({
             ) : null}
           </div>
           {canEdit && snapshot.state === 'draft' ? (
-            <Button disabled={staleVersion !== null} onClick={() => setFinalizeOpen(true)}>
+            <Button
+              disabled={!hydrated || staleVersion !== null}
+              onClick={() => setFinalizeOpen(true)}
+            >
               Finalize roster
             </Button>
           ) : canEdit && snapshot.state === 'finalized' ? (
-            <Button onClick={() => setRevisionOpen(true)} variant="secondary">
+            <Button disabled={!hydrated} onClick={() => setRevisionOpen(true)} variant="secondary">
               Create revision
             </Button>
           ) : null}
@@ -546,15 +590,35 @@ export function RosterBuilder({
             aria-live="assertive"
             className="rounded-[var(--radius-surface)] border border-[var(--color-destructive)] bg-[var(--color-surface)] p-4"
             role="alert"
+            ref={recoveryRef}
+            tabIndex={-1}
           >
             <h3 className="font-bold">Roster changed elsewhere</h3>
             <p className="mt-1 text-sm">
-              Roster changed elsewhere. Refresh and review version {staleVersion} before retrying.
+              Roster changed elsewhere.{' '}
+              {staleVersion === 'unknown'
+                ? 'Refresh and review the current roster before retrying.'
+                : `Refresh and review version ${staleVersion} before retrying.`}{' '}
               Your attempted change was not applied.
             </p>
             <Button className="mt-3" onClick={() => window.location.reload()} variant="secondary">
               Refresh roster
             </Button>
+          </section>
+        ) : null}
+
+        {snapshot.evidenceAvailability !== 'available' ? (
+          <section
+            aria-label="Ranking evidence unavailable"
+            className="rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-sm"
+            role="status"
+          >
+            <strong>Ranking evidence unavailable.</strong>{' '}
+            {snapshot.evidenceAvailability === 'not_authorized'
+              ? 'This role is not authorized to load ranking evidence. '
+              : 'Ranking evidence could not be loaded. '}
+            Roster membership, placements, and decisions remain available from the exact roster
+            snapshot.
           </section>
         ) : null}
 
@@ -573,6 +637,7 @@ export function RosterBuilder({
             Filter by position
             <select
               className="h-11 min-w-0 rounded-[var(--radius-control)] border border-[var(--color-border)] px-3"
+              disabled={!hydrated}
               onChange={(event) => {
                 setPositionFilter(event.currentTarget.value);
                 setSelected(new Set());
@@ -619,6 +684,7 @@ export function RosterBuilder({
           <AthletePool
             athletes={visibleAthletes.filter((athlete) => athlete.teamId === null)}
             disabled={!editable}
+            filtered={positionFilter !== 'all'}
             onMove={setMoveTarget}
             onSelect={(registrationId, checked) =>
               setSelected((current) => {
@@ -629,12 +695,14 @@ export function RosterBuilder({
               })
             }
             selected={selected}
+            totalCount={snapshot.athletes.filter((athlete) => athlete.teamId === null).length}
           />
           {snapshot.teams.map((team) => (
             <TeamRoster
               allAthletes={snapshot.athletes.filter((athlete) => athlete.teamId === team.id)}
               athletes={visibleAthletes.filter((athlete) => athlete.teamId === team.id)}
               disabled={!editable}
+              filtered={positionFilter !== 'all'}
               key={team.id}
               onMove={setMoveTarget}
               onSelect={(registrationId, checked) =>

@@ -80,7 +80,49 @@ test('fails stale writes closed and provides one refresh-and-review path', async
     page.getByRole('alert').filter({ hasText: 'Roster changed elsewhere' }),
   ).toContainText('Refresh and review version 9 before retrying');
   await expect(page.getByRole('button', { name: 'Refresh roster' })).toBeVisible();
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Roster changed elsewhere' }),
+  ).toBeFocused();
   await expect(page.getByText('Athlete pool 1')).toBeVisible();
+});
+
+test('closes consequential dialogs and focuses stale recovery', async ({ page }) => {
+  await page.goto('/stale');
+  await page.getByLabel('Select Athlete 42').check();
+  await page.getByRole('button', { name: 'Review decision for 1 athlete' }).click();
+  await page.getByRole('button', { name: 'Confirm decisions' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Roster changed elsewhere' }),
+  ).toBeFocused();
+
+  await page.goto('/stale');
+  await page.getByRole('button', { name: 'Finalize roster' }).click();
+  await page.getByLabel('I understand this roster becomes immutable').check();
+  await page.getByRole('button', { name: 'Confirm finalization' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Roster changed elsewhere' }),
+  ).toBeFocused();
+
+  await page.goto('/stale/revision');
+  await page.getByRole('button', { name: 'Create revision' }).click();
+  await page
+    .getByLabel('Revision reason')
+    .fill('Correcting a confirmed placement after director review.');
+  await page.getByRole('button', { name: 'Confirm revision' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(
+    page.getByRole('alert').filter({ hasText: 'Roster changed elsewhere' }),
+  ).toBeFocused();
+});
+
+test('keeps total roster and target counts truthful under position filters', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Filter by position').selectOption({ label: 'Goalie' });
+  await expect(page.getByRole('heading', { name: 'Blue roster 1 of 2' })).toBeVisible();
+  await expect(page.getByText('1 visible with this filter')).toBeVisible();
+  await expect(page.getByText('Forward target 0 of 1')).toBeVisible();
 });
 
 test('has accessible 44px controls and no 320px horizontal overflow', async ({ page }) => {

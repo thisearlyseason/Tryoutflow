@@ -3041,6 +3041,17 @@ export type Database = {
           result: Json;
         }[];
       };
+      load_roster_workspace: {
+        Args: {
+          p_division_id: string;
+          p_organization_id: string;
+          p_roster_version_id: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          result: Json;
+        }[];
+      };
       lock_canonical_athlete_identity: {
         Args: {
           p_birth_date: string;

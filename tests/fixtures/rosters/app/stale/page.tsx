@@ -11,17 +11,14 @@ export default function StalePage() {
       <RosterBuilder
         canEdit
         initial={rosterFixture}
-        onChangeDecisions={async ({ expectedVersion }) => ({
-          ok: true,
-          version: expectedVersion + 1,
+        onChangeDecisions={async () => ({
+          ok: false,
+          code: 'conflict',
+          currentVersion: 9,
         })}
-        onFinalize={async ({ expectedVersion }) => ({ ok: true, version: expectedVersion + 1 })}
+        onFinalize={async () => ({ ok: false, code: 'conflict', currentVersion: 9 })}
         onMove={async () => ({ ok: false, code: 'conflict', currentVersion: 9 })}
-        onRevise={async () => ({
-          ok: true,
-          rosterVersionId: '10000000-0000-4000-8000-000000000099',
-          version: 1,
-        })}
+        onRevise={async () => ({ ok: false, code: 'conflict', currentVersion: 9 })}
       />
     </>
   );

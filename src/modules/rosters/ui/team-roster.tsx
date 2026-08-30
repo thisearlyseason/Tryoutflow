@@ -13,6 +13,7 @@ export function TeamRoster({
   allAthletes,
   athletes,
   disabled,
+  filtered,
   onMove,
   onSelect,
   positions,
@@ -22,6 +23,7 @@ export function TeamRoster({
   allAthletes: readonly RosterWorkspaceAthlete[];
   athletes: readonly RosterWorkspaceAthlete[];
   disabled: boolean;
+  filtered: boolean;
   onMove(athlete: RosterWorkspaceAthlete): void;
   onSelect(registrationId: string, selected: boolean): void;
   positions: readonly RosterWorkspacePosition[];
@@ -37,9 +39,12 @@ export function TeamRoster({
       ref={drop.setNodeRef}
     >
       <h3 id={`team-${team.id}`} className="font-[var(--font-bib)] text-lg">
-        {team.name} roster {athletes.length}
+        {team.name} roster {allAthletes.length}
         {team.targetSize === null ? '' : ` of ${team.targetSize}`}
       </h3>
+      {filtered ? (
+        <p className="mt-1 text-xs font-medium">{athletes.length} visible with this filter</p>
+      ) : null}
       {Object.entries(team.positionTargets).length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--color-text-muted)]">
           {Object.entries(team.positionTargets).map(([positionId, target]) => {

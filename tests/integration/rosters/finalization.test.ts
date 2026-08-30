@@ -286,3 +286,111 @@ describe('real roster finalization concurrency', () => {
     }
   }, 30_000);
 });
+
+describe('real authorized roster workspace lineage', () => {
+  it('projects unenrolled snapshot members to the exact finalized reviewer scope and rejects stale IDs', async () => {
+    const id = () => randomUUID();
+    const owner = id();
+    const reviewer = id();
+    const organization = id();
+    const tryout = id();
+    const division = id();
+    const form = id();
+    const formVersion = id();
+    const position = id();
+    const athleteA = id();
+    const athleteB = id();
+    const registrationA = id();
+    const registrationB = id();
+    const suffix = organization.slice(0, 8);
+    const asActor = (actor: string, sql: string, applicationName: string) =>
+      psql(
+        `begin; set local role authenticated; set local "request.jwt.claim.sub"='${actor}'; create temporary table rpc_result on commit preserve rows as ${sql}; commit; select * from rpc_result;`,
+        applicationName,
+      );
+
+    await psql(`
+      insert into auth.users(id) values('${owner}'),('${reviewer}');
+      insert into public.organizations(id,name,slug) values('${organization}','Roster Projection','roster-projection-${suffix}');
+      insert into public.organization_members(organization_id,user_id,role,status) values
+        ('${organization}','${owner}','owner','active'),('${organization}','${reviewer}','member','active');
+      insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('${tryout}','${organization}','Roster Projection','roster-projection-${suffix}','Hockey','America/Edmonton');
+      insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values('${division}','${organization}','${tryout}','U15',0);
+      insert into public.tryout_positions(id,organization_id,tryout_id,name,sort_order) values('${position}','${organization}','${tryout}','Forward',0);
+      insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,division_id,granted_by_user_id)
+        values('${organization}','${reviewer}','reviewer','division','${tryout}','${division}','${owner}');
+      insert into public.registration_forms(id,organization_id,tryout_id,name) values('${form}','${organization}','${tryout}','Form');
+      insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at)
+        values('${formVersion}','${organization}','${tryout}','${form}',1,'{"fields":[]}','published',clock_timestamp());
+      insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date) values
+        ('${athleteA}','${organization}','Ava','One','ava','one','2012-01-01'),
+        ('${athleteB}','${organization}','Mia','Two','mia','two','2012-01-02');
+      insert into public.tryout_registrations(id,organization_id,tryout_id,athlete_id,division_id,position_id,registration_form_version_id,responses,submission_key_digest,submission_digest) values
+        ('${registrationA}','${organization}','${tryout}','${athleteA}','${division}','${position}','${formVersion}','{}',repeat('c',64),repeat('3',64)),
+        ('${registrationB}','${organization}','${tryout}','${athleteB}','${division}',null,'${formVersion}','{}',repeat('d',64),repeat('4',64));
+      update public.tryouts set status='published',published_at=clock_timestamp() where id='${tryout}';
+    `);
+    const created = await asActor(
+      owner,
+      `select outcome||'|'||roster_version_id from public.create_roster_draft('${organization}','${tryout}','${division}','[{"name":"Blue"}]')`,
+      `roster-projection-create-${suffix}`,
+    );
+    const [, originalRoster] = created.stdout.trim().split('|');
+    if (!originalRoster) throw new Error(`unexpected create output: ${created.stdout}`);
+
+    const draftReviewer = await asActor(
+      reviewer,
+      `select result->>'outcome' from public.load_roster_workspace('${organization}','${tryout}','${division}','${originalRoster}')`,
+      `roster-projection-draft-reviewer-${suffix}`,
+    );
+    expect(draftReviewer.stdout.trim()).toBe('forbidden');
+    await asActor(
+      owner,
+      `select outcome from public.finalize_roster_version('${organization}','${tryout}','${division}','${originalRoster}',1,'FINALIZE ROSTER')`,
+      `roster-projection-finalize-${suffix}`,
+    );
+    const finalizedReviewer = await asActor(
+      reviewer,
+      `select (result->>'outcome')||'|'||jsonb_array_length(result#>'{snapshot,members}')||'|'||exists(select 1 from jsonb_array_elements(result#>'{snapshot,members}') member where member->>'displayName'='Mia Two') from public.load_roster_workspace('${organization}','${tryout}','${division}','${originalRoster}')`,
+      `roster-projection-finalized-reviewer-${suffix}`,
+    );
+    expect(finalizedReviewer.stdout.trim()).toBe('ok|2|true');
+
+    const revised = await asActor(
+      owner,
+      `select outcome||'|'||roster_version_id from public.revise_roster_version('${organization}','${tryout}','${division}','${originalRoster}',2,'Correcting a confirmed roster placement.','REVISE ROSTER')`,
+      `roster-projection-revise-${suffix}`,
+    );
+    const [, revisedRoster] = revised.stdout.trim().split('|');
+    const team = (
+      await psql(
+        `select id from public.tryout_teams where organization_id='${organization}' and division_id='${division}'`,
+      )
+    ).stdout.trim();
+    await asActor(
+      owner,
+      `select outcome from public.move_roster_athlete('${organization}','${tryout}','${division}','${revisedRoster}','${registrationA}','${team}',1)`,
+      `roster-projection-current-move-${suffix}`,
+    );
+    const stale = await Promise.all([
+      asActor(
+        owner,
+        `select outcome from public.move_roster_athlete('${organization}','${tryout}','${division}','${originalRoster}','${registrationB}','${team}',2)`,
+        `roster-projection-stale-a-${suffix}`,
+      ),
+      asActor(
+        owner,
+        `select outcome from public.change_roster_decisions('${organization}','${tryout}','${division}','${originalRoster}','[{"registrationId":"${registrationB}","status":"selected"}]',2,'CONFIRM DECISIONS')`,
+        `roster-projection-stale-b-${suffix}`,
+      ),
+    ]);
+    expect(stale.map((result) => result.stdout.trim())).toEqual(['invalid_state', 'invalid_state']);
+    expect(
+      (
+        await psql(
+          `select version||'|'||(select count(*) from public.roster_assignments where roster_version_id='${revisedRoster}') from public.roster_versions where id='${revisedRoster}'`,
+        )
+      ).stdout.trim(),
+    ).toBe('2|1');
+  }, 30_000);
+});

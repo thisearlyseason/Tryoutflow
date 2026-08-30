@@ -27,6 +27,7 @@ const draft: RosterWorkspaceSnapshot = {
   basedOnRosterVersionId: null,
   revisionReason: null,
   finalizedAt: null,
+  evidenceAvailability: 'available',
   teams: [
     {
       id: ids.blue,
@@ -135,6 +136,7 @@ describe('RosterBuilder', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm move' }));
 
     expect(onMove).toHaveBeenCalledWith({
+      rosterVersionId: ids.roster,
       registrationId: ids.athlete42,
       teamId: ids.blue,
       expectedVersion: 4,
@@ -173,6 +175,8 @@ describe('RosterBuilder', () => {
     await user.selectOptions(screen.getByLabelText('Filter by position'), ids.goalie);
     expect(screen.queryByText('Athlete 42')).not.toBeInTheDocument();
     expect(screen.getByText('Athlete 7')).toBeInTheDocument();
+    expect(screen.getByText('Blue roster 2 of 2')).toBeInTheDocument();
+    expect(screen.getByText('1 visible with this filter')).toBeInTheDocument();
     expect(screen.getByText('Forward target 1 of 1')).toBeInTheDocument();
   });
 
@@ -189,6 +193,7 @@ describe('RosterBuilder', () => {
     expect(dialog).toHaveTextContent('does not send a message');
     await user.click(within(dialog).getByRole('button', { name: 'Confirm release' }));
     expect(onChangeDecisions).toHaveBeenCalledWith({
+      rosterVersionId: ids.roster,
       changes: [{ registrationId: ids.athlete42, status: 'released' }],
       expectedVersion: 4,
     });
@@ -206,7 +211,7 @@ describe('RosterBuilder', () => {
     await user.click(within(dialog).getByLabelText('I understand this roster becomes immutable'));
     await user.click(within(dialog).getByRole('button', { name: 'Confirm finalization' }));
 
-    expect(onFinalize).toHaveBeenCalledWith({ expectedVersion: 4 });
+    expect(onFinalize).toHaveBeenCalledWith({ rosterVersionId: ids.roster, expectedVersion: 4 });
     expect(await screen.findByText('Finalized roster · immutable')).toBeInTheDocument();
     expect(screen.getByText(/No messages were sent by finalization/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Move athlete 42' })).not.toBeInTheDocument();
@@ -263,9 +268,110 @@ describe('RosterBuilder', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Confirm revision' }));
 
     expect(onRevise).toHaveBeenCalledWith({
+      rosterVersionId: ids.roster,
       expectedVersion: 5,
       reason: 'Correcting a confirmed placement after director review.',
     });
+  });
+
+  it('closes the bulk dialog and focuses live recovery after a stale response', async () => {
+    const user = userEvent.setup();
+    renderBuilder({
+      onChangeDecisions: vi.fn().mockResolvedValue({
+        ok: false,
+        code: 'conflict',
+        currentVersion: 9,
+      }),
+    });
+
+    await user.click(screen.getByLabelText('Select Athlete 42'));
+    await user.click(screen.getByRole('button', { name: 'Review decision for 1 athlete' }));
+    await user.click(screen.getByRole('button', { name: 'Confirm decisions' }));
+
+    expect(screen.queryByRole('dialog', { name: /Confirm bulk/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Refresh roster' })).toBeVisible();
+  });
+
+  it('closes the finalization dialog and focuses live recovery after a stale response', async () => {
+    const user = userEvent.setup();
+    renderBuilder({
+      onFinalize: vi.fn().mockResolvedValue({ ok: false, code: 'conflict', currentVersion: 9 }),
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Finalize roster' }));
+    await user.click(screen.getByLabelText('I understand this roster becomes immutable'));
+    await user.click(screen.getByRole('button', { name: 'Confirm finalization' }));
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Finalize roster version' }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveFocus();
+  });
+
+  it('treats an exact old-revision invalid state as stale recovery', async () => {
+    const user = userEvent.setup();
+    renderBuilder({
+      onFinalize: vi.fn().mockResolvedValue({ ok: false, code: 'invalid_state' }),
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Finalize roster' }));
+    await user.click(screen.getByLabelText('I understand this roster becomes immutable'));
+    await user.click(screen.getByRole('button', { name: 'Confirm finalization' }));
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Finalize roster version' }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveFocus();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Refresh and review the current roster before retrying',
+    );
+  });
+
+  it('closes the revision dialog and focuses live recovery after a stale response', async () => {
+    const user = userEvent.setup();
+    renderBuilder({
+      initial: { ...draft, state: 'finalized', version: 5 },
+      onRevise: vi.fn().mockResolvedValue({ ok: false, code: 'conflict', currentVersion: 9 }),
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Create revision' }));
+    await user.type(
+      screen.getByLabelText('Revision reason'),
+      'Correcting a confirmed placement after director review.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Confirm revision' }));
+
+    expect(
+      screen.queryByRole('dialog', { name: 'Create roster revision' }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveFocus();
+  });
+
+  it('keeps authoritative roster members usable when ranking evidence is unavailable', () => {
+    renderBuilder({
+      initial: {
+        ...draft,
+        evidenceAvailability: 'unavailable',
+        athletes: [
+          {
+            ...draft.athletes[0]!,
+            displayName: 'Submitted Snapshot Member',
+            overall: null,
+            completedEvaluators: 0,
+            expectedEvaluators: 0,
+            scoreRange: null,
+            flags: [],
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByText('Submitted Snapshot Member')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Ranking evidence unavailable' })).toHaveTextContent(
+      'Roster membership, placements, and decisions remain available',
+    );
+    expect(screen.getByRole('button', { name: 'Move submitted snapshot member' })).toBeEnabled();
   });
 
   it('renders finalized roster evidence read-only for an authorized reviewer', () => {

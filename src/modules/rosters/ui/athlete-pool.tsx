@@ -102,15 +102,19 @@ export function RosterAthleteCard({
 export function AthletePool({
   athletes,
   disabled,
+  filtered,
   onMove,
   onSelect,
   selected,
+  totalCount,
 }: {
   athletes: readonly RosterWorkspaceAthlete[];
   disabled: boolean;
+  filtered: boolean;
   onMove(athlete: RosterWorkspaceAthlete): void;
   onSelect(registrationId: string, selected: boolean): void;
   selected: ReadonlySet<string>;
+  totalCount: number;
 }) {
   const drop = useDroppable({ id: 'destination:pool', disabled });
   return (
@@ -121,9 +125,12 @@ export function AthletePool({
       ref={drop.setNodeRef}
     >
       <h3 id="athlete-pool-heading" className="font-[var(--font-bib)] text-lg">
-        Athlete pool {athletes.length}
+        Athlete pool {totalCount}
       </h3>
       <p className="mt-1 text-xs text-[var(--color-text-muted)]">Unassigned placements</p>
+      {filtered ? (
+        <p className="mt-1 text-xs font-medium">{athletes.length} visible with this filter</p>
+      ) : null}
       <div className="mt-3 grid min-w-0 gap-3">
         {athletes.map((athlete) => (
           <RosterAthleteCard
