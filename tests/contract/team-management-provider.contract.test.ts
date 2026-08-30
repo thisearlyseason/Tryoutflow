@@ -915,6 +915,58 @@ describe('TeamManagementProvider contract', () => {
     ).resolves.toMatchObject({ state: 'connected' });
   });
 
+  it('revokes every outstanding exact-scope challenge when the connection disconnects', async () => {
+    const provider = new MockTheSquadProvider({ fixture: 'success' });
+    const begin = (organizationId: string, actorId: string, suffix: string) =>
+      provider.beginConnection({
+        organizationId,
+        actorId,
+        correlationId: `correlation-revoke-${suffix}`,
+        idempotencyKey: `idempotency-revoke-${suffix}`,
+        callbackUrl: 'https://tryoutflow.example.test/integrations/callback',
+      });
+    const complete = (
+      challengeId: string,
+      organizationId: string,
+      actorId: string,
+      suffix: string,
+    ) =>
+      provider.completeConnection({
+        organizationId,
+        actorId,
+        correlationId: `correlation-complete-revoke-${suffix}`,
+        idempotencyKey: `idempotency-complete-revoke-${suffix}`,
+        challengeId,
+        callbackParameters: { mockApproval: 'approved' },
+      });
+
+    const used = await begin(ids.organization, ids.actor, 'used-0001');
+    const stale = await begin(ids.organization, ids.actor, 'stale-0002');
+    const otherOrganization = '30000000-0000-4000-8000-000000000001';
+    const otherActor = '30000000-0000-4000-8000-000000000002';
+    const unrelated = await begin(otherOrganization, otherActor, 'unrelated-0003');
+    const connection = await complete(used.challengeId, ids.organization, ids.actor, 'used-0001');
+    const connectedContext = { ...context, connectionId: connection.connectionId };
+
+    await provider.disconnect(connectedContext);
+    await expect(
+      complete(stale.challengeId, ids.organization, ids.actor, 'stale-0002'),
+    ).rejects.toEqual({ code: 'connection_invalid', retryable: false });
+    await expect(provider.verifyConnection(connectedContext)).rejects.toEqual({
+      code: 'authentication_required',
+      retryable: false,
+    });
+
+    await expect(
+      complete(unrelated.challengeId, otherOrganization, otherActor, 'unrelated-0003'),
+    ).resolves.toMatchObject({ state: 'connected' });
+
+    const fresh = await begin(ids.organization, ids.actor, 'fresh-0004');
+    await expect(
+      complete(fresh.challengeId, ids.organization, ids.actor, 'fresh-0004'),
+    ).resolves.toMatchObject({ connectionId: connection.connectionId, state: 'connected' });
+  });
+
   it('canonicalizes approved field sets before import and export derivations', async () => {
     const provider = new MockTheSquadProvider({ fixture: 'success' });
     const connectedContext = await connectProvider(provider);

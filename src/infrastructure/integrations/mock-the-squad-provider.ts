@@ -202,6 +202,7 @@ export class MockTheSquadProvider implements TeamManagementProvider {
     const parsed = this.parseConnectedContext(context);
     const connection = this.connections.get(parsed.connectionId)!;
     this.connections.set(parsed.connectionId, { ...connection, connected: false });
+    this.revokeChallenges(connection.organizationId, connection.creatorActorId);
   }
 
   async listOrganizations(context: ProviderContext) {
@@ -497,6 +498,14 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       throw providerError('permission_denied');
     }
     return parsed;
+  }
+
+  private revokeChallenges(organizationId: string, actorId: string) {
+    for (const [challengeId, challenge] of this.challenges) {
+      if (challenge.organizationId === organizationId && challenge.actorId === actorId) {
+        this.challenges.delete(challengeId);
+      }
+    }
   }
 
   private assertOrganization(context: ProviderContext, organizationId: string) {
