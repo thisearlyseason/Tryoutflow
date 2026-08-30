@@ -1,0 +1,64 @@
+{
+  "fixtureLabel": "Synthetic mock data — no real people or live provider",
+  "organization": {
+    "providerKey": "the-squad",
+    "entityType": "organization",
+    "externalId": "mock-org-001",
+    "displayName": "Mock Organization 001",
+    "mockData": true
+  },
+  "destination": {
+    "organization": {
+      "providerKey": "the-squad",
+      "entityType": "organization",
+      "externalId": "mock-org-001",
+      "displayName": "Mock Organization 001",
+      "mockData": true
+    },
+    "season": {
+      "providerKey": "the-squad",
+      "entityType": "season",
+      "externalId": "mock-season-2026",
+      "displayName": "Mock Season 2026",
+      "mockData": true
+    },
+    "division": {
+      "providerKey": "the-squad",
+      "entityType": "division",
+      "externalId": "mock-division-u18",
+      "displayName": "Mock Division U18",
+      "mockData": true
+    },
+    "team": {
+      "providerKey": "the-squad",
+      "entityType": "team",
+      "externalId": "mock-team-blue",
+      "displayName": "Mock Team Blue",
+      "mockData": true
+    },
+    "displayLabel": "Mock Season 2026 / Mock Division U18 / Mock Team Blue",
+    "mockData": true
+  },
+  "importCandidates": [
+    {
+      "externalAthlete": {
+        "providerKey": "the-squad",
+        "entityType": "athlete",
+        "externalId": "mock-athlete-import-001",
+        "displayName": "Synthetic Athlete Import 001",
+        "mockData": true
+      },
+      "fields": {
+        "firstName": "Synthetic",
+        "lastName": "Athlete 001",
+        "position": "Mock Position A"
+      },
+      "disposition": "new"
+    }
+  ],
+  "exportExternalIds": {
+    "20000000-0000-4000-8000-000000000001": "mock-athlete-export-001",
+    "20000000-0000-4000-8000-000000000002": "mock-athlete-export-002"
+  },
+  "failOnceRegistrationIds": ["20000000-0000-4000-8000-000000000002"]
+}
