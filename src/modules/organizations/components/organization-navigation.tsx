@@ -26,6 +26,7 @@ export function OrganizationNavigation({
         .map((assignment) => assignment.scope.tryoutId),
     ),
   ];
+  const rosteredTryouts = rankedTryouts;
   const evaluates = authorization.assignments.some((assignment) => assignment.role === 'evaluator');
   const evaluatorLinks = evaluates
     ? ([['Evaluate', `/app/${organizationSlug}/evaluate`]] as string[][])
@@ -51,6 +52,11 @@ export function OrganizationNavigation({
           rankedTryouts.length === 1 ? 'Rankings' : `Rankings ${index + 1}`,
           `/app/${organizationSlug}/tryouts/${tryoutId}/rankings`,
           `Rankings for tryout ${tryoutId}`,
+        ]),
+        ...rosteredTryouts.map((tryoutId, index) => [
+          rosteredTryouts.length === 1 ? 'Rosters' : `Rosters ${index + 1}`,
+          `/app/${organizationSlug}/tryouts/${tryoutId}/rosters`,
+          `Rosters for tryout ${tryoutId}`,
         ]),
         ...staffedTryouts.map((tryoutId, index) => [
           staffedTryouts.length === 1 ? 'Live' : `Live ${index + 1}`,

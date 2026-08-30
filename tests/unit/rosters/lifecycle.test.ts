@@ -88,6 +88,37 @@ describe('roster lifecycle', () => {
     );
   });
 
+  it('returns the authoritative roster version on every stale write', async () => {
+    const common = {
+      organizationId: ids.organization,
+      tryoutId: ids.tryout,
+      divisionId: ids.division,
+      rosterVersionId: ids.roster,
+      expectedVersion: 2,
+    };
+    await expect(
+      moveAthlete({ ...common, registrationId: ids.registration, teamId: ids.team }, director(), {
+        gateway: { move: vi.fn().mockResolvedValue({ outcome: 'conflict', version: 9 }) },
+      }),
+    ).resolves.toEqual({ ok: false, error: { code: 'conflict', currentVersion: 9 } });
+    await expect(
+      changeDecision(
+        {
+          ...common,
+          confirmation: 'CONFIRM DECISIONS',
+          changes: [{ registrationId: ids.registration, status: 'released' }],
+        },
+        director(),
+        { gateway: { change: vi.fn().mockResolvedValue({ outcome: 'conflict', version: 9 }) } },
+      ),
+    ).resolves.toEqual({ ok: false, error: { code: 'conflict', currentVersion: 9 } });
+    await expect(
+      finalizeRoster({ ...common, confirmation: FINALIZE_ROSTER_CONFIRMATION }, director(), {
+        gateway: { finalize: vi.fn().mockResolvedValue({ outcome: 'conflict', version: 9 }) },
+      }),
+    ).resolves.toEqual({ ok: false, error: { code: 'conflict', currentVersion: 9 } });
+  });
+
   it('requires exact explicit confirmation before finalization', async () => {
     const finalize = vi.fn();
     await expect(

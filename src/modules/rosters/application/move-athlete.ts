@@ -16,7 +16,9 @@ export async function moveAthlete(
   input: unknown,
   actor: AuthorizationContext,
   dependencies: { gateway?: MoveAthleteGateway } = {},
-): Promise<AppResult<{ version: number; changed: boolean }, { code: string }>> {
+): Promise<
+  AppResult<{ version: number; changed: boolean }, { code: string; currentVersion?: number }>
+> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return failure({ code: 'invalid_move' });
   const data = parsed.data;
@@ -33,7 +35,9 @@ export async function moveAthlete(
     if (result.outcome === 'moved') return success({ version: result.version, changed: true });
     if (result.outcome === 'unchanged' && result.version)
       return success({ version: result.version, changed: false });
-    return failure({ code: result.outcome });
+    return result.outcome === 'conflict' && result.version
+      ? failure({ code: result.outcome, currentVersion: result.version })
+      : failure({ code: result.outcome });
   } catch {
     return failure({ code: 'unexpected' });
   }

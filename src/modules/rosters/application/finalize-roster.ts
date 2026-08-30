@@ -15,7 +15,9 @@ export async function finalizeRoster(
   input: unknown,
   actor: AuthorizationContext,
   dependencies: { gateway?: FinalizeRosterGateway } = {},
-): Promise<AppResult<{ state: 'finalized'; version: number }, { code: string }>> {
+): Promise<
+  AppResult<{ state: 'finalized'; version: number }, { code: string; currentVersion?: number }>
+> {
   if (
     typeof input !== 'object' ||
     input === null ||
@@ -36,8 +38,10 @@ export async function finalizeRoster(
     return failure({ code: 'forbidden' });
   try {
     const result = await (dependencies.gateway ?? (await defaultRosterGateway())).finalize(data);
-    return result.outcome === 'finalized'
-      ? success({ state: 'finalized', version: result.version })
+    if (result.outcome === 'finalized')
+      return success({ state: 'finalized', version: result.version });
+    return result.outcome === 'conflict' && result.version
+      ? failure({ code: result.outcome, currentVersion: result.version })
       : failure({ code: result.outcome });
   } catch {
     return failure({ code: 'unexpected' });

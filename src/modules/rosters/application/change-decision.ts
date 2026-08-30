@@ -23,7 +23,9 @@ export async function changeDecision(
   input: unknown,
   actor: AuthorizationContext,
   dependencies: { gateway?: ChangeDecisionGateway } = {},
-): Promise<AppResult<{ version: number; changed?: boolean }, { code: string }>> {
+): Promise<
+  AppResult<{ version: number; changed?: boolean }, { code: string; currentVersion?: number }>
+> {
   if (
     typeof input !== 'object' ||
     input === null ||
@@ -49,7 +51,9 @@ export async function changeDecision(
     if (result.outcome === 'changed') return success({ version: result.version });
     if (result.outcome === 'unchanged' && result.version)
       return success({ version: result.version, changed: false });
-    return failure({ code: result.outcome });
+    return result.outcome === 'conflict' && result.version
+      ? failure({ code: result.outcome, currentVersion: result.version })
+      : failure({ code: result.outcome });
   } catch {
     return failure({ code: 'unexpected' });
   }

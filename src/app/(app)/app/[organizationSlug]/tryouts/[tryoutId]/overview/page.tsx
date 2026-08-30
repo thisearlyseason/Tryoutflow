@@ -54,6 +54,12 @@ export default async function TryoutOverviewPage({
           >
             Rankings
           </Link>
+          <Link
+            className="button-secondary inline-flex min-h-11 items-center"
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/rosters`}
+          >
+            Rosters
+          </Link>
         </div>
       ) : null}
       {tryout.status === 'published' ? (
