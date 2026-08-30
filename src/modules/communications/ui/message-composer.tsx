@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 
 import { Button } from '../../../components/ui/button';
-import type { BatchConfirmation, RecipientPreview } from '../application/create-message-batch';
+import type { RecipientPreview } from '../application/create-message-batch';
 import type { DecisionMessageKind } from '../application/render-message';
 
 type ActionResult =
@@ -12,17 +12,35 @@ type ActionResult =
 
 export function MessageComposer({
   rosterVersions,
+  templates = {},
   previewAction,
   sendAction,
+  saveTemplateAction,
 }: {
   rosterVersions: readonly { id: string; label: string }[];
+  templates?: Partial<Record<DecisionMessageKind, { editableText: string; version: number }>>;
   previewAction(input: unknown): Promise<ActionResult>;
   sendAction(input: unknown): Promise<{ outcome: string; queuedCount?: number }>;
+  saveTemplateAction?(input: unknown): Promise<{ outcome: string; version?: number }>;
 }) {
   const [rosterVersionId, setRosterVersionId] = useState(rosterVersions[0]?.id ?? '');
   const [kind, setKind] = useState<DecisionMessageKind>('selected');
-  const [editableText, setEditableText] = useState('Thank you for taking part in this tryout.');
+  const [editableText, setEditableText] = useState(
+    templates.selected?.editableText ?? 'Thank you for taking part in this tryout.',
+  );
+  const [templateTexts, setTemplateTexts] = useState<Partial<Record<DecisionMessageKind, string>>>(
+    () =>
+      Object.fromEntries(
+        Object.entries(templates).map(([key, value]) => [key, value?.editableText]),
+      ),
+  );
+  const [templateVersions, setTemplateVersions] = useState<
+    Partial<Record<DecisionMessageKind, number>>
+  >(() =>
+    Object.fromEntries(Object.entries(templates).map(([key, value]) => [key, value?.version])),
+  );
   const [preview, setPreview] = useState<RecipientPreview>();
+  const [confirmation, setConfirmation] = useState('');
   const [status, setStatus] = useState('');
   const [pending, startTransition] = useTransition();
 
@@ -40,16 +58,24 @@ export function MessageComposer({
         return;
       }
       setPreview(result);
+      setConfirmation('');
       setStatus(`Preview ready for ${result.count} recipient${result.count === 1 ? '' : 's'}.`);
     });
   }
 
   function confirmSend() {
     if (!preview) return;
-    const confirmation: BatchConfirmation = { ...preview, confirmation: 'SEND EXACT BATCH' };
     startTransition(async () => {
       setStatus('Creating the confirmed batch…');
-      const result = await sendAction(confirmation);
+      const result = await sendAction({
+        organizationId: preview.organizationId,
+        tryoutId: preview.tryoutId,
+        divisionId: preview.divisionId,
+        rosterVersionId: preview.rosterVersionId,
+        digest: preview.digest,
+        previewToken: preview.previewToken,
+        confirmation,
+      });
       if (result.outcome === 'queued' || result.outcome === 'replayed') {
         setStatus(
           `${result.queuedCount ?? preview.count} message${preview.count === 1 ? '' : 's'} queued. Decisions were not changed.`,
@@ -105,7 +131,11 @@ export function MessageComposer({
             style={{ height: 'var(--target-mobile)', minHeight: 'var(--target-mobile)' }}
             value={kind}
             onChange={(event) => {
-              setKind(event.target.value as DecisionMessageKind);
+              const nextKind = event.target.value as DecisionMessageKind;
+              setKind(nextKind);
+              setEditableText(
+                templateTexts[nextKind] ?? 'Thank you for taking part in this tryout.',
+              );
               setPreview(undefined);
             }}
           >
@@ -139,6 +169,35 @@ export function MessageComposer({
         >
           Preview exact recipients
         </Button>
+        {saveTemplateAction ? (
+          <Button
+            variant="secondary"
+            disabled={pending || !editableText.trim()}
+            onClick={() =>
+              startTransition(async () => {
+                setStatus('Saving the organization template…');
+                const result = await saveTemplateAction({
+                  kind,
+                  editableText,
+                  expectedVersion: templateVersions[kind] ?? 0,
+                });
+                if (result.outcome === 'saved' && result.version) {
+                  setTemplateVersions((current) => ({ ...current, [kind]: result.version }));
+                  setTemplateTexts((current) => ({ ...current, [kind]: editableText.trim() }));
+                  setStatus('Organization template saved.');
+                } else {
+                  setStatus(
+                    result.outcome === 'version_conflict'
+                      ? 'The template changed elsewhere. Refresh before saving.'
+                      : 'Template was not saved.',
+                  );
+                }
+              })
+            }
+          >
+            Save template
+          </Button>
+        ) : null}
       </div>
       {preview ? (
         <section
@@ -159,11 +218,38 @@ export function MessageComposer({
               </li>
             ))}
           </ul>
+          <article className="mt-4 grid gap-3 rounded-[var(--radius-control)] border p-3">
+            <h4 className="font-bold">Exact rendered message</h4>
+            <p>
+              <strong>Subject:</strong> {preview.recipients[0]?.subject}
+            </p>
+            <pre className="whitespace-pre-wrap break-words font-sans text-sm">
+              {preview.recipients[0]?.text}
+            </pre>
+            {preview.count > 1 ? (
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Each recipient's protected athlete and team facts are rendered separately.
+              </p>
+            ) : null}
+          </article>
           <p className="mt-4 text-sm">
             Sending email cannot change a roster decision. Provider failures appear separately in
             delivery status.
           </p>
-          <Button className="mt-3" disabled={pending} onClick={confirmSend}>
+          <label className="mt-4 grid gap-2 font-semibold">
+            Type SEND EXACT BATCH to confirm
+            <input
+              className="min-h-11 rounded-[var(--radius-control)] border px-3"
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              autoComplete="off"
+            />
+          </label>
+          <Button
+            className="mt-3"
+            disabled={pending || confirmation !== 'SEND EXACT BATCH'}
+            onClick={confirmSend}
+          >
             Confirm and queue exactly {preview.count}
           </Button>
         </section>

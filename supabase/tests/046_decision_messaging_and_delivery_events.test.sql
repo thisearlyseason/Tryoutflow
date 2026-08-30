@@ -14,9 +14,9 @@ select col_is_unique('public','communication_batches',array['organization_id','p
 select ok(has_function_privilege('authenticated',
   'public.preview_decision_message_batch(uuid,uuid,text,text)','execute'),
   'authenticated operators can preview an authorized exact audience');
-select ok(has_function_privilege('authenticated',
+select ok(not has_function_privilege('authenticated',
   'public.create_decision_message_batch(uuid,uuid,bigint,text,text,text,uuid[],text)','execute'),
-  'authenticated operators can confirm through the constrained command');
+  'legacy digest-only batch command is retired');
 select ok(not has_function_privilege('anon',
   'public.create_decision_message_batch(uuid,uuid,bigint,text,text,text,uuid[],text)','execute'),
   'anonymous callers cannot create batches');

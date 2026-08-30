@@ -3,10 +3,9 @@ import { z } from 'zod';
 
 import { ErrorState } from '@/components/feedback/error-state';
 import {
-  bindBatchConfirmation,
+  batchConfirmationSchema,
   createMessageBatch,
   loadRecipientPreview,
-  type BatchConfirmation,
 } from '@/modules/communications/application/create-message-batch';
 import { DeliveryStatus } from '@/modules/communications/ui/delivery-status';
 import { MessageComposer } from '@/modules/communications/ui/message-composer';
@@ -18,6 +17,13 @@ const inputSchema = z
     rosterVersionId: z.uuid(),
     kind: z.enum(['callback', 'selected', 'waitlisted', 'released']),
     editableText: z.string().trim().min(1).max(4_000),
+  })
+  .strict();
+const templateInputSchema = z
+  .object({
+    kind: z.enum(['callback', 'selected', 'waitlisted', 'released']),
+    editableText: z.string().trim().min(1).max(4_000),
+    expectedVersion: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   })
   .strict();
 
@@ -34,7 +40,7 @@ export default async function MessagesPage({
   if (!z.uuid().safeParse(tryoutId).success) notFound();
   const current = await requireOrganizationRouteContext(organizationSlug);
   const organizationId = current.organization.id;
-  const [{ data: tryout }, { data: versions, error: versionsError }, { data: messages }] =
+  const [{ data: tryout }, { data: versions, error: versionsError }, { data: templateRows }] =
     await Promise.all([
       current.client
         .from('tryouts')
@@ -50,12 +56,9 @@ export default async function MessagesPage({
         .eq('state', 'finalized')
         .order('revision_number', { ascending: false }),
       current.client
-        .from('communication_messages')
-        .select('id,state,created_at,protected_facts_snapshot')
-        .eq('organization_id', organizationId)
-        .eq('source_kind', 'roster_decision')
-        .order('created_at', { ascending: false })
-        .limit(50),
+        .from('communication_templates')
+        .select('message_kind,editable_text,version')
+        .eq('organization_id', organizationId),
     ]);
   if (!tryout) notFound();
   if (versionsError)
@@ -74,6 +77,17 @@ export default async function MessagesPage({
       }).ok,
   );
   if (authorizedVersions.length === 0) notFound();
+  const { data: messages } = await current.client
+    .from('communication_messages')
+    .select('id,state,created_at,protected_facts_snapshot,source_roster_version_id')
+    .eq('organization_id', organizationId)
+    .eq('source_kind', 'roster_decision')
+    .in(
+      'source_roster_version_id',
+      authorizedVersions.map((version) => version.id),
+    )
+    .order('created_at', { ascending: false })
+    .limit(50);
   async function previewAction(input: unknown) {
     'use server';
     const parsed = inputSchema.safeParse(input);
@@ -103,29 +117,34 @@ export default async function MessagesPage({
 
   async function sendAction(input: unknown) {
     'use server';
-    if (!input || typeof input !== 'object') return { outcome: 'invalid_input' as const };
-    const confirmation = input as BatchConfirmation;
-    const scoped = await requireOrganizationRouteContext(organizationSlug);
-    const { data: roster } = await scoped.client
-      .from('roster_versions')
-      .select('tryout_id,division_id')
-      .eq('organization_id', scoped.organization.id)
-      .eq('id', confirmation.rosterVersionId)
-      .maybeSingle();
-    if (
-      !roster ||
-      roster.tryout_id !== tryoutId ||
-      !requireCapability(scoped.authorization, 'roster:write', {
-        organizationId: scoped.organization.id,
-        tryoutId,
-        divisionId: roster.division_id,
-      }).ok
-    )
+    const parsed = batchConfirmationSchema.safeParse(input);
+    if (!parsed.success) return { outcome: 'invalid_input' as const };
+    const confirmation = parsed.data;
+    if (confirmation.organizationId !== organizationId || confirmation.tryoutId !== tryoutId)
       return { outcome: 'forbidden' as const };
-    return createMessageBatch(
-      bindBatchConfirmation(confirmation),
-      scoped.client as unknown as RpcClient,
+    const scoped = await requireOrganizationRouteContext(organizationSlug);
+    return createMessageBatch(confirmation, scoped.client as unknown as RpcClient);
+  }
+  async function saveTemplateAction(input: unknown) {
+    'use server';
+    const parsed = templateInputSchema.safeParse(input);
+    if (!parsed.success) return { outcome: 'invalid_input' as const };
+    const scoped = await requireOrganizationRouteContext(organizationSlug);
+    const { data, error } = await (scoped.client as unknown as RpcClient).rpc(
+      'save_communication_template',
+      {
+        p_organization_id: scoped.organization.id,
+        p_message_kind: parsed.data.kind,
+        p_editable_text: parsed.data.editableText,
+        p_expected_version: parsed.data.expectedVersion,
+      },
     );
+    if (error || !data || typeof data !== 'object') return { outcome: 'invalid_input' as const };
+    const result = data as Record<string, unknown>;
+    return {
+      outcome: String(result.outcome),
+      version: result.version ? Number(result.version) : undefined,
+    };
   }
 
   return (
@@ -137,12 +156,22 @@ export default async function MessagesPage({
         <h1 className="text-3xl font-black">Messages</h1>
       </header>
       <MessageComposer
+        templates={Object.fromEntries(
+          (templateRows ?? []).map((template) => [
+            template.message_kind,
+            {
+              editableText: template.editable_text,
+              version: template.version,
+            },
+          ]),
+        )}
         rosterVersions={authorizedVersions.map((version) => ({
           id: version.id,
           label: `Finalized revision ${version.revision_number} · version ${version.version}`,
         }))}
         previewAction={previewAction}
         sendAction={sendAction}
+        saveTemplateAction={saveTemplateAction}
       />
       <section aria-labelledby="delivery-heading">
         <h2 id="delivery-heading" className="text-2xl font-bold">

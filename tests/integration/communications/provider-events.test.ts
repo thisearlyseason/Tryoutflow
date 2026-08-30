@@ -29,15 +29,21 @@ let messageId = '';
 afterAll(async () => {
   await psql(`
     set session_replication_role=replica;
+    alter table public.communication_pending_delivery_events disable trigger prevent_pending_delivery_events_mutation;
+    delete from public.communication_pending_delivery_events where message_id in(
+      select id from public.communication_messages where organization_id='${ids.organization}');
+    alter table public.communication_pending_delivery_events enable always trigger prevent_pending_delivery_events_mutation;
     alter table public.communication_delivery_events disable trigger prevent_communication_delivery_events_mutation;
     delete from public.communication_delivery_events where organization_id='${ids.organization}';
     alter table public.communication_delivery_events enable always trigger prevent_communication_delivery_events_mutation;
+    delete from public.communication_preview_proofs where organization_id='${ids.organization}';
     delete from public.outbox_provider_handoffs where organization_id='${ids.organization}';
     delete from public.outbox_jobs where organization_id='${ids.organization}';
     delete from public.communication_messages where organization_id='${ids.organization}';
     alter table public.communication_batches disable trigger prevent_communication_batches_mutation;
     delete from public.communication_batches where organization_id='${ids.organization}';
     alter table public.communication_batches enable always trigger prevent_communication_batches_mutation;
+    delete from public.communication_templates where organization_id='${ids.organization}';
     alter table public.roster_decisions disable trigger guard_roster_decisions_snapshot;
     delete from public.roster_decisions where organization_id='${ids.organization}';
     alter table public.roster_decisions enable always trigger guard_roster_decisions_snapshot;
@@ -85,30 +91,49 @@ describe('decision batches and provider evidence', () => {
     `);
     const data = JSON.parse(preview.stdout.trim()) as {
       digest: string;
+      previewToken: string;
       rosterVersion: number;
-      recipients: { registrationId: string }[];
+      recipients: { registrationId: string; subject: string; text: string; html: string }[];
     };
     expect(data).toMatchObject({
       rosterVersion: 7,
       recipients: [{ registrationId: ids.registration }],
     });
+    const wrongActor = await psql(`
+      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000999',false);
+      select outcome from public.create_decision_message_batch_v2(
+        '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
+    `);
+    expect(wrongActor.stdout.trim()).toBe('forbidden');
     await psql(
       `update public.organizations set name='Changed after preview' where id='${ids.organization}'`,
     );
     const protectedFactConflict = await psql(`
       set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
-      select outcome from public.create_decision_message_batch(
-        '${ids.organization}','${ids.roster}',7,'selected','Welcome to the program.','${data.digest}',array['${ids.registration}'::uuid],'SEND EXACT BATCH');
+      select outcome from public.create_decision_message_batch_v2(
+        '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
     `);
     expect(protectedFactConflict.stdout.trim()).toBe('preview_conflict');
     await psql(
       `update public.organizations set name='Badlands Hockey Academy' where id='${ids.organization}'`,
     );
+    await psql(`update public.communication_preview_proofs set issued_at=clock_timestamp()-interval '20 minutes',
+      expires_at=clock_timestamp()-interval '10 minutes' where render_digest='${data.digest}'`);
+    expect(
+      (
+        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.owner}',false); select outcome from public.create_decision_message_batch_v2(
+      '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH')`)
+      ).stdout.trim(),
+    ).toBe('preview_conflict');
+    await psql(`update public.communication_preview_proofs set issued_at=clock_timestamp(),
+      expires_at=clock_timestamp()+interval '10 minutes' where render_digest='${data.digest}'`);
     const createSql = `
       begin;
       set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
-      select outcome||'|'||batch_id||'|'||queued_count from public.create_decision_message_batch(
-        '${ids.organization}','${ids.roster}',7,'selected','Welcome to the program.','${data.digest}',array['${ids.registration}'::uuid],'SEND EXACT BATCH');
+      select outcome||'|'||batch_id||'|'||queued_count from public.create_decision_message_batch_v2(
+        '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
       reset role;
       update public.outbox_jobs set available_at='9999-01-01' where organization_id='${ids.organization}' and status='pending';
       commit;`;
@@ -139,6 +164,101 @@ describe('decision batches and provider evidence', () => {
       'true',
       'selected',
     ]);
+    const exactContent = JSON.parse(
+      (
+        await psql(`select content_snapshot from public.communication_messages
+      where id='${messageId}'`)
+      ).stdout.trim(),
+    );
+    expect(exactContent).toEqual({
+      subject: data.recipients[0]!.subject,
+      text: data.recipients[0]!.text,
+      html: data.recipients[0]!.html,
+    });
+    expect(
+      JSON.parse(
+        (
+          await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.owner}',false); select public.save_communication_template(
+      '${ids.organization}','selected','Saved organization copy',0)`)
+        ).stdout.trim(),
+      ),
+    ).toMatchObject({ outcome: 'saved', version: 1 });
+    expect(
+      JSON.parse(
+        (
+          await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+      select set_config('request.jwt.claim.sub','${ids.owner}',false); select public.save_communication_template(
+      '${ids.organization}','selected','Stale copy',0)`)
+        ).stdout.trim(),
+      ),
+    ).toMatchObject({ outcome: 'version_conflict', version: 1 });
+    await psql(`update public.athlete_guardians set is_primary_contact=false
+      where organization_id='${ids.organization}' and athlete_id='${ids.athlete}' and guardian_id='${ids.guardian}'`);
+    expect(
+      (await psql(`select private.lock_communication_source_reason('${messageId}')`)).stdout.trim(),
+    ).toBe('recipient_suppressed');
+    await psql(`update public.athlete_guardians set is_primary_contact=true
+      where organization_id='${ids.organization}' and athlete_id='${ids.athlete}' and guardian_id='${ids.guardian}'`);
+  });
+
+  it('durably retains an event received before provider completion and reconciles it atomically', async () => {
+    const earlyMessage = randomUUID();
+    const providerId = 'e6400000-0000-4000-8000-000000000099';
+    const occurredAt = new Date().toISOString();
+    await psql(`insert into public.communication_messages(id,organization_id,source_kind,source_id,message_kind,
+      notice_class,business_idempotency_key,request_digest,recipient_snapshot,content_snapshot,state,
+      source_binding_version,source_registration_id,source_guardian_id,source_roster_version_id,
+      source_expected_decision,source_authorizing_user_id,source_tryout_id,source_division_id)
+      values('${earlyMessage}','${ids.organization}','roster_decision','${ids.roster}','roster_decision_notice',
+      'operational','task23:early:${earlyMessage}',repeat('e',64),'{"email":"decision-recipient@example.com"}',
+      '{"subject":"Early","text":"Body"}','queued',1,'${ids.registration}','${ids.guardian}',
+      '${ids.roster}','selected','${ids.owner}','${ids.tryout}','${ids.division}')`);
+    expect(
+      (
+        await psql(`set role service_role; select public.apply_resend_delivery_event(
+      'msg_task23early0001','${earlyMessage}','${providerId}','delivered','${occurredAt}')`)
+      ).stdout.trim(),
+    ).toBe('pending');
+    expect(
+      (
+        await psql(
+          `select count(*) from public.communication_pending_delivery_events where event_id='msg_task23early0001'`,
+        )
+      ).stdout.trim(),
+    ).toBe('1');
+    await psql(`update public.communication_messages set state='submitted',provider_message_id='${providerId}',
+      submitted_at=clock_timestamp() where id='${earlyMessage}'`);
+    expect(
+      (
+        await psql(`select state||'|'||(select count(*) from public.communication_delivery_events
+      where message_id='${earlyMessage}') from public.communication_messages where id='${earlyMessage}'`)
+      ).stdout.trim(),
+    ).toBe('delivered|1');
+
+    const racingMessage = randomUUID();
+    const racingProvider = 'e6400000-0000-4000-8000-000000000098';
+    await psql(`insert into public.communication_messages(id,organization_id,source_kind,source_id,message_kind,
+      notice_class,business_idempotency_key,request_digest,recipient_snapshot,content_snapshot,state,
+      source_binding_version,source_registration_id,source_guardian_id,source_roster_version_id,
+      source_expected_decision,source_authorizing_user_id,source_tryout_id,source_division_id)
+      values('${racingMessage}','${ids.organization}','roster_decision','${ids.roster}','roster_decision_notice',
+      'operational','task23:race:${racingMessage}',repeat('f',64),'{"email":"decision-recipient@example.com"}',
+      '{"subject":"Race","text":"Body"}','queued',1,'${ids.registration}','${ids.guardian}',
+      '${ids.roster}','selected','${ids.owner}','${ids.tryout}','${ids.division}')`);
+    const raceTime = new Date().toISOString();
+    await Promise.all([
+      psql(`set role service_role; select public.apply_resend_delivery_event(
+        'msg_task23race00001','${racingMessage}','${racingProvider}','delivered','${raceTime}')`),
+      psql(`update public.communication_messages set state='submitted',provider_message_id='${racingProvider}',
+        submitted_at=clock_timestamp() where id='${racingMessage}'`),
+    ]);
+    expect(
+      (
+        await psql(`select state||'|'||(select count(*) from public.communication_delivery_events
+      where message_id='${racingMessage}') from public.communication_messages where id='${racingMessage}'`)
+      ).stdout.trim(),
+    ).toBe('delivered|1');
   });
 
   it('deduplicates provider events, retains out-of-order evidence, and never changes decisions', async () => {
@@ -225,17 +345,23 @@ describe('decision batches and provider evidence', () => {
       ).stdout.trim(),
     ) as { outcome: string; send_attempt_token: string };
     expect(authorization.outcome).toBe('authorized');
+    const eventTime = new Date().toISOString();
+    expect(
+      (
+        await psql(`set role service_role; select public.apply_resend_delivery_event(
+      'msg_task23uncertain001','${uncertainMessage}','${providerId}','delivered','${eventTime}')`)
+      ).stdout.trim(),
+    ).toBe('pending');
     expect(
       (
         await psql(`set role service_role; select public.fail_outbox_job_v2(
           '${uncertainJob}','${leaseToken}',1,'${authorization.send_attempt_token}',
           'provider_timeout_uncertain',true)`)
       ).stdout.trim(),
-    ).toBe('needs_attention');
-    const eventTime = new Date().toISOString();
+    ).toBe('completed');
     const accepted = await psql(`set role service_role; select public.apply_resend_delivery_event(
       'msg_task23uncertain001','${uncertainMessage}','${providerId}','delivered','${eventTime}')`);
-    expect(accepted.stdout.trim()).toBe('delivered');
+    expect(accepted.stdout.trim()).toBe('replayed');
     const result =
       await psql(`select message.state||'|'||message.provider_message_id||'|'||job.status||'|'||
       coalesce(job.delivery_uncertain_reason,'NULL')||'|'||handoff.attempt_state||'|'||handoff.provider_message_id

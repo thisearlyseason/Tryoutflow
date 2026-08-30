@@ -603,6 +603,7 @@ export type Database = {
           source_authorizing_user_id: string | null;
           source_binding_version: number;
           source_confirmation_token_digest: string | null;
+          source_division_id: string | null;
           source_expected_decision: string | null;
           source_guardian_id: string | null;
           source_id: string;
@@ -610,6 +611,7 @@ export type Database = {
           source_kind: string;
           source_registration_id: string | null;
           source_roster_version_id: string | null;
+          source_tryout_id: string | null;
           state: string;
           submitted_at: string | null;
           updated_at: string;
@@ -633,6 +635,7 @@ export type Database = {
           source_authorizing_user_id?: string | null;
           source_binding_version?: number;
           source_confirmation_token_digest?: string | null;
+          source_division_id?: string | null;
           source_expected_decision?: string | null;
           source_guardian_id?: string | null;
           source_id: string;
@@ -640,6 +643,7 @@ export type Database = {
           source_kind: string;
           source_registration_id?: string | null;
           source_roster_version_id?: string | null;
+          source_tryout_id?: string | null;
           state?: string;
           submitted_at?: string | null;
           updated_at?: string;
@@ -663,6 +667,7 @@ export type Database = {
           source_authorizing_user_id?: string | null;
           source_binding_version?: number;
           source_confirmation_token_digest?: string | null;
+          source_division_id?: string | null;
           source_expected_decision?: string | null;
           source_guardian_id?: string | null;
           source_id?: string;
@@ -670,6 +675,7 @@ export type Database = {
           source_kind?: string;
           source_registration_id?: string | null;
           source_roster_version_id?: string | null;
+          source_tryout_id?: string | null;
           state?: string;
           submitted_at?: string | null;
           updated_at?: string;
@@ -688,6 +694,126 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'organizations';
             referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'communication_messages_source_division_fkey';
+            columns: ['organization_id', 'source_tryout_id', 'source_division_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_divisions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+          {
+            foreignKeyName: 'communication_messages_source_tryout_fkey';
+            columns: ['organization_id', 'source_tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      communication_pending_delivery_events: {
+        Row: {
+          event_id: string;
+          event_type: string;
+          message_id: string;
+          occurred_at: string;
+          provider_message_id: string;
+          received_at: string;
+        };
+        Insert: {
+          event_id: string;
+          event_type: string;
+          message_id: string;
+          occurred_at: string;
+          provider_message_id: string;
+          received_at?: string;
+        };
+        Update: {
+          event_id?: string;
+          event_type?: string;
+          message_id?: string;
+          occurred_at?: string;
+          provider_message_id?: string;
+          received_at?: string;
+        };
+        Relationships: [];
+      };
+      communication_preview_proofs: {
+        Row: {
+          actor_user_id: string;
+          communication_batch_id: string | null;
+          consumed_at: string | null;
+          decision: string;
+          division_id: string;
+          editable_text: string;
+          expires_at: string;
+          issued_at: string;
+          organization_id: string;
+          payload_snapshot: Json;
+          recipient_digest: string;
+          render_digest: string;
+          roster_version: number;
+          roster_version_id: string;
+          token_digest: string;
+          tryout_id: string;
+        };
+        Insert: {
+          actor_user_id: string;
+          communication_batch_id?: string | null;
+          consumed_at?: string | null;
+          decision: string;
+          division_id: string;
+          editable_text: string;
+          expires_at: string;
+          issued_at?: string;
+          organization_id: string;
+          payload_snapshot: Json;
+          recipient_digest: string;
+          render_digest: string;
+          roster_version: number;
+          roster_version_id: string;
+          token_digest: string;
+          tryout_id: string;
+        };
+        Update: {
+          actor_user_id?: string;
+          communication_batch_id?: string | null;
+          consumed_at?: string | null;
+          decision?: string;
+          division_id?: string;
+          editable_text?: string;
+          expires_at?: string;
+          issued_at?: string;
+          organization_id?: string;
+          payload_snapshot?: Json;
+          recipient_digest?: string;
+          render_digest?: string;
+          roster_version?: number;
+          roster_version_id?: string;
+          token_digest?: string;
+          tryout_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'communication_preview_proofs_batch_fkey';
+            columns: ['organization_id', 'communication_batch_id'];
+            isOneToOne: false;
+            referencedRelation: 'communication_batches';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'communication_preview_proofs_org_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'communication_preview_proofs_roster_fkey';
+            columns: ['organization_id', 'roster_version_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'id'];
           },
         ];
       };
@@ -3313,6 +3439,24 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_decision_message_batch_v2: {
+        Args: {
+          p_confirmation: string;
+          p_division_id: string;
+          p_organization_id: string;
+          p_preview_digest: string;
+          p_preview_token: string;
+          p_roster_version_id: string;
+          p_tryout_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['decision_message_batch_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'decision_message_batch_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       create_organization_with_owner: {
         Args: {
           p_name: string;
@@ -3992,6 +4136,15 @@ export type Database = {
       rotate_registration_confirmation_token: {
         Args: { p_registration_id: string };
         Returns: string;
+      };
+      save_communication_template: {
+        Args: {
+          p_editable_text: string;
+          p_expected_version: number;
+          p_message_kind: string;
+          p_organization_id: string;
+        };
+        Returns: Json;
       };
       save_evaluation_draft: {
         Args: {

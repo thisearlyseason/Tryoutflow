@@ -10,6 +10,9 @@ test('previews and confirms the exact audience without changing decisions', asyn
   await expect(page.locator('body')).not.toContainText(
     /guardian|evaluator|score|private response/i,
   );
+  await expect(page.getByText(/Subject: Roster selection/u)).toBeVisible();
+  await expect(page.getByText('Exact rendered message')).toBeVisible();
+  await page.getByLabel('Type SEND EXACT BATCH to confirm').fill('SEND EXACT BATCH');
   await page.getByRole('button', { name: 'Confirm and queue exactly 2' }).click();
   await expect(page.getByRole('status')).toContainText(
     '2 messages queued. Decisions were not changed.',

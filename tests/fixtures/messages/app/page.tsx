@@ -4,6 +4,8 @@ import { MessageComposer } from '../../../../src/modules/communications/ui/messa
 
 const preview = {
   organizationId: '10000000-0000-4000-8000-000000000001',
+  tryoutId: '10000000-0000-4000-8000-000000000005',
+  divisionId: '10000000-0000-4000-8000-000000000006',
   rosterVersionId: '10000000-0000-4000-8000-000000000002',
   rosterVersion: 7,
   kind: 'selected' as const,
@@ -13,15 +15,25 @@ const preview = {
       registrationId: '10000000-0000-4000-8000-000000000003',
       recipientEmail: 'ava@example.com',
       athletePreferredName: 'Ava',
+      subject: 'Roster selection: U15 Competitive Tryout',
+      text: 'Ava\n\nThank you for taking part in this tryout.',
+      html: '<main>Ava</main>',
     },
     {
       registrationId: '10000000-0000-4000-8000-000000000004',
       recipientEmail: 'bea@example.com',
       athletePreferredName: 'Bea',
+      subject: 'Roster selection: U15 Competitive Tryout',
+      text: 'Bea\n\nThank you for taking part in this tryout.',
+      html: '<main>Bea</main>',
     },
   ],
   count: 2,
   digest: 'a'.repeat(64),
+  recipientDigest: 'b'.repeat(64),
+  previewToken: 'c'.repeat(64),
+  issuedAt: '2026-08-30T12:00:00.000Z',
+  expiresAt: '2026-08-30T12:10:00.000Z',
 };
 
 export default function Page() {

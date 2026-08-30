@@ -1,71 +1,96 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
-  bindBatchConfirmation,
   createMessageBatch,
-  createRecipientPreview,
+  loadRecipientPreview,
 } from '../../../src/modules/communications/application/create-message-batch';
 
-const recipients = [
-  {
-    registrationId: '11111111-1111-4111-8111-111111111111',
-    recipientEmail: 'one@example.com',
-    athletePreferredName: 'Ava',
-  },
-  {
-    registrationId: '22222222-2222-4222-8222-222222222222',
-    recipientEmail: 'two@example.com',
-    athletePreferredName: 'Bea',
-  },
-];
-
-describe('decision message batch confirmation', () => {
-  it('binds confirmation to the exact ordered recipient set, roster version, and copy', async () => {
-    const preview = createRecipientPreview({
-      organizationId: '33333333-3333-4333-8333-333333333333',
-      rosterVersionId: '44444444-4444-4444-8444-444444444444',
-      rosterVersion: 9,
-      kind: 'selected',
-      editableText: 'Welcome.',
-      recipients,
-    });
-    const confirmation = bindBatchConfirmation(preview);
-    expect(preview.count).toBe(2);
-    expect(preview.recipients[0]).toEqual({
-      registrationId: recipients[0]!.registrationId,
+const ids = {
+  organization: '33333333-3333-4333-8333-333333333333',
+  tryout: '44444444-4444-4444-8444-444444444444',
+  division: '55555555-5555-4555-8555-555555555555',
+  roster: '66666666-6666-4666-8666-666666666666',
+  registration: '77777777-7777-4777-8777-777777777777',
+  batch: '88888888-8888-4888-8888-888888888888',
+};
+const preview = {
+  outcome: 'ok',
+  organizationId: ids.organization,
+  tryoutId: ids.tryout,
+  divisionId: ids.division,
+  rosterVersionId: ids.roster,
+  rosterVersion: 9,
+  kind: 'selected',
+  editableText: 'Welcome.',
+  count: 1,
+  digest: 'a'.repeat(64),
+  recipientDigest: 'b'.repeat(64),
+  previewToken: 'c'.repeat(64),
+  issuedAt: '2026-08-30T12:00:00.000Z',
+  expiresAt: '2026-08-30T12:10:00.000Z',
+  recipients: [
+    {
+      registrationId: ids.registration,
       recipientEmail: 'one@example.com',
       athletePreferredName: 'Ava',
-    });
+      subject: 'Roster selection: U15',
+      text: 'Exact text',
+      html: '<main>Exact text</main>',
+    },
+  ],
+};
 
-    const rpc = async (_name: string, args: Record<string, unknown>) => ({
-      data: {
-        outcome: 'queued',
-        batch_id: '55555555-5555-4555-8555-555555555555',
-        queued_count: 2,
+describe('decision message batch proof', () => {
+  it('accepts the database authoritative rendered preview and sends only its capability', async () => {
+    const rpc = vi.fn().mockResolvedValueOnce({ data: preview, error: null });
+    const loaded = await loadRecipientPreview(
+      {
+        organizationId: ids.organization,
+        rosterVersionId: ids.roster,
+        kind: 'selected',
+        editableText: 'Welcome.',
       },
+      { rpc },
+    );
+    expect(loaded).toMatchObject({ digest: 'a'.repeat(64), recipients: [{ text: 'Exact text' }] });
+    rpc.mockResolvedValueOnce({
+      data: { outcome: 'queued', batch_id: ids.batch, queued_count: 1 },
       error: null,
-      args,
     });
-    await expect(createMessageBatch(confirmation, { rpc })).resolves.toMatchObject({
+    await expect(
+      createMessageBatch(
+        {
+          organizationId: ids.organization,
+          tryoutId: ids.tryout,
+          divisionId: ids.division,
+          rosterVersionId: ids.roster,
+          digest: 'a'.repeat(64),
+          previewToken: 'c'.repeat(64),
+          confirmation: 'SEND EXACT BATCH',
+        },
+        { rpc },
+      ),
+    ).resolves.toEqual({
       outcome: 'queued',
-      queuedCount: 2,
+      batchId: ids.batch,
+      queuedCount: 1,
+    });
+    expect(rpc).toHaveBeenLastCalledWith('create_decision_message_batch_v2', {
+      p_organization_id: ids.organization,
+      p_tryout_id: ids.tryout,
+      p_division_id: ids.division,
+      p_roster_version_id: ids.roster,
+      p_preview_token: 'c'.repeat(64),
+      p_preview_digest: 'a'.repeat(64),
+      p_confirmation: 'SEND EXACT BATCH',
     });
   });
 
-  it('changes the digest when recipient identity, copy, or version changes', () => {
-    const base = {
-      organizationId: '33333333-3333-4333-8333-333333333333',
-      rosterVersionId: '44444444-4444-4444-8444-444444444444',
-      rosterVersion: 9,
-      kind: 'selected' as const,
-      editableText: 'Welcome.',
-      recipients,
-    };
-    const digest = createRecipientPreview(base).digest;
-    expect(createRecipientPreview({ ...base, rosterVersion: 10 }).digest).not.toBe(digest);
-    expect(createRecipientPreview({ ...base, editableText: 'Changed.' }).digest).not.toBe(digest);
-    expect(createRecipientPreview({ ...base, recipients: recipients.slice(0, 1) }).digest).not.toBe(
-      digest,
-    );
+  it('maps malformed actions to invalid_input without calling the database', async () => {
+    const rpc = vi.fn();
+    await expect(
+      createMessageBatch({ confirmation: 'SEND EXACT BATCH', extra: true }, { rpc }),
+    ).resolves.toEqual({ outcome: 'invalid_input' });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });
