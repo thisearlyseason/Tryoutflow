@@ -85,6 +85,17 @@ export async function dispatchJob(
       throw error;
     const normalized = normalizeDispatchError(error);
     if (!sendAttemptToken) throw new Error('authorization_conflict');
+    if (normalized.code === 'delivery_uncertain') {
+      const uncertainty = await client.rpc('record_outbox_job_delivery_uncertain_v2', {
+        p_job_id: job.jobId,
+        p_lease_token: job.leaseToken,
+        p_lease_generation: job.leaseGeneration,
+        p_send_attempt_token: sendAttemptToken,
+      });
+      if (uncertainty.error || !['needs_attention', 'replayed'].includes(String(uncertainty.data)))
+        throw new Error('uncertainty_record_failed');
+      return 'needs_attention';
+    }
     const failure = await client.rpc('fail_outbox_job_v2', {
       p_job_id: job.jobId,
       p_lease_token: job.leaseToken,
@@ -110,18 +121,21 @@ export async function dispatchJob(
 
 function normalizeDispatchError(error: unknown): EmailProviderError {
   if (error instanceof DOMException && error.name === 'AbortError')
-    return { code: 'provider_timeout_uncertain', retryable: false };
+    return { code: 'delivery_uncertain', retryable: false };
   if (
     typeof error === 'object' &&
     error !== null &&
-    ['provider_temporary', 'provider_rejected', 'provider_configuration'].includes(
-      String((error as { code?: unknown }).code),
-    ) &&
+    [
+      'provider_temporary',
+      'provider_rejected',
+      'provider_configuration',
+      'delivery_uncertain',
+    ].includes(String((error as { code?: unknown }).code)) &&
     typeof (error as { retryable?: unknown }).retryable === 'boolean'
   ) {
     return error as EmailProviderError;
   }
-  return { code: 'provider_temporary', retryable: true };
+  return { code: 'delivery_uncertain', retryable: false };
 }
 
 function asAuthorizationResult(value: unknown): {

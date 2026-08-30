@@ -62,12 +62,12 @@ export class ResendEmailProvider implements EmailProvider {
       }
       const providerResponse = providerResponseSchema.safeParse((await response.json()) as unknown);
       if (!providerResponse.success) {
-        throw { code: 'provider_temporary', retryable: true } satisfies EmailProviderError;
+        throw { code: 'delivery_uncertain', retryable: false } satisfies EmailProviderError;
       }
       return { providerMessageId: providerResponse.data.id };
     } catch (error) {
       if (isEmailProviderError(error)) throw error;
-      throw { code: 'provider_temporary', retryable: true } satisfies EmailProviderError;
+      throw { code: 'delivery_uncertain', retryable: false } satisfies EmailProviderError;
     }
   }
 }
@@ -81,7 +81,7 @@ export function isEmailProviderError(error: unknown): error is EmailProviderErro
       'provider_temporary',
       'provider_rejected',
       'provider_configuration',
-      'provider_timeout_uncertain',
+      'delivery_uncertain',
     ].includes(String((error as { code: unknown }).code)) &&
     typeof (error as { retryable?: unknown }).retryable === 'boolean'
   );

@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { FakeEmailProvider } from '../../src/infrastructure/email/fake-email-provider';
 import type { EmailProvider } from '../../src/infrastructure/email/email-provider';
@@ -81,7 +81,7 @@ describe('EmailProvider contract', () => {
     expect(() => new ResendEmailProvider({ apiKey: 'short', from: 'bad' })).toThrow();
   });
 
-  it('classifies permanent and retryable HTTP failures without provider content', async () => {
+  it('classifies explicit 4xx, 429, and 5xx responses without provider content', async () => {
     const configuration = { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com' };
     const message = { to: 'private@example.com', subject: 'Private subject', text: 'Private body' };
     const permanent = new ResendEmailProvider(
@@ -98,32 +98,83 @@ describe('EmailProvider contract', () => {
     await expect(
       retryable.send(message, 'communication:33333333-3333-4333-8333-333333333333'),
     ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
+    const rateLimited = new ResendEmailProvider(
+      configuration,
+      async () => new Response('private rate limit', { status: 429 }),
+    );
+    await expect(
+      rateLimited.send(message, 'communication:33333333-3333-4333-8333-333333333333'),
+    ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
   });
 
-  it('rejects malformed provider IDs and aborts stalled Resend requests', async () => {
+  it('classifies malformed or missing responses as delivery uncertain', async () => {
+    const malformedRequest = vi.fn(async () => Response.json({ id: 'not-a-provider-uuid' }));
     const malformed = new ResendEmailProvider(
       { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com', timeoutMs: 1_000 },
-      async () => Response.json({ id: 'not-a-provider-uuid' }),
+      malformedRequest,
     );
     await expect(
       malformed.send(
         { to: 'guardian@example.com', subject: 'Subject', text: 'Body' },
         'communication:33333333-3333-4333-8333-333333333333',
       ),
-    ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
+    ).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+    expect(malformedRequest).toHaveBeenCalledTimes(1);
 
+    const missingRequest = vi.fn(async () => undefined as unknown as Response);
+    const missing = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com', timeoutMs: 1_000 },
+      missingRequest,
+    );
+    await expect(
+      missing.send(
+        { to: 'guardian@example.com', subject: 'Subject', text: 'Body' },
+        'communication:33333333-3333-4333-8333-333333333333',
+      ),
+    ).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+    expect(missingRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [
+      'abort before request completion',
+      () => Promise.reject(new DOMException('Aborted', 'AbortError')),
+    ],
+    ['connection reset', () => Promise.reject(new TypeError('fetch failed: ECONNRESET'))],
+  ])('classifies %s as delivery uncertain', async (_name, request) => {
+    const requestSpy = vi.fn(request);
+    const provider = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com', timeoutMs: 1_000 },
+      requestSpy,
+    );
+    await expect(
+      provider.send(
+        { to: 'guardian@example.com', subject: 'Subject', text: 'Body' },
+        'communication:33333333-3333-4333-8333-333333333333',
+      ),
+    ).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+    expect(requestSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies a delayed abort after request body handoff as delivery uncertain', async () => {
+    const stalledRequest = vi.fn(
+      async (_input: string | URL | Request, options?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) =>
+          options?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          ),
+        ),
+    );
     const stalled = new ResendEmailProvider(
       { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com', timeoutMs: 1_000 },
-      async (_input, options) =>
-        new Promise((_resolve, reject) =>
-          options?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted'))),
-        ),
+      stalledRequest,
     );
     await expect(
       stalled.send(
         { to: 'guardian@example.com', subject: 'Subject', text: 'Body' },
         'communication:33333333-3333-4333-8333-333333333333',
       ),
-    ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
+    ).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+    expect(stalledRequest).toHaveBeenCalledTimes(1);
   });
 });

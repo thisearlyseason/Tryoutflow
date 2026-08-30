@@ -3707,6 +3707,15 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      record_outbox_job_delivery_uncertain_v2: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_send_attempt_token: string;
+        };
+        Returns: string;
+      };
       registration_has_missing_information: {
         Args: { p_registration_id: string };
         Returns: boolean;

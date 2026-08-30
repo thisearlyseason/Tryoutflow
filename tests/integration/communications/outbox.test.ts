@@ -67,6 +67,12 @@ const failSend = async (
 
 const databaseJobRpc = async (name: string, args: Record<string, unknown>) => {
   const functionName = String(name);
+  if (functionName === 'claim_outbox_jobs') {
+    const result =
+      await psql(`set role service_role; select coalesce(json_agg(row_to_json(claim)),'[]')
+      from public.claim_outbox_jobs('${String(args.p_lease_owner)}',${Number(args.p_batch_size)},${Number(args.p_lease_seconds)}) claim`);
+    return { data: JSON.parse(result.stdout.trim()) as unknown, error: null };
+  }
   const argumentsSql =
     functionName === 'authorize_outbox_job_send_v2'
       ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},${Number(args.p_provider_timeout_ms)},${Number(args.p_safety_margin_ms)}`
@@ -74,7 +80,9 @@ const databaseJobRpc = async (name: string, args: Record<string, unknown>) => {
         ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_provider_message_id)}'`
         : functionName === 'decline_outbox_job_send_v2'
           ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_reason)}'`
-          : `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_error_code)}',${Boolean(args.p_retryable)}`;
+          : functionName === 'record_outbox_job_delivery_uncertain_v2'
+            ? `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}'`
+            : `'${String(args.p_job_id)}','${String(args.p_lease_token)}',${Number(args.p_lease_generation)},'${String(args.p_send_attempt_token)}','${String(args.p_error_code)}',${Boolean(args.p_retryable)}`;
   const result = await psql(
     `set role service_role; select public.${functionName}(${argumentsSql})`,
   );
@@ -894,9 +902,25 @@ describe('transactional communication outbox', () => {
         (select count(*) from public.outbox_provider_handoffs where job_id=job.id)
         from public.outbox_jobs job where id='${queued}'`)
     ).stdout.trim();
-    expect([`pending|${generation}|true|1`, `needs_attention|${generation}|false|1`]).toContain(
-      final,
-    );
+    expect([
+      `pending|${generation}|true|1`,
+      `needs_attention|${generation}|false|1`,
+      `leased|${Number(generation) + 1}|false|1`,
+    ]).toContain(final);
+    if (final.startsWith('leased|')) {
+      const [nextLeaseToken, nextLeaseGeneration] = (
+        await psql(`select lease_token||'|'||lease_generation from public.outbox_jobs
+          where id='${queued}'`)
+      ).stdout
+        .trim()
+        .split('|');
+      expect((await authorizeSend(queued, nextLeaseToken!, nextLeaseGeneration!)).outcome).toBe(
+        'needs_attention',
+      );
+      expect(
+        (await psql(`select status from public.outbox_jobs where id='${queued}'`)).stdout.trim(),
+      ).toBe('needs_attention');
+    }
   });
 
   it('runs the FakeEmailProvider through claim, dispatch, and durable database completion', async () => {
@@ -966,6 +990,48 @@ describe('transactional communication outbox', () => {
     ).toMatch(
       /^completed\|submitted\|[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
     );
+  });
+
+  it('records an ambiguous provider transport once without putting the job back on the queue', async () => {
+    const queued = (
+      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
+        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
+          '${ids.guardian}','registration_reminder','Uncertain contract','Body','${keyPrefix}-uncertain-dispatch')`)
+    ).stdout.trim();
+    await psql(`update public.outbox_jobs set available_at='1700-01-01' where id='${queued}'`);
+    const [claimed] = await claimJobs(
+      { rpc: databaseJobRpc },
+      {
+        leaseOwner: 'worker-uncertain-contract',
+        batchSize: 1,
+        leaseSeconds: 90,
+      },
+    );
+    expect(claimed?.jobId).toBe(queued);
+    const provider = {
+      send: vi.fn().mockRejectedValue({ code: 'delivery_uncertain', retryable: false }),
+    } satisfies EmailProvider;
+
+    await expect(dispatchJob({ rpc: databaseJobRpc }, provider, claimed!)).resolves.toBe(
+      'needs_attention',
+    );
+    expect(provider.send).toHaveBeenCalledTimes(1);
+    expect(
+      (
+        await psql(`select job.status||'|'||message.state||'|'||job.delivery_uncertain_reason||'|'||
+          handoff.attempt_state from public.outbox_jobs job
+          join public.communication_messages message on message.id=job.message_id
+          join public.outbox_provider_handoffs handoff on handoff.job_id=job.id
+          where job.id='${queued}'`)
+      ).stdout.trim(),
+    ).toBe('needs_attention|delivery_uncertain|delivery_uncertain|delivery_uncertain');
+    expect(
+      (
+        await psql(`set role service_role; select count(*) from public.claim_outbox_jobs(
+          'worker-uncertain-retry',50,90) where job_id='${queued}'`)
+      ).stdout.trim(),
+    ).toBe('0');
   });
 
   it('serializes confirmation queue and token rotation in both natural start orders without deadlock', async () => {

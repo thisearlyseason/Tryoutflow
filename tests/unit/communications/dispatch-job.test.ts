@@ -41,7 +41,7 @@ describe('communication dispatch fencing', () => {
     expect(provider.send).not.toHaveBeenCalled();
   });
 
-  it('aborts a stalled provider before the lease safety margin and schedules a stable-key retry', async () => {
+  it('records a stalled provider as exact delivery uncertainty without scheduling a retry', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-08-30T12:00:00.000Z'));
     const leasedJob = job();
@@ -66,13 +66,13 @@ describe('communication dispatch fencing', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(rpc).toHaveBeenLastCalledWith(
-      'fail_outbox_job_v2',
+      'record_outbox_job_delivery_uncertain_v2',
       expect.objectContaining({
         p_send_attempt_token: '44444444-4444-4444-8444-444444444444',
-        p_error_code: 'provider_timeout_uncertain',
-        p_retryable: false,
       }),
     );
+    expect(rpc).not.toHaveBeenCalledWith('fail_outbox_job_v2', expect.any(Object));
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it('does not record provider failure after a lost completion response', async () => {
@@ -181,6 +181,29 @@ describe('communication dispatch fencing', () => {
     ).resolves.toBe('needs_attention');
   });
 
+  it('routes an adapter delivery-uncertain result to the exact fenced uncertainty transition', async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce(authorization())
+      .mockResolvedValueOnce({ data: 'needs_attention', error: null });
+    const provider = {
+      send: vi.fn().mockRejectedValue({ code: 'delivery_uncertain', retryable: false }),
+    } satisfies EmailProvider;
+
+    await expect(dispatchJob({ rpc }, provider, job())).resolves.toBe('needs_attention');
+    expect(provider.send).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenLastCalledWith(
+      'record_outbox_job_delivery_uncertain_v2',
+      expect.objectContaining({
+        p_job_id: job().jobId,
+        p_lease_token: job().leaseToken,
+        p_lease_generation: job().leaseGeneration,
+        p_send_attempt_token: '44444444-4444-4444-8444-444444444444',
+      }),
+    );
+    expect(rpc).not.toHaveBeenCalledWith('fail_outbox_job_v2', expect.any(Object));
+  });
+
   it('does not send when another routine already owns the exact authorization', async () => {
     const rpc = vi.fn().mockResolvedValueOnce({
       data: { outcome: 'in_progress', send_attempt_token: null, send_budget_ms: 0 },
@@ -216,7 +239,7 @@ describe('communication dispatch fencing', () => {
     await vi.advanceTimersByTimeAsync(43_751);
     await expect(dispatch).resolves.toBe('needs_attention');
     expect(rpc).toHaveBeenLastCalledWith(
-      'fail_outbox_job_v2',
+      'record_outbox_job_delivery_uncertain_v2',
       expect.objectContaining({ p_send_attempt_token: '44444444-4444-4444-8444-444444444444' }),
     );
   });
