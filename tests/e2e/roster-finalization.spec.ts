@@ -8,7 +8,7 @@ test('builds by drag and keyboard, confirms release, finalizes, and revises with
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Accessible roster workspace' })).toBeVisible();
   await page.getByLabel('Select Athlete 42').check();
-  await page.getByRole('button', { name: 'Move athlete 42' }).focus();
+  await page.getByRole('button', { name: 'Move Athlete 42' }).focus();
   await page.keyboard.press('Enter');
   await page.getByLabel('Destination team').selectOption({ label: 'White' });
   await page.getByRole('button', { name: 'Confirm move' }).click();
@@ -16,7 +16,7 @@ test('builds by drag and keyboard, confirms release, finalizes, and revises with
 
   if (isMobile) {
     // Narrow touch viewports exercise the explicit control path; desktop engines exercise pointer DnD.
-    await page.getByRole('button', { name: 'Move athlete 42' }).click();
+    await page.getByRole('button', { name: 'Move Athlete 42' }).click();
     await page.getByLabel('Destination team').selectOption({ label: 'Blue' });
     await page.getByRole('button', { name: 'Confirm move' }).click();
   } else {
@@ -58,7 +58,7 @@ test('builds by drag and keyboard, confirms release, finalizes, and revises with
   await finalization.getByRole('button', { name: 'Confirm finalization' }).click();
   await expect(page.getByText('Finalized roster · immutable')).toBeVisible();
   await expect(page.getByText(/Recorded in the roster audit trail/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Move athlete 42' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Move Athlete 42' })).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Create revision' }).click();
   const revision = page.getByRole('dialog', { name: 'Create roster revision' });
@@ -73,7 +73,7 @@ test('builds by drag and keyboard, confirms release, finalizes, and revises with
 
 test('fails stale writes closed and provides one refresh-and-review path', async ({ page }) => {
   await page.goto('/stale');
-  await page.getByRole('button', { name: 'Move athlete 42' }).click();
+  await page.getByRole('button', { name: 'Move Athlete 42' }).click();
   await page.getByLabel('Destination team').selectOption({ label: 'White' });
   await page.getByRole('button', { name: 'Confirm move' }).click();
   await expect(

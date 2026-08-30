@@ -13,10 +13,6 @@ const flagLabels: Record<string, string> = {
   eligibility_review: 'Eligibility review',
 };
 
-export function normalizeRosterSearchText(value: string) {
-  return value.normalize('NFC').toLowerCase();
-}
-
 export function RosterAthleteCard({
   athlete,
   disabled,
@@ -111,8 +107,12 @@ export function RosterAthleteCard({
             />
             Select {athlete.displayName}
           </label>
-          <Button onClick={() => onMove(athlete)} variant="secondary">
-            Move {normalizeRosterSearchText(athlete.displayName)}
+          <Button
+            aria-label={`Move ${athlete.displayName}`}
+            onClick={() => onMove(athlete)}
+            variant="secondary"
+          >
+            Move {athlete.displayName}
           </Button>
         </div>
       ) : null}

@@ -11,7 +11,6 @@ import {
   resolveRosterDrop,
   type RosterWorkspaceSnapshot,
 } from '../../../src/modules/rosters/ui/roster-builder';
-import { normalizeRosterSearchText } from '../../../src/modules/rosters/ui/athlete-pool';
 
 const ids = {
   roster: '10000000-0000-4000-8000-000000000001',
@@ -141,7 +140,7 @@ describe('RosterBuilder', () => {
     const { onMove } = renderBuilder();
 
     expect(screen.getByText('Blue roster 1 of 2')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Move athlete 42' }));
+    await user.click(screen.getByRole('button', { name: 'Move Athlete 42' }));
     await user.selectOptions(screen.getByLabelText('Destination team'), ids.blue);
     await user.click(screen.getByRole('button', { name: 'Confirm move' }));
 
@@ -240,7 +239,7 @@ describe('RosterBuilder', () => {
     expect(onFinalize).toHaveBeenCalledWith({ rosterVersionId: ids.roster, expectedVersion: 4 });
     expect(await screen.findByText('Finalized roster · immutable')).toBeInTheDocument();
     expect(screen.getByText(/No messages were sent by finalization/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Move athlete 42' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Move Athlete 42' })).not.toBeInTheDocument();
   });
 
   it('fails closed on a stale version and requires refresh before another write', async () => {
@@ -248,7 +247,7 @@ describe('RosterBuilder', () => {
     const onMove = vi.fn().mockResolvedValue({ ok: false, code: 'conflict', currentVersion: 9 });
     renderBuilder({ onMove });
 
-    await user.click(screen.getByRole('button', { name: 'Move athlete 42' }));
+    await user.click(screen.getByRole('button', { name: 'Move Athlete 42' }));
     await user.selectOptions(screen.getByLabelText('Destination team'), ids.white);
     await user.click(screen.getByRole('button', { name: 'Confirm move' }));
 
@@ -256,7 +255,7 @@ describe('RosterBuilder', () => {
       'Roster changed elsewhere. Refresh and review version 9 before retrying.',
     );
     expect(screen.getByRole('button', { name: 'Refresh roster' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Move athlete 42' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Move Athlete 42' })).not.toBeInTheDocument();
     expect(screen.getByText('Athlete pool 1')).toBeInTheDocument();
   });
 
@@ -264,14 +263,14 @@ describe('RosterBuilder', () => {
     const user = userEvent.setup();
     renderBuilder({ onMove: vi.fn().mockRejectedValue(new Error('network unavailable')) });
 
-    await user.click(screen.getByRole('button', { name: 'Move athlete 42' }));
+    await user.click(screen.getByRole('button', { name: 'Move Athlete 42' }));
     await user.selectOptions(screen.getByLabelText('Destination team'), ids.white);
     await user.click(screen.getByRole('button', { name: 'Confirm move' }));
 
     expect(
       await screen.findByText('The roster change could not reach the server. Try again.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Move athlete 42' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move Athlete 42' })).toBeEnabled();
     expect(screen.getByText('Athlete pool 1')).toBeInTheDocument();
   });
 
@@ -402,7 +401,7 @@ describe('RosterBuilder', () => {
     expect(screen.getByRole('status', { name: 'Ranking evidence unavailable' })).toHaveTextContent(
       'Roster membership, placements, and decisions remain available',
     );
-    expect(screen.getByRole('button', { name: 'Move submitted snapshot member' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move Submitted Snapshot Member' })).toBeEnabled();
   });
 
   it('does not turn a member missing from a successful ranking projection into zero evidence', () => {
@@ -429,7 +428,7 @@ describe('RosterBuilder', () => {
     expect(within(card).getByText('Ranking evidence unavailable')).toBeInTheDocument();
     expect(card).not.toHaveTextContent('0 of 0 evaluations');
     expect(screen.queryByRole('status', { name: 'Ranking evidence unavailable' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Move projection missing member' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Move Projection Missing Member' })).toBeEnabled();
   });
 
   it('distinguishes not-authorized evidence from an actual zero-coverage ranking row', () => {
@@ -474,12 +473,11 @@ describe('RosterBuilder', () => {
     expect(screen.getByText('Finalized roster · immutable')).toBeInTheDocument();
     expect(screen.getByText(/Recorded in the roster audit trail/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create revision' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Move athlete 42' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Move Athlete 42' })).not.toBeInTheDocument();
   });
 
   it('hydrates finalized audit evidence identically across locale and timezone boundaries', async () => {
     const originalDateLocaleString = Date.prototype.toLocaleString;
-    const originalStringLocaleLowerCase = String.prototype.toLocaleLowerCase;
     let renderEnvironment: 'server' | 'client' = 'server';
     const dateLocaleSpy = vi.spyOn(Date.prototype, 'toLocaleString').mockImplementation(function (
       this: Date,
@@ -490,26 +488,17 @@ describe('RosterBuilder', () => {
       }
       return originalDateLocaleString.apply(this, args);
     });
-    const lowerCaseLocaleSpy = vi
-      .spyOn(String.prototype, 'toLocaleLowerCase')
-      .mockImplementation(function (
-        this: string,
-        ...args: Parameters<String['toLocaleLowerCase']>
-      ) {
-        if (String(this).normalize('NFC') === 'İPEK') {
-          return renderEnvironment === 'server' ? 'i̇pek' : 'ipek';
-        }
-        return originalStringLocaleLowerCase.apply(this, args);
-      });
+    const names = ['İPEK', 'I\u0307PEK', 'Élodie', 'E\u0301lodie', 'McKay'];
     const finalized = {
       ...draft,
       state: 'finalized' as const,
       version: 5,
       finalizedAt: '2026-08-30T10:00:00.000Z',
-      athletes: [
-        { ...draft.athletes[0]!, displayName: 'İPEK' },
-        { ...draft.athletes[1]!, displayName: 'I\u0307PEK' },
-      ],
+      athletes: names.map((displayName, index) => ({
+        ...draft.athletes[index % draft.athletes.length]!,
+        registrationId: `10000000-0000-4000-8000-${String(index + 20).padStart(12, '0')}`,
+        displayName,
+      })),
     };
     const callbacks = {
       onMove: vi.fn(),
@@ -551,14 +540,16 @@ describe('RosterBuilder', () => {
         '2026-08-30T10:00:00.000Z',
       );
       expect(container.querySelector('time')).toHaveTextContent('2026-08-30 10:00:00 UTC');
-      expect(within(container).getByRole('heading', { name: 'İPEK' })).toBeInTheDocument();
-      expect(within(container).getByRole('heading', { name: 'I\u0307PEK' })).toBeInTheDocument();
+      for (const name of names) {
+        const heading = within(container).getByRole('heading', { name });
+        expect(heading.textContent).toBe(name);
+        expect(heading).toHaveAccessibleName(name);
+      }
     } finally {
       await act(async () => root?.unmount());
       container.remove();
       consoleErrorSpy.mockRestore();
       dateLocaleSpy.mockRestore();
-      lowerCaseLocaleSpy.mockRestore();
       reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
     }
   });
@@ -575,22 +566,47 @@ describe('RosterBuilder', () => {
     expect(screen.queryByRole('time')).not.toBeInTheDocument();
   });
 
-  it('normalizes Turkish dotted I and Unicode composition without mutating display names', async () => {
-    expect(normalizeRosterSearchText('İPEK')).toBe('i̇pek');
-    expect(normalizeRosterSearchText('I\u0307PEK')).toBe('i̇pek');
+  it.each([
+    ['Turkish dotted I', 'İPEK'],
+    ['decomposed Turkish dotted I', 'I\u0307PEK'],
+    ['NFC accent', 'Élodie'],
+    ['NFD accent', 'E\u0301lodie'],
+    ['mixed case', 'McKay'],
+    ['significant internal whitespace', 'Ana  María'],
+  ])(
+    'renders the authorized %s display name verbatim in every roster identity label',
+    async (_, displayName) => {
+      const user = userEvent.setup();
+      renderBuilder({
+        initial: {
+          ...draft,
+          athletes: [{ ...draft.athletes[0]!, displayName }],
+        },
+      });
 
-    renderBuilder({
-      initial: {
-        ...draft,
-        athletes: [
-          { ...draft.athletes[0]!, displayName: 'İPEK' },
-          { ...draft.athletes[1]!, displayName: 'I\u0307PEK' },
-        ],
-      },
-    });
+      const card = screen.getByTestId(`roster-athlete-${ids.athlete42}`);
+      const heading = within(card).getByRole('heading');
+      const buttons = within(card).getAllByRole('button');
+      const drag = buttons.find(
+        (button) => button.getAttribute('aria-label') === `Drag ${displayName}`,
+      );
+      const select = within(card).getByText(
+        (_, element) =>
+          element?.tagName === 'LABEL' && element.textContent === `Select ${displayName}`,
+      );
+      const move = buttons.find((button) => button.textContent === `Move ${displayName}`);
 
-    expect(await screen.findAllByRole('button', { name: 'Move i̇pek' })).toHaveLength(2);
-    expect(screen.getByRole('heading', { name: 'İPEK' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'I\u0307PEK' })).toBeInTheDocument();
-  });
+      expect(heading.textContent).toBe(displayName);
+      expect(heading).toHaveAccessibleName(displayName.replaceAll(/\s+/gu, ' '));
+      expect(drag).toHaveAttribute('aria-label', `Drag ${displayName}`);
+      expect(select.textContent).toBe(`Select ${displayName}`);
+      expect(move).toBeDefined();
+      expect(move).toHaveAttribute('aria-label', `Move ${displayName}`);
+      expect(move?.textContent).toBe(`Move ${displayName}`);
+
+      await user.click(move!);
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByRole('heading').textContent).toBe(`Move ${displayName}`);
+    },
+  );
 });
