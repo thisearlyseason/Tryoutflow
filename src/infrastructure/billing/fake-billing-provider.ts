@@ -7,7 +7,12 @@ import type {
   PortalSessionInput,
 } from './billing-provider';
 
-type Submission = Readonly<{ digest: string; sessionId: string; url: string }>;
+type Submission = Readonly<{
+  digest: string;
+  input: CheckoutSessionInput | PortalSessionInput;
+  sessionId: string;
+  url: string;
+}>;
 
 export class FakeBillingProvider implements BillingProvider {
   readonly submissions = new Map<string, Submission>();
@@ -42,7 +47,7 @@ export class FakeBillingProvider implements BillingProvider {
       .slice(0, 24);
     const sessionId = kind === 'checkout' ? `cs_test_${token}` : `bps_${token}`;
     const url = `https://billing.example.test/${kind}/${token}`;
-    this.submissions.set(idempotencyKey, { digest, sessionId, url });
+    this.submissions.set(idempotencyKey, { digest, input, sessionId, url });
     return { sessionId, url };
   }
 

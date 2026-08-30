@@ -31,6 +31,11 @@ const stripeWebhookEnvironmentSchema = z.object({
 });
 export type StripeWebhookEnvironment = z.infer<typeof stripeWebhookEnvironmentSchema>;
 
+const billingEnvironmentSchema = z.object({
+  STRIPE_SECRET_KEY: z.string().regex(/^sk_(?:test|live)_[A-Za-z0-9]{20,300}$/u),
+});
+export type BillingEnvironment = z.infer<typeof billingEnvironmentSchema>;
+
 /** Validates the single canonical origin used in externally shared links. */
 export function getPublicAppOrigin(
   environment: Record<string, string | undefined> = process.env,
@@ -89,4 +94,12 @@ export function getStripeWebhookEnvironment(
   if (typeof window !== 'undefined')
     throw new Error('Server environment cannot be read in the browser');
   return stripeWebhookEnvironmentSchema.parse(environment);
+}
+
+export function getBillingEnvironment(
+  environment: Record<string, string | undefined> = process.env,
+): BillingEnvironment {
+  if (typeof window !== 'undefined')
+    throw new Error('Server environment cannot be read in the browser');
+  return billingEnvironmentSchema.parse(environment);
 }

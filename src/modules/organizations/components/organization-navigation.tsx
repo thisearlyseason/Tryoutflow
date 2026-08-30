@@ -40,6 +40,9 @@ export function OrganizationNavigation({
         ['Evaluators', `/app/${organizationSlug}/evaluators`],
         ['Members', `/app/${organizationSlug}/organization/members`],
         ['Settings', `/app/${organizationSlug}/organization/settings`],
+        ...(authorization.organizationRole === 'owner'
+          ? [['Billing', `/app/${organizationSlug}/organization/billing`]]
+          : []),
       ]
     : [
         ...evaluatorLinks,
