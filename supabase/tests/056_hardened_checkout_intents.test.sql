@@ -45,7 +45,7 @@ reset role;
 
 select throws_ok($$select public.complete_subscription_checkout_intent('56000000-0000-4000-8000-000000000010','56000000-0000-4000-8000-000000000101','cs_test_Task25FixResult01','https://checkout.stripe.com/c/pay/other')$$,'22023',null,'URL ID mismatch rejected');
 select throws_ok($$select public.complete_subscription_checkout_intent('56000000-0000-4000-8000-000000000010','56000000-0000-4000-8000-000000000101','cs_test_Task25FixResult01','https://checkout.stripe.com/c/pay/cs_test_Task25FixResult01?x=1')$$,'22023',null,'checkout query rejected');
-select throws_ok($$select public.complete_subscription_checkout_intent('56000000-0000-4000-8000-000000000010','56000000-0000-4000-8000-000000000101','cs_test_Task25FixResult01','https://checkout.stripe.com/c/pay/cs_test_Task25FixResult01#bad%20fragment')$$,'22023',null,'encoded checkout fragment rejected');
+select ok(private.is_valid_billing_session_url('cs_test_Task25FixResult01','https://checkout.stripe.com/c/pay/cs_test_Task25FixResult01#bad%20fragment','checkout'),'well-formed encoded checkout fragment accepted');
 select throws_ok($$select public.complete_subscription_checkout_intent('56000000-0000-4000-8000-000000000010','56000000-0000-4000-8000-000000000101',null,'https://checkout.stripe.com/c/pay/cs_test_Task25FixResult01')$$,'22023',null,'null checkout session ID rejected');
 select throws_ok($$select public.complete_subscription_checkout_intent('56000000-0000-4000-8000-000000000010','56000000-0000-4000-8000-000000000101','cs_test_Task25FixResult01',null)$$,'22023',null,'null checkout URL rejected');
 

@@ -12,6 +12,8 @@ import {
   type BillingProvider,
 } from '../../src/infrastructure/billing/billing-provider';
 import { StripeBillingProvider } from '../../src/infrastructure/billing/stripe-provider';
+import { isValidBillingSessionUrl } from '../../src/infrastructure/billing/provider-session-url';
+import { parseProviderSession } from '../../src/modules/subscriptions/application/billing-session-shared';
 
 async function expectBillingProviderContract(factory: () => BillingProvider) {
   const provider = factory();
@@ -144,7 +146,14 @@ describe('BillingProvider contract', () => {
       'cs_test_1234567890',
       `https://checkout.stripe.com/c/pay/cs_test_1234567890#${'A'.repeat(300)}`,
     ],
-    ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/bps_1234567890abcdef'],
+    [
+      'checkout',
+      'cs_test_A',
+      "https://checkout.stripe.com/c/pay/cs_test_A#abc%2Fdef%3Fghi-._~!$&'()*+,;=:@/?",
+    ],
+    ['checkout', 'cs_live_Z', `https://checkout.stripe.com/c/pay/cs_live_Z#${'A'.repeat(2_048)}`],
+    ['portal', 'bps_A', 'https://billing.stripe.com/p/session/test_B'],
+    ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/live_Z9'],
   ] as const)('accepts the exact %s session URL contract', async (kind, id, url) => {
     const provider = new StripeBillingProvider(
       { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
@@ -179,15 +188,28 @@ describe('BillingProvider contract', () => {
     ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890/'],
     ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890?x=1'],
     ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890\n'],
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890#'],
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890#bad%'],
     [
       'checkout',
       'cs_test_1234567890',
-      'https://checkout.stripe.com/c/pay/cs_test_1234567890#bad%20fragment',
+      'https://checkout.stripe.com/c/pay/cs_test_1234567890#bad%2',
+    ],
+    [
+      'checkout',
+      'cs_test_1234567890',
+      'https://checkout.stripe.com/c/pay/cs_test_1234567890#bad%GG',
+    ],
+    [
+      'checkout',
+      'cs_test_1234567890',
+      `https://checkout.stripe.com/c/pay/cs_test_1234567890#${'A'.repeat(2_049)}`,
     ],
     ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay%2Fcs_test_1234567890'],
     ['checkout', 'cs_test_1234567890', 'https://CHECKOUT.stripe.com/c/pay/cs_test_1234567890'],
     ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/'],
     ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/other'],
+    ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/bps_1234567890abcdef'],
     [
       'portal',
       'bps_1234567890abcdef',
@@ -224,6 +246,65 @@ describe('BillingProvider contract', () => {
             `billing:portal:invalid-${url}`,
           );
     await expect(pending).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+  });
+
+  it.each([
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_A', true],
+    [
+      'checkout',
+      'cs_live_Z',
+      "https://checkout.stripe.com/c/pay/cs_live_Z#abc%2Fdef%3Fghi-._~!$&'()*+,;=:@/?",
+      true,
+    ],
+    [
+      'checkout',
+      'cs_test_A',
+      `https://checkout.stripe.com/c/pay/cs_test_A#${'A'.repeat(2_048)}`,
+      true,
+    ],
+    [
+      'checkout',
+      'cs_test_A',
+      `https://checkout.stripe.com/c/pay/cs_test_A#${'A'.repeat(2_049)}`,
+      false,
+    ],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_A#', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_A#bad%', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_A#bad%2', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_A#bad%GG', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_A#x%0Ay', true],
+    ['checkout', 'cs_test_A', `https://checkout.stripe.com/c/pay/cs_test_A\n`, false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_A?x=1', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay%2Fcs_test_A', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com@evil.example/c/pay/cs_test_A', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com:8443/c/pay/cs_test_A', false],
+    ['checkout', 'cs_test_A', 'https://checkout.stripe.com/c/pay/cs_test_B', false],
+    ['portal', 'bps_A', 'https://billing.stripe.com/p/session/test_B', true],
+    ['portal', 'bps_123', 'https://billing.stripe.com/p/session/live_Z9', true],
+    ['portal', 'bps_123', 'https://billing.stripe.com/p/session/bps_123', false],
+    ['portal', 'bps_123', 'https://billing.stripe.com/p/session/test_', false],
+    ['portal', 'bps_123', 'https://billing.stripe.com/p/session/test_A?x=1', false],
+    ['portal', 'bps_123', 'https://billing.stripe.com/p/session/test_A#x', false],
+    ['portal', 'bps_123', 'https://billing.stripe.com:8443/p/session/test_A', false],
+    ['portal', 'bps_123', 'https://billing.stripe.com@evil.example/p/session/test_A', false],
+    ['portal', 'not_bps', 'https://billing.stripe.com/p/session/test_A', false],
+  ] as const)('applies the canonical %s URL boundary for %s', (kind, sessionId, url, expected) => {
+    expect(isValidBillingSessionUrl(sessionId, url, kind)).toBe(expected);
+  });
+
+  it('uses the same canonical session contract at the application boundary', () => {
+    expect(
+      parseProviderSession(
+        { sessionId: 'cs_test_A', url: 'https://checkout.stripe.com/c/pay/cs_test_A#x%2Fy' },
+        'checkout',
+      ).success,
+    ).toBe(true);
+    expect(
+      parseProviderSession(
+        { sessionId: 'bps_A', url: 'https://billing.stripe.com/p/session/test_B' },
+        'portal',
+      ).success,
+    ).toBe(true);
   });
 
   it.each([

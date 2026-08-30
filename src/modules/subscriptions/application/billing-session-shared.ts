@@ -2,8 +2,10 @@ import { createHash } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { billingProviderIdSchema } from '../../../infrastructure/billing/billing-provider';
-import { isValidBillingSessionUrl } from '../../../infrastructure/billing/provider-session-url';
+import {
+  isValidBillingSessionId,
+  isValidBillingSessionUrl,
+} from '../../../infrastructure/billing/provider-session-url';
 import type { OrganizationId, UserId } from '../../../lib/ids';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import type { SubscriptionAccount } from './subscription-account';
@@ -60,13 +62,12 @@ export function billingPageUrl(origin: string, organizationSlug: string, query?:
 }
 
 export function parseProviderSession(input: unknown, kind: 'checkout' | 'portal') {
-  const sessionId =
-    kind === 'checkout'
-      ? z.string().regex(/^cs_(?:test|live)_[A-Za-z0-9]{8,200}$/u)
-      : z.string().regex(/^bps_[A-Za-z0-9]{8,200}$/u);
   return z
     .object({
-      sessionId: sessionId.pipe(billingProviderIdSchema),
+      sessionId: z
+        .string()
+        .max(4_096)
+        .refine((value) => isValidBillingSessionId(value, kind)),
       url: z.string().min(1).max(4_096),
     })
     .strict()

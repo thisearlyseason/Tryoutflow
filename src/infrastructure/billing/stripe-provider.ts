@@ -11,7 +11,7 @@ import {
   stripeCustomerIdSchema,
   stripePriceIdSchema,
 } from './billing-provider';
-import { isValidBillingSessionUrl } from './provider-session-url';
+import { isValidBillingSessionId, isValidBillingSessionUrl } from './provider-session-url';
 
 const configurationSchema = z.object({
   secretKey: z.string().regex(/^sk_(?:test|live)_[A-Za-z0-9]{20,300}$/u),
@@ -20,13 +20,13 @@ const configurationSchema = z.object({
 const secureUrlSchema = z.url().refine((value) => value.startsWith('https://'));
 const checkoutResponseSchema = z
   .object({
-    id: z.string().regex(/^cs_(?:test|live)_[A-Za-z0-9]{8,200}$/u),
+    id: z.string().refine((value) => isValidBillingSessionId(value, 'checkout')),
     url: z.string().min(1).max(4_096),
   })
   .strict();
 const portalResponseSchema = z
   .object({
-    id: z.string().regex(/^bps_[A-Za-z0-9]{8,200}$/u),
+    id: z.string().refine((value) => isValidBillingSessionId(value, 'portal')),
     url: z.string().min(1).max(4_096),
   })
   .strict();

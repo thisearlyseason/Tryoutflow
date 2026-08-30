@@ -46,10 +46,14 @@ export class FakeBillingProvider implements BillingProvider {
       .digest('hex')
       .slice(0, 24);
     const sessionId = kind === 'checkout' ? `cs_test_${token}` : `bps_${token}`;
+    const portalToken = createHash('sha256')
+      .update(`portal-url:${idempotencyKey}:${digest}`)
+      .digest('hex')
+      .slice(0, 24);
     const url =
       kind === 'checkout'
         ? `https://checkout.stripe.com/c/pay/${sessionId}`
-        : `https://billing.stripe.com/p/session/${sessionId}`;
+        : `https://billing.stripe.com/p/session/test_${portalToken}`;
     this.submissions.set(idempotencyKey, { digest, input, sessionId, url });
     return { sessionId, url };
   }

@@ -658,7 +658,7 @@ describe('billing session HTTP boundary', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       sessionId: expect.stringMatching(/^bps_/u),
-      url: expect.stringMatching(/^https:\/\/billing[.]stripe[.]com\/p\/session\/bps_/u),
+      url: expect.stringMatching(/^https:\/\/billing[.]stripe[.]com\/p\/session\/(?:test|live)_/u),
     });
     expect(loads).toBe(1);
     expect(account.plan).toBe('team');
