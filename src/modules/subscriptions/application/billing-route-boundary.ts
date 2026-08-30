@@ -5,6 +5,7 @@ import type { OrganizationId } from '../../../lib/ids';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import type { StripePriceMapping } from '../domain/plans';
 import type { OwnedAccountLoader } from './billing-session-shared';
+import type { CheckoutIntentStore } from './checkout-intent';
 
 export const BILLING_REQUEST_MAX_BYTES = 1_024;
 
@@ -16,6 +17,7 @@ export type BillingRouteDependencies = Readonly<{
     organizationId: OrganizationId,
   ): Promise<{ actor: AuthorizationContext; organizationSlug: string } | null>;
   loadOwnedAccount: OwnedAccountLoader;
+  checkoutIntents: CheckoutIntentStore;
 }>;
 
 export function billingJsonError(status: number, code: string) {
@@ -89,9 +91,11 @@ export function billingCommandFailure(code: string) {
   const status =
     code === 'forbidden'
       ? 403
-      : code === 'invalid_plan' || code === 'invalid_return_url'
+      : code === 'invalid_plan' || code === 'invalid_return_url' || code === 'invalid_attempt'
         ? 400
-        : code === 'subscription_exists' || code === 'portal_unavailable'
+        : code === 'subscription_exists' ||
+            code === 'portal_unavailable' ||
+            code === 'checkout_in_progress'
           ? 409
           : 503;
   return billingJsonError(status, code);

@@ -11,7 +11,9 @@ import {
 } from '../../../../../../modules/subscriptions/application/billing-route-boundary';
 import { createCheckoutSession } from '../../../../../../modules/subscriptions/application/create-checkout-session';
 
-const bodySchema = z.object({ plan: z.enum(['team', 'club', 'association']) }).strict();
+const bodySchema = z
+  .object({ plan: z.enum(['team', 'club', 'association']), clientAttemptId: z.uuid() })
+  .strict();
 
 export async function handleCheckoutRequest(
   request: Request,
@@ -28,6 +30,7 @@ export async function handleCheckoutRequest(
         organizationId,
         organizationSlug: authenticated.organizationSlug,
         plan: body.data.plan,
+        clientAttemptId: body.data.clientAttemptId,
         origin: dependencies.canonicalOrigin,
       },
       authenticated.actor,

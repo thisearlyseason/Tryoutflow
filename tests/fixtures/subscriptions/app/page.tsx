@@ -1,4 +1,4 @@
-import { PlanCard } from '../../../../src/modules/subscriptions/ui/plan-card';
+import { PlanGrid } from '../../../../src/modules/subscriptions/ui/plan-grid';
 import { SubscriptionStatus } from '../../../../src/modules/subscriptions/ui/subscription-status';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
@@ -33,11 +33,7 @@ export default function Page() {
         />
       </div>
       <h2 className="mt-7 text-2xl font-black">Launch plans</h2>
-      <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-3">
-        {plans.map((plan) => (
-          <PlanCard key={plan.key} organizationId={organizationId} plan={plan} />
-        ))}
-      </div>
+      <PlanGrid disabled={false} organizationId={organizationId} plans={plans} />
     </section>
   );
 }

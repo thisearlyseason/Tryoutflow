@@ -91,6 +91,45 @@ describe('BillingProvider contract', () => {
   });
 
   it.each([
+    ['checkout', 'https://evil.example/c/pay/test'],
+    ['checkout', 'https://checkout.stripe.com:8443/c/pay/test'],
+    ['checkout', 'https://checkout.stripe.com/not-checkout/test'],
+    ['portal', 'https://evil.example/p/session/test'],
+    ['portal', 'https://billing.stripe.com:8443/p/session/test'],
+    ['portal', 'https://billing.stripe.com/not-portal/test'],
+  ] as const)('rejects an unexpected %s redirect contract: %s', async (kind, url) => {
+    const provider = new StripeBillingProvider(
+      { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
+      async () =>
+        Response.json({
+          id: kind === 'checkout' ? 'cs_test_1234567890' : 'bps_1234567890abcdef',
+          url,
+        }),
+    );
+    const pending =
+      kind === 'checkout'
+        ? provider.createCheckoutSession(
+            {
+              organizationId: '11111111-1111-4111-8111-111111111111',
+              plan: 'team',
+              priceId: 'price_TeamTest123',
+              successUrl: 'https://app.example.com/success',
+              cancelUrl: 'https://app.example.com/cancel',
+            },
+            `billing:checkout:redirect-${url}`,
+          )
+        : provider.createPortalSession(
+            {
+              organizationId: '11111111-1111-4111-8111-111111111111',
+              customerId: 'cus_1234567890abcdef',
+              returnUrl: 'https://app.example.com/billing',
+            },
+            `billing:portal:redirect-${url}`,
+          );
+    await expect(pending).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+  });
+
+  it.each([
     [400, { code: 'provider_rejected', retryable: false }],
     [408, { code: 'provider_rejected', retryable: false }],
     [429, { code: 'provider_temporary', retryable: true }],
@@ -142,7 +181,7 @@ describe('BillingProvider contract', () => {
           status === 200
             ? Response.json({
                 id: 'bps_1234567890abcdef',
-                url: 'https://billing.stripe.com/test',
+                url: 'https://billing.stripe.com/p/session/test',
               })
             : new Response(null, { status }),
         );
@@ -177,7 +216,10 @@ describe('BillingProvider contract', () => {
     const checkout = new StripeBillingProvider(
       { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
       async () =>
-        Response.json({ id: 'bps_1234567890abcdef', url: 'https://billing.stripe.com/test' }),
+        Response.json({
+          id: 'bps_1234567890abcdef',
+          url: 'https://billing.stripe.com/p/session/test',
+        }),
     );
     await expect(
       checkout.createCheckoutSession(
@@ -259,7 +301,10 @@ describe('BillingProvider contract', () => {
   });
 
   it.each([
-    ['text/plain', '{"id":"bps_1234567890abcdef","url":"https://billing.stripe.com/test"}'],
+    [
+      'text/plain',
+      '{"id":"bps_1234567890abcdef","url":"https://billing.stripe.com/p/session/test"}',
+    ],
     ['application/json', `{"padding":"${'x'.repeat(70_000)}"}`],
   ])('rejects unsafe provider response %s bodies', async (contentType, body) => {
     const provider = new StripeBillingProvider(

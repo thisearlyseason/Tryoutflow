@@ -104,4 +104,24 @@ describe('billing UI', () => {
       'Existing tryout records remain available',
     );
   });
+
+  it('describes the built-in trial without repeating the word trial', () => {
+    render(
+      <SubscriptionStatus
+        account={{
+          plan: 'trial',
+          state: 'trialing',
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: null,
+          cancelAt: null,
+          canceledAt: null,
+          trialEnd: null,
+          hasVerifiedCustomer: false,
+        }}
+        organizationId="11111111-1111-4111-8111-111111111111"
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Trial active');
+    expect(screen.getByRole('status')).not.toHaveTextContent('Trial trial active');
+  });
 });

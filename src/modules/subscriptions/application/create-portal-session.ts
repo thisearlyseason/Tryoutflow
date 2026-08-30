@@ -19,6 +19,7 @@ type PortalInput = Readonly<{
   organizationId: OrganizationId;
   organizationSlug: string;
   origin: string;
+  clientAttemptId: unknown;
 }>;
 
 type PortalDependencies = Readonly<{
@@ -32,6 +33,9 @@ export async function createPortalSession(
   dependencies: PortalDependencies,
 ): Promise<AppResult<Readonly<{ sessionId: string; url: string }>, BillingSessionError>> {
   const origin = validateBillingOrigin(input.origin);
+  const attempt = z.uuid().safeParse(input.clientAttemptId);
+  if (!attempt.success || attempt.data === '00000000-0000-0000-0000-000000000000')
+    return failure({ code: 'invalid_attempt' });
   if (
     !origin ||
     !z
@@ -63,9 +67,10 @@ export async function createPortalSession(
         origin,
         input.organizationSlug,
         account.version,
+        attempt.data,
       ]),
     );
-    const parsed = parseProviderSession(result);
+    const parsed = parseProviderSession(result, 'portal');
     return parsed.success ? success(parsed.data) : failure({ code: 'billing_unavailable' });
   } catch {
     return failure({ code: 'billing_unavailable' });

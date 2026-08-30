@@ -1,15 +1,21 @@
 import { createServerSupabaseClient } from '../../../../../infrastructure/supabase/server';
+import { createAdminSupabaseClient } from '../../../../../infrastructure/supabase/admin';
 import { parseOrganizationId, parseUserId, type OrganizationId } from '../../../../../lib/ids';
 import { getBillingEnvironment, getPublicAppOrigin } from '../../../../../lib/env';
 import { SupabaseMembershipRepository } from '../../../../../modules/organizations/infrastructure/membership-repository';
 import type { BillingRouteDependencies } from '../../../../../modules/subscriptions/application/billing-route-boundary';
 import { getStripePriceMapping } from '../../../../../modules/subscriptions/domain/plans';
 import { loadOwnedSubscriptionAccount } from '../../../../../modules/subscriptions/infrastructure/owned-subscription-account';
+import { createSubscriptionCheckoutIntentStore } from '../../../../../modules/subscriptions/infrastructure/subscription-checkout-intent-store';
 import { StripeBillingProvider } from '../../../../../infrastructure/billing/stripe-provider';
 
 export async function createBillingRouteDependencies(): Promise<BillingRouteDependencies> {
   const client = await createServerSupabaseClient();
   const environment = getBillingEnvironment();
+  const checkoutIntents = createSubscriptionCheckoutIntentStore(
+    client,
+    createAdminSupabaseClient(),
+  );
   return {
     canonicalOrigin: getPublicAppOrigin(),
     provider: new StripeBillingProvider({ secretKey: environment.STRIPE_SECRET_KEY }),
@@ -34,5 +40,6 @@ export async function createBillingRouteDependencies(): Promise<BillingRouteDepe
       return { actor, organizationSlug: organization.data.slug };
     },
     loadOwnedAccount: (organizationId) => loadOwnedSubscriptionAccount(client, organizationId),
+    checkoutIntents,
   };
 }

@@ -3,11 +3,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { FakeBillingProvider } from '../../../src/infrastructure/billing/fake-billing-provider';
+import type { BillingProvider } from '../../../src/infrastructure/billing/billing-provider';
 import { parseOrganizationId, parseUserId } from '../../../src/lib/ids';
 import { createCheckoutSession } from '../../../src/modules/subscriptions/application/create-checkout-session';
 import { createPortalSession } from '../../../src/modules/subscriptions/application/create-portal-session';
 import type { SubscriptionAccount } from '../../../src/modules/subscriptions/application/subscription-account';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
+import type { CheckoutIntentStore } from '../../../src/modules/subscriptions/application/checkout-intent';
 import { handleCheckoutRequest } from '../../../src/app/api/organizations/[organizationId]/billing/checkout/route';
 import { handlePortalRequest } from '../../../src/app/api/organizations/[organizationId]/billing/portal/route';
 
@@ -21,6 +23,8 @@ const prices = {
   association: 'price_Task25Association01',
 } as const;
 const organizationSlug = 'badlands-hockey-academy';
+const checkoutAttemptId = '11111111-1111-4111-8111-111111111101';
+const portalAttemptId = '11111111-1111-4111-8111-111111111102';
 const owner: AuthorizationContext = {
   userId: ownerId,
   organizationId,
@@ -47,23 +51,93 @@ const trialAccount: SubscriptionAccount = {
   version: 0,
 };
 
-function dependencies(account: SubscriptionAccount | null, provider = new FakeBillingProvider()) {
+const stores = new WeakMap<BillingProvider, CheckoutIntentStore>();
+function storeFor(provider: BillingProvider): CheckoutIntentStore {
+  const prior = stores.get(provider);
+  if (prior) return prior;
+  const intents = new Map<
+    string,
+    {
+      plan: string;
+      state: 'pending' | 'completed' | 'failed';
+      key: string;
+      sessionId?: string;
+      url?: string;
+    }
+  >();
+  const store: CheckoutIntentStore = {
+    async reserve(input) {
+      const exact = intents.get(input.clientAttemptId);
+      if (exact)
+        return {
+          outcome: exact.plan !== input.plan ? 'conflict' : exact.state,
+          idempotencyKey: exact.key,
+          sessionId: exact.sessionId ?? null,
+          resultUrl: exact.url ?? null,
+        };
+      const active = [...intents.values()].find((intent) => intent.state === 'pending');
+      if (active)
+        return {
+          outcome: 'in_progress',
+          idempotencyKey: active.key,
+          sessionId: null,
+          resultUrl: null,
+        };
+      const key = `tryoutflow:${input.clientAttemptId.replaceAll('-', '').padEnd(64, '0')}`;
+      intents.set(input.clientAttemptId, { plan: input.plan, state: 'pending', key });
+      return { outcome: 'reserved', idempotencyKey: key, sessionId: null, resultUrl: null };
+    },
+    async complete(input) {
+      const intent = intents.get(input.clientAttemptId);
+      if (!intent || intent.state === 'failed') return 'not_found';
+      intent.state = 'completed';
+      intent.sessionId = input.sessionId;
+      intent.url = input.resultUrl;
+      return 'completed';
+    },
+    async fail(input) {
+      const intent = intents.get(input.clientAttemptId);
+      if (!intent) return 'not_found';
+      intent.state = 'failed';
+      return 'failed';
+    },
+  };
+  stores.set(provider, store);
+  return store;
+}
+
+function dependencies(
+  account: SubscriptionAccount | null,
+  provider: BillingProvider = new FakeBillingProvider(),
+) {
   return {
     provider,
     prices,
     loadOwnedAccount: async () => account,
+    checkoutIntents: storeFor(provider),
   };
 }
 
 describe('owner billing sessions', () => {
   it('requires the current active owner record at execution time', async () => {
     const adminResult = await createCheckoutSession(
-      { organizationId, organizationSlug, plan: 'team', origin: 'https://app.tryoutflow.test' },
+      {
+        organizationId,
+        organizationSlug,
+        plan: 'team',
+        origin: 'https://app.tryoutflow.test',
+        clientAttemptId: checkoutAttemptId,
+      },
       administrator,
       dependencies(trialAccount),
     );
     const staleOwnerResult = await createPortalSession(
-      { organizationId, organizationSlug, origin: 'https://app.tryoutflow.test' },
+      {
+        organizationId,
+        organizationSlug,
+        origin: 'https://app.tryoutflow.test',
+        clientAttemptId: portalAttemptId,
+      },
       owner,
       dependencies(null),
     );
@@ -75,6 +149,7 @@ describe('owner billing sessions', () => {
     const unavailable = {
       provider: new FakeBillingProvider(),
       prices,
+      checkoutIntents: storeFor(new FakeBillingProvider()),
       loadOwnedAccount: async () => {
         throw new Error('database secret that must not escape');
       },
@@ -86,6 +161,7 @@ describe('owner billing sessions', () => {
           organizationSlug,
           plan: 'team',
           origin: 'https://app.tryoutflow.test',
+          clientAttemptId: checkoutAttemptId,
         },
         owner,
         unavailable,
@@ -97,6 +173,7 @@ describe('owner billing sessions', () => {
           organizationId,
           organizationSlug,
           origin: 'https://app.tryoutflow.test',
+          clientAttemptId: portalAttemptId,
         },
         owner,
         unavailable,
@@ -112,6 +189,7 @@ describe('owner billing sessions', () => {
         organizationSlug,
         plan: 'team',
         origin: 'https://app.tryoutflow.test',
+        clientAttemptId: checkoutAttemptId,
       },
       owner,
       dependencies({ ...trialAccount, organizationId: otherOrganizationId }, provider),
@@ -127,6 +205,7 @@ describe('owner billing sessions', () => {
       organizationSlug,
       plan: 'club' as const,
       origin: 'https://app.tryoutflow.test',
+      clientAttemptId: checkoutAttemptId,
     };
     const first = await createCheckoutSession(input, owner, dependencies(trialAccount, provider));
     const repeated = await createCheckoutSession(
@@ -160,6 +239,7 @@ describe('owner billing sessions', () => {
       organizationSlug,
       plan: 'team' as const,
       origin: 'https://app.tryoutflow.test',
+      clientAttemptId: checkoutAttemptId,
     };
     const checkoutDependencies = dependencies(trialAccount, provider);
     const [firstCheckout, secondCheckout] = await Promise.all([
@@ -182,6 +262,7 @@ describe('owner billing sessions', () => {
       organizationId,
       organizationSlug,
       origin: 'https://app.tryoutflow.test',
+      clientAttemptId: portalAttemptId,
     };
     const portalDependencies = dependencies(paidAccount, provider);
     const [firstPortal, secondPortal] = await Promise.all([
@@ -192,16 +273,135 @@ describe('owner billing sessions', () => {
     expect(provider.submissions.size).toBe(2);
   });
 
+  it('serializes different plans across attempts and creates a fresh session after completion', async () => {
+    const provider = new FakeBillingProvider();
+    const sharedDependencies = dependencies(trialAccount, provider);
+    const [team, club] = await Promise.all([
+      createCheckoutSession(
+        {
+          organizationId,
+          organizationSlug,
+          plan: 'team',
+          origin: 'https://app.tryoutflow.test',
+          clientAttemptId: '11111111-1111-4111-8111-111111111120',
+        },
+        owner,
+        sharedDependencies,
+      ),
+      createCheckoutSession(
+        {
+          organizationId,
+          organizationSlug,
+          plan: 'club',
+          origin: 'https://app.tryoutflow.test',
+          clientAttemptId: '11111111-1111-4111-8111-111111111121',
+        },
+        secondOwner,
+        sharedDependencies,
+      ),
+    ]);
+    expect([team, club].filter((result) => result.ok)).toHaveLength(1);
+    expect([team, club].filter((result) => !result.ok)).toEqual([
+      { ok: false, error: { code: 'checkout_in_progress' } },
+    ]);
+    expect(provider.submissions.size).toBe(1);
+
+    const fresh = await createCheckoutSession(
+      {
+        organizationId,
+        organizationSlug,
+        plan: 'association',
+        origin: 'https://app.tryoutflow.test',
+        clientAttemptId: '11111111-1111-4111-8111-111111111122',
+      },
+      owner,
+      sharedDependencies,
+    );
+    expect(fresh.ok).toBe(true);
+    expect(provider.submissions.size).toBe(2);
+  });
+
+  it('releases permanent provider failures but keeps temporary and unsafe delivery uncertain', async () => {
+    const rejected = new FakeBillingProvider('rejected');
+    const rejectedDependencies = dependencies(trialAccount, rejected);
+    const rejectedInput = {
+      organizationId,
+      organizationSlug,
+      plan: 'team' as const,
+      origin: 'https://app.tryoutflow.test',
+      clientAttemptId: '11111111-1111-4111-8111-111111111140',
+    };
+    expect(await createCheckoutSession(rejectedInput, owner, rejectedDependencies)).toEqual({
+      ok: false,
+      error: { code: 'billing_unavailable' },
+    });
+    const afterPermanent = await rejectedDependencies.checkoutIntents.reserve({
+      organizationId,
+      plan: 'club',
+      clientAttemptId: '11111111-1111-4111-8111-111111111141',
+    });
+    expect(afterPermanent.outcome).toBe('reserved');
+
+    const temporary = new FakeBillingProvider('temporary');
+    const temporaryDependencies = dependencies(trialAccount, temporary);
+    await createCheckoutSession(
+      { ...rejectedInput, clientAttemptId: '11111111-1111-4111-8111-111111111142' },
+      owner,
+      temporaryDependencies,
+    );
+    const blockedAfterTemporary = await temporaryDependencies.checkoutIntents.reserve({
+      organizationId,
+      plan: 'club',
+      clientAttemptId: '11111111-1111-4111-8111-111111111143',
+    });
+    expect(blockedAfterTemporary.outcome).toBe('in_progress');
+
+    const unsafeProvider: BillingProvider = {
+      async createCheckoutSession() {
+        return { sessionId: 'cs_test_UnsafeResult01', url: 'https://evil.example/c/pay/test' };
+      },
+      async createPortalSession() {
+        return { sessionId: 'bps_UnsafeResult01', url: 'https://evil.example/p/session/test' };
+      },
+    };
+    const unsafeDependencies = dependencies(trialAccount, unsafeProvider);
+    expect(
+      await createCheckoutSession(
+        { ...rejectedInput, clientAttemptId: '11111111-1111-4111-8111-111111111144' },
+        owner,
+        unsafeDependencies,
+      ),
+    ).toEqual({ ok: false, error: { code: 'billing_unavailable' } });
+    expect(
+      (
+        await unsafeDependencies.checkoutIntents.reserve({
+          organizationId,
+          plan: 'club',
+          clientAttemptId: '11111111-1111-4111-8111-111111111145',
+        })
+      ).outcome,
+    ).toBe('in_progress');
+  });
+
   it('does not reuse a provider key when the canonical deployment origin changes', async () => {
     const provider = new FakeBillingProvider();
-    const shared = { organizationId, organizationSlug, plan: 'team' as const };
+    const shared = {
+      organizationId,
+      organizationSlug,
+      plan: 'team' as const,
+      clientAttemptId: checkoutAttemptId,
+    };
     const first = await createCheckoutSession(
       { ...shared, origin: 'https://app.tryoutflow.test' },
       owner,
       dependencies(trialAccount, provider),
     );
     const moved = await createCheckoutSession(
-      { ...shared, origin: 'https://new.tryoutflow.test' },
+      {
+        ...shared,
+        clientAttemptId: '11111111-1111-4111-8111-111111111109',
+        origin: 'https://new.tryoutflow.test',
+      },
       owner,
       dependencies(trialAccount, provider),
     );
@@ -218,6 +418,7 @@ describe('owner billing sessions', () => {
         organizationSlug,
         plan: 'enterprise',
         origin: 'https://app.tryoutflow.test',
+        clientAttemptId: checkoutAttemptId,
       },
       owner,
       dependencies(trialAccount, provider),
@@ -228,6 +429,7 @@ describe('owner billing sessions', () => {
         organizationSlug,
         plan: 'team',
         origin: 'https://app.tryoutflow.test/redirect',
+        clientAttemptId: checkoutAttemptId,
       },
       owner,
       dependencies(trialAccount, provider),
@@ -238,12 +440,19 @@ describe('owner billing sessions', () => {
         organizationSlug,
         plan: 'team',
         origin: 'http://localhost:3000',
+        clientAttemptId: checkoutAttemptId,
       },
       owner,
       dependencies(trialAccount, provider),
     );
     const active = await createCheckoutSession(
-      { organizationId, organizationSlug, plan: 'team', origin: 'https://app.tryoutflow.test' },
+      {
+        organizationId,
+        organizationSlug,
+        plan: 'team',
+        origin: 'https://app.tryoutflow.test',
+        clientAttemptId: checkoutAttemptId,
+      },
       owner,
       dependencies(
         {
@@ -277,7 +486,12 @@ describe('owner billing sessions', () => {
       state: 'past_due' as const,
       version: 9,
     };
-    const input = { organizationId, organizationSlug, origin: 'https://app.tryoutflow.test' };
+    const input = {
+      organizationId,
+      organizationSlug,
+      origin: 'https://app.tryoutflow.test',
+      clientAttemptId: portalAttemptId,
+    };
     const first = await createPortalSession(input, owner, dependencies(account, provider));
     const repeated = await createPortalSession(input, owner, dependencies(account, provider));
     expect(first).toEqual(repeated);
@@ -291,6 +505,13 @@ describe('owner billing sessions', () => {
       ok: false,
       error: { code: 'portal_unavailable' },
     });
+    const deliberateNewClick = await createPortalSession(
+      { ...input, clientAttemptId: '11111111-1111-4111-8111-111111111130' },
+      owner,
+      dependencies(account, provider),
+    );
+    expect(deliberateNewClick.ok).toBe(true);
+    expect(provider.submissions.size).toBe(2);
   });
 });
 
@@ -304,7 +525,11 @@ describe('billing session HTTP boundary', () => {
         origin: canonicalOrigin,
         ...headers,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(
+        typeof body === 'object' && body !== null
+          ? { clientAttemptId: checkoutAttemptId, ...body }
+          : body,
+      ),
     });
   const routeDependencies = (account: SubscriptionAccount | null) => ({
     canonicalOrigin,
@@ -312,6 +537,7 @@ describe('billing session HTTP boundary', () => {
     prices,
     authenticate: async () => ({ actor: owner, organizationSlug }),
     loadOwnedAccount: async () => account,
+    checkoutIntents: storeFor(new FakeBillingProvider()),
   });
 
   it('accepts only bounded same-origin JSON with no body organization scope', async () => {
@@ -347,6 +573,15 @@ describe('billing session HTTP boundary', () => {
         )
       ).status,
     ).toBe(415);
+    expect(
+      (
+        await handleCheckoutRequest(
+          checkoutRequest({ plan: 'team', clientAttemptId: 'not-a-uuid' }),
+          organizationId,
+          dependencies,
+        )
+      ).status,
+    ).toBe(400);
   });
 
   it('does not expose whether another tenant has billing state', async () => {
@@ -392,7 +627,7 @@ describe('billing session HTTP boundary', () => {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', origin: canonicalOrigin },
-        body: '{}',
+        body: JSON.stringify({ clientAttemptId: portalAttemptId }),
       },
     );
     const response = await handlePortalRequest(request, organizationId, dependencies);

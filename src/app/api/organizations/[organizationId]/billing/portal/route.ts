@@ -11,7 +11,7 @@ import {
 } from '../../../../../../modules/subscriptions/application/billing-route-boundary';
 import { createPortalSession } from '../../../../../../modules/subscriptions/application/create-portal-session';
 
-const bodySchema = z.object({}).strict();
+const bodySchema = z.object({ clientAttemptId: z.uuid() }).strict();
 
 export async function handlePortalRequest(
   request: Request,
@@ -28,6 +28,7 @@ export async function handlePortalRequest(
         organizationId,
         organizationSlug: authenticated.organizationSlug,
         origin: dependencies.canonicalOrigin,
+        clientAttemptId: body.data.clientAttemptId,
       },
       authenticated.actor,
       dependencies,

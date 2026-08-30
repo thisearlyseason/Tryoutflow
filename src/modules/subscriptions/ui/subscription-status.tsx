@@ -59,7 +59,7 @@ function statusCopy(account: SubscriptionStatusAccount) {
     };
   if (account.state === 'trialing')
     return {
-      label: `${name} trial active`,
+      label: account.plan === 'trial' ? 'Trial active' : `${name} trial active`,
       detail: account.trialEnd
         ? `Trial ends ${dateLabel(account.trialEnd)}.`
         : 'Trial access is active from verified subscription state.',
@@ -92,7 +92,7 @@ export function SubscriptionStatus({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({ clientAttemptId: crypto.randomUUID() }),
       });
       const body = (await response.json()) as unknown;
       if (
@@ -101,7 +101,17 @@ export function SubscriptionStatus({
         body === null ||
         !('url' in body) ||
         typeof body.url !== 'string' ||
-        new URL(body.url).protocol !== 'https:'
+        (() => {
+          const url = new URL(body.url);
+          return !(
+            url.protocol === 'https:' &&
+            url.hostname === 'billing.stripe.com' &&
+            url.port === '' &&
+            url.username === '' &&
+            url.password === '' &&
+            url.pathname.startsWith('/p/session/')
+          );
+        })()
       )
         throw new Error('portal_unavailable');
       window.location.assign(body.url);

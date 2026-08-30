@@ -2517,6 +2517,53 @@ export type Database = {
           },
         ];
       };
+      subscription_checkout_intents: {
+        Row: {
+          client_attempt_id: string;
+          completed_at: string | null;
+          created_at: string;
+          expires_at: string;
+          idempotency_key: string;
+          organization_id: string;
+          plan_key: string;
+          provider_session_id: string | null;
+          result_url: string | null;
+          state: string;
+        };
+        Insert: {
+          client_attempt_id: string;
+          completed_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          idempotency_key: string;
+          organization_id: string;
+          plan_key: string;
+          provider_session_id?: string | null;
+          result_url?: string | null;
+          state?: string;
+        };
+        Update: {
+          client_attempt_id?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          idempotency_key?: string;
+          organization_id?: string;
+          plan_key?: string;
+          provider_session_id?: string | null;
+          result_url?: string | null;
+          state?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'subscription_checkout_intents_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       subscription_events: {
         Row: {
           cancel_at: string | null;
@@ -3630,6 +3677,15 @@ export type Database = {
         };
         Returns: string;
       };
+      complete_subscription_checkout_intent: {
+        Args: {
+          p_client_attempt_id: string;
+          p_organization_id: string;
+          p_result_url: string;
+          p_session_id: string;
+        };
+        Returns: string;
+      };
       configure_evaluation_note_tag: {
         Args: {
           p_active: boolean;
@@ -3843,6 +3899,10 @@ export type Database = {
           p_retryable: boolean;
           p_send_attempt_token: string;
         };
+        Returns: string;
+      };
+      fail_subscription_checkout_intent: {
+        Args: { p_client_attempt_id: string; p_organization_id: string };
         Returns: string;
       };
       finalize_roster_version: {
@@ -4382,6 +4442,19 @@ export type Database = {
         Returns: {
           outcome: string;
           version: number | null;
+        }[];
+      };
+      reserve_subscription_checkout_intent: {
+        Args: {
+          p_client_attempt_id: string;
+          p_organization_id: string;
+          p_plan_key: string;
+        };
+        Returns: {
+          idempotency_key: string;
+          outcome: string;
+          result_url: string;
+          session_id: string;
         }[];
       };
       resolve_athlete_import_duplicate: {

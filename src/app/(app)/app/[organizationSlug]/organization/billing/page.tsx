@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 import { launchPlans, type PaidPlanKey } from '@/modules/subscriptions/domain/plans';
 import { loadOwnedSubscriptionAccount } from '@/modules/subscriptions/infrastructure/owned-subscription-account';
-import { PlanCard } from '@/modules/subscriptions/ui/plan-card';
+import { PlanGrid } from '@/modules/subscriptions/ui/plan-grid';
 import { SubscriptionStatus } from '@/modules/subscriptions/ui/subscription-status';
 
 export default async function BillingPage({
@@ -72,16 +72,11 @@ export default async function BillingPage({
           Manage the existing subscription in the billing portal before starting another checkout.
         </p>
       ) : null}
-      <div className="mt-4 grid min-w-0 gap-4 md:grid-cols-3">
-        {paidPlans.map((plan) => (
-          <PlanCard
-            disabled={hasLiveProviderSubscription}
-            key={plan.key}
-            organizationId={current.organization.id}
-            plan={plan}
-          />
-        ))}
-      </div>
+      <PlanGrid
+        disabled={hasLiveProviderSubscription}
+        organizationId={current.organization.id}
+        plans={paidPlans}
+      />
     </section>
   );
 }
