@@ -73,6 +73,7 @@ export async function createCheckoutSession(
   try {
     reservation = await dependencies.checkoutIntents.reserve({
       organizationId: input.organizationId,
+      initiatingOwnerUserId: actor.userId,
       clientAttemptId: attempt.data,
       plan: plan.data,
     });

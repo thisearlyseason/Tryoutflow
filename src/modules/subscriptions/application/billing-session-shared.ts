@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
 import { billingProviderIdSchema } from '../../../infrastructure/billing/billing-provider';
+import { isValidBillingSessionUrl } from '../../../infrastructure/billing/provider-session-url';
 import type { OrganizationId, UserId } from '../../../lib/ids';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import type { SubscriptionAccount } from './subscription-account';
@@ -23,22 +24,6 @@ export type BillingSessionError = Readonly<{
     | 'portal_unavailable'
     | 'billing_unavailable';
 }>;
-
-function isExpectedProviderUrl(value: string, kind: 'checkout' | 'portal'): boolean {
-  const url = new URL(value);
-  const expected =
-    kind === 'checkout'
-      ? { hostname: 'checkout.stripe.com', path: '/c/pay/' }
-      : { hostname: 'billing.stripe.com', path: '/p/session/' };
-  return (
-    url.protocol === 'https:' &&
-    url.hostname === expected.hostname &&
-    url.port === '' &&
-    url.username === '' &&
-    url.password === '' &&
-    url.pathname.startsWith(expected.path)
-  );
-}
 
 export function validateBillingOrigin(raw: string): string | null {
   try {
@@ -77,13 +62,14 @@ export function billingPageUrl(origin: string, organizationSlug: string, query?:
 export function parseProviderSession(input: unknown, kind: 'checkout' | 'portal') {
   const sessionId =
     kind === 'checkout'
-      ? z.string().regex(/^cs_(?:test|live)_[A-Za-z0-9_]{8,200}$/u)
-      : z.string().regex(/^bps_[A-Za-z0-9_]{8,200}$/u);
+      ? z.string().regex(/^cs_(?:test|live)_[A-Za-z0-9]{8,200}$/u)
+      : z.string().regex(/^bps_[A-Za-z0-9]{8,200}$/u);
   return z
     .object({
       sessionId: sessionId.pipe(billingProviderIdSchema),
-      url: z.url().refine((value) => isExpectedProviderUrl(value, kind)),
+      url: z.string().min(1).max(4_096),
     })
     .strict()
+    .refine((value) => isValidBillingSessionUrl(value.sessionId, value.url, kind))
     .safeParse(input);
 }

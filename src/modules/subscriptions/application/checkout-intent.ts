@@ -1,4 +1,5 @@
 import type { OrganizationId } from '../../../lib/ids';
+import type { UserId } from '../../../lib/ids';
 import type { PaidPlanKey } from '../domain/plans';
 
 export type CheckoutIntentReservation = Readonly<{
@@ -20,6 +21,7 @@ export type CheckoutIntentReservation = Readonly<{
 export interface CheckoutIntentStore {
   reserve(input: {
     organizationId: OrganizationId;
+    initiatingOwnerUserId: UserId;
     clientAttemptId: string;
     plan: PaidPlanKey;
   }): Promise<CheckoutIntentReservation>;

@@ -60,7 +60,10 @@ describe('BillingProvider contract', () => {
 
   it('sends strict Stripe requests with timeout and idempotency', async () => {
     const request = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
-      Response.json({ id: 'cs_test_1234567890', url: 'https://checkout.stripe.com/c/pay/test' }),
+      Response.json({
+        id: 'cs_test_1234567890',
+        url: 'https://checkout.stripe.com/c/pay/cs_test_1234567890',
+      }),
     );
     const provider = new StripeBillingProvider(
       { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
@@ -79,7 +82,7 @@ describe('BillingProvider contract', () => {
       ),
     ).resolves.toEqual({
       sessionId: 'cs_test_1234567890',
-      url: 'https://checkout.stripe.com/c/pay/test',
+      url: 'https://checkout.stripe.com/c/pay/cs_test_1234567890',
     });
     expect(request).toHaveBeenCalledTimes(1);
     expect(request.mock.calls[0]?.[1]).toEqual(
@@ -125,6 +128,100 @@ describe('BillingProvider contract', () => {
               returnUrl: 'https://app.example.com/billing',
             },
             `billing:portal:redirect-${url}`,
+          );
+    await expect(pending).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+  });
+
+  it.each([
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890'],
+    [
+      'checkout',
+      'cs_live_1234567890',
+      'https://checkout.stripe.com/c/pay/cs_live_1234567890#fidkdWxOYHwnPyd1blpxYHZxWjA0',
+    ],
+    [
+      'checkout',
+      'cs_test_1234567890',
+      `https://checkout.stripe.com/c/pay/cs_test_1234567890#${'A'.repeat(300)}`,
+    ],
+    ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/bps_1234567890abcdef'],
+  ] as const)('accepts the exact %s session URL contract', async (kind, id, url) => {
+    const provider = new StripeBillingProvider(
+      { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
+      async () => Response.json({ id, url }),
+    );
+    const pending =
+      kind === 'checkout'
+        ? provider.createCheckoutSession(
+            {
+              organizationId: '11111111-1111-4111-8111-111111111111',
+              plan: 'team',
+              priceId: 'price_TeamTest123',
+              successUrl: 'https://app.example.com/success',
+              cancelUrl: 'https://app.example.com/cancel',
+            },
+            `billing:checkout:exact-${id}`,
+          )
+        : provider.createPortalSession(
+            {
+              organizationId: '11111111-1111-4111-8111-111111111111',
+              customerId: 'cus_1234567890abcdef',
+              returnUrl: 'https://app.example.com/billing',
+            },
+            `billing:portal:exact-${id}`,
+          );
+    await expect(pending).resolves.toEqual({ sessionId: id, url });
+  });
+
+  it.each([
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/'],
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/other'],
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890/'],
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890?x=1'],
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay/cs_test_1234567890\n'],
+    [
+      'checkout',
+      'cs_test_1234567890',
+      'https://checkout.stripe.com/c/pay/cs_test_1234567890#bad%20fragment',
+    ],
+    ['checkout', 'cs_test_1234567890', 'https://checkout.stripe.com/c/pay%2Fcs_test_1234567890'],
+    ['checkout', 'cs_test_1234567890', 'https://CHECKOUT.stripe.com/c/pay/cs_test_1234567890'],
+    ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/'],
+    ['portal', 'bps_1234567890abcdef', 'https://billing.stripe.com/p/session/other'],
+    [
+      'portal',
+      'bps_1234567890abcdef',
+      'https://billing.stripe.com/p/session/bps_1234567890abcdef?x=1',
+    ],
+    [
+      'portal',
+      'bps_1234567890abcdef',
+      'https://billing.stripe.com/p/session//bps_1234567890abcdef',
+    ],
+  ] as const)('rejects a non-exact %s session URL or ID mismatch', async (kind, id, url) => {
+    const provider = new StripeBillingProvider(
+      { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 1_000 },
+      async () => Response.json({ id, url }),
+    );
+    const pending =
+      kind === 'checkout'
+        ? provider.createCheckoutSession(
+            {
+              organizationId: '11111111-1111-4111-8111-111111111111',
+              plan: 'team',
+              priceId: 'price_TeamTest123',
+              successUrl: 'https://app.example.com/success',
+              cancelUrl: 'https://app.example.com/cancel',
+            },
+            `billing:checkout:invalid-${url}`,
+          )
+        : provider.createPortalSession(
+            {
+              organizationId: '11111111-1111-4111-8111-111111111111',
+              customerId: 'cus_1234567890abcdef',
+              returnUrl: 'https://app.example.com/billing',
+            },
+            `billing:portal:invalid-${url}`,
           );
     await expect(pending).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
   });

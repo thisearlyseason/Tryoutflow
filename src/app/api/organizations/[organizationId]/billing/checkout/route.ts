@@ -37,7 +37,7 @@ export async function handleCheckoutRequest(
       dependencies,
     );
     return result.ok
-      ? NextResponse.json({ url: result.value.url })
+      ? NextResponse.json({ sessionId: result.value.sessionId, url: result.value.url })
       : billingCommandFailure(result.error.code);
   } catch (error) {
     return billingRouteFailure(error);

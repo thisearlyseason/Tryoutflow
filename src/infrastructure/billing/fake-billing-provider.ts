@@ -48,8 +48,8 @@ export class FakeBillingProvider implements BillingProvider {
     const sessionId = kind === 'checkout' ? `cs_test_${token}` : `bps_${token}`;
     const url =
       kind === 'checkout'
-        ? `https://checkout.stripe.com/c/pay/${token}`
-        : `https://billing.stripe.com/p/session/${token}`;
+        ? `https://checkout.stripe.com/c/pay/${sessionId}`
+        : `https://billing.stripe.com/p/session/${sessionId}`;
     this.submissions.set(idempotencyKey, { digest, input, sessionId, url });
     return { sessionId, url };
   }

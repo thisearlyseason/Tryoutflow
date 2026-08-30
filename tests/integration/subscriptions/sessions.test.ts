@@ -59,6 +59,7 @@ function storeFor(provider: BillingProvider): CheckoutIntentStore {
     string,
     {
       plan: string;
+      initiatingOwnerUserId: string;
       state: 'pending' | 'completed' | 'failed';
       key: string;
       sessionId?: string;
@@ -70,12 +71,17 @@ function storeFor(provider: BillingProvider): CheckoutIntentStore {
       const exact = intents.get(input.clientAttemptId);
       if (exact)
         return {
-          outcome: exact.plan !== input.plan ? 'conflict' : exact.state,
+          outcome:
+            exact.plan !== input.plan || exact.initiatingOwnerUserId !== input.initiatingOwnerUserId
+              ? 'forbidden'
+              : exact.state,
           idempotencyKey: exact.key,
           sessionId: exact.sessionId ?? null,
           resultUrl: exact.url ?? null,
         };
-      const active = [...intents.values()].find((intent) => intent.state === 'pending');
+      const active = [...intents.values()].find(
+        (intent) => intent.state === 'pending' || intent.state === 'completed',
+      );
       if (active)
         return {
           outcome: 'in_progress',
@@ -84,7 +90,12 @@ function storeFor(provider: BillingProvider): CheckoutIntentStore {
           resultUrl: null,
         };
       const key = `tryoutflow:${input.clientAttemptId.replaceAll('-', '').padEnd(64, '0')}`;
-      intents.set(input.clientAttemptId, { plan: input.plan, state: 'pending', key });
+      intents.set(input.clientAttemptId, {
+        plan: input.plan,
+        initiatingOwnerUserId: input.initiatingOwnerUserId,
+        state: 'pending',
+        key,
+      });
       return { outcome: 'reserved', idempotencyKey: key, sessionId: null, resultUrl: null };
     },
     async complete(input) {
@@ -232,7 +243,7 @@ describe('owner billing sessions', () => {
     });
   });
 
-  it('deduplicates concurrent checkout and portal sessions across active co-owners', async () => {
+  it('binds checkout replay to the initiating owner while portal clicks remain independent', async () => {
     const provider = new FakeBillingProvider();
     const checkoutInput = {
       organizationId,
@@ -246,7 +257,8 @@ describe('owner billing sessions', () => {
       createCheckoutSession(checkoutInput, owner, checkoutDependencies),
       createCheckoutSession(checkoutInput, secondOwner, checkoutDependencies),
     ]);
-    expect(secondCheckout).toEqual(firstCheckout);
+    expect(firstCheckout.ok).toBe(true);
+    expect(secondCheckout).toEqual({ ok: false, error: { code: 'forbidden' } });
     expect(provider.submissions.size).toBe(1);
 
     const paidAccount = {
@@ -273,7 +285,7 @@ describe('owner billing sessions', () => {
     expect(provider.submissions.size).toBe(2);
   });
 
-  it('serializes different plans across attempts and creates a fresh session after completion', async () => {
+  it('keeps completed checkout as the organization fence until verified activation', async () => {
     const provider = new FakeBillingProvider();
     const sharedDependencies = dependencies(trialAccount, provider);
     const [team, club] = await Promise.all([
@@ -306,7 +318,7 @@ describe('owner billing sessions', () => {
     ]);
     expect(provider.submissions.size).toBe(1);
 
-    const fresh = await createCheckoutSession(
+    const blockedAfterCompletion = await createCheckoutSession(
       {
         organizationId,
         organizationSlug,
@@ -317,8 +329,11 @@ describe('owner billing sessions', () => {
       owner,
       sharedDependencies,
     );
-    expect(fresh.ok).toBe(true);
-    expect(provider.submissions.size).toBe(2);
+    expect(blockedAfterCompletion).toEqual({
+      ok: false,
+      error: { code: 'checkout_in_progress' },
+    });
+    expect(provider.submissions.size).toBe(1);
   });
 
   it('releases permanent provider failures but keeps temporary and unsafe delivery uncertain', async () => {
@@ -337,6 +352,7 @@ describe('owner billing sessions', () => {
     });
     const afterPermanent = await rejectedDependencies.checkoutIntents.reserve({
       organizationId,
+      initiatingOwnerUserId: ownerId,
       plan: 'club',
       clientAttemptId: '11111111-1111-4111-8111-111111111141',
     });
@@ -351,6 +367,7 @@ describe('owner billing sessions', () => {
     );
     const blockedAfterTemporary = await temporaryDependencies.checkoutIntents.reserve({
       organizationId,
+      initiatingOwnerUserId: ownerId,
       plan: 'club',
       clientAttemptId: '11111111-1111-4111-8111-111111111143',
     });
@@ -376,6 +393,7 @@ describe('owner billing sessions', () => {
       (
         await unsafeDependencies.checkoutIntents.reserve({
           organizationId,
+          initiatingOwnerUserId: ownerId,
           plan: 'club',
           clientAttemptId: '11111111-1111-4111-8111-111111111145',
         })
@@ -383,7 +401,7 @@ describe('owner billing sessions', () => {
     ).toBe('in_progress');
   });
 
-  it('does not reuse a provider key when the canonical deployment origin changes', async () => {
+  it('keeps the active checkout fence when the canonical deployment origin changes', async () => {
     const provider = new FakeBillingProvider();
     const shared = {
       organizationId,
@@ -406,8 +424,8 @@ describe('owner billing sessions', () => {
       dependencies(trialAccount, provider),
     );
     expect(first.ok).toBe(true);
-    expect(moved.ok).toBe(true);
-    expect(provider.submissions.size).toBe(2);
+    expect(moved).toEqual({ ok: false, error: { code: 'checkout_in_progress' } });
+    expect(provider.submissions.size).toBe(1);
   });
 
   it('rejects unknown plans, unsafe origins, and existing live provider subscriptions', async () => {
@@ -542,10 +560,16 @@ describe('billing session HTTP boundary', () => {
 
   it('accepts only bounded same-origin JSON with no body organization scope', async () => {
     const dependencies = routeDependencies(trialAccount);
-    expect(
-      (await handleCheckoutRequest(checkoutRequest({ plan: 'team' }), organizationId, dependencies))
-        .status,
-    ).toBe(200);
+    const accepted = await handleCheckoutRequest(
+      checkoutRequest({ plan: 'team' }),
+      organizationId,
+      dependencies,
+    );
+    expect(accepted.status).toBe(200);
+    await expect(accepted.json()).resolves.toMatchObject({
+      sessionId: expect.stringMatching(/^cs_test_/u),
+      url: expect.stringMatching(/^https:\/\/checkout[.]stripe[.]com\/c\/pay\/cs_test_/u),
+    });
     expect(
       (
         await handleCheckoutRequest(
@@ -632,6 +656,10 @@ describe('billing session HTTP boundary', () => {
     );
     const response = await handlePortalRequest(request, organizationId, dependencies);
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      sessionId: expect.stringMatching(/^bps_/u),
+      url: expect.stringMatching(/^https:\/\/billing[.]stripe[.]com\/p\/session\/bps_/u),
+    });
     expect(loads).toBe(1);
     expect(account.plan).toBe('team');
     expect(account.state).toBe('active');

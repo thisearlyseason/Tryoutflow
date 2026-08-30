@@ -2524,6 +2524,7 @@ export type Database = {
           created_at: string;
           expires_at: string;
           idempotency_key: string;
+          initiating_owner_user_id: string | null;
           organization_id: string;
           plan_key: string;
           provider_session_id: string | null;
@@ -2536,6 +2537,7 @@ export type Database = {
           created_at?: string;
           expires_at?: string;
           idempotency_key: string;
+          initiating_owner_user_id?: string | null;
           organization_id: string;
           plan_key: string;
           provider_session_id?: string | null;
@@ -2548,6 +2550,7 @@ export type Database = {
           created_at?: string;
           expires_at?: string;
           idempotency_key?: string;
+          initiating_owner_user_id?: string | null;
           organization_id?: string;
           plan_key?: string;
           provider_session_id?: string | null;
@@ -4252,6 +4255,10 @@ export type Database = {
         Args: { p_limit?: number };
         Returns: number;
       };
+      purge_expired_subscription_checkout_intents: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
       queue_invitation_communication: {
         Args: {
           p_business_idempotency_key: string;
@@ -4447,6 +4454,7 @@ export type Database = {
       reserve_subscription_checkout_intent: {
         Args: {
           p_client_attempt_id: string;
+          p_initiating_owner_user_id: string;
           p_organization_id: string;
           p_plan_key: string;
         };

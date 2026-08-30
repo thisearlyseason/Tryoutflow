@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { Button } from '../../../components/ui/button';
+import { isValidBillingSessionUrl } from '../../../infrastructure/billing/provider-session-url';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import type { PlanKey } from '../domain/plans';
 import type { SubscriptionState } from '../domain/entitlements';
@@ -101,17 +102,9 @@ export function SubscriptionStatus({
         body === null ||
         !('url' in body) ||
         typeof body.url !== 'string' ||
-        (() => {
-          const url = new URL(body.url);
-          return !(
-            url.protocol === 'https:' &&
-            url.hostname === 'billing.stripe.com' &&
-            url.port === '' &&
-            url.username === '' &&
-            url.password === '' &&
-            url.pathname.startsWith('/p/session/')
-          );
-        })()
+        !('sessionId' in body) ||
+        typeof body.sessionId !== 'string' ||
+        !isValidBillingSessionUrl(body.sessionId, body.url, 'portal')
       )
         throw new Error('portal_unavailable');
       window.location.assign(body.url);

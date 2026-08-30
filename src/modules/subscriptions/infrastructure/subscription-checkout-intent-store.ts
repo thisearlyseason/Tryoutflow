@@ -32,6 +32,7 @@ export function createSubscriptionCheckoutIntentStore(
     async reserve(input): Promise<CheckoutIntentReservation> {
       const result = await ownerClient.rpc('reserve_subscription_checkout_intent', {
         p_organization_id: input.organizationId,
+        p_initiating_owner_user_id: input.initiatingOwnerUserId,
         p_client_attempt_id: input.clientAttemptId,
         p_plan_key: input.plan,
       });

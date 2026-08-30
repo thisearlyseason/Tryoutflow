@@ -3,6 +3,7 @@
 import { useState } from 'react';
 
 import { Button } from '../../../components/ui/button';
+import { isValidBillingSessionUrl } from '../../../infrastructure/billing/provider-session-url';
 import type { PaidPlanKey } from '../domain/plans';
 
 type DisplayPlan = Readonly<{
@@ -34,17 +35,9 @@ async function requestCheckout(organizationId: string, plan: PaidPlanKey) {
     body === null ||
     !('url' in body) ||
     typeof body.url !== 'string' ||
-    (() => {
-      const url = new URL(body.url);
-      return !(
-        url.protocol === 'https:' &&
-        url.hostname === 'checkout.stripe.com' &&
-        url.port === '' &&
-        url.username === '' &&
-        url.password === '' &&
-        url.pathname.startsWith('/c/pay/')
-      );
-    })()
+    !('sessionId' in body) ||
+    typeof body.sessionId !== 'string' ||
+    !isValidBillingSessionUrl(body.sessionId, body.url, 'checkout')
   )
     throw new Error('checkout_unavailable');
   return body.url;

@@ -16,9 +16,7 @@ export const stripePriceIdSchema = z
 
 export const billingProviderIdSchema = z
   .string()
-  .regex(
-    /^(?:(?:cus|sub|price)_[A-Za-z0-9]{8,200}|(?:cs_(?:test|live)|bps)_[A-Za-z0-9_]{8,200})$/u,
-  );
+  .regex(/^(?:(?:cus|sub|price)_[A-Za-z0-9]{8,200}|(?:cs_(?:test|live)|bps)_[A-Za-z0-9]{8,200})$/u);
 
 export type BillingProviderError = Readonly<{
   code:

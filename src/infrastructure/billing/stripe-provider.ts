@@ -11,35 +11,24 @@ import {
   stripeCustomerIdSchema,
   stripePriceIdSchema,
 } from './billing-provider';
+import { isValidBillingSessionUrl } from './provider-session-url';
 
 const configurationSchema = z.object({
   secretKey: z.string().regex(/^sk_(?:test|live)_[A-Za-z0-9]{20,300}$/u),
   timeoutMs: z.number().int().min(250).max(60_000).default(10_000),
 });
 const secureUrlSchema = z.url().refine((value) => value.startsWith('https://'));
-function providerRedirectSchema(hostname: string, pathPrefix: string) {
-  return z.url().refine((value) => {
-    const url = new URL(value);
-    return (
-      url.protocol === 'https:' &&
-      url.hostname === hostname &&
-      url.port === '' &&
-      url.username === '' &&
-      url.password === '' &&
-      url.pathname.startsWith(pathPrefix)
-    );
-  });
-}
-const checkoutRedirectSchema = providerRedirectSchema('checkout.stripe.com', '/c/pay/');
-const portalRedirectSchema = providerRedirectSchema('billing.stripe.com', '/p/session/');
 const checkoutResponseSchema = z
   .object({
-    id: z.string().regex(/^cs_(?:test|live)_[A-Za-z0-9_]{8,200}$/u),
-    url: checkoutRedirectSchema,
+    id: z.string().regex(/^cs_(?:test|live)_[A-Za-z0-9]{8,200}$/u),
+    url: z.string().min(1).max(4_096),
   })
   .strict();
 const portalResponseSchema = z
-  .object({ id: z.string().regex(/^bps_[A-Za-z0-9_]{8,200}$/u), url: portalRedirectSchema })
+  .object({
+    id: z.string().regex(/^bps_[A-Za-z0-9]{8,200}$/u),
+    url: z.string().min(1).max(4_096),
+  })
   .strict();
 const checkoutInputSchema = z.object({
   organizationId: z.uuid(),
@@ -162,7 +151,8 @@ export class StripeBillingProvider implements BillingProvider {
           throw new DOMException('Provider deadline exceeded', 'AbortError');
         }
         const parsed = responseSchema.safeParse(json);
-        if (!parsed.success)
+        const kind = path === 'checkout/sessions' ? 'checkout' : 'portal';
+        if (!parsed.success || !isValidBillingSessionUrl(parsed.data.id, parsed.data.url, kind))
           throw { code: 'delivery_uncertain', retryable: false } satisfies BillingProviderError;
         if (performance.now() >= deadlineAt) {
           controller.abort();

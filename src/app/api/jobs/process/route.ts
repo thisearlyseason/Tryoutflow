@@ -11,6 +11,7 @@ const bodySchema = z.object({ batchSize: z.number().int().min(1).max(50).default
 type ProcessDependencies = {
   secret: string;
   purgeExpiredPreviews?(): Promise<void>;
+  purgeExpiredCheckoutIntents?(): Promise<void>;
   claim(input: {
     leaseOwner: string;
     batchSize: number;
@@ -81,6 +82,7 @@ export async function processJobsRequest(request: Request, dependencies: Process
     const parsed = bodySchema.safeParse(await readBoundedJson(request));
     if (!parsed.success) return jsonError(400, 'invalid_request');
     await dependencies.purgeExpiredPreviews?.().catch(() => undefined);
+    await dependencies.purgeExpiredCheckoutIntents?.().catch(() => undefined);
     const jobs = await dependencies.claim({
       leaseOwner: `vercel:${randomUUID()}`,
       batchSize: parsed.data.batchSize,
@@ -146,6 +148,12 @@ export async function POST(request: Request) {
     purgeExpiredPreviews: async () => {
       const { error } = await client.rpc('purge_expired_communication_previews', { p_limit: 100 });
       if (error) throw new Error('preview_purge_failed');
+    },
+    purgeExpiredCheckoutIntents: async () => {
+      const { error } = await client.rpc('purge_expired_subscription_checkout_intents', {
+        p_limit: 100,
+      });
+      if (error) throw new Error('checkout_intent_purge_failed');
     },
     claim: (input) => claimJobs(client, input),
     dispatch: (job) => dispatchJob(client, provider, job),
