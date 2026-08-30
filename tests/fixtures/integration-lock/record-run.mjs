@@ -12,10 +12,6 @@ const databaseUrl =
 const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
 if (!runId || !/^[0-9a-f]{16}$/u.test(runId))
   throw new Error('validated integration run id required');
-const rateKeyLog = process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG;
-if (!rateKeyLog || !rateKeyLog.endsWith(`/${runId}.rate-keys`)) {
-  throw new Error('validated integration rate-key ownership log required');
-}
 const namespacedCounterKey = createHash('sha256').update(`${runId}|${counterKey}`).digest('hex');
 if (behavior === 'inherited-rate-state') {
   execFileSync(
@@ -57,7 +53,6 @@ const existing = execFileSync(
   { encoding: 'utf8' },
 ).trim();
 if (existing !== '0') throw new Error('integration command inherited rate-counter fixture state');
-appendFileSync(rateKeyLog, `v2:${namespacedCounterKey}\n`, { mode: 0o600 });
 execFileSync(
   'psql',
   [

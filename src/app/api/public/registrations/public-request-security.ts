@@ -1,6 +1,4 @@
 import { createHmac } from 'node:crypto';
-import { appendFileSync, existsSync, lstatSync } from 'node:fs';
-import { basename, dirname } from 'node:path';
 
 import type { NextRequest } from 'next/server';
 
@@ -14,38 +12,6 @@ function integrationRateNamespace() {
   if (!runId) return '';
   if (!/^[0-9a-f]{16}$/u.test(runId)) throw new Error('invalid integration run id');
   return `integration-run:${runId}|`;
-}
-
-export function recordIntegrationRateKeys(keys: string[]) {
-  if (process.env.NODE_ENV !== 'test') return;
-  const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
-  const path = process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG;
-  if (!runId && !path) return;
-  if (
-    !runId ||
-    !/^[0-9a-f]{16}$/u.test(runId) ||
-    !path ||
-    basename(path) !== `${runId}.rate-keys`
-  ) {
-    throw new Error('invalid integration rate-key ownership log');
-  }
-  const directory = lstatSync(dirname(path));
-  const uid = typeof process.getuid === 'function' ? process.getuid() : directory.uid;
-  if (
-    directory.isSymbolicLink() ||
-    !directory.isDirectory() ||
-    directory.uid !== uid ||
-    (directory.mode & 0o077) !== 0
-  ) {
-    throw new Error('unsafe integration rate-key ownership directory');
-  }
-  if (existsSync(path)) {
-    const file = lstatSync(path);
-    if (file.isSymbolicLink() || !file.isFile() || file.uid !== uid || (file.mode & 0o077) !== 0) {
-      throw new Error('unsafe integration rate-key ownership log');
-    }
-  }
-  appendFileSync(path, `${keys.map((key) => `v2:${key}`).join('\n')}\n`, { mode: 0o600 });
 }
 
 type GuardFailure = { ok: false; status: 400 | 403 | 413 };
@@ -139,7 +105,6 @@ export async function guardPublicJsonRequest<T>(
     const rateKey = createHmac('sha256', secret)
       .update(`${namespace}${options.bucket}|target|${parsed.target}|${address}`)
       .digest('hex');
-    recordIntegrationRateKeys([contextRateKey, rateKey]);
     return { ok: true, ...parsed, contextRateKey, rateKey };
   } catch {
     return { ok: false, status: 400 };

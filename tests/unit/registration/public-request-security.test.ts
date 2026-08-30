@@ -1,9 +1,6 @@
 // @vitest-environment node
 
 import { NextRequest } from 'next/server';
-import { chmodSync, mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { guardPublicJsonRequest } from '../../../src/app/api/public/registrations/public-request-security';
@@ -36,7 +33,6 @@ describe('shared public registration request defenses', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'local-service-key';
     process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = 'r'.repeat(64);
     delete process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
-    delete process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG;
   });
 
   it('accepts same-origin JSON and derives a non-reversible route-specific bucket', async () => {
@@ -68,39 +64,15 @@ describe('shared public registration request defenses', () => {
     }
   });
 
-  it('records exact supervised rate keys before the database can persist them', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-rate-key-log-'));
-    chmodSync(directory, 0o700);
-    const runId = '8'.repeat(16);
-    const log = join(directory, `${runId}.rate-keys`);
-    process.env.TRYOUTFLOW_INTEGRATION_RUN_ID = runId;
-    process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG = log;
-    const guarded = await guardPublicJsonRequest(request('{"target":"fall-camp"}'), {
-      bucket: 'consume',
-      parse,
-    });
-    expect(guarded.ok).toBe(true);
-    if (guarded.ok) {
-      expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual([
-        `v2:${guarded.contextRateKey}`,
-        `v2:${guarded.rateKey}`,
-      ]);
-    }
-  });
-
   it('namespaces supervised rate keys by the unguessable integration run id', async () => {
-    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-rate-key-namespace-'));
-    chmodSync(directory, 0o700);
     const firstRunId = '8'.repeat(16);
     process.env.TRYOUTFLOW_INTEGRATION_RUN_ID = firstRunId;
-    process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG = join(directory, `${firstRunId}.rate-keys`);
     const first = await guardPublicJsonRequest(request('{"target":"fall-camp"}'), {
       bucket: 'consume',
       parse,
     });
     const secondRunId = '9'.repeat(16);
     process.env.TRYOUTFLOW_INTEGRATION_RUN_ID = secondRunId;
-    process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG = join(directory, `${secondRunId}.rate-keys`);
     const second = await guardPublicJsonRequest(request('{"target":"fall-camp"}'), {
       bucket: 'consume',
       parse,

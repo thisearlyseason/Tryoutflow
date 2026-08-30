@@ -10,7 +10,6 @@ export interface IntegrationManifestBody {
 export interface SupervisorStateStore {
   directory: string;
   manifestPath(runId: string): string;
-  rateKeyPath(runId: string): string;
   commandPath(runId: string): string;
   commandGoPath(runId: string): string;
   manifestBody(runId: string): IntegrationManifestBody;
@@ -30,7 +29,6 @@ export interface SupervisorStateStore {
     cleanupStage: string;
     path: string;
   }>;
-  readRateKeys(runId: string): string[];
   writeCommand(runId: string, command: { nonce: string }): void;
   bindCommand(
     runId: string,

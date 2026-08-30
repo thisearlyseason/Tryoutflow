@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 
 import { createSupervisorStateStore } from './integration-supervisor-state.mjs';
 
@@ -99,6 +100,12 @@ if (command) {
       } catch {}
     }
     while (groupExists()) await new Promise((resolve) => setTimeout(resolve, 20));
+    if (process.env.NODE_ENV === 'test' && process.env.TRYOUTFLOW_INTEGRATION_TEST_HOOK_FILE) {
+      appendFileSync(
+        process.env.TRYOUTFLOW_INTEGRATION_TEST_HOOK_FILE,
+        `${JSON.stringify({ phase: 'command-group-stopped', reaperPid: process.pid, runId })}\n`,
+      );
+    }
   }
   state.removeCommand(runId);
 }

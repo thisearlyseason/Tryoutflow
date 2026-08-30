@@ -1,16 +1,22 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { appendFileSync } from 'node:fs';
 
 import { createSupervisorStateStore } from './integration-supervisor-state.mjs';
 import { resolveAndValidateLocalDatabase } from './local-supabase-database.mjs';
 
-const [commandJson, ownerPidText, runId, expectedIdentity] = process.argv.slice(2);
+const [commandJson, ownerPidText, runId, expectedIdentity, mode] = process.argv.slice(2);
 const command = JSON.parse(commandJson ?? 'null');
+const recoveryOnly = mode === 'recovery-only';
 const ownerPid = Number.parseInt(ownerPidText ?? '', 10);
-if (!Array.isArray(command) || command.length === 0 || command.some((v) => typeof v !== 'string'))
+if (
+  !Array.isArray(command) ||
+  (!recoveryOnly && command.length === 0) ||
+  command.some((v) => typeof v !== 'string')
+)
   throw new Error('integration supervisor requires a non-empty string command array');
+if (mode !== undefined && !recoveryOnly) throw new Error('invalid integration supervisor mode');
 if (!Number.isSafeInteger(ownerPid) || ownerPid <= 1)
   throw new Error('integration supervisor requires its directly owning process ID');
 if (!/^[0-9a-f]{16}$/u.test(runId ?? ''))
@@ -23,8 +29,6 @@ let cancellationGeneration = 0;
 let supervisorState = 'validating-identity';
 let commandChild;
 let commandCompletion = Promise.resolve({ code: null, signal: null });
-let holder;
-let lockAcquired = false;
 let escalation;
 const cancellationWaiters = new Set();
 
@@ -44,7 +48,6 @@ function beginTermination(exitCode) {
   for (const waiter of cancellationWaiters) waiter();
   cancellationWaiters.clear();
   signalOwnedGroup('SIGTERM');
-  if (!lockAcquired && !commandChild) holder?.kill('SIGTERM');
   escalation = setTimeout(() => signalOwnedGroup('SIGKILL'), 1_000);
 }
 
@@ -108,14 +111,6 @@ async function supervise() {
   operationalDatabase.hash = '';
   const operationalDatabaseUrl = operationalDatabase.toString();
   const runPassword = randomUUID();
-  const lockKey = BigInt.asIntN(
-    64,
-    createHash('sha256')
-      .update(`tryoutflow-integration:${validated.identity}`)
-      .digest()
-      .readBigUInt64BE(0),
-  );
-
   const psql = (sql) =>
     execFileSync(
       'psql',
@@ -220,14 +215,6 @@ async function supervise() {
       end if; end $drop$; commit;`);
   }
 
-  function cleanupRateKeys(exactRunId) {
-    const keys = state.readRateKeys(exactRunId);
-    if (keys.length)
-      psql(
-        `delete from public.registration_rate_counters where key_hash in(${keys.map((k) => `'${k}'`).join(',')})`,
-      );
-  }
-
   function cleanupRun(exactRunId) {
     const manifest = state
       .readRecoverableManifests()
@@ -295,22 +282,7 @@ async function supervise() {
         state.advanceCleanup(exactRunId, 'roots-removed');
         cleanupStage = 'roots-removed';
       }
-      if (cleanupStage === 'roots-removed') {
-        failHook('rate-keys');
-        cleanupRateKeys(exactRunId);
-        const keys = state.readRateKeys(exactRunId);
-        if (
-          keys.length &&
-          psql(
-            `select count(*) from public.registration_rate_counters where key_hash in(${keys.map((key) => `'${key}'`).join(',')})`,
-          ) !== '0'
-        ) {
-          throw new Error('owned integration rate counters remain');
-        }
-        state.advanceCleanup(exactRunId, 'rate-keys-removed');
-        cleanupStage = 'rate-keys-removed';
-      }
-      if (cleanupStage === 'rate-keys-removed') {
+      if (cleanupStage === 'roots-removed' || cleanupStage === 'rate-keys-removed') {
         failHook('registry');
         cleanupRegistryAndRole(exactRunId);
         const exact = state.manifestBody(exactRunId);
@@ -362,42 +334,18 @@ async function supervise() {
         for each row execute function ${body.ownershipSchema}.capture_user(); commit;`);
   }
 
-  const marker = `lock-acquired-${randomUUID()}`;
   fence();
-  transition('waiting-lock', ['validating-identity']);
-  holder = spawn('psql', ['-X', '-qAt', operationalDatabaseUrl], {
-    env: { ...process.env, PGAPPNAME: `tryoutflow-integration-supervisor:${runId}` },
-    stdio: ['pipe', 'pipe', 'inherit'],
-  });
-  let holderOutput = '';
-  const holderClosed = new Promise((resolve) => holder.once('close', resolve));
-  const acquired = new Promise((resolve, reject) => {
-    holder.stdout.setEncoding('utf8').on('data', (chunk) => {
-      holderOutput += chunk;
-      if (holderOutput.includes(marker)) resolve();
-    });
-    holder.once('error', reject);
-    holder.once('close', (code) => {
-      if (!holderOutput.includes(marker))
-        reject(new Error(`integration lock session exited ${code}`));
-    });
-  });
-  holder.stdin.write(`select pg_advisory_lock(${lockKey}); select '${marker}';\n`);
-
   let childResult = { code: 1, signal: null };
   let executionError;
   try {
-    await phase('waiting-lock');
-    await acquired;
-    lockAcquired = true;
-    fence();
-    transition('post-lock', ['waiting-lock']);
+    transition('post-lock', ['validating-identity']);
     await phase('post-lock');
     fence();
     transition('recovering', ['post-lock']);
     recoverStaleManifests();
     await phase('recovery');
     fence();
+    if (recoveryOnly) return 0;
     transition('committing-manifest', ['recovering']);
     state.writeManifest(body);
     await phase('manifest-commit');
@@ -429,7 +377,6 @@ async function supervise() {
           PGAPPNAME: `tryoutflow-integration-run:${runId}`,
           SUPABASE_DB_URL: testDatabase.toString(),
           TRYOUTFLOW_INTEGRATION_RUN_ID: runId,
-          TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG: state.rateKeyPath(runId),
         },
         stdio: 'inherit',
         detached: true,
@@ -462,13 +409,11 @@ async function supervise() {
     if (escalation) clearTimeout(escalation);
     await phase('cleanup', { allowCancellation: true });
     state?.removeCommand(runId);
-    if (lockAcquired) {
+    if (!recoveryOnly) {
       const errors = cleanupRun(runId);
       if (errors.length)
         executionError ??= new AggregateError(errors, 'integration cleanup failed');
     }
-    if (holder && !holder.killed) holder.stdin.end('\\q\n');
-    await holderClosed;
     supervisorState = 'finished';
   }
   if (executionError && requestedExitCode === null) console.error(executionError);

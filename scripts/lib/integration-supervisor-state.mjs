@@ -168,7 +168,6 @@ export function createSupervisorStateStore(options) {
   ensurePrivateDirectory(directory);
 
   const manifestPath = (runId) => join(directory, `${runId}.json`);
-  const rateKeyPath = (runId) => join(directory, `${runId}.rate-keys`);
   const commandPath = (runId) => join(directory, `${runId}.command.json`);
   const commandGoPath = (runId) => join(directory, `${runId}.command.go`);
   const quarantine = (path) => {
@@ -182,7 +181,6 @@ export function createSupervisorStateStore(options) {
   return {
     directory,
     manifestPath,
-    rateKeyPath,
     commandPath,
     commandGoPath,
     manifestBody: (runId) => manifestBody(identity, runId),
@@ -209,7 +207,13 @@ export function createSupervisorStateStore(options) {
       const currentStage = parsed.cleanupStage ?? 'active';
       const currentIndex = cleanupStages.indexOf(currentStage);
       const nextIndex = cleanupStages.indexOf(cleanupStage);
-      if (currentIndex < 0 || nextIndex < currentIndex || nextIndex > currentIndex + 1) {
+      const skipsObsoleteRateStage =
+        currentStage === 'roots-removed' && cleanupStage === 'registry-removed';
+      if (
+        currentIndex < 0 ||
+        nextIndex < currentIndex ||
+        (nextIndex > currentIndex + 1 && !skipsObsoleteRateStage)
+      ) {
         throw new Error(`invalid cleanup stage transition ${currentStage} -> ${cleanupStage}`);
       }
       const currentAuthentication =
@@ -274,27 +278,6 @@ export function createSupervisorStateStore(options) {
         }
       }
       return manifests;
-    },
-    readRateKeys(runId) {
-      const path = rateKeyPath(runId);
-      if (!existsSync(path)) return [];
-      const stat = lstatSync(path);
-      if (
-        stat.isSymbolicLink() ||
-        !stat.isFile() ||
-        (stat.mode & 0o077) !== 0 ||
-        stat.size > 1024 * 1024
-      ) {
-        throw new Error('unsafe integration rate-key ownership log');
-      }
-      const lines = readFileSync(path, 'utf8').split('\n').filter(Boolean);
-      if (lines.length > 0 && lines.every((line) => /^[0-9a-f]{64}$/u.test(line))) {
-        throw new Error('ambiguous legacy integration rate-key ownership log');
-      }
-      if (lines.some((line) => !/^v2:[0-9a-f]{64}$/u.test(line))) {
-        throw new Error('corrupt integration rate-key ownership log');
-      }
-      return [...new Set(lines.map((line) => line.slice(3)))];
     },
     writeCommand(runId, command) {
       const body = manifestBody(identity, runId);
@@ -363,7 +346,6 @@ export function createSupervisorStateStore(options) {
     },
     removeRunState(runId) {
       rmSync(manifestPath(runId), { force: true });
-      rmSync(rateKeyPath(runId), { force: true });
       rmSync(commandPath(runId), { force: true });
       rmSync(commandGoPath(runId), { force: true });
       const descriptor = openSync(directory, constants.O_RDONLY | constants.O_DIRECTORY);
