@@ -421,6 +421,18 @@ export const syncJobItemResultSchema = z
   })
   .superRefine(validateSyncItem);
 
+export const terminalEntityMappingProofSchema = z
+  .strictObject({
+    entityType: z.enum(['team', 'roster_version']),
+    internalEntityId: z.uuid(),
+    externalRef: externalEntityRefSchema,
+  })
+  .superRefine((value, context) => {
+    if (value.externalRef.entityType !== value.entityType) {
+      context.addIssue({ code: 'custom', message: 'mapping proof types must match' });
+    }
+  });
+
 function derivedJobState(items: readonly { state: z.infer<typeof syncItemStateSchema> }[]) {
   const completed = items.filter((item) => ['completed', 'skipped'].includes(item.state)).length;
   const failed = items.filter((item) => ['failed', 'requires_review'].includes(item.state)).length;
@@ -436,6 +448,7 @@ export const syncJobResultSchema = z
     externalJobId: externalIdSchema,
     state: z.enum(['completed', 'partially_completed', 'failed']),
     items: z.array(syncJobItemResultSchema).max(5_100),
+    entityMappings: z.array(terminalEntityMappingProofSchema).max(51).optional(),
     mockData: z.boolean(),
   })
   .superRefine((value, context) => {
@@ -467,6 +480,7 @@ export const providerSyncStatusSchema = z
     externalJobId: externalIdSchema,
     state: z.enum(['pending', 'processing', 'completed', 'partially_completed', 'failed']),
     items: z.array(providerSyncJobItemStatusSchema).max(5_100),
+    entityMappings: z.array(terminalEntityMappingProofSchema).max(51).optional(),
     mockData: z.boolean(),
   })
   .superRefine((value, context) => {

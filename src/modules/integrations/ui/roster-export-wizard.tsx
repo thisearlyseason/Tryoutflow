@@ -16,7 +16,28 @@ const fieldOptions = [
 
 type Field = (typeof fieldOptions)[number][0];
 type PreviewResult = ({ outcome: 'previewed' } & RosterExportPreview) | { outcome: string };
-type ConfirmResult = { outcome: string; jobId?: string };
+type JobView = Readonly<{
+  id: string;
+  state:
+    | 'pending'
+    | 'processing'
+    | 'completed'
+    | 'partially_completed'
+    | 'failed'
+    | 'needs_attention'
+    | 'cancelled';
+  completedCount: number;
+  skippedCount: number;
+  failedCount: number;
+}>;
+type ConfirmResult = {
+  outcome: string;
+  jobId?: string;
+  state?: string;
+  completedCount?: number;
+  skippedCount?: number;
+  failedCount?: number;
+};
 type RetryResult = { outcome: string; jobId?: string };
 
 type RosterExportWizardProps = Readonly<{
@@ -28,13 +49,8 @@ type RosterExportWizardProps = Readonly<{
   }): Promise<PreviewResult>;
   onConfirm(input: { previewId: string; confirmationToken: string }): Promise<ConfirmResult>;
   onRetry(jobId: string): Promise<RetryResult>;
-  initialJob?: Readonly<{
-    id: string;
-    state:
-      'pending' | 'processing' | 'completed' | 'partially_completed' | 'failed' | 'needs_attention';
-    completedCount: number;
-    failedCount: number;
-  }>;
+  initialJob?: JobView;
+  availabilityMessage?: string;
 }>;
 
 export function RosterExportWizard({
@@ -44,12 +60,13 @@ export function RosterExportWizard({
   onConfirm,
   onRetry,
   initialJob,
+  availabilityMessage,
 }: RosterExportWizardProps) {
   const [destinationId, setDestinationId] = useState('');
   const [approvedFields, setApprovedFields] = useState<Field[]>([]);
   const [preview, setPreview] = useState<RosterExportPreview | null>(null);
   const [reviewed, setReviewed] = useState(false);
-  const [jobId, setJobId] = useState(initialJob?.id ?? null);
+  const [job, setJob] = useState<JobView | null>(initialJob ?? null);
   const [message, setMessage] = useState('');
   const [pending, setPending] = useState(false);
 
@@ -66,46 +83,73 @@ export function RosterExportWizard({
     if (!destination || approvedFields.length === 0) return;
     setPending(true);
     setMessage('');
-    const result = await onPreview({ destination, approvedFields });
-    setPending(false);
-    if (result.outcome === 'previewed' && 'previewId' in result) {
-      const { outcome: _outcome, ...nextPreview } = result;
-      setPreview(nextPreview);
-      setReviewed(false);
-      setMessage('Preview ready. Review the exact destination and approved fields.');
-    } else {
+    try {
+      const result = await onPreview({ destination, approvedFields });
+      if (result.outcome === 'previewed' && 'previewId' in result) {
+        const { outcome: _outcome, ...nextPreview } = result;
+        setPreview(nextPreview);
+        setReviewed(false);
+        setMessage('Preview ready. Review the exact destination and approved fields.');
+        return;
+      }
       setMessage('Preview could not be created. Refresh and review the connection and roster.');
+    } catch {
+      setMessage('Preview could not be created. Refresh and review the connection and roster.');
+    } finally {
+      setPending(false);
     }
   };
 
   const confirm = async () => {
     if (!preview || !reviewed) return;
     setPending(true);
-    const result = await onConfirm({
-      previewId: preview.previewId,
-      confirmationToken: preview.confirmationToken,
-    });
-    setPending(false);
-    if ((result.outcome === 'queued' || result.outcome === 'replayed') && result.jobId) {
-      setJobId(result.jobId);
-      setMessage('Export queued. The result history remains available if this page is refreshed.');
-    } else {
+    try {
+      const result = await onConfirm({
+        previewId: preview.previewId,
+        confirmationToken: preview.confirmationToken,
+      });
+      if (['queued', 'replayed', 'completed'].includes(result.outcome) && result.jobId) {
+        setJob({
+          id: result.jobId,
+          state: result.state === 'completed' ? 'completed' : 'pending',
+          completedCount: result.completedCount ?? 0,
+          skippedCount: result.skippedCount ?? 0,
+          failedCount: result.failedCount ?? 0,
+        });
+        setMessage(
+          result.outcome === 'completed'
+            ? 'Export completed with no transfer because the finalized roster is empty.'
+            : 'Export queued. The result history remains available if this page is refreshed.',
+        );
+        return;
+      }
       setMessage('Confirmation was stale or conflicted. Create and review a new preview.');
       setPreview(null);
       setReviewed(false);
+    } catch {
+      setMessage('Confirmation could not be completed. Refresh and create a new preview.');
+    } finally {
+      setPending(false);
     }
   };
 
   const retry = async () => {
-    if (!jobId) return;
+    if (!job) return;
     setPending(true);
-    const result = await onRetry(jobId);
-    setPending(false);
-    setMessage(
-      result.outcome === 'queued' || result.outcome === 'replayed'
-        ? 'Retry queued for failed or reviewable items only. Completed items were preserved.'
-        : 'No retryable items were changed.',
-    );
+    try {
+      const result = await onRetry(job.id);
+      setMessage(
+        result.outcome === 'manual_attention_required'
+          ? 'Delivery is uncertain. Manual attention is required; retry is disabled.'
+          : result.outcome === 'queued' || result.outcome === 'replayed'
+            ? 'Retry queued for failed or reviewable items only. Completed items were preserved.'
+            : 'No retryable items were changed.',
+      );
+    } catch {
+      setMessage('Retry could not be queued. Refresh the durable job status and try again.');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -124,6 +168,11 @@ export function RosterExportWizard({
       </header>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        {availabilityMessage ? (
+          <p className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3 font-semibold text-amber-950">
+            {availabilityMessage}
+          </p>
+        ) : null}
         <label htmlFor="external-destination" className="block font-bold text-slate-950">
           External destination
         </label>
@@ -195,6 +244,19 @@ export function RosterExportWizard({
               <li key={item.itemKey} className="rounded-xl bg-white px-4 py-3">
                 <span className="font-bold">{item.displayLabel}</span>{' '}
                 <span className="text-sm text-slate-600">· {item.operation}</span>
+                <dl className="mt-2 grid gap-1 text-sm text-slate-700">
+                  {Object.entries(item.fields).map(([field, value]) => (
+                    <div key={field}>
+                      <dt className="inline font-semibold">
+                        {field
+                          .replace(/([A-Z])/gu, ' $1')
+                          .replace(/^./u, (letter) => letter.toUpperCase())}
+                        :{' '}
+                      </dt>
+                      <dd className="inline">{String(value)}</dd>
+                    </div>
+                  ))}
+                </dl>
               </li>
             ))}
           </ul>
@@ -218,7 +280,7 @@ export function RosterExportWizard({
         </section>
       ) : null}
 
-      {initialJob ? (
+      {job ? (
         <section
           aria-labelledby="job-heading"
           className="rounded-3xl border border-slate-200 bg-white p-6"
@@ -227,17 +289,22 @@ export function RosterExportWizard({
             Latest durable job
           </h2>
           <p className="mt-2" role="status">
-            {initialJob.completedCount} completed · {initialJob.failedCount} failed/reviewable ·{' '}
-            {initialJob.state.replaceAll('_', ' ')}
+            {job.completedCount} completed · {job.skippedCount} skipped · {job.failedCount}{' '}
+            failed/reviewable · {job.state.replaceAll('_', ' ')}
           </p>
-          {initialJob.failedCount > 0 ? (
+          {job.state === 'needs_attention' ? (
+            <p className="mt-3 font-semibold text-amber-900">
+              Delivery is uncertain. Manual attention is required; retry is disabled to prevent a
+              duplicate external transfer.
+            </p>
+          ) : job.failedCount > 0 ? (
             <button
               type="button"
               disabled={pending}
               onClick={retry}
               className="mt-4 min-h-11 rounded-xl border-2 border-coral-600 px-5 py-3 font-bold text-coral-800"
             >
-              Retry {initialJob.failedCount} failed item{initialJob.failedCount === 1 ? '' : 's'}
+              Retry {job.failedCount} failed item{job.failedCount === 1 ? '' : 's'}
             </button>
           ) : null}
         </section>

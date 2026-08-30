@@ -16,6 +16,7 @@ export type RetrySyncJobResult =
       jobId: string;
       retriedItemCount: number;
       preservedCompletedItemCount: number;
+      preservedSkippedItemCount: number;
     }
   | {
       outcome:
@@ -23,6 +24,7 @@ export type RetrySyncJobResult =
         | 'forbidden'
         | 'not_found'
         | 'nothing_to_retry'
+        | 'manual_attention_required'
         | 'conflict'
         | 'unavailable';
     };

@@ -95,6 +95,7 @@ describe('durable mock roster export', () => {
   it('deduplicates confirmation and mappings, preserves completed items, and retries only failed items', async () => {
     const ids = {
       owner: randomUUID(),
+      backupOwner: randomUUID(),
       organization: randomUUID(),
       tryout: randomUUID(),
       division: randomUUID(),
@@ -102,15 +103,19 @@ describe('durable mock roster export', () => {
       formVersion: randomUUID(),
       athleteA: randomUUID(),
       athleteB: randomUUID(),
+      guardianA: randomUUID(),
       registrationA: '20000000-0000-4000-8000-000000000001',
       registrationB: '20000000-0000-4000-8000-000000000002',
       team: randomUUID(),
       roster: randomUUID(),
     };
     await psql(`
-      insert into auth.users(id,email) values('${ids.owner}','task27-owner@example.test');
+      insert into auth.users(id,email) values
+        ('${ids.owner}','task27-owner@example.test'),
+        ('${ids.backupOwner}','task27-backup-owner@example.test');
       insert into public.organizations(id,name,slug) values('${ids.organization}','Task 27 Club','task27-${ids.organization.slice(0, 8)}');
       insert into public.organization_members(organization_id,user_id,role,status) values('${ids.organization}','${ids.owner}','owner','active');
+      insert into public.organization_members(organization_id,user_id,role,status) values('${ids.organization}','${ids.backupOwner}','owner','active');
       insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('${ids.tryout}','${ids.organization}','Task 27 Tryout','task27-${ids.tryout.slice(0, 8)}','Hockey','America/Edmonton');
       insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values('${ids.division}','${ids.organization}','${ids.tryout}','U18',0);
       insert into public.registration_forms(id,organization_id,tryout_id,name) values('${ids.form}','${ids.organization}','${ids.tryout}','Form');
@@ -119,6 +124,10 @@ describe('durable mock roster export', () => {
       insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date) values
         ('${ids.athleteA}','${ids.organization}','Synthetic','Athlete One','synthetic','athlete one','2010-01-01'),
         ('${ids.athleteB}','${ids.organization}','Synthetic','Athlete Two','synthetic','athlete two','2010-01-02');
+      insert into public.guardians(id,organization_id,name,email,normalized_email,phone)
+        values('${ids.guardianA}','${ids.organization}','Private Guardian','withheld-guardian@example.test','withheld-guardian@example.test','+1 403 555 0199');
+      insert into public.athlete_guardians(organization_id,athlete_id,guardian_id,is_primary_contact)
+        values('${ids.organization}','${ids.athleteA}','${ids.guardianA}',true);
       insert into public.tryout_registrations(id,organization_id,tryout_id,athlete_id,division_id,registration_form_version_id,responses,submission_key_digest,submission_digest) values
         ('${ids.registrationA}','${ids.organization}','${ids.tryout}','${ids.athleteA}','${ids.division}','${ids.formVersion}','{}',repeat('a',64),repeat('1',64)),
         ('${ids.registrationB}','${ids.organization}','${ids.tryout}','${ids.athleteB}','${ids.division}','${ids.formVersion}','{}',repeat('b',64),repeat('2',64));
@@ -164,17 +173,6 @@ describe('durable mock roster export', () => {
       ),
     ).toBe('connected');
 
-    const contextRow = JSON.parse(
-      lastLine(
-        (
-          await asActor(
-            ids.owner,
-            `select row_to_json(context) from public.load_roster_export_context('${ids.organization}','${connected.connectionId}','${ids.roster}') context`,
-          )
-        ).stdout,
-      ),
-    ) as { roster: Json };
-    const roster = finalizedRosterSnapshotSchema.parse(contextRow.roster);
     const destination = (
       await provider.listDestinations(
         {
@@ -196,6 +194,24 @@ describe('durable mock roster export', () => {
       )
     )[0]!;
     const approvedFields = ['first_name', 'last_name', 'team_name'] as const;
+    const source = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(approvedFields)}) result`,
+          )
+        ).stdout,
+      ),
+    ) as { outcome: string; source_id: string; source_digest: string; roster: Json };
+    expect(source.outcome).toBe('ok');
+    const roster = finalizedRosterSnapshotSchema.parse(source.roster);
+    await expect(
+      asActor(
+        ids.owner,
+        `select roster_snapshot from public.integration_export_previews where id='${source.source_id}'`,
+      ),
+    ).rejects.toThrow(/permission denied/iu);
     const providerContext = {
       organizationId: ids.organization,
       actorId: ids.owner,
@@ -210,32 +226,55 @@ describe('durable mock roster export', () => {
         roster,
       }),
     );
-    const payloadDigest = preview.snapshotDigest;
+    await psql(
+      `update public.athletes set given_name='Changed after immutable source' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
     expect(
       lastLine(
         (
           await asActor(
             ids.owner,
-            `select public.save_roster_export_preview('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(approvedFields)},'${preview.previewId}','${preview.confirmationToken}','${preview.snapshotDigest}',${jsonSql(preview)},'${payloadDigest}')`,
+            `select public.save_roster_export_preview_v2('${ids.organization}','${source.source_id}','${source.source_digest}','${preview.previewId}','${preview.confirmationToken}',${jsonSql(preview)})`,
           )
         ).stdout,
       ),
     ).toBe('created');
 
-    const confirmationSql = `select row_to_json(result) from public.confirm_roster_export_preview('${ids.organization}','${preview.previewId}','${preview.confirmationToken}','export:task27:0000001') result`;
-    const first = JSON.parse(lastLine((await asActor(ids.owner, confirmationSql)).stdout)) as {
+    const confirmationSql = `select row_to_json(result) from public.confirm_roster_export_preview_v2('${ids.organization}','${preview.previewId}','${preview.confirmationToken}','export:task27:0000001') result`;
+    const [firstOutput, secondOutput] = await Promise.all([
+      asActor(ids.owner, confirmationSql),
+      asActor(ids.owner, confirmationSql),
+    ]);
+    const confirmations = [firstOutput, secondOutput].map((output) =>
+      JSON.parse(lastLine(output.stdout)),
+    ) as Array<{
       outcome: string;
       job_id: string;
-    };
-    const second = JSON.parse(lastLine((await asActor(ids.owner, confirmationSql)).stdout)) as {
-      outcome: string;
-      job_id: string;
-    };
+    }>;
+    const first = confirmations.find((result) => result.outcome === 'queued')!;
+    const second = confirmations.find((result) => result.outcome === 'replayed')!;
     expect(first.outcome).toBe('queued');
-    expect(second).toEqual({ outcome: 'replayed', job_id: first.job_id });
+    expect(second).toMatchObject({ outcome: 'replayed', job_id: first.job_id });
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select (roster_snapshot is null and provider_confirmation_token is null and approved_projection::text like '%Synthetic%' and approved_projection::text not like '%Changed after%' and approved_projection::text not like '%withheld-guardian%' and approved_projection::text not like '%@%') from public.integration_sync_jobs where id='${first.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('t');
 
     let completionFailure = '';
     const gateway: IntegrationDispatchGateway = {
+      validateExecution: async (input) =>
+        lastLine(
+          (
+            await asService(
+              `select public.validate_integration_outbox_execution('${input.outboxJobId}','${input.leaseToken}',${input.leaseGeneration})`,
+            )
+          ).stdout,
+        ) as Awaited<ReturnType<IntegrationDispatchGateway['validateExecution']>>,
       authorize: async (input) =>
         lastLine(
           (
@@ -293,6 +332,52 @@ describe('durable mock roster export', () => {
         confirmedRequest: confirmedRosterExportSchema.parse(row.confirmed_request),
       };
     };
+    const queueExport = async (businessKey: string, previewKey: string) => {
+      const issued = JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(approvedFields)}) result`,
+            )
+          ).stdout,
+        ),
+      ) as { source_id: string; source_digest: string; roster: Json };
+      const nextPreview = rosterExportPreviewSchema.parse(
+        await provider.previewRosterExport(
+          {
+            ...providerContext,
+            correlationId: `correlation:${previewKey}`,
+            idempotencyKey: previewKey,
+          },
+          {
+            destination,
+            approvedFields: [...approvedFields],
+            roster: finalizedRosterSnapshotSchema.parse(issued.roster),
+          },
+        ),
+      );
+      expect(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select public.save_roster_export_preview_v2('${ids.organization}','${issued.source_id}','${issued.source_digest}','${nextPreview.previewId}','${nextPreview.confirmationToken}',${jsonSql(nextPreview)})`,
+            )
+          ).stdout,
+        ),
+      ).toBe('created');
+      return JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select row_to_json(result) from public.confirm_roster_export_preview_v2('${ids.organization}','${nextPreview.previewId}','${nextPreview.confirmationToken}','${businessKey}') result`,
+            )
+          ).stdout,
+        ),
+      ) as { outcome: string; job_id: string };
+    };
 
     expect(
       await dispatchIntegrationJob(await claim(), { providers: { get: () => provider }, gateway }),
@@ -312,27 +397,34 @@ describe('durable mock roster export', () => {
           )
         ).stdout,
       ),
-    ).toBe('1');
+    ).toBe('3');
 
-    const retry = JSON.parse(
-      lastLine(
-        (
-          await asActor(
-            ids.owner,
-            `select row_to_json(result) from public.retry_integration_sync_job('${ids.organization}','${first.job_id}','retry:task27:00000001') result`,
-          )
-        ).stdout,
-      ),
-    ) as { outcome: string; retried_item_count: number; preserved_completed_item_count: number };
+    const retrySql = `select row_to_json(result) from public.retry_integration_sync_job_v2('${ids.organization}','${first.job_id}','retry:task27:00000001') result`;
+    const retryResults = (
+      await Promise.all([asActor(ids.owner, retrySql), asActor(ids.owner, retrySql)])
+    ).map((output) => JSON.parse(lastLine(output.stdout))) as Array<{
+      outcome: string;
+      retried_item_count: number;
+      preserved_completed_item_count: number;
+    }>;
+    const retry = retryResults.find((result) => result.outcome === 'queued')!;
     expect(retry).toMatchObject({
       outcome: 'queued',
       retried_item_count: 1,
       preserved_completed_item_count: 1,
     });
+    expect(retryResults.find((result) => result.outcome === 'replayed')).toMatchObject({
+      retried_item_count: 1,
+      preserved_completed_item_count: 1,
+    });
     const retryClaim = await claim();
     expect(retryClaim.itemKeys).toEqual([`athlete:${ids.registrationB}`]);
+    const freshProvider = new MockTheSquadProvider({ fixture: 'partial-failure' });
     expect(
-      await dispatchIntegrationJob(retryClaim, { providers: { get: () => provider }, gateway }),
+      await dispatchIntegrationJob(retryClaim, {
+        providers: { get: () => freshProvider },
+        gateway,
+      }),
     ).toBe('completed');
     expect(
       lastLine(
@@ -348,7 +440,7 @@ describe('durable mock roster export', () => {
           )
         ).stdout,
       ),
-    ).toBe('2');
+    ).toBe('4');
     expect(
       lastLine(
         (
@@ -377,17 +469,17 @@ describe('durable mock roster export', () => {
         '${ids.owner}',clock_timestamp(),'${ids.owner}'
       );
     `);
-    const emptyContextRow = JSON.parse(
+    const emptySource = JSON.parse(
       lastLine(
         (
           await asActor(
             ids.owner,
-            `select row_to_json(context) from public.load_roster_export_context('${ids.organization}','${connected.connectionId}','${emptyRoster}') context`,
+            `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${emptyRoster}',${jsonSql(destination)},${textArraySql(approvedFields)}) result`,
           )
         ).stdout,
       ),
-    ) as { roster: Json };
-    const emptySnapshot = finalizedRosterSnapshotSchema.parse(emptyContextRow.roster);
+    ) as { outcome: string; source_id: string; source_digest: string; roster: Json };
+    const emptySnapshot = finalizedRosterSnapshotSchema.parse(emptySource.roster);
     const emptyProviderContext = {
       ...providerContext,
       correlationId: 'correlation:task27:empty-preview',
@@ -406,7 +498,7 @@ describe('durable mock roster export', () => {
         (
           await asActor(
             ids.owner,
-            `select public.save_roster_export_preview('${ids.organization}','${connected.connectionId}','${emptyRoster}',${jsonSql(destination)},${textArraySql(approvedFields)},'${emptyPreview.previewId}','${emptyPreview.confirmationToken}','${emptyPreview.snapshotDigest}',${jsonSql(emptyPreview)},'${emptyPreview.snapshotDigest}')`,
+            `select public.save_roster_export_preview_v2('${ids.organization}','${emptySource.source_id}','${emptySource.source_digest}','${emptyPreview.previewId}','${emptyPreview.confirmationToken}',${jsonSql(emptyPreview)})`,
           )
         ).stdout,
       ),
@@ -416,12 +508,12 @@ describe('durable mock roster export', () => {
         (
           await asActor(
             ids.owner,
-            `select row_to_json(result) from public.confirm_roster_export_preview('${ids.organization}','${emptyPreview.previewId}','${emptyPreview.confirmationToken}','export:task27:empty:0001') result`,
+            `select row_to_json(result) from public.confirm_roster_export_preview_v2('${ids.organization}','${emptyPreview.previewId}','${emptyPreview.confirmationToken}','export:task27:empty:0001') result`,
           )
         ).stdout,
       ),
     ) as { outcome: string; job_id: string | null };
-    expect(emptyConfirmation.outcome).toBe('queued');
+    expect(emptyConfirmation.outcome).toBe('completed');
     expect(emptyConfirmation.job_id).not.toBeNull();
     expect(
       lastLine(
@@ -441,5 +533,130 @@ describe('durable mock roster export', () => {
         ).stdout,
       ),
     ).toBe('0');
+
+    const uncertain = await queueExport(
+      'export:task27:uncertain:0001',
+      'preview:task27:uncertain:0001',
+    );
+    const uncertainClaim = await claim();
+    const originalExport = provider.exportFinalizedRoster.bind(provider);
+    let uncertainProviderCalls = 0;
+    provider.exportFinalizedRoster = async (context, request) => {
+      uncertainProviderCalls += 1;
+      const result = await originalExport(context, request);
+      await psql(
+        `update public.integration_connections set state='disconnected',disconnected_at=clock_timestamp() where organization_id='${ids.organization}' and id='${connected.connectionId}'`,
+      );
+      return result;
+    };
+    expect(
+      await dispatchIntegrationJob(uncertainClaim, { providers: { get: () => provider }, gateway }),
+    ).toBe('needs_attention');
+    expect(uncertainProviderCalls).toBe(1);
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select state from public.integration_sync_jobs where id='${uncertain.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('needs_attention');
+    const unsafeRetry = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.retry_integration_sync_job_v2('${ids.organization}','${uncertain.job_id}','retry:task27:uncertain:01') result`,
+          )
+        ).stdout,
+      ),
+    ) as { outcome: string };
+    expect(unsafeRetry.outcome).toBe('manual_attention_required');
+
+    provider.exportFinalizedRoster = originalExport;
+    await psql(
+      `update public.integration_connections set state='connected',disconnected_at=null where organization_id='${ids.organization}' and id='${connected.connectionId}'; update public.athletes set given_name='Changed before revoked source' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+
+    const prepareRacingPreview = async (racingFields: readonly ('first_name' | 'last_name')[]) => {
+      const issued = JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(racingFields)}) result`,
+            )
+          ).stdout,
+        ),
+      ) as { source_id: string; source_digest: string; roster: Json };
+      const racingPreview = rosterExportPreviewSchema.parse(
+        await provider.previewRosterExport(providerContext, {
+          destination,
+          approvedFields: [...racingFields],
+          roster: finalizedRosterSnapshotSchema.parse(issued.roster),
+        }),
+      );
+      expect(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select public.save_roster_export_preview_v2('${ids.organization}','${issued.source_id}','${issued.source_digest}','${racingPreview.previewId}','${racingPreview.confirmationToken}',${jsonSql(racingPreview)})`,
+            )
+          ).stdout,
+        ),
+      ).toBe('created');
+      return racingPreview;
+    };
+    const [racingPreviewA, racingPreviewB] = await Promise.all([
+      prepareRacingPreview(['first_name']),
+      prepareRacingPreview(['last_name']),
+    ]);
+    const racingKey = 'export:task27:business-race:01';
+    const racingResults = await Promise.all(
+      [racingPreviewA, racingPreviewB].map((candidate) =>
+        asActor(
+          ids.owner,
+          `select row_to_json(result) from public.confirm_roster_export_preview_v2('${ids.organization}','${candidate.previewId}','${candidate.confirmationToken}','${racingKey}') result`,
+        ),
+      ),
+    );
+    const racingOutcomes = racingResults.map(
+      (output) => (JSON.parse(lastLine(output.stdout)) as { outcome: string }).outcome,
+    );
+    expect(racingOutcomes.sort()).toEqual(['conflict', 'queued']);
+    expect(
+      await dispatchIntegrationJob(await claim(), { providers: { get: () => provider }, gateway }),
+    ).toBe('completed');
+
+    const revoked = await queueExport(
+      'export:task27:revoked:000001',
+      'preview:task27:revoked:000001',
+    );
+    const revokedClaim = await claim();
+    await psql(
+      `update public.organization_members set status='disabled' where organization_id='${ids.organization}' and user_id='${ids.owner}'`,
+    );
+    const revokedProvider = new MockTheSquadProvider({ fixture: 'success' });
+    const revokedOriginal = revokedProvider.exportFinalizedRoster.bind(revokedProvider);
+    let revokedProviderCalls = 0;
+    revokedProvider.exportFinalizedRoster = async (context, request) => {
+      revokedProviderCalls += 1;
+      return revokedOriginal(context, request);
+    };
+    expect(
+      await dispatchIntegrationJob(revokedClaim, {
+        providers: { get: () => revokedProvider },
+        gateway,
+      }),
+    ).toBe('cancelled');
+    expect(revokedProviderCalls).toBe(0);
+    expect(
+      lastLine(
+        (await psql(`select state from public.integration_sync_jobs where id='${revoked.job_id}'`))
+          .stdout,
+      ),
+    ).toBe('cancelled');
   });
 });

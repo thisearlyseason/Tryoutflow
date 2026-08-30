@@ -15,11 +15,14 @@ test('reviews an explicit demo destination and fields, confirms, and retries fai
   await page.getByRole('button', { name: 'Preview export' }).click();
   await expect(page.getByRole('heading', { name: 'Review 2 athletes' })).toBeVisible();
   await expect(page.getByText(/only the approved fields/i)).toBeVisible();
+  await expect(page.getByText('Synthetic', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('Athlete One', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Retry 1 failed item' }).click();
+  await expect(page.getByText(/completed items were preserved/i)).toBeVisible();
   await page.getByLabel('I reviewed the exact destination and fields').check();
   await page.getByRole('button', { name: 'Confirm and queue export' }).click();
   await expect(page.getByText(/export queued/i)).toBeVisible();
-  await page.getByRole('button', { name: 'Retry 1 failed item' }).click();
-  await expect(page.getByText(/completed items were preserved/i)).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('pending');
 });
 
 test('has no critical accessibility violations or narrow-screen overflow', async ({ page }) => {

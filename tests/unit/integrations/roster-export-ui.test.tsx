@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { IntegrationCard } from '../../../src/modules/integrations/ui/integration-card';
 import { RosterExportWizard } from '../../../src/modules/integrations/ui/roster-export-wizard';
+import { RosterExportLink } from '../../../src/modules/integrations/ui/roster-export-link';
 
 const destination = {
   organization: {
@@ -39,11 +40,32 @@ const destination = {
 };
 
 describe('integration export UI', () => {
+  it('provides a discoverable export link for an authorized finalized roster', () => {
+    render(
+      <RosterExportLink
+        href="/app/badlands/tryouts/100/rosters/200/export"
+        rosterState="finalized"
+        authorized
+      />,
+    );
+    expect(screen.getByRole('link', { name: /export finalized roster/i })).toBeVisible();
+  });
   it('labels The Squad as disabled demo/mock and never implies a live connection', () => {
     render(<IntegrationCard enabled={false} providerName="The Squad (demo/mock)" />);
     expect(screen.getAllByText(/demo\/mock/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/disabled by default/i)).toBeVisible();
     expect(screen.queryByText(/live transfer/i)).not.toBeInTheDocument();
+  });
+
+  it('renders explicit connection failures instead of swallowing them', () => {
+    render(
+      <IntegrationCard
+        enabled
+        providerName="The Squad (demo/mock)"
+        notice="The demo connection could not be completed. Try again."
+      />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not be completed/i);
   });
 
   it('requires destination and approved-field review before exact confirmation, then exposes retry', async () => {
@@ -92,6 +114,7 @@ describe('integration export UI', () => {
           id: '10000000-0000-4000-8000-000000000001',
           state: 'partially_completed',
           completedCount: 1,
+          skippedCount: 0,
           failedCount: 1,
         }}
       />,
@@ -107,12 +130,78 @@ describe('integration export UI', () => {
     await user.click(screen.getByRole('button', { name: /preview export/i }));
     expect(await screen.findByRole('heading', { name: /review 2 athletes/i })).toBeVisible();
     expect(screen.getByText(/only the approved fields/i)).toBeVisible();
+    expect(screen.getAllByText('Synthetic', { selector: 'dd' })).toHaveLength(2);
+    expect(screen.getByText('One', { selector: 'dd' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
+    expect(retry).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001');
     await user.click(screen.getByLabelText(/i reviewed the exact destination and fields/i));
     await user.click(screen.getByRole('button', { name: /confirm and queue export/i }));
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({ previewId: 'preview:task27:00000001' }),
     );
-    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
-    expect(retry).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001');
+    expect(screen.getByRole('status')).toHaveTextContent(/pending/i);
+  });
+
+  it('shows a newly confirmed empty export as completed with no transfer', async () => {
+    const user = userEvent.setup();
+    render(
+      <RosterExportWizard
+        rosterVersionId="10000000-0000-4000-8000-000000000002"
+        destinations={[destination]}
+        onPreview={async () => ({
+          outcome: 'previewed',
+          previewId: 'preview:task27:empty:0001',
+          confirmationToken: 'confirmation:task27:empty:0001',
+          snapshotDigest: 'a'.repeat(64),
+          totalItems: 0,
+          mockData: true,
+          items: [],
+        })}
+        onConfirm={async () => ({
+          outcome: 'completed',
+          jobId: '10000000-0000-4000-8000-000000000001',
+          state: 'completed',
+          completedCount: 0,
+          skippedCount: 0,
+          failedCount: 0,
+        })}
+        onRetry={async () => ({ outcome: 'nothing_to_retry' })}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByLabelText(/external destination/i),
+      destination.team.externalId,
+    );
+    await user.click(screen.getByLabelText('First name'));
+    await user.click(screen.getByRole('button', { name: /preview export/i }));
+    await user.click(screen.getByLabelText(/i reviewed the exact destination and fields/i));
+    await user.click(screen.getByRole('button', { name: /confirm and queue export/i }));
+    expect(await screen.findByText(/completed with no transfer/i)).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /0 completed · 0 skipped · 0 failed\/reviewable · completed/i,
+    );
+  });
+
+  it('renders an explicit preview error when the server action is unavailable', async () => {
+    const user = userEvent.setup();
+    render(
+      <RosterExportWizard
+        rosterVersionId="10000000-0000-4000-8000-000000000002"
+        destinations={[destination]}
+        onPreview={async () => {
+          throw new Error('private provider failure');
+        }}
+        onConfirm={async () => ({ outcome: 'conflict' })}
+        onRetry={async () => ({ outcome: 'nothing_to_retry' })}
+      />,
+    );
+    await user.selectOptions(
+      screen.getByLabelText(/external destination/i),
+      destination.team.externalId,
+    );
+    await user.click(screen.getByLabelText('First name'));
+    await user.click(screen.getByRole('button', { name: /preview export/i }));
+    expect(await screen.findByText(/preview could not be created/i)).toBeVisible();
+    expect(screen.queryByText(/private provider failure/i)).not.toBeInTheDocument();
   });
 });

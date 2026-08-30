@@ -13,7 +13,15 @@ const startRosterExportInputSchema = z.strictObject({
 
 export type StartRosterExportInput = z.input<typeof startRosterExportInputSchema>;
 export type StartRosterExportResult =
-  | { outcome: 'queued' | 'replayed'; jobId: string }
+  | {
+      outcome: 'queued' | 'replayed' | 'completed';
+      jobId: string;
+      state: string;
+      itemCount: number;
+      completedCount: number;
+      skippedCount: number;
+      failedCount: number;
+    }
   | {
       outcome:
         | 'invalid_input'

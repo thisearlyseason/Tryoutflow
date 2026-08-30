@@ -139,14 +139,22 @@ select ok(not has_table_privilege('authenticated','public.integration_outbox_job
 set local role authenticated;
 select set_config('request.jwt.claim.sub','59000000-0000-4000-8000-000000000001',true);
 select is((select count(*) from public.integration_connections),1::bigint,'tenant owner can read its integration connection');
-select is((select count(*) from public.integration_export_previews),1::bigint,'preview creator can read its exact preview');
+select throws_ok(
+  $$select count(*) from public.integration_export_previews$$,
+  '42501','permission denied for table integration_export_previews',
+  'preview creators cannot bypass the actor-authorized preview RPC'
+);
 select is((select count(*) from public.integration_sync_jobs),1::bigint,'tenant owner can read its sync job');
 select is((select count(*) from public.integration_sync_items),1::bigint,'tenant owner can read its sync items');
 select is((select count(*) from public.external_entity_mappings),1::bigint,'tenant owner can read its mappings');
 
 select set_config('request.jwt.claim.sub','59000000-0000-4000-8000-000000000002',true);
 select is((select count(*) from public.integration_connections),0::bigint,'another tenant cannot read connections');
-select is((select count(*) from public.integration_export_previews),0::bigint,'another tenant cannot read previews');
+select throws_ok(
+  $$select count(*) from public.integration_export_previews$$,
+  '42501','permission denied for table integration_export_previews',
+  'other tenants cannot read private preview sources'
+);
 select is((select count(*) from public.integration_sync_jobs),0::bigint,'another tenant cannot read sync jobs');
 select is((select count(*) from public.integration_sync_items),0::bigint,'another tenant cannot read sync items');
 select is((select count(*) from public.external_entity_mappings),0::bigint,'another tenant cannot read mappings');

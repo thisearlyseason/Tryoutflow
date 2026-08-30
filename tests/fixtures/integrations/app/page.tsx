@@ -70,6 +70,7 @@ export default function Page() {
         id: '10000000-0000-4000-8000-000000000001',
         state: 'partially_completed',
         completedCount: 1,
+        skippedCount: 0,
         failedCount: 1,
       }}
     />

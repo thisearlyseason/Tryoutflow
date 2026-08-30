@@ -151,6 +151,7 @@ function provider(): TeamManagementProvider {
 describe('dispatchIntegrationJob', () => {
   it('fences submission before provider handoff and persists the normalized terminal result', async () => {
     const adapter = provider();
+    const validateExecution = vi.fn().mockResolvedValue('authorized');
     const authorize = vi.fn().mockResolvedValue('authorized');
     const complete = vi.fn().mockResolvedValue('completed');
     const fail = vi.fn();
@@ -158,12 +159,29 @@ describe('dispatchIntegrationJob', () => {
     await expect(
       dispatchIntegrationJob(job, {
         providers: { get: () => adapter },
-        gateway: { authorize, complete, fail },
+        gateway: { validateExecution, authorize, complete, fail },
       }),
     ).resolves.toBe('completed');
 
+    expect(validateExecution).toHaveBeenCalledTimes(2);
+    expect(validateExecution.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(adapter.verifyConnection).mock.invocationCallOrder[0]!,
+    );
+    expect(vi.mocked(adapter.verifyConnection).mock.invocationCallOrder[0]).toBeLessThan(
+      validateExecution.mock.invocationCallOrder[1]!,
+    );
+    expect(validateExecution.mock.invocationCallOrder[1]).toBeLessThan(
+      authorize.mock.invocationCallOrder[0]!,
+    );
     expect(authorize.mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(adapter.exportFinalizedRoster).mock.invocationCallOrder[0]!,
+    );
+    expect(authorize).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(adapter.exportFinalizedRoster).mock.invocationCallOrder[0]).toBeLessThan(
+      authorize.mock.invocationCallOrder[1]!,
+    );
+    expect(authorize.mock.invocationCallOrder[1]).toBeLessThan(
+      complete.mock.invocationCallOrder[0]!,
     );
     expect(complete).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -177,12 +195,15 @@ describe('dispatchIntegrationJob', () => {
 
   it('previews and submits only the persisted retry subset on later attempts', async () => {
     const adapter = provider();
+    const validateExecution = vi.fn().mockResolvedValue('authorized');
+    const authorize = vi.fn().mockResolvedValue('authorized');
     await dispatchIntegrationJob(
       { ...job, attemptNumber: 2, providerIdempotencyKey: `integration:${ids.job}:2` },
       {
         providers: { get: () => adapter },
         gateway: {
-          authorize: vi.fn().mockResolvedValue('authorized'),
+          validateExecution,
+          authorize,
           complete: vi.fn().mockResolvedValue('completed'),
           fail: vi.fn(),
         },
@@ -202,6 +223,59 @@ describe('dispatchIntegrationJob', () => {
         confirmationToken: 'confirmation:retry:0001',
       }),
     );
+    expect(validateExecution).toHaveBeenCalledTimes(3);
+    expect(validateExecution.mock.invocationCallOrder[1]).toBeLessThan(
+      vi.mocked(adapter.previewRosterExport).mock.invocationCallOrder[0]!,
+    );
+    expect(vi.mocked(adapter.previewRosterExport).mock.invocationCallOrder[0]).toBeLessThan(
+      validateExecution.mock.invocationCallOrder[2]!,
+    );
+    expect(validateExecution.mock.invocationCallOrder[2]).toBeLessThan(
+      authorize.mock.invocationCallOrder[0]!,
+    );
+    expect(authorize.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(adapter.exportFinalizedRoster).mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('cancels without a provider handoff when execution-time authorization was revoked', async () => {
+    const adapter = provider();
+    const authorize = vi.fn();
+    await expect(
+      dispatchIntegrationJob(job, {
+        providers: { get: () => adapter },
+        gateway: {
+          validateExecution: vi.fn().mockResolvedValue('authorization_revoked'),
+          authorize,
+          complete: vi.fn(),
+          fail: vi.fn(),
+        },
+      }),
+    ).resolves.toBe('cancelled');
+    expect(adapter.verifyConnection).not.toHaveBeenCalled();
+    expect(adapter.exportFinalizedRoster).not.toHaveBeenCalled();
+    expect(authorize).not.toHaveBeenCalled();
+  });
+
+  it('reports delivery uncertainty when authorization is revoked during provider handoff', async () => {
+    const adapter = provider();
+    const complete = vi.fn();
+    await expect(
+      dispatchIntegrationJob(job, {
+        providers: { get: () => adapter },
+        gateway: {
+          validateExecution: vi.fn().mockResolvedValue('authorized'),
+          authorize: vi
+            .fn()
+            .mockResolvedValueOnce('authorized')
+            .mockResolvedValueOnce('delivery_uncertain'),
+          complete,
+          fail: vi.fn(),
+        },
+      }),
+    ).resolves.toBe('needs_attention');
+    expect(adapter.exportFinalizedRoster).toHaveBeenCalledOnce();
+    expect(complete).not.toHaveBeenCalled();
   });
 
   it('rehydrates the disabled-by-default mock connection after process-local state is lost', async () => {
@@ -232,6 +306,7 @@ describe('dispatchIntegrationJob', () => {
       dispatchIntegrationJob(job, {
         providers: { get: () => adapter },
         gateway: {
+          validateExecution: vi.fn().mockResolvedValue('authorized'),
           authorize: vi.fn().mockResolvedValue('authorized'),
           complete: vi.fn().mockResolvedValue('completed'),
           fail: vi.fn(),

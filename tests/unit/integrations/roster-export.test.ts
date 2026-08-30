@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { previewRosterExport } from '../../../src/modules/integrations/application/preview-roster-export';
+import {
+  integrationPayloadDigest,
+  previewRosterExport,
+} from '../../../src/modules/integrations/application/preview-roster-export';
 import { retrySyncJob } from '../../../src/modules/integrations/application/retry-sync-job';
 import { startRosterExport } from '../../../src/modules/integrations/application/start-roster-export';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
@@ -101,10 +104,10 @@ function provider(): TeamManagementProvider {
     previewAthleteImport: vi.fn(),
     importAthletes: vi.fn(),
     getSyncStatus: vi.fn(),
-    previewRosterExport: vi.fn().mockResolvedValue({
+    previewRosterExport: vi.fn().mockImplementation(async (_context, request) => ({
       previewId: 'preview:task27:00000001',
       confirmationToken: 'confirmation:task27:00000001',
-      snapshotDigest: 'a'.repeat(64),
+      snapshotDigest: integrationPayloadDigest(request),
       totalItems: 1,
       items: [
         {
@@ -116,7 +119,7 @@ function provider(): TeamManagementProvider {
         },
       ],
       mockData: true,
-    }),
+    })),
     exportFinalizedRoster: vi.fn(),
   };
 }
@@ -129,11 +132,14 @@ describe('durable roster export commands', () => {
       providerKey: 'the-squad',
       mockData: true,
       roster,
+      sourceId: '10000000-0000-4000-8000-000000000009',
+      sourceDigest: 'b'.repeat(64),
+      existingAthleteIds: [],
     });
     const save = vi.fn().mockResolvedValue({ outcome: 'created' });
 
     const result = await previewRosterExport(previewInput, owner(), {
-      gateway: { loadPreviewContext: load, savePreview: save },
+      gateway: { issuePreviewSource: load, savePreview: save },
       providers: { get: () => adapter },
     });
 
@@ -155,6 +161,8 @@ describe('durable roster export commands', () => {
         destination,
         approvedFields: ['first_name', 'last_name', 'team_name'],
         previewId: 'preview:task27:00000001',
+        sourceId: '10000000-0000-4000-8000-000000000009',
+        sourceDigest: 'b'.repeat(64),
         payloadDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
       }),
     );
@@ -163,7 +171,7 @@ describe('durable roster export commands', () => {
   it('fails closed before provider access for an unfinalized roster and an unauthorized actor', async () => {
     const adapter = provider();
     const unavailableGateway = {
-      loadPreviewContext: vi.fn().mockResolvedValue({ outcome: 'invalid_state' }),
+      issuePreviewSource: vi.fn().mockResolvedValue({ outcome: 'invalid_state' }),
       savePreview: vi.fn(),
     };
     await expect(
@@ -179,6 +187,42 @@ describe('durable roster export commands', () => {
       }),
     ).resolves.toEqual({ outcome: 'forbidden' });
     expect(adapter.previewRosterExport).not.toHaveBeenCalled();
+  });
+
+  it('rejects a provider preview whose digest does not match the immutable DB-issued request', async () => {
+    const adapter = provider();
+    vi.mocked(adapter.previewRosterExport).mockResolvedValueOnce({
+      ...(await adapter.previewRosterExport(
+        {
+          organizationId: ids.organization,
+          actorId: ids.actor,
+          connectionId: ids.connection,
+          correlationId: 'correlation:task27:seed',
+          idempotencyKey: 'preview:task27:seed:0001',
+        },
+        { destination, approvedFields: [...previewInput.approvedFields], roster },
+      )),
+      snapshotDigest: 'f'.repeat(64),
+    });
+    const savePreview = vi.fn();
+    await expect(
+      previewRosterExport(previewInput, owner(), {
+        gateway: {
+          issuePreviewSource: vi.fn().mockResolvedValue({
+            outcome: 'ok',
+            providerKey: 'the-squad',
+            mockData: true,
+            roster,
+            sourceId: '10000000-0000-4000-8000-000000000009',
+            sourceDigest: 'b'.repeat(64),
+            existingAthleteIds: [],
+          }),
+          savePreview,
+        },
+        providers: { get: () => adapter },
+      }),
+    ).resolves.toEqual({ outcome: 'conflict' });
+    expect(savePreview).not.toHaveBeenCalled();
   });
 
   it('confirms an exact durable preview once and truthfully replays the same job', async () => {

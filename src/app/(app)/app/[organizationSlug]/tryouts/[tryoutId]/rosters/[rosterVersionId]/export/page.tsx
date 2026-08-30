@@ -24,6 +24,7 @@ const jobStateSchema = z.enum([
   'partially_completed',
   'failed',
   'needs_attention',
+  'cancelled',
 ]);
 
 export default async function RosterExportPage({
@@ -42,7 +43,7 @@ export default async function RosterExportPage({
     .maybeSingle();
   if (!roster || roster.state !== 'finalized') notFound();
 
-  const { data: connection } = await scoped.client
+  const { data: connection, error: connectionError } = await scoped.client
     .from('integration_connections')
     .select('id,provider_key,display_name,state,mock_data')
     .eq('organization_id', scoped.organization.id)
@@ -50,6 +51,17 @@ export default async function RosterExportPage({
     .eq('provider_key', 'the-squad')
     .eq('state', 'connected')
     .maybeSingle();
+  if (connectionError) {
+    return (
+      <div className="mx-auto max-w-4xl p-4 sm:p-8">
+        <IntegrationCard
+          providerName="The Squad (demo/mock)"
+          enabled={false}
+          notice="Connection status could not be loaded. Try again later."
+        />
+      </div>
+    );
+  }
   if (!connection) {
     return (
       <div className="mx-auto max-w-4xl p-4 sm:p-8">
@@ -64,6 +76,7 @@ export default async function RosterExportPage({
 
   const registry = getServerTeamManagementProviderRegistry();
   let destinations: ExternalRosterDestination[] = [];
+  let availabilityMessage: string | undefined;
   try {
     const provider = registry.get(connectionSnapshot.provider_key);
     const nonce = randomUUID();
@@ -81,11 +94,16 @@ export default async function RosterExportPage({
     const organizations = await provider.listOrganizations(providerContext);
     if (organizations[0])
       destinations = await provider.listDestinations(providerContext, organizations[0]);
+    if (destinations.length === 0) {
+      availabilityMessage = 'No demo destinations are available for this connection.';
+    }
   } catch {
     destinations = [];
+    availabilityMessage =
+      'Demo destinations could not be loaded. Verify the connection or try again later.';
   }
 
-  const { data: latestJob } = await scoped.client
+  const { data: latestJob, error: latestJobError } = await scoped.client
     .from('integration_sync_jobs')
     .select('id,state')
     .eq('organization_id', scoped.organization.id)
@@ -94,6 +112,9 @@ export default async function RosterExportPage({
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (latestJobError) {
+    availabilityMessage = 'Export history could not be loaded. Refresh before confirming.';
+  }
   let initialJob:
     | {
         id: string;
@@ -103,8 +124,10 @@ export default async function RosterExportPage({
           | 'completed'
           | 'partially_completed'
           | 'failed'
-          | 'needs_attention';
+          | 'needs_attention'
+          | 'cancelled';
         completedCount: number;
+        skippedCount: number;
         failedCount: number;
       }
     | undefined;
@@ -112,19 +135,23 @@ export default async function RosterExportPage({
     ? jobStateSchema.safeParse(latestJob.state)
     : { success: false as const };
   if (latestJob && parsedLatestJob.success) {
-    const { data: items } = await scoped.client
+    const { data: items, error: itemsError } = await scoped.client
       .from('integration_sync_items')
       .select('state')
       .eq('organization_id', scoped.organization.id)
       .eq('sync_job_id', latestJob.id);
-    initialJob = {
-      id: latestJob.id,
-      state: parsedLatestJob.data,
-      completedCount:
-        items?.filter((item) => ['completed', 'skipped'].includes(item.state)).length ?? 0,
-      failedCount:
-        items?.filter((item) => ['failed', 'requires_review'].includes(item.state)).length ?? 0,
-    };
+    if (itemsError) {
+      availabilityMessage = 'Export item history could not be loaded. Refresh before retrying.';
+    } else {
+      initialJob = {
+        id: latestJob.id,
+        state: parsedLatestJob.data,
+        completedCount: items?.filter((item) => item.state === 'completed').length ?? 0,
+        skippedCount: items?.filter((item) => item.state === 'skipped').length ?? 0,
+        failedCount:
+          items?.filter((item) => ['failed', 'requires_review'].includes(item.state)).length ?? 0,
+      };
+    }
   }
 
   async function previewAction(input: {
@@ -200,6 +227,7 @@ export default async function RosterExportPage({
         onConfirm={confirmAction}
         onRetry={retryAction}
         initialJob={initialJob}
+        availabilityMessage={availabilityMessage}
       />
     </div>
   );

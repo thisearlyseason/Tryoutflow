@@ -43,20 +43,29 @@ type PreviewContext = Readonly<{
   providerKey: string;
   mockData: boolean;
   roster: z.infer<typeof finalizedRosterSnapshotSchema>;
+  sourceId: string;
+  sourceDigest: string;
+  existingAthleteIds: readonly string[];
 }>;
 
 export type PreviewRosterExportGateway = Readonly<{
-  loadPreviewContext(input: {
+  issuePreviewSource(input: {
     organizationId: string;
     actorId: string;
     connectionId: string;
     rosterVersionId: string;
-  }): Promise<PreviewContext | { outcome: 'forbidden' | 'not_found' | 'invalid_state' }>;
+    destination: ExternalRosterDestination;
+    approvedFields: z.infer<typeof rosterExportFieldSchema>[];
+  }): Promise<
+    PreviewContext | { outcome: 'forbidden' | 'not_found' | 'invalid_state' | 'invalid_input' }
+  >;
   savePreview(input: {
     organizationId: string;
     actorId: string;
     connectionId: string;
     rosterVersionId: string;
+    sourceId: string;
+    sourceDigest: string;
     destination: ExternalRosterDestination;
     approvedFields: z.infer<typeof rosterExportFieldSchema>[];
     previewId: string;
@@ -134,11 +143,13 @@ export async function previewRosterExport(
 
   let context;
   try {
-    context = await dependencies.gateway.loadPreviewContext({
+    context = await dependencies.gateway.issuePreviewSource({
       organizationId: parsed.data.organizationId,
       actorId: actor.userId,
       connectionId: parsed.data.connectionId,
       rosterVersionId: parsed.data.rosterVersionId,
+      destination: parsed.data.destination,
+      approvedFields: parsed.data.approvedFields,
     });
   } catch {
     return { outcome: 'unavailable' };
@@ -161,12 +172,7 @@ export async function previewRosterExport(
     approvedFields: parsed.data.approvedFields,
     roster: roster.data,
   };
-  const payloadDigest = integrationPayloadDigest({
-    organizationId: parsed.data.organizationId,
-    actorId: actor.userId,
-    connectionId: parsed.data.connectionId,
-    request,
-  });
+  const payloadDigest = integrationPayloadDigest(request);
   let preview: RosterExportPreview;
   try {
     const provider = dependencies.providers.get(context.providerKey);
@@ -185,7 +191,18 @@ export async function previewRosterExport(
   } catch (error) {
     return { outcome: 'connection_error', error: normalizeTeamManagementProviderError(error) };
   }
-  if (preview.mockData !== context.mockData) return { outcome: 'conflict' };
+  if (preview.mockData !== context.mockData || preview.snapshotDigest !== payloadDigest) {
+    return { outcome: 'conflict' };
+  }
+  const existing = new Set(context.existingAthleteIds);
+  preview = {
+    ...preview,
+    items: preview.items.map((item) =>
+      existing.has(item.registrationId) && item.operation === 'create'
+        ? { ...item, operation: 'update' as const }
+        : item,
+    ),
+  };
 
   try {
     const stored = await dependencies.gateway.savePreview({
@@ -193,6 +210,8 @@ export async function previewRosterExport(
       actorId: actor.userId,
       connectionId: parsed.data.connectionId,
       rosterVersionId: parsed.data.rosterVersionId,
+      sourceId: context.sourceId,
+      sourceDigest: context.sourceDigest,
       destination: parsed.data.destination,
       approvedFields: parsed.data.approvedFields,
       previewId: preview.previewId,

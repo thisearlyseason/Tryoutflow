@@ -241,6 +241,12 @@ async function expectTeamManagementProviderContract(
     await provider.exportFinalizedRoster(connectedContext, confirmed),
   );
   expect(first.state).toBe('completed');
+  expect(first.entityMappings).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ entityType: 'team', internalEntityId: ids.team }),
+      expect.objectContaining({ entityType: 'roster_version', internalEntityId: ids.roster }),
+    ]),
+  );
   if (options.repeatExportMustNotDuplicate) expect(second).toEqual(first);
   expect(new Set(second.items.map((item) => item.externalRef?.externalId)).size).toBe(2);
 
@@ -308,6 +314,25 @@ describe('TeamManagementProvider contract', () => {
       { itemKey: `athlete:${ids.registrationTwo}`, state: 'completed', attempts: 2 },
     ]);
     expect(retried.items[0]?.externalRef).toEqual(partial.items[0]?.externalRef);
+  });
+
+  it('uses the durable attempt number rather than process memory for fail-once retry truth', async () => {
+    const provider = new MockTheSquadProvider({ fixture: 'partial-failure' });
+    const connectedContext = await connectProvider(provider);
+    const request = exportRequest();
+    request.roster.athletes = [request.roster.athletes[1]!];
+    const preview = await provider.previewRosterExport(
+      connectedContext,
+      exportPreviewRequest(request),
+    );
+    const result = await provider.exportFinalizedRoster(
+      {
+        ...connectedContext,
+        idempotencyKey: 'integration:10000000-0000-4000-8000-000000000099:2',
+      },
+      { ...request, previewId: preview.previewId, confirmationToken: preview.confirmationToken },
+    );
+    expect(result.state).toBe('completed');
   });
 
   it('derives a total failure when no export item has a provider mapping', async () => {

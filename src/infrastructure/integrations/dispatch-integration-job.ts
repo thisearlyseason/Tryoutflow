@@ -30,11 +30,20 @@ export type ClaimedIntegrationJob = Readonly<{
 }>;
 
 export type IntegrationDispatchGateway = Readonly<{
+  validateExecution(input: {
+    outboxJobId: string;
+    leaseToken: string;
+    leaseGeneration: number;
+  }): Promise<
+    'authorized' | 'authorization_revoked' | 'delivery_uncertain' | 'not_found' | 'lease_conflict'
+  >;
   authorize(input: {
     outboxJobId: string;
     leaseToken: string;
     leaseGeneration: number;
-  }): Promise<'authorized' | 'not_found' | 'lease_conflict'>;
+  }): Promise<
+    'authorized' | 'authorization_revoked' | 'delivery_uncertain' | 'not_found' | 'lease_conflict'
+  >;
   complete(input: {
     outboxJobId: string;
     leaseToken: string;
@@ -92,6 +101,15 @@ export async function dispatchIntegrationJob(
   job: ClaimedIntegrationJob,
   dependencies: { providers: ProviderRegistry; gateway: IntegrationDispatchGateway },
 ): Promise<IntegrationDispatchOutcome> {
+  const fence = {
+    outboxJobId: job.outboxJobId,
+    leaseToken: job.leaseToken,
+    leaseGeneration: job.leaseGeneration,
+  };
+  const initialValidation = await dependencies.gateway.validateExecution(fence);
+  if (initialValidation !== 'authorized') {
+    return initialValidation === 'delivery_uncertain' ? 'needs_attention' : 'cancelled';
+  }
   let provider: TeamManagementProvider;
   try {
     provider = dependencies.providers.get(job.providerKey);
@@ -115,18 +133,26 @@ export async function dispatchIntegrationJob(
     return outcome === 'lease_conflict' || outcome === 'not_found' ? 'cancelled' : outcome;
   }
 
-  const authorization = await dependencies.gateway.authorize({
-    outboxJobId: job.outboxJobId,
-    leaseToken: job.leaseToken,
-    leaseGeneration: job.leaseGeneration,
-  });
-  if (authorization !== 'authorized') return 'cancelled';
-
   try {
+    const connectionValidation = await dependencies.gateway.validateExecution(fence);
+    if (connectionValidation !== 'authorized') {
+      return connectionValidation === 'delivery_uncertain' ? 'needs_attention' : 'cancelled';
+    }
     const request = await requestForAttempt(provider, job);
+    if (job.attemptNumber > 1) {
+      const previewValidation = await dependencies.gateway.validateExecution(fence);
+      if (previewValidation !== 'authorized') {
+        return previewValidation === 'delivery_uncertain' ? 'needs_attention' : 'cancelled';
+      }
+    }
+    const authorization = await dependencies.gateway.authorize(fence);
+    if (authorization !== 'authorized') return 'cancelled';
     const result = syncJobResultSchema.parse(
       await provider.exportFinalizedRoster(providerContext(job), request),
     );
+    const completionAuthorization = await dependencies.gateway.authorize(fence);
+    if (completionAuthorization === 'delivery_uncertain') return 'needs_attention';
+    if (completionAuthorization !== 'authorized') return 'cancelled';
     const outcome = await dependencies.gateway.complete({
       outboxJobId: job.outboxJobId,
       leaseToken: job.leaseToken,

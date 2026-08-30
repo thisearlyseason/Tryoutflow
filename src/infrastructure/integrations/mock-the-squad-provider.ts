@@ -406,9 +406,16 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       }
       if (
         this.fixture.failOnceRegistrationIds.includes(athlete.registrationId) &&
-        !this.failedOnce.has(
-          this.itemOperationKey(parsedContext, 'export-fail-once', athlete.registrationId),
-        )
+        (() => {
+          const durableAttempt = /^integration:[0-9a-f-]{36}:([0-9]{1,3})$/u.exec(
+            parsedContext.idempotencyKey,
+          );
+          return durableAttempt
+            ? Number(durableAttempt[1]) === 1
+            : !this.failedOnce.has(
+                this.itemOperationKey(parsedContext, 'export-fail-once', athlete.registrationId),
+              );
+        })()
       ) {
         newlyFailedRegistrationIds.push(athlete.registrationId);
         return {
@@ -449,6 +456,35 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       externalJobId,
       state,
       items,
+      entityMappings: [
+        ...parsed.roster.teams.map((team) => ({
+          entityType: 'team' as const,
+          internalEntityId: team.id,
+          externalRef: {
+            providerKey: this.providerKey,
+            entityType: 'team' as const,
+            externalId: stableExternalId('mock-team', [scope, team.id]),
+            displayName: parsed.approvedFields.includes('team_name')
+              ? team.name
+              : `Team ${team.id}`,
+            mockData: true,
+          },
+        })),
+        {
+          entityType: 'roster_version' as const,
+          internalEntityId: parsed.roster.rosterVersionId,
+          externalRef: {
+            providerKey: this.providerKey,
+            entityType: 'roster_version' as const,
+            externalId: stableExternalId('mock-roster-version', [
+              scope,
+              parsed.roster.rosterVersionId,
+            ]),
+            displayName: `Roster version ${parsed.roster.version}`,
+            mockData: true,
+          },
+        },
+      ],
       mockData: true,
     });
     for (const registrationId of newlyFailedRegistrationIds) {
@@ -662,6 +698,7 @@ function inFlightStatus(
   return {
     externalJobId: terminal.externalJobId,
     state,
+    ...(terminal.entityMappings ? { entityMappings: terminal.entityMappings } : {}),
     items: terminal.items.map((item, index) =>
       index < retainedCompletedItems
         ? item

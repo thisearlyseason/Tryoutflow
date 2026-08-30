@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 import { getServerTeamManagementProviderRegistry } from '@/infrastructure/integrations/server-provider-registry';
 import { connectDemoProvider } from '@/modules/integrations/application/connect-demo-provider';
@@ -10,14 +11,17 @@ import { requireOrganizationRouteContext } from '@/modules/organizations/applica
 
 export default async function IntegrationsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationSlug: string }>;
+  searchParams: Promise<{ connection?: string }>;
 }) {
   const { organizationSlug } = await params;
+  const query = await searchParams;
   const scoped = await requireOrganizationRouteContext(organizationSlug);
   const registry = getServerTeamManagementProviderRegistry();
   const descriptor = registry.list().find((item) => item.providerKey === 'the-squad');
-  const { data: connection } = await scoped.client
+  const { data: connection, error: connectionError } = await scoped.client
     .from('integration_connections')
     .select('id,display_name,state,mock_data')
     .eq('organization_id', scoped.organization.id)
@@ -29,7 +33,7 @@ export default async function IntegrationsPage({
     'use server';
     const current = await requireOrganizationRouteContext(organizationSlug);
     const nonce = randomUUID();
-    await connectDemoProvider(
+    const result = await connectDemoProvider(
       {
         organizationId: current.organization.id,
         correlationId: `connection:${nonce}`,
@@ -42,7 +46,18 @@ export default async function IntegrationsPage({
       },
     );
     revalidatePath(`/app/${organizationSlug}/organization/integrations`);
+    redirect(
+      `/app/${organizationSlug}/organization/integrations?connection=${encodeURIComponent(result.outcome)}`,
+    );
   }
+
+  const notice = connectionError
+    ? 'Connection status is temporarily unavailable. Try again.'
+    : query.connection === 'connected' || query.connection === 'replayed'
+      ? 'The demo/mock connection is ready.'
+      : query.connection
+        ? 'The demo connection could not be completed. Try again.'
+        : undefined;
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
@@ -61,6 +76,7 @@ export default async function IntegrationsPage({
         connected={connection?.state === 'connected' && connection.mock_data}
         connectionLabel={connection?.display_name}
         connectAction={descriptor ? connectAction : undefined}
+        notice={notice}
       />
     </div>
   );

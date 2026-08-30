@@ -1440,13 +1440,16 @@ export type Database = {
           id: string;
           organization_id: string;
           payload_digest: string;
-          preview_snapshot: Json;
-          provider_confirmation_token: string;
-          provider_preview_id: string;
-          provider_snapshot_digest: string;
+          preview_snapshot: Json | null;
+          provider_confirmation_token: string | null;
+          provider_preview_id: string | null;
+          provider_snapshot_digest: string | null;
+          redacted_at: string | null;
           roster_snapshot: Json;
           roster_version: number;
           roster_version_id: string;
+          source_digest: string;
+          stage: string;
           sync_job_id: string | null;
         };
         Insert: {
@@ -1460,13 +1463,16 @@ export type Database = {
           id?: string;
           organization_id: string;
           payload_digest: string;
-          preview_snapshot: Json;
-          provider_confirmation_token: string;
-          provider_preview_id: string;
-          provider_snapshot_digest: string;
+          preview_snapshot?: Json | null;
+          provider_confirmation_token?: string | null;
+          provider_preview_id?: string | null;
+          provider_snapshot_digest?: string | null;
+          redacted_at?: string | null;
           roster_snapshot: Json;
           roster_version: number;
           roster_version_id: string;
+          source_digest: string;
+          stage?: string;
           sync_job_id?: string | null;
         };
         Update: {
@@ -1480,13 +1486,16 @@ export type Database = {
           id?: string;
           organization_id?: string;
           payload_digest?: string;
-          preview_snapshot?: Json;
-          provider_confirmation_token?: string;
-          provider_preview_id?: string;
-          provider_snapshot_digest?: string;
+          preview_snapshot?: Json | null;
+          provider_confirmation_token?: string | null;
+          provider_preview_id?: string | null;
+          provider_snapshot_digest?: string | null;
+          redacted_at?: string | null;
           roster_snapshot?: Json;
           roster_version?: number;
           roster_version_id?: string;
+          source_digest?: string;
+          stage?: string;
           sync_job_id?: string | null;
         };
         Relationships: [
@@ -1518,11 +1527,13 @@ export type Database = {
           attempt_count: number;
           attempt_number: number;
           available_at: string;
+          cancelled_at: string | null;
           completed_at: string | null;
           created_at: string;
           dead_lettered_at: string | null;
           id: string;
           item_keys: string[];
+          job_type: string;
           last_error_code: string | null;
           lease_expires_at: string | null;
           lease_generation: number;
@@ -1530,8 +1541,10 @@ export type Database = {
           lease_token: string | null;
           max_attempts: number;
           organization_id: string;
+          payload_version: number;
           provider_idempotency_key: string;
           provider_submission_started_at: string | null;
+          request_digest: string;
           retry_idempotency_key: string;
           status: string;
           sync_job_id: string;
@@ -1541,11 +1554,13 @@ export type Database = {
           attempt_count?: number;
           attempt_number: number;
           available_at?: string;
+          cancelled_at?: string | null;
           completed_at?: string | null;
           created_at?: string;
           dead_lettered_at?: string | null;
           id?: string;
           item_keys: string[];
+          job_type?: string;
           last_error_code?: string | null;
           lease_expires_at?: string | null;
           lease_generation?: number;
@@ -1553,8 +1568,10 @@ export type Database = {
           lease_token?: string | null;
           max_attempts?: number;
           organization_id: string;
+          payload_version?: number;
           provider_idempotency_key: string;
           provider_submission_started_at?: string | null;
+          request_digest: string;
           retry_idempotency_key: string;
           status?: string;
           sync_job_id: string;
@@ -1564,11 +1581,13 @@ export type Database = {
           attempt_count?: number;
           attempt_number?: number;
           available_at?: string;
+          cancelled_at?: string | null;
           completed_at?: string | null;
           created_at?: string;
           dead_lettered_at?: string | null;
           id?: string;
           item_keys?: string[];
+          job_type?: string;
           last_error_code?: string | null;
           lease_expires_at?: string | null;
           lease_generation?: number;
@@ -1576,8 +1595,10 @@ export type Database = {
           lease_token?: string | null;
           max_attempts?: number;
           organization_id?: string;
+          payload_version?: number;
           provider_idempotency_key?: string;
           provider_submission_started_at?: string | null;
+          request_digest?: string;
           retry_idempotency_key?: string;
           status?: string;
           sync_job_id?: string;
@@ -1606,6 +1627,7 @@ export type Database = {
           normalized_error: Json | null;
           operation: string;
           organization_id: string;
+          retry_eligible: boolean;
           state: string;
           sync_job_id: string;
           updated_at: string;
@@ -1622,6 +1644,7 @@ export type Database = {
           normalized_error?: Json | null;
           operation: string;
           organization_id: string;
+          retry_eligible?: boolean;
           state?: string;
           sync_job_id: string;
           updated_at?: string;
@@ -1638,6 +1661,7 @@ export type Database = {
           normalized_error?: Json | null;
           operation?: string;
           organization_id?: string;
+          retry_eligible?: boolean;
           state?: string;
           sync_job_id?: string;
           updated_at?: string;
@@ -1655,9 +1679,12 @@ export type Database = {
       integration_sync_jobs: {
         Row: {
           approved_fields: string[];
+          approved_projection: Json;
           attention_required_at: string | null;
           business_idempotency_key: string;
+          cancelled_at: string | null;
           completed_at: string | null;
+          confirmation_token_digest: string | null;
           connection_id: string;
           created_at: string;
           created_by_user_id: string;
@@ -1668,21 +1695,25 @@ export type Database = {
           mock_data: boolean;
           operation: string;
           organization_id: string;
-          provider_confirmation_token: string;
+          provider_confirmation_token: string | null;
           provider_key: string;
           provider_preview_id: string;
           request_digest: string;
-          roster_snapshot: Json;
+          roster_snapshot: Json | null;
           roster_version: number;
           roster_version_id: string;
+          source_preview_id: string | null;
           state: string;
           updated_at: string;
         };
         Insert: {
           approved_fields: string[];
+          approved_projection?: Json;
           attention_required_at?: string | null;
           business_idempotency_key: string;
+          cancelled_at?: string | null;
           completed_at?: string | null;
+          confirmation_token_digest?: string | null;
           connection_id: string;
           created_at?: string;
           created_by_user_id: string;
@@ -1693,21 +1724,25 @@ export type Database = {
           mock_data: boolean;
           operation?: string;
           organization_id: string;
-          provider_confirmation_token: string;
+          provider_confirmation_token?: string | null;
           provider_key: string;
           provider_preview_id: string;
           request_digest: string;
-          roster_snapshot: Json;
+          roster_snapshot?: Json | null;
           roster_version: number;
           roster_version_id: string;
+          source_preview_id?: string | null;
           state?: string;
           updated_at?: string;
         };
         Update: {
           approved_fields?: string[];
+          approved_projection?: Json;
           attention_required_at?: string | null;
           business_idempotency_key?: string;
+          cancelled_at?: string | null;
           completed_at?: string | null;
+          confirmation_token_digest?: string | null;
           connection_id?: string;
           created_at?: string;
           created_by_user_id?: string;
@@ -1718,13 +1753,14 @@ export type Database = {
           mock_data?: boolean;
           operation?: string;
           organization_id?: string;
-          provider_confirmation_token?: string;
+          provider_confirmation_token?: string | null;
           provider_key?: string;
           provider_preview_id?: string;
           request_digest?: string;
-          roster_snapshot?: Json;
+          roster_snapshot?: Json | null;
           roster_version?: number;
           roster_version_id?: string;
+          source_preview_id?: string | null;
           state?: string;
           updated_at?: string;
         };
@@ -1741,6 +1777,13 @@ export type Database = {
             columns: ['organization_id', 'roster_version_id'];
             isOneToOne: false;
             referencedRelation: 'roster_versions';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'integration_sync_jobs_source_preview_fkey';
+            columns: ['organization_id', 'source_preview_id'];
+            isOneToOne: false;
+            referencedRelation: 'integration_export_previews';
             referencedColumns: ['organization_id', 'id'];
           },
         ];
@@ -4130,6 +4173,16 @@ export type Database = {
         };
         Returns: string;
       };
+      complete_integration_outbox_job_legacy_077: {
+        Args: {
+          p_external_job_id: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_result: Json;
+        };
+        Returns: string;
+      };
       complete_outbox_job: {
         Args: {
           p_job_id: string;
@@ -4181,6 +4234,21 @@ export type Database = {
         SetofOptions: {
           from: '*';
           to: 'integration_export_confirmation_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      confirm_roster_export_preview_v2: {
+        Args: {
+          p_confirmation_token: string;
+          p_idempotency_key: string;
+          p_organization_id: string;
+          p_provider_preview_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_export_confirmation_v2_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_export_confirmation_v2_result';
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -4377,6 +4445,16 @@ export type Database = {
         };
         Returns: string;
       };
+      fail_integration_outbox_job_legacy_077: {
+        Args: {
+          p_error_code: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_retryable: boolean;
+        };
+        Returns: string;
+      };
       fail_outbox_job: {
         Args: {
           p_error_code: string;
@@ -4480,6 +4558,22 @@ export type Database = {
           p_tryout_id: string;
         };
         Returns: string;
+      };
+      issue_roster_export_source: {
+        Args: {
+          p_approved_fields: string[];
+          p_connection_id: string;
+          p_destination: Json;
+          p_organization_id: string;
+          p_roster_version_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_export_source_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_export_source_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       list_assigned_athletes: {
         Args: { p_organization_id: string; p_tryout_id: string };
@@ -4762,6 +4856,10 @@ export type Database = {
         Args: { p_limit?: number };
         Returns: number;
       };
+      purge_expired_integration_previews: {
+        Args: { p_limit: number };
+        Returns: number;
+      };
       purge_expired_subscription_checkout_intents: {
         Args: { p_limit?: number };
         Returns: number;
@@ -5007,6 +5105,20 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      retry_integration_sync_job_v2: {
+        Args: {
+          p_idempotency_key: string;
+          p_job_id: string;
+          p_organization_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_retry_v2_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_retry_v2_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       revise_roster_version: {
         Args: {
           p_confirmation: string;
@@ -5086,6 +5198,17 @@ export type Database = {
           p_provider_preview_id: string;
           p_roster_version_id: string;
           p_snapshot_digest: string;
+        };
+        Returns: string;
+      };
+      save_roster_export_preview_v2: {
+        Args: {
+          p_confirmation_token: string;
+          p_organization_id: string;
+          p_preview: Json;
+          p_provider_preview_id: string;
+          p_source_digest: string;
+          p_source_id: string;
         };
         Returns: string;
       };
@@ -5264,6 +5387,14 @@ export type Database = {
           version: number;
         }[];
       };
+      validate_integration_outbox_execution: {
+        Args: {
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+        };
+        Returns: string;
+      };
       validate_tryout_for_publish: {
         Args: { p_organization_id: string; p_tryout_id: string };
         Returns: {
@@ -5313,11 +5444,37 @@ export type Database = {
         outcome: string | null;
         job_id: string | null;
       };
+      integration_export_confirmation_v2_result: {
+        outcome: string | null;
+        job_id: string | null;
+        state: string | null;
+        item_count: number | null;
+        completed_count: number | null;
+        skipped_count: number | null;
+        failed_count: number | null;
+      };
+      integration_export_source_result: {
+        outcome: string | null;
+        source_id: string | null;
+        provider_key: string | null;
+        mock_data: boolean | null;
+        roster: Json | null;
+        source_digest: string | null;
+        existing_athlete_ids: string[] | null;
+      };
       integration_retry_result: {
         outcome: string | null;
         job_id: string | null;
         retried_item_count: number | null;
         preserved_completed_item_count: number | null;
+      };
+      integration_retry_v2_result: {
+        outcome: string | null;
+        job_id: string | null;
+        state: string | null;
+        retried_item_count: number | null;
+        preserved_completed_item_count: number | null;
+        preserved_skipped_item_count: number | null;
       };
       queue_communication_result: {
         outcome: string | null;

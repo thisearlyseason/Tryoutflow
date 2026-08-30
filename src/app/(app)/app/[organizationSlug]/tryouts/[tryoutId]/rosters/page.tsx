@@ -7,6 +7,7 @@ import { ErrorState } from '@/components/feedback/error-state';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { SupabaseRankingGateway } from '@/modules/rankings/infrastructure/supabase-ranking-gateway';
+import { RosterExportLink } from '@/modules/integrations/ui/roster-export-link';
 import { changeDecision } from '@/modules/rosters/application/change-decision';
 import { createRosterDraft } from '@/modules/rosters/application/create-roster-draft';
 import { finalizeRoster } from '@/modules/rosters/application/finalize-roster';
@@ -113,6 +114,9 @@ export default async function RostersPage({
     tryoutId,
     divisionId,
     finalized: roster?.state === 'finalized',
+  }).ok;
+  const canExport = requireCapability(current.authorization, 'integration:manage', {
+    organizationId,
   }).ok;
   if (!canRead && !canEdit) notFound();
 
@@ -366,6 +370,13 @@ export default async function RostersPage({
             </Link>
           ))}
         </nav>
+      ) : null}
+      {roster ? (
+        <RosterExportLink
+          authorized={canExport}
+          rosterState={roster.state}
+          href={`/app/${organizationSlug}/tryouts/${tryoutId}/rosters/${roster.id}/export`}
+        />
       ) : null}
       {content}
     </section>

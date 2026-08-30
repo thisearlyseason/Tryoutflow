@@ -102,15 +102,17 @@ describe('integration outbox gateway', () => {
     ).rejects.toThrow('Invalid claimed integration job');
   });
 
-  it('maps fenced authorize, completion, and failure results', async () => {
+  it('maps fenced validation, authorize, completion, and failure results', async () => {
     const rpc = vi
       .fn()
+      .mockResolvedValueOnce({ data: 'authorized', error: null })
       .mockResolvedValueOnce({ data: 'authorized', error: null })
       .mockResolvedValueOnce({ data: 'completed', error: null })
       .mockResolvedValueOnce({ data: 'retry_scheduled', error: null });
     const gateway = new SupabaseIntegrationDispatchGateway({ rpc } as never);
     const lease = { outboxJobId: id('1'), leaseToken: id('6'), leaseGeneration: 2 };
 
+    await expect(gateway.validateExecution(lease)).resolves.toBe('authorized');
     await expect(gateway.authorize(lease)).resolves.toBe('authorized');
     await expect(
       gateway.complete({

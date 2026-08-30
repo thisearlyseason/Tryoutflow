@@ -4,6 +4,7 @@ type IntegrationCardProps = Readonly<{
   connected?: boolean;
   connectionLabel?: string;
   connectAction?: () => Promise<void>;
+  notice?: string;
 }>;
 
 export function IntegrationCard({
@@ -12,6 +13,7 @@ export function IntegrationCard({
   connected = false,
   connectionLabel,
   connectAction,
+  notice,
 }: IntegrationCardProps) {
   return (
     <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -30,6 +32,14 @@ export function IntegrationCard({
         Synthetic demonstration data only. No provider credentials or production endpoint are
         configured.
       </p>
+      {notice ? (
+        <p
+          role="alert"
+          className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-950"
+        >
+          {notice}
+        </p>
+      ) : null}
       {!enabled ? (
         <p className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-950">
           Disabled by default. An administrator must enable the server-side demo flag.

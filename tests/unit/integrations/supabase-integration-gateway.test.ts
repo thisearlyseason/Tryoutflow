@@ -32,34 +32,86 @@ const roster = {
     },
   ],
 };
+const destination = {
+  organization: {
+    providerKey: 'the-squad',
+    entityType: 'organization' as const,
+    externalId: 'mock-org',
+    displayName: 'Mock org',
+    mockData: true,
+  },
+  season: {
+    providerKey: 'the-squad',
+    entityType: 'season' as const,
+    externalId: 'mock-season',
+    displayName: 'Mock season',
+    mockData: true,
+  },
+  division: {
+    providerKey: 'the-squad',
+    entityType: 'division' as const,
+    externalId: 'mock-division',
+    displayName: 'Mock division',
+    mockData: true,
+  },
+  team: {
+    providerKey: 'the-squad',
+    entityType: 'team' as const,
+    externalId: 'mock-team',
+    displayName: 'Mock team',
+    mockData: true,
+  },
+  displayLabel: 'Mock destination',
+  mockData: true,
+};
 
 describe('SupabaseIntegrationGateway', () => {
   it('parses the finalized roster context and rejects malformed RPC projections', async () => {
     const rpc = vi.fn().mockResolvedValue({
-      data: [{ outcome: 'ok', provider_key: 'the-squad', mock_data: true, roster }],
+      data: {
+        outcome: 'ok',
+        source_id: ids.job,
+        source_digest: 'a'.repeat(64),
+        existing_athlete_ids: [],
+        provider_key: 'the-squad',
+        mock_data: true,
+        roster,
+      },
       error: null,
     });
     const gateway = new SupabaseIntegrationGateway({ rpc } as never);
 
     await expect(
-      gateway.loadPreviewContext({
+      gateway.issuePreviewSource({
         organizationId: ids.organization,
         actorId: ids.actor,
         connectionId: ids.connection,
         rosterVersionId: ids.roster,
+        destination,
+        approvedFields: ['first_name'],
       }),
     ).resolves.toMatchObject({ outcome: 'ok', providerKey: 'the-squad', roster });
 
     rpc.mockResolvedValueOnce({
-      data: [{ outcome: 'ok', provider_key: 'the-squad', mock_data: true, roster: {} }],
+      data: {
+        outcome: 'ok',
+        source_id: ids.job,
+        source_digest: 'a'.repeat(64),
+        existing_athlete_ids: [],
+        provider_key: 'the-squad',
+        mock_data: true,
+        roster: {},
+      },
       error: null,
     });
     await expect(
-      gateway.loadPreviewContext({
+      gateway.issuePreviewSource({
         organizationId: ids.organization,
         actorId: ids.actor,
         connectionId: ids.connection,
         rosterVersionId: ids.roster,
+        destination,
+        approvedFields: ['first_name'],
       }),
     ).rejects.toThrow('Invalid integration roster context');
   });
@@ -67,13 +119,26 @@ describe('SupabaseIntegrationGateway', () => {
   it('maps exact confirmation and retry RPC outcomes', async () => {
     const rpc = vi
       .fn()
-      .mockResolvedValueOnce({ data: { outcome: 'queued', job_id: ids.job }, error: null })
+      .mockResolvedValueOnce({
+        data: {
+          outcome: 'queued',
+          job_id: ids.job,
+          state: 'pending',
+          item_count: 1,
+          completed_count: 0,
+          skipped_count: 0,
+          failed_count: 0,
+        },
+        error: null,
+      })
       .mockResolvedValueOnce({
         data: {
           outcome: 'queued',
           job_id: ids.job,
           retried_item_count: 1,
           preserved_completed_item_count: 2,
+          preserved_skipped_item_count: 1,
+          state: 'pending',
         },
         error: null,
       });
@@ -87,7 +152,15 @@ describe('SupabaseIntegrationGateway', () => {
         confirmationToken: 'confirmation:task27:00000001',
         idempotencyKey: 'export:task27:00000001',
       }),
-    ).resolves.toEqual({ outcome: 'queued', jobId: ids.job });
+    ).resolves.toEqual({
+      outcome: 'queued',
+      jobId: ids.job,
+      state: 'pending',
+      itemCount: 1,
+      completedCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+    });
     await expect(
       gateway.retry({
         organizationId: ids.organization,
@@ -100,6 +173,7 @@ describe('SupabaseIntegrationGateway', () => {
       jobId: ids.job,
       retriedItemCount: 1,
       preservedCompletedItemCount: 2,
+      preservedSkippedItemCount: 1,
     });
   });
 

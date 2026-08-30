@@ -60,7 +60,13 @@ export async function claimIntegrationJobs(
   return data.map(parseClaimedRow);
 }
 
-const authorizationOutcome = z.enum(['authorized', 'not_found', 'lease_conflict']);
+const authorizationOutcome = z.enum([
+  'authorized',
+  'authorization_revoked',
+  'delivery_uncertain',
+  'not_found',
+  'lease_conflict',
+]);
 const completionOutcome = z.enum([
   'completed',
   'replayed',
@@ -78,6 +84,18 @@ const failureOutcome = z.enum([
 
 export class SupabaseIntegrationDispatchGateway implements IntegrationDispatchGateway {
   constructor(private readonly client: SupabaseClient<Database>) {}
+
+  async validateExecution(input: Parameters<IntegrationDispatchGateway['validateExecution']>[0]) {
+    const { data, error } = await this.client.rpc('validate_integration_outbox_execution', {
+      p_job_id: input.outboxJobId,
+      p_lease_token: input.leaseToken,
+      p_lease_generation: input.leaseGeneration,
+    });
+    if (error) throw error;
+    const parsed = authorizationOutcome.safeParse(data);
+    if (!parsed.success) throw new Error('Invalid integration execution validation result');
+    return parsed.data;
+  }
 
   async authorize(input: Parameters<IntegrationDispatchGateway['authorize']>[0]) {
     const { data, error } = await this.client.rpc('authorize_integration_outbox_submission', {

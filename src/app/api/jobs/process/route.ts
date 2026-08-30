@@ -15,6 +15,7 @@ const bodySchema = z.object({ batchSize: z.number().int().min(1).max(50).default
 type ProcessDependencies = {
   secret: string;
   purgeExpiredPreviews?(): Promise<void>;
+  purgeExpiredIntegrationPreviews?(): Promise<void>;
   purgeExpiredCheckoutIntents?(): Promise<void>;
   claim(input: {
     leaseOwner: string;
@@ -122,6 +123,7 @@ export async function processJobsRequest(request: Request, dependencies: Process
     const parsed = bodySchema.safeParse(await readBoundedJson(request));
     if (!parsed.success) return jsonError(400, 'invalid_request');
     await dependencies.purgeExpiredPreviews?.().catch(() => undefined);
+    await dependencies.purgeExpiredIntegrationPreviews?.().catch(() => undefined);
     await dependencies.purgeExpiredCheckoutIntents?.().catch(() => undefined);
     const leaseRunId = randomUUID();
     const claimInput = {
@@ -205,6 +207,10 @@ export async function POST(request: Request) {
     purgeExpiredPreviews: async () => {
       const { error } = await client.rpc('purge_expired_communication_previews', { p_limit: 100 });
       if (error) throw new Error('preview_purge_failed');
+    },
+    purgeExpiredIntegrationPreviews: async () => {
+      const { error } = await client.rpc('purge_expired_integration_previews', { p_limit: 100 });
+      if (error) throw new Error('integration_preview_purge_failed');
     },
     purgeExpiredCheckoutIntents: async () => {
       const { error } = await client.rpc('purge_expired_subscription_checkout_intents', {
