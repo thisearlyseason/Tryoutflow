@@ -3,7 +3,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { FakeEmailProvider } from '../../src/infrastructure/email/fake-email-provider';
-import type { EmailProvider } from '../../src/infrastructure/email/email-provider';
+import {
+  providerMessageIdSchema,
+  type EmailProvider,
+} from '../../src/infrastructure/email/email-provider';
 import { ResendEmailProvider } from '../../src/infrastructure/email/resend-provider';
 
 async function expectEmailProviderContract(factory: () => EmailProvider) {
@@ -39,6 +42,12 @@ describe('EmailProvider contract', () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
     );
     expect(second).toEqual(first);
+  });
+
+  it.each([1, 2, 3, 4, 5])('accepts canonical RFC provider identifier version %i', (version) => {
+    expect(
+      providerMessageIdSchema.safeParse(`a5555555-5555-${version}555-8555-555555555555`).success,
+    ).toBe(true);
   });
 
   it('normalizes provider failure without returning recipient or content', async () => {
@@ -105,6 +114,48 @@ describe('EmailProvider contract', () => {
     await expect(
       rateLimited.send(message, 'communication:33333333-3333-4333-8333-333333333333'),
     ).rejects.toEqual({ code: 'provider_temporary', retryable: true });
+  });
+
+  it.each([
+    [400, { code: 'provider_rejected', retryable: false }],
+    [408, { code: 'provider_rejected', retryable: false }],
+    [418, { code: 'provider_rejected', retryable: false }],
+    [429, { code: 'provider_temporary', retryable: true }],
+    [499, { code: 'provider_rejected', retryable: false }],
+    [500, { code: 'provider_temporary', retryable: true }],
+    [599, { code: 'provider_temporary', retryable: true }],
+  ] as const)('classifies explicit HTTP %i exactly', async (status, expected) => {
+    const provider = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com' },
+      async () => new Response('private provider response', { status }),
+    );
+    await expect(
+      provider.send(
+        { to: 'private@example.com', subject: 'Private subject', text: 'Private body' },
+        'communication:33333333-3333-4333-8333-333333333333',
+      ),
+    ).rejects.toEqual(expected);
+  });
+
+  it.each([
+    '00000000-0000-0000-0000-000000000000',
+    '55555555-5555-6555-8555-555555555555',
+    '55555555-5555-8555-8555-555555555555',
+    '55555555-5555-4555-7555-555555555555',
+    '55555555-5555-4555-8555-55555555555',
+    'a5555555-5555-4555-8555-555555555555'.toUpperCase(),
+  ])('rejects unsupported provider identifier %s in the shared contract', async (id) => {
+    expect(providerMessageIdSchema.safeParse(id).success).toBe(false);
+    const provider = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com' },
+      async () => Response.json({ id }),
+    );
+    await expect(
+      provider.send(
+        { to: 'private@example.com', subject: 'Private subject', text: 'Private body' },
+        'communication:33333333-3333-4333-8333-333333333333',
+      ),
+    ).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
   });
 
   it('classifies malformed or missing responses as delivery uncertain', async () => {

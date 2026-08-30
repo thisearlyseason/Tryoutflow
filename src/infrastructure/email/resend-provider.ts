@@ -2,7 +2,12 @@ import 'server-only';
 
 import { z } from 'zod';
 
-import type { EmailMessage, EmailProvider, EmailProviderError } from './email-provider';
+import {
+  providerMessageIdSchema,
+  type EmailMessage,
+  type EmailProvider,
+  type EmailProviderError,
+} from './email-provider';
 
 const configurationSchema = z.object({
   apiKey: z.string().min(20).max(300),
@@ -10,7 +15,7 @@ const configurationSchema = z.object({
   timeoutMs: z.number().int().min(1_000).max(60_000).default(45_000),
 });
 
-const providerResponseSchema = z.object({ id: z.uuid() }).strict();
+const providerResponseSchema = z.object({ id: providerMessageIdSchema }).strict();
 
 type ResendFetch = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -53,8 +58,7 @@ export class ResendEmailProvider implements EmailProvider {
         signal,
       });
       if (!response.ok) {
-        const retryable =
-          response.status === 408 || response.status === 429 || response.status >= 500;
+        const retryable = response.status === 429 || response.status >= 500;
         throw {
           code: retryable ? 'provider_temporary' : 'provider_rejected',
           retryable,

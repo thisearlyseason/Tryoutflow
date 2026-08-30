@@ -1182,6 +1182,7 @@ export type Database = {
           lease_generation: number;
           lease_owner: string | null;
           lease_token: string | null;
+          legacy_completion_evidence: Json | null;
           max_attempts: number;
           message_id: string;
           organization_id: string;
@@ -1207,6 +1208,7 @@ export type Database = {
           lease_generation?: number;
           lease_owner?: string | null;
           lease_token?: string | null;
+          legacy_completion_evidence?: Json | null;
           max_attempts?: number;
           message_id: string;
           organization_id: string;
@@ -1232,6 +1234,7 @@ export type Database = {
           lease_generation?: number;
           lease_owner?: string | null;
           lease_token?: string | null;
+          legacy_completion_evidence?: Json | null;
           max_attempts?: number;
           message_id?: string;
           organization_id?: string;

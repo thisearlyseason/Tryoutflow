@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 
-import type { EmailMessage, EmailProvider, EmailProviderError } from './email-provider';
+import {
+  providerMessageIdSchema,
+  type EmailMessage,
+  type EmailProvider,
+  type EmailProviderError,
+} from './email-provider';
 
 export class FakeEmailProvider implements EmailProvider {
   readonly submissions = new Map<string, { message: EmailMessage; providerMessageId: string }>();
@@ -28,6 +33,9 @@ export class FakeEmailProvider implements EmailProvider {
     bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
     const hex = bytes.toString('hex');
     const providerMessageId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    if (!providerMessageIdSchema.safeParse(providerMessageId).success) {
+      throw { code: 'provider_configuration', retryable: false } satisfies EmailProviderError;
+    }
     this.submissions.set(idempotencyKey, { message: { ...message }, providerMessageId });
     return { providerMessageId };
   }

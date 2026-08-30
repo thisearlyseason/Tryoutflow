@@ -1,4 +1,8 @@
-import type { EmailProvider, EmailProviderError } from '../email/email-provider';
+import {
+  providerMessageIdSchema,
+  type EmailProvider,
+  type EmailProviderError,
+} from '../email/email-provider';
 import type { ClaimedEmailJob, JobRpcClient } from './claim-jobs';
 
 export async function dispatchJob(
@@ -56,15 +60,29 @@ export async function dispatchJob(
       return 'retry_scheduled';
     }
     const controller = new AbortController();
-    timeout = setTimeout(
-      () => controller.abort(),
-      Math.min(providerTimeoutMilliseconds, remaining),
-    );
-    const result = await provider.send(
-      { to: job.recipientEmail, subject: job.subject, text: job.bodyText },
-      job.providerIdempotencyKey,
-      { signal: controller.signal },
-    );
+    const deadlineMilliseconds = Math.min(providerTimeoutMilliseconds, remaining);
+    const providerRequest = Promise.resolve()
+      .then(() =>
+        provider.send(
+          { to: job.recipientEmail, subject: job.subject, text: job.bodyText },
+          job.providerIdempotencyKey,
+          { signal: controller.signal },
+        ),
+      )
+      .then((result) => {
+        const parsed = providerMessageIdSchema.safeParse(result.providerMessageId);
+        if (!parsed.success) {
+          throw { code: 'delivery_uncertain', retryable: false } satisfies EmailProviderError;
+        }
+        return { providerMessageId: parsed.data };
+      });
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort();
+        reject({ code: 'delivery_uncertain', retryable: false } satisfies EmailProviderError);
+      }, deadlineMilliseconds);
+    });
+    const result = await Promise.race([providerRequest, deadline]);
     const completion = await client.rpc('complete_outbox_job_v2', {
       p_job_id: job.jobId,
       p_lease_token: job.leaseToken,

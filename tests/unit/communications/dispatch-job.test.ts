@@ -243,6 +243,75 @@ describe('communication dispatch fencing', () => {
       expect.objectContaining({ p_send_attempt_token: '44444444-4444-4444-8444-444444444444' }),
     );
   });
+
+  it.each(['resolve', 'reject'] as const)(
+    'records uncertainty at the deadline and ignores a provider that ignores abort then %ss late',
+    async (lateOutcome) => {
+      vi.useFakeTimers();
+      const rpc = vi
+        .fn()
+        .mockResolvedValueOnce(authorization())
+        .mockResolvedValueOnce({ data: 'needs_attention', error: null });
+      let settleProvider!: () => void;
+      const send = vi.fn(
+        (
+          _message: { to: string; subject: string; text: string },
+          _key: string,
+          _options?: { signal?: AbortSignal },
+        ) =>
+          new Promise<{ providerMessageId: string }>((resolve, reject) => {
+            settleProvider = () => {
+              if (lateOutcome === 'resolve') {
+                resolve({ providerMessageId: '55555555-5555-4555-8555-555555555555' });
+              } else {
+                reject(new Error('late provider failure'));
+              }
+            };
+          }),
+      );
+      let settled = false;
+      const dispatch = dispatchJob({ rpc }, { send }, job()).then((outcome) => {
+        settled = true;
+        return outcome;
+      });
+
+      await vi.advanceTimersByTimeAsync(45_001);
+      expect(settled).toBe(true);
+      await expect(dispatch).resolves.toBe('needs_attention');
+      expect(send.mock.calls[0]?.[2]?.signal?.aborted).toBe(true);
+      expect(rpc).toHaveBeenCalledTimes(2);
+      expect(rpc).toHaveBeenLastCalledWith(
+        'record_outbox_job_delivery_uncertain_v2',
+        expect.objectContaining({ p_send_attempt_token: '44444444-4444-4444-8444-444444444444' }),
+      );
+
+      settleProvider();
+      await vi.runAllTimersAsync();
+      await Promise.resolve();
+      expect(rpc).toHaveBeenCalledTimes(2);
+      expect(rpc).not.toHaveBeenCalledWith('complete_outbox_job_v2', expect.any(Object));
+      expect(rpc).not.toHaveBeenCalledWith('fail_outbox_job_v2', expect.any(Object));
+    },
+  );
+
+  it('records an unsupported provider identifier as delivery uncertainty after the send', async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce(authorization())
+      .mockResolvedValueOnce({ data: 'needs_attention', error: null });
+    const provider = {
+      send: vi.fn().mockResolvedValue({
+        providerMessageId: '66666666-6666-6666-8666-666666666666',
+      }),
+    } satisfies EmailProvider;
+
+    await expect(dispatchJob({ rpc }, provider, job())).resolves.toBe('needs_attention');
+    expect(rpc).toHaveBeenLastCalledWith(
+      'record_outbox_job_delivery_uncertain_v2',
+      expect.any(Object),
+    );
+    expect(rpc).not.toHaveBeenCalledWith('complete_outbox_job_v2', expect.any(Object));
+  });
 });
 
 class FakeTemporaryProvider implements EmailProvider {
