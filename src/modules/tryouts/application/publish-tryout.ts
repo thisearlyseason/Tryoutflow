@@ -23,12 +23,27 @@ export type PublishBlocker =
   | 'rubric_invalid';
 
 export type PublishTryoutError = {
-  code: PublishBlocker | 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'unexpected';
+  code:
+    | PublishBlocker
+    | 'invalid_input'
+    | 'forbidden'
+    | 'not_found'
+    | 'conflict'
+    | 'subscription_required'
+    | 'unexpected';
 };
 
 export type PublishTryoutOutcome =
   | { kind: 'published' | 'already_published'; publicSlug: string }
-  | { kind: PublishBlocker | 'not_found' | 'conflict' | 'forbidden' | 'unexpected' };
+  | {
+      kind:
+        | PublishBlocker
+        | 'not_found'
+        | 'conflict'
+        | 'subscription_required'
+        | 'forbidden'
+        | 'unexpected';
+    };
 
 export interface PublishTryoutGateway {
   publish(input: {
@@ -74,7 +89,12 @@ export function mapPublishTryoutResponse(data: unknown, error: RpcError): Publis
   ) {
     return { kind: row.outcome, publicSlug: row.public_slug };
   }
-  if (isPublishBlocker(row.outcome) || row.outcome === 'not_found' || row.outcome === 'conflict') {
+  if (
+    isPublishBlocker(row.outcome) ||
+    row.outcome === 'not_found' ||
+    row.outcome === 'conflict' ||
+    row.outcome === 'subscription_required'
+  ) {
     return { kind: row.outcome };
   }
   return { kind: 'unexpected' };

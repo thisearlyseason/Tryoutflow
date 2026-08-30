@@ -2437,6 +2437,112 @@ export type Database = {
           },
         ];
       };
+      subscription_accounts: {
+        Row: {
+          created_at: string;
+          entitlement_source: string;
+          id: string;
+          last_provider_event_created_at: string | null;
+          last_provider_event_id: string | null;
+          organization_id: string;
+          plan_key: string | null;
+          provider_customer_id: string | null;
+          provider_subscription_id: string | null;
+          state: string;
+          updated_at: string;
+          verified_at: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          entitlement_source: string;
+          id?: string;
+          last_provider_event_created_at?: string | null;
+          last_provider_event_id?: string | null;
+          organization_id: string;
+          plan_key?: string | null;
+          provider_customer_id?: string | null;
+          provider_subscription_id?: string | null;
+          state: string;
+          updated_at?: string;
+          verified_at: string;
+          version?: number;
+        };
+        Update: {
+          created_at?: string;
+          entitlement_source?: string;
+          id?: string;
+          last_provider_event_created_at?: string | null;
+          last_provider_event_id?: string | null;
+          organization_id?: string;
+          plan_key?: string | null;
+          provider_customer_id?: string | null;
+          provider_subscription_id?: string | null;
+          state?: string;
+          updated_at?: string;
+          verified_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'subscription_accounts_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: true;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      subscription_events: {
+        Row: {
+          event_type: string;
+          organization_id: string | null;
+          outcome: string;
+          payload: Json;
+          payload_digest: string;
+          processed_at: string | null;
+          provider_created_at: string;
+          provider_customer_id: string | null;
+          provider_event_id: string;
+          provider_subscription_id: string | null;
+          received_at: string;
+        };
+        Insert: {
+          event_type: string;
+          organization_id?: string | null;
+          outcome?: string;
+          payload: Json;
+          payload_digest: string;
+          processed_at?: string | null;
+          provider_created_at: string;
+          provider_customer_id?: string | null;
+          provider_event_id: string;
+          provider_subscription_id?: string | null;
+          received_at?: string;
+        };
+        Update: {
+          event_type?: string;
+          organization_id?: string | null;
+          outcome?: string;
+          payload?: Json;
+          payload_digest?: string;
+          processed_at?: string | null;
+          provider_created_at?: string;
+          provider_customer_id?: string | null;
+          provider_event_id?: string;
+          provider_subscription_id?: string | null;
+          received_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'subscription_events_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       tryout_divisions: {
         Row: {
           created_at: string;
@@ -3123,6 +3229,21 @@ export type Database = {
         };
         Returns: string;
       };
+      apply_stripe_subscription_event: {
+        Args: {
+          p_customer_id: string;
+          p_event_id: string;
+          p_event_type: string;
+          p_organization_id: string;
+          p_payload: Json;
+          p_payload_digest: string;
+          p_plan_key: string;
+          p_provider_created_at: string;
+          p_state: string;
+          p_subscription_id: string;
+        };
+        Returns: string;
+      };
       assign_evaluator: {
         Args: {
           p_division_id?: string;
@@ -3680,6 +3801,18 @@ export type Database = {
           version: number | null;
         }[];
       };
+      get_owned_subscription_account: {
+        Args: { p_organization_id: string };
+        Returns: {
+          organization_id: string;
+          plan_key: string;
+          provider_customer_id: string;
+          provider_subscription_id: string;
+          state: string;
+          verified_at: string;
+          version: number;
+        }[];
+      };
       has_active_configuration_assignment: {
         Args: {
           required_role?: string;
@@ -3908,6 +4041,10 @@ export type Database = {
         }[];
       };
       normalize_registration_text: { Args: { value: string }; Returns: string };
+      organization_subscription_can_publish: {
+        Args: { p_organization_id: string };
+        Returns: boolean;
+      };
       preview_decision_message_batch: {
         Args: {
           p_decision: string;

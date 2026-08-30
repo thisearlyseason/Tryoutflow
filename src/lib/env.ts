@@ -26,6 +26,11 @@ const resendWebhookEnvironmentSchema = z.object({
 });
 export type ResendWebhookEnvironment = z.infer<typeof resendWebhookEnvironmentSchema>;
 
+const stripeWebhookEnvironmentSchema = z.object({
+  STRIPE_WEBHOOK_SECRET: z.string().regex(/^whsec_[A-Za-z0-9_+/=-]{16,500}$/u),
+});
+export type StripeWebhookEnvironment = z.infer<typeof stripeWebhookEnvironmentSchema>;
+
 /** Validates the single canonical origin used in externally shared links. */
 export function getPublicAppOrigin(
   environment: Record<string, string | undefined> = process.env,
@@ -76,4 +81,12 @@ export function getResendWebhookEnvironment(
   if (typeof window !== 'undefined')
     throw new Error('Server environment cannot be read in the browser');
   return resendWebhookEnvironmentSchema.parse(environment);
+}
+
+export function getStripeWebhookEnvironment(
+  environment: Record<string, string | undefined> = process.env,
+): StripeWebhookEnvironment {
+  if (typeof window !== 'undefined')
+    throw new Error('Server environment cannot be read in the browser');
+  return stripeWebhookEnvironmentSchema.parse(environment);
 }
