@@ -7,7 +7,7 @@ import type { Json } from '../../../../infrastructure/supabase/database.types';
 import { noRegistrationConfirmationNotifier } from '../../../../modules/registration/application/registration-confirmation-notifier';
 import { registerAthlete } from '../../../../modules/registration/application/register-athlete';
 import { RegistrationFormSchema } from '../../../../modules/registration/domain/form-schema';
-import { guardPublicJsonRequest } from './public-request-security';
+import { guardPublicJsonRequest, recordIntegrationRateKeys } from './public-request-security';
 
 function genericError(status: number) {
   return NextResponse.json(
@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
     const transactionRateKey = createHash('sha256')
       .update(`registration-transaction|${guarded.rateKey}`)
       .digest('hex');
+    recordIntegrationRateKeys([transactionRateKey]);
     const command = await registerAthlete(
       {
         tryoutSlug: body.tryoutSlug,

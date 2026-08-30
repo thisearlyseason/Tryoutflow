@@ -1,6 +1,9 @@
 // @vitest-environment node
 
 import { NextRequest } from 'next/server';
+import { chmodSync, mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { guardPublicJsonRequest } from '../../../src/app/api/public/registrations/public-request-security';
@@ -32,6 +35,8 @@ describe('shared public registration request defenses', () => {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'local-test-key';
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'local-service-key';
     process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = 'r'.repeat(64);
+    delete process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+    delete process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG;
   });
 
   it('accepts same-origin JSON and derives a non-reversible route-specific bucket', async () => {
@@ -60,6 +65,26 @@ describe('shared public registration request defenses', () => {
     if (first.ok && second.ok) {
       expect(first.contextRateKey).toBe(second.contextRateKey);
       expect(first.rateKey).not.toBe(second.rateKey);
+    }
+  });
+
+  it('records exact supervised rate keys before the database can persist them', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-rate-key-log-'));
+    chmodSync(directory, 0o700);
+    const runId = '8'.repeat(16);
+    const log = join(directory, `${runId}.rate-keys`);
+    process.env.TRYOUTFLOW_INTEGRATION_RUN_ID = runId;
+    process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG = log;
+    const guarded = await guardPublicJsonRequest(request('{"target":"fall-camp"}'), {
+      bucket: 'consume',
+      parse,
+    });
+    expect(guarded.ok).toBe(true);
+    if (guarded.ok) {
+      expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual([
+        guarded.contextRateKey,
+        guarded.rateKey,
+      ]);
     }
   });
 

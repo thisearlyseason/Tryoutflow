@@ -1,10 +1,12 @@
 // @vitest-environment node
 
 import { execFile as execFileCallback, spawn, type ChildProcess } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
+
+import { recordIntegrationRateKey } from '../../fixtures/integration-lock/record-rate-key';
 
 const execFile = promisify(execFileCallback);
 const databaseUrl =
@@ -40,6 +42,12 @@ describe('registration idempotency concurrency', () => {
     const secondName = `registration-second-${caseId}`;
     const slug = `registration-${tryoutId.slice(0, 8)}`;
     const idempotencyKey = `concurrent-registration-${caseId}`;
+    const firstRateKey = recordIntegrationRateKey(
+      createHash('sha256').update(`${caseId}:first`).digest('hex'),
+    );
+    const secondRateKey = recordIntegrationRateKey(
+      createHash('sha256').update(`${caseId}:second`).digest('hex'),
+    );
     const resultTable = `registration_concurrency_${caseId.replaceAll('-', '')}`;
     const submission = JSON.stringify({
       givenName: 'Ava',
@@ -85,11 +93,11 @@ describe('registration idempotency concurrency', () => {
             )
           ).stdout.trim() === 't',
       );
-      const call = (name: string, rateDigit: string, waitAfter: boolean) =>
+      const call = (name: string, rateKey: string, waitAfter: boolean) =>
         psql(
-          `set application_name='${name}'; begin; insert into public.${resultTable} select '${name}',outcome,confirmation_token from public.submit_public_registration_with_phone('${slug}','${submission}'::jsonb,'${idempotencyKey}',repeat('${rateDigit}',64)); ${waitAfter ? `select pg_advisory_lock(${classId},${objectId});` : ''} commit;`,
+          `set application_name='${name}'; begin; insert into public.${resultTable} select '${name}',outcome,confirmation_token from public.submit_public_registration_with_phone('${slug}','${submission}'::jsonb,'${idempotencyKey}','${rateKey}'); ${waitAfter ? `select pg_advisory_lock(${classId},${objectId});` : ''} commit;`,
         );
-      const first = call(firstName, '6', true);
+      const first = call(firstName, firstRateKey, true);
       await waitFor(
         async () =>
           (
@@ -98,7 +106,7 @@ describe('registration idempotency concurrency', () => {
             )
           ).stdout.trim() === 't',
       );
-      const second = call(secondName, '7', false);
+      const second = call(secondName, secondRateKey, false);
       await waitFor(
         async () =>
           (
@@ -187,7 +195,7 @@ describe('registration idempotency concurrency', () => {
         delete from public.tryout_divisions where organization_id='${organizationId}';
         delete from public.tryouts where organization_id='${organizationId}';
         delete from public.organizations where id='${organizationId}';
-        delete from public.registration_rate_counters where key_hash in(repeat('6',64),repeat('7',64));
+        delete from public.registration_rate_counters where key_hash in('${firstRateKey}','${secondRateKey}');
         set session_replication_role=origin;
       `);
     }

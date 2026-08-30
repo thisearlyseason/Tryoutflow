@@ -7,6 +7,8 @@ import { resolve } from 'node:path';
 import { NextRequest } from 'next/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { recordIntegrationRateKey } from '../../fixtures/integration-lock/record-rate-key';
+
 vi.mock('server-only', () => ({}));
 
 type Route = (request: NextRequest) => Promise<Response>;
@@ -14,6 +16,7 @@ let submitRegistration: Route;
 let consumeConfirmation: Route;
 let reissueConfirmation: Route;
 let apiKeys: ReturnType<typeof localApiKeys>;
+const directCanonicalRateKey = 'c'.repeat(64);
 
 const origin = 'http://localhost';
 const databaseUrl =
@@ -75,6 +78,7 @@ beforeAll(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
+  recordIntegrationRateKey(directCanonicalRateKey);
   execFileSync(
     'psql',
     [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-f', resolve('tests/fixtures/registration/seed.sql')],
@@ -125,7 +129,7 @@ describe('real public registration route with local Supabase', () => {
             guardianEmail: `postgrest-${randomUUID()}@example.com`,
           },
           p_idempotency_key: `canonical-${randomUUID()}`,
-          p_rate_key_hash: 'c'.repeat(64),
+          p_rate_key_hash: directCanonicalRateKey,
         }),
       },
     );

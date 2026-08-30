@@ -9,6 +9,14 @@ if (!output || !holdMillisecondsText || !counterKey) {
 const holdMilliseconds = Number.parseInt(holdMillisecondsText, 10);
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+if (!runId || !/^[0-9a-f]{16}$/u.test(runId))
+  throw new Error('validated integration run id required');
+const rateKeyLog = process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG;
+if (!rateKeyLog || !rateKeyLog.endsWith(`/${runId}.rate-keys`)) {
+  throw new Error('validated integration rate-key ownership log required');
+}
+appendFileSync(rateKeyLog, `${counterKey}\n`, { mode: 0o600 });
 const existing = execFileSync(
   'psql',
   [
@@ -32,9 +40,6 @@ execFileSync(
   ],
   { stdio: 'pipe' },
 );
-const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
-if (!runId || !/^[0-9a-f]{16}$/u.test(runId))
-  throw new Error('validated integration run id required');
 const databasePrefix = `tryoutflow_fixture_${runId}_`;
 let organizationId;
 let userId;

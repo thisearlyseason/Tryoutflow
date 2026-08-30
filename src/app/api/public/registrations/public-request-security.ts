@@ -1,10 +1,44 @@
 import { createHmac } from 'node:crypto';
+import { appendFileSync, existsSync, lstatSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
 
 import type { NextRequest } from 'next/server';
 
 import { getServerEnvironment } from '../../../../lib/env';
 
 export const MAX_PUBLIC_REGISTRATION_BODY_BYTES = 32 * 1024;
+
+export function recordIntegrationRateKeys(keys: string[]) {
+  if (process.env.NODE_ENV !== 'test') return;
+  const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+  const path = process.env.TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG;
+  if (!runId && !path) return;
+  if (
+    !runId ||
+    !/^[0-9a-f]{16}$/u.test(runId) ||
+    !path ||
+    basename(path) !== `${runId}.rate-keys`
+  ) {
+    throw new Error('invalid integration rate-key ownership log');
+  }
+  const directory = lstatSync(dirname(path));
+  const uid = typeof process.getuid === 'function' ? process.getuid() : directory.uid;
+  if (
+    directory.isSymbolicLink() ||
+    !directory.isDirectory() ||
+    directory.uid !== uid ||
+    (directory.mode & 0o077) !== 0
+  ) {
+    throw new Error('unsafe integration rate-key ownership directory');
+  }
+  if (existsSync(path)) {
+    const file = lstatSync(path);
+    if (file.isSymbolicLink() || !file.isFile() || file.uid !== uid || (file.mode & 0o077) !== 0) {
+      throw new Error('unsafe integration rate-key ownership log');
+    }
+  }
+  appendFileSync(path, `${keys.join('\n')}\n`, { mode: 0o600 });
+}
 
 type GuardFailure = { ok: false; status: 400 | 403 | 413 };
 type ParsedTarget<T> = { body: T; target: string };
@@ -96,6 +130,7 @@ export async function guardPublicJsonRequest<T>(
     const rateKey = createHmac('sha256', secret)
       .update(`${options.bucket}|target|${parsed.target}|${address}`)
       .digest('hex');
+    recordIntegrationRateKeys([contextRateKey, rateKey]);
     return { ok: true, ...parsed, contextRateKey, rateKey };
   } catch {
     return { ok: false, status: 400 };

@@ -1,67 +1,30 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { appendFileSync } from 'node:fs';
 
+import { createSupervisorStateStore } from './integration-supervisor-state.mjs';
 import { resolveAndValidateLocalDatabase } from './local-supabase-database.mjs';
 
 const [commandJson, ownerPidText, runId, expectedIdentity] = process.argv.slice(2);
 const command = JSON.parse(commandJson ?? 'null');
 const ownerPid = Number.parseInt(ownerPidText ?? '', 10);
-if (
-  !Array.isArray(command) ||
-  command.length === 0 ||
-  command.some((value) => typeof value !== 'string')
-) {
+if (!Array.isArray(command) || command.length === 0 || command.some((v) => typeof v !== 'string'))
   throw new Error('integration supervisor requires a non-empty string command array');
-}
-if (!Number.isSafeInteger(ownerPid) || ownerPid <= 1) {
+if (!Number.isSafeInteger(ownerPid) || ownerPid <= 1)
   throw new Error('integration supervisor requires its directly owning process ID');
-}
-if (!runId || !/^[0-9a-f]{16}$/u.test(runId)) {
+if (!/^[0-9a-f]{16}$/u.test(runId ?? ''))
   throw new Error('integration supervisor requires an unguessable run ID');
-}
-if (!expectedIdentity || !/^[0-9a-f]{64}$/u.test(expectedIdentity)) {
+if (!/^[0-9a-f]{64}$/u.test(expectedIdentity ?? ''))
   throw new Error('integration supervisor requires a canonical database identity');
-}
-
-const databaseUrl = process.env.SUPABASE_DB_URL;
-if (!databaseUrl) throw new Error('integration supervisor requires SUPABASE_DB_URL');
-// The independent cleanup owner repeats the read-only local identity proof rather than trusting its
-// launcher. No lock, manifest, SQL mutation, or test process exists before this returns successfully.
-const validated = resolveAndValidateLocalDatabase(databaseUrl);
-if (validated.identity !== expectedIdentity)
-  throw new Error('database identity changed before supervision');
-const operationalDatabase = new URL(databaseUrl);
-operationalDatabase.search = '';
-operationalDatabase.hash = '';
-const operationalDatabaseUrl = operationalDatabase.toString();
-
-const lockKey = BigInt.asIntN(
-  64,
-  createHash('sha256')
-    .update(`tryoutflow-integration:${validated.identity}`)
-    .digest()
-    .readBigUInt64BE(0),
-);
-const identityDirectory = join(tmpdir(), 'tryoutflow-integration-runs', validated.identity);
-const manifestPath = join(identityDirectory, `${runId}.json`);
-const databasePrefixes = [
-  `tryoutflow_csv_${runId}_`,
-  `tryoutflow_roster_${runId}_`,
-  `tryoutflow_fixture_${runId}_`,
-];
-const runRole = `tryoutflow_run_${runId}`;
-const runPassword = randomUUID();
-const ownershipSchema = `tryoutflow_harness_${runId}`;
 
 let requestedExitCode = null;
+let cancellationGeneration = 0;
+let supervisorState = 'validating-identity';
 let commandChild;
 let holder;
 let lockAcquired = false;
-let terminating = false;
 let escalation;
+const cancellationWaiters = new Set();
 
 function signalOwnedGroup(signal) {
   if (!commandChild?.pid) return;
@@ -74,10 +37,12 @@ function signalOwnedGroup(signal) {
 
 function beginTermination(exitCode) {
   requestedExitCode ??= exitCode;
-  if (terminating) return;
-  terminating = true;
+  if (cancellationGeneration !== 0) return;
+  cancellationGeneration += 1;
+  for (const waiter of cancellationWaiters) waiter();
+  cancellationWaiters.clear();
   signalOwnedGroup('SIGTERM');
-  if (!commandChild) holder?.kill('SIGTERM');
+  if (!lockAcquired && !commandChild) holder?.kill('SIGTERM');
   escalation = setTimeout(() => signalOwnedGroup('SIGKILL'), 1_000);
 }
 
@@ -87,316 +52,324 @@ const ownerWatch = setInterval(() => {
   if (process.ppid !== ownerPid) beginTermination(137);
 }, 50);
 
-const marker = `lock-acquired-${randomUUID()}`;
-holder = spawn('psql', ['-X', '-qAt', operationalDatabaseUrl], {
-  env: { ...process.env, PGAPPNAME: `tryoutflow-integration-supervisor:${runId}` },
-  stdio: ['pipe', 'pipe', 'inherit'],
-});
-let holderOutput = '';
-const holderClosed = new Promise((resolveClose) => holder.once('close', resolveClose));
-const acquired = new Promise((resolveAcquired, reject) => {
-  holder.stdout.setEncoding('utf8').on('data', (chunk) => {
-    holderOutput += chunk;
-    if (holderOutput.includes(marker)) resolveAcquired();
-  });
-  holder.once('error', reject);
-  holder.once('close', (code) => {
-    if (!holderOutput.includes(marker))
-      reject(new Error(`integration lock session exited ${code}`));
-  });
-});
-holder.stdin.write(`select pg_advisory_lock(${lockKey}); select '${marker}';\n`);
-
-function psql(sql) {
-  return execFileSync(
-    'psql',
-    ['-X', '-v', 'ON_ERROR_STOP=1', '-At', operationalDatabaseUrl, '-c', sql],
-    {
-      encoding: 'utf8',
-    },
-  ).trim();
+function fence(generation = 0) {
+  if (cancellationGeneration !== generation)
+    throw new Error('integration supervisor cancelled before completing setup');
 }
 
-function containerSuperuserPsql(sql) {
-  const containerDatabase = new URL(operationalDatabaseUrl);
-  containerDatabase.hostname = '127.0.0.1';
-  containerDatabase.port = '5432';
-  containerDatabase.username = 'supabase_admin';
-  return execFileSync(
-    'docker',
-    [
-      'exec',
-      validated.name,
+function transition(next, allowed) {
+  if (!allowed.includes(supervisorState)) {
+    throw new Error(`invalid integration supervisor transition ${supervisorState} -> ${next}`);
+  }
+  supervisorState = next;
+}
+
+async function phase(name, { allowCancellation = false } = {}) {
+  if (process.env.NODE_ENV === 'test' && process.env.TRYOUTFLOW_INTEGRATION_TEST_HOOK_FILE) {
+    appendFileSync(
+      process.env.TRYOUTFLOW_INTEGRATION_TEST_HOOK_FILE,
+      `${JSON.stringify({ phase: name, state: supervisorState, supervisorPid: process.pid, runId })}\n`,
+    );
+    if (process.env.TRYOUTFLOW_INTEGRATION_TEST_PAUSE_PHASE === name) {
+      await new Promise((resolve) => {
+        if (cancellationGeneration !== 0) resolve();
+        else cancellationWaiters.add(resolve);
+      });
+    } else await new Promise((resolve) => setImmediate(resolve));
+  }
+  if (!allowCancellation) fence();
+}
+
+const signalExitCode = (signal) => 128 + ({ SIGINT: 2, SIGTERM: 15, SIGKILL: 9 }[signal] ?? 0);
+
+async function supervise() {
+  const databaseUrl = process.env.SUPABASE_DB_URL;
+  if (!databaseUrl) throw new Error('integration supervisor requires SUPABASE_DB_URL');
+  const validated = resolveAndValidateLocalDatabase(databaseUrl);
+  if (validated.identity !== expectedIdentity)
+    throw new Error('database identity changed before supervision');
+  await phase('identity-validation');
+
+  const state = createSupervisorStateStore({ identity: validated.identity });
+  const body = state.manifestBody(runId);
+  const operationalDatabase = new URL(databaseUrl);
+  operationalDatabase.search = '';
+  operationalDatabase.hash = '';
+  const operationalDatabaseUrl = operationalDatabase.toString();
+  const runPassword = randomUUID();
+  const lockKey = BigInt.asIntN(
+    64,
+    createHash('sha256')
+      .update(`tryoutflow-integration:${validated.identity}`)
+      .digest()
+      .readBigUInt64BE(0),
+  );
+
+  const psql = (sql) =>
+    execFileSync(
       'psql',
-      '-X',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-At',
-      containerDatabase.toString(),
-      '-c',
-      sql,
-    ],
-    { encoding: 'utf8' },
-  ).trim();
-}
-
-function runPrefixes(id) {
-  if (!/^[0-9a-f]{16}$/u.test(id)) throw new Error('invalid stale integration run manifest');
-  return [`tryoutflow_csv_${id}_`, `tryoutflow_roster_${id}_`, `tryoutflow_fixture_${id}_`];
-}
-
-function validatedRunRole(role) {
-  if (!/^tryoutflow_run_[0-9a-f]{16}$/u.test(role)) {
-    throw new Error('invalid integration run role');
-  }
-  return role;
-}
-
-function terminateRunSessions(role) {
-  if (!role) return;
-  const exactRole = validatedRunRole(role);
-  containerSuperuserPsql(
-    `select pg_terminate_backend(pid) from pg_stat_activity where usename='${exactRole}' and pid<>pg_backend_pid()`,
-  );
-}
-
-function dropRunRole(role) {
-  if (!role) return;
-  const exactRole = validatedRunRole(role);
-  if (psql(`select exists(select 1 from pg_roles where rolname='${exactRole}')`) !== 't') return;
-  containerSuperuserPsql(`drop owned by ${exactRole} cascade; drop role if exists ${exactRole}`);
-}
-
-function validatedOwnershipSchema(schema) {
-  if (!/^tryoutflow_harness_[0-9a-f]{16}$/u.test(schema)) {
-    throw new Error('invalid integration ownership schema');
-  }
-  return schema;
-}
-
-function setupOwnershipRegistry(schema, role) {
-  const exactSchema = validatedOwnershipSchema(schema);
-  const exactRole = validatedRunRole(role);
-  const suffix = exactSchema.slice('tryoutflow_harness_'.length);
-  containerSuperuserPsql(`
-    create schema ${exactSchema} authorization ${exactRole};
-    create table ${exactSchema}.organizations(id uuid primary key);
-    create table ${exactSchema}.users(id uuid primary key);
-    alter table ${exactSchema}.organizations owner to ${exactRole};
-    alter table ${exactSchema}.users owner to ${exactRole};
-    create function ${exactSchema}.capture_organization() returns trigger
-      language plpgsql security definer set search_path=pg_catalog,${exactSchema} as $function$
-      begin
-        if session_user='${exactRole}' then
-          insert into ${exactSchema}.organizations(id) values(new.id) on conflict do nothing;
-        end if;
-        return new;
-      end
-      $function$;
-    create function ${exactSchema}.capture_user() returns trigger
-      language plpgsql security definer set search_path=pg_catalog,${exactSchema} as $function$
-      begin
-        if session_user='${exactRole}' then
-          insert into ${exactSchema}.users(id) values(new.id) on conflict do nothing;
-        end if;
-        return new;
-      end
-      $function$;
-    alter function ${exactSchema}.capture_organization() owner to ${exactRole};
-    alter function ${exactSchema}.capture_user() owner to ${exactRole};
-    create trigger tryoutflow_capture_org_${suffix} after insert on public.organizations
-      for each row execute function ${exactSchema}.capture_organization();
-    create trigger tryoutflow_capture_user_${suffix} after insert on auth.users
-      for each row execute function ${exactSchema}.capture_user();
-  `);
-}
-
-function readOwnedRoots(schema) {
-  const exactSchema = validatedOwnershipSchema(schema);
-  if (psql(`select exists(select 1 from pg_namespace where nspname='${exactSchema}')`) !== 't') {
-    return { organizationIds: [], userIds: [] };
-  }
-  return {
-    organizationIds: containerSuperuserPsql(
-      `select id from ${exactSchema}.organizations order by id`,
-    )
-      .split('\n')
-      .filter(Boolean),
-    userIds: containerSuperuserPsql(`select id from ${exactSchema}.users order by id`)
-      .split('\n')
-      .filter(Boolean),
+      ['-X', '-v', 'ON_ERROR_STOP=1', '-At', operationalDatabaseUrl, '-c', sql],
+      {
+        encoding: 'utf8',
+      },
+    ).trim();
+  const containerSuperuserPsql = (sql) => {
+    const url = new URL(operationalDatabaseUrl);
+    url.hostname = '127.0.0.1';
+    url.port = '5432';
+    url.username = 'supabase_admin';
+    return execFileSync(
+      'docker',
+      [
+        'exec',
+        validated.name,
+        'psql',
+        '-X',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-At',
+        url.toString(),
+        '-c',
+        sql,
+      ],
+      { encoding: 'utf8' },
+    ).trim();
   };
-}
 
-function teardownOwnershipRegistry(schema) {
-  if (!schema) return;
-  const exactSchema = validatedOwnershipSchema(schema);
-  const suffix = exactSchema.slice('tryoutflow_harness_'.length);
-  containerSuperuserPsql(`
-    set client_min_messages=warning;
-    drop trigger if exists tryoutflow_capture_org_${suffix} on public.organizations;
-    drop trigger if exists tryoutflow_capture_user_${suffix} on auth.users;
-    drop schema if exists ${exactSchema} cascade;
-  `);
-}
-
-function validatedIds(values, label) {
-  if (!Array.isArray(values) || values.some((value) => typeof value !== 'string')) {
-    throw new Error(`invalid ${label} in integration run manifest`);
+  function terminateRunSessions(exactRunId) {
+    const exact = state.manifestBody(exactRunId);
+    containerSuperuserPsql(
+      `select pg_terminate_backend(pid) from pg_stat_activity where usename='${exact.role}' and pid<>pg_backend_pid()`,
+    );
   }
-  for (const value of values) {
-    if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(value)) {
-      throw new Error(`invalid ${label} in integration run manifest`);
-    }
-  }
-  return new Set(values.map((value) => value.toLowerCase()));
-}
 
-function cleanupOwnedPrimaryFixtures(owned) {
-  const organizations = [...validatedIds(owned.organizationIds, 'owned organizations')];
-  const users = [...validatedIds(owned.userIds, 'owned users')];
-  const uuidList = (ids) => ids.map((id) => `'${id}'::uuid`).join(',');
-  const organizationArray =
-    organizations.length > 0 ? `array[${uuidList(organizations)}]` : 'array[]::uuid[]';
-  const userArray = users.length > 0 ? `array[${uuidList(users)}]` : 'array[]::uuid[]';
-  psql(`
-    begin;
-    set local session_replication_role=replica;
-    do $cleanup$
-    declare target_table text;
-    begin
-      for target_table in
-        select format('%I.%I',columns.table_schema,columns.table_name)
-        from information_schema.columns columns
-        join information_schema.tables tables
-          on tables.table_schema=columns.table_schema and tables.table_name=columns.table_name
-        where columns.table_schema='public'
-          and columns.column_name='organization_id'
-          and columns.table_name<>'organizations'
-          and tables.table_type='BASE TABLE'
-        order by columns.table_name
-      loop
-        execute format('delete from %s where organization_id=any($1)',target_table)
-          using ${organizationArray};
-      end loop;
-    end
-    $cleanup$;
-    delete from public.profiles where id=any(${userArray});
-    set local session_replication_role=origin;
-    delete from public.organizations where id=any(${organizationArray});
-    delete from auth.users where id=any(${userArray});
-    commit;
-  `);
-}
-
-function cleanupPrefixes(prefixes) {
-  for (const prefix of prefixes) {
-    if (!/^tryoutflow_(?:csv|roster|fixture)_[0-9a-f]{16}_$/u.test(prefix)) {
-      throw new Error('refusing an invalid integration database prefix');
-    }
-    const names = psql(
-      `select datname from pg_database where left(datname,${prefix.length})='${prefix}' order by datname`,
+  function readOwnedRoots(exactRunId) {
+    const exact = state.manifestBody(exactRunId);
+    if (
+      psql(`select exists(select 1 from pg_namespace where nspname='${exact.ownershipSchema}')`) !==
+      't'
     )
-      .split('\n')
-      .filter(Boolean);
-    for (const name of names) {
-      if (!new RegExp(`^${prefix}[a-z0-9_]+$`, 'u').test(name)) {
-        throw new Error(`refusing unexpected integration database name ${name}`);
+      return { organizationIds: [], userIds: [] };
+    const ids = (table) =>
+      containerSuperuserPsql(`select id from ${exact.ownershipSchema}.${table} order by id`)
+        .split('\n')
+        .filter((value) => /^[0-9a-f-]{36}$/iu.test(value));
+    return { organizationIds: ids('organizations'), userIds: ids('users') };
+  }
+
+  function cleanupOwnedPrimaryFixtures(owned) {
+    const uuidList = (ids) => ids.map((id) => `'${id}'::uuid`).join(',');
+    const organizations = owned.organizationIds ?? [];
+    const users = owned.userIds ?? [];
+    const orgArray = organizations.length ? `array[${uuidList(organizations)}]` : 'array[]::uuid[]';
+    const userArray = users.length ? `array[${uuidList(users)}]` : 'array[]::uuid[]';
+    psql(`begin; set local session_replication_role=replica;
+      do $cleanup$ declare target_table text; begin
+        for target_table in select format('%I.%I',c.table_schema,c.table_name)
+          from information_schema.columns c join information_schema.tables t
+          on t.table_schema=c.table_schema and t.table_name=c.table_name
+          where c.table_schema='public' and c.column_name='organization_id'
+          and c.table_name<>'organizations' and t.table_type='BASE TABLE' order by c.table_name
+        loop execute format('delete from %s where organization_id=any($1)',target_table)
+          using ${orgArray}; end loop;
+      end $cleanup$;
+      delete from public.profiles where id=any(${userArray});
+      set local session_replication_role=origin;
+      delete from public.organizations where id=any(${orgArray});
+      delete from auth.users where id=any(${userArray}); commit;`);
+  }
+
+  function cleanupDatabases(exactRunId) {
+    for (const prefix of state.manifestBody(exactRunId).databasePrefixes) {
+      const names = psql(
+        `select datname from pg_database where left(datname,${prefix.length})='${prefix}' order by datname`,
+      )
+        .split('\n')
+        .filter(Boolean);
+      for (const name of names) {
+        if (!new RegExp(`^${prefix}[a-z0-9_]+$`, 'u').test(name))
+          throw new Error(`refusing unexpected integration database name ${name}`);
+        containerSuperuserPsql(`drop database if exists "${name}" with (force)`);
       }
-      containerSuperuserPsql(`drop database if exists "${name}" with (force)`);
     }
   }
-}
 
-function recoverStaleManifests() {
-  mkdirSync(identityDirectory, { recursive: true, mode: 0o700 });
-  for (const entry of readdirSync(identityDirectory)) {
-    if (!entry.endsWith('.json') || entry === `${runId}.json`) continue;
-    const manifest = JSON.parse(readFileSync(join(identityDirectory, entry), 'utf8'));
-    terminateRunSessions(manifest.role);
-    const owned = manifest.ownershipSchema
-      ? readOwnedRoots(manifest.ownershipSchema)
-      : { organizationIds: [], userIds: [] };
-    cleanupPrefixes(runPrefixes(manifest.runId));
-    cleanupOwnedPrimaryFixtures(owned);
-    teardownOwnershipRegistry(manifest.ownershipSchema);
-    dropRunRole(manifest.role);
-    rmSync(join(identityDirectory, entry), { force: true });
+  function cleanupRegistryAndRole(exactRunId) {
+    const exact = state.manifestBody(exactRunId);
+    containerSuperuserPsql(`begin; set local client_min_messages=warning;
+      drop trigger if exists tryoutflow_capture_org_${exactRunId} on public.organizations;
+      drop trigger if exists tryoutflow_capture_user_${exactRunId} on auth.users;
+      drop schema if exists ${exact.ownershipSchema} cascade;
+      do $drop$ begin if exists(select 1 from pg_roles where rolname='${exact.role}') then
+        execute 'drop owned by ${exact.role} cascade'; execute 'drop role ${exact.role}';
+      end if; end $drop$; commit;`);
   }
-}
 
-let childResult = { code: 1, signal: null };
-let executionError;
-try {
-  await acquired;
-  lockAcquired = true;
-  if (requestedExitCode !== null)
-    throw new Error('integration supervisor stopped before command start');
-  recoverStaleManifests();
-  writeFileSync(
-    manifestPath,
-    JSON.stringify({ runId, databasePrefixes, role: runRole, ownershipSchema }),
-    {
-      mode: 0o600,
-    },
+  function cleanupRateKeys(exactRunId) {
+    const keys = state.readRateKeys(exactRunId);
+    if (keys.length)
+      psql(
+        `delete from public.registration_rate_counters where key_hash in(${keys.map((k) => `'${k}'`).join(',')})`,
+      );
+  }
+
+  function cleanupRun(exactRunId) {
+    const errors = [];
+    let owned = { organizationIds: [], userIds: [] };
+    const attempt = (operation) => {
+      try {
+        operation();
+      } catch (error) {
+        errors.push(error);
+      }
+    };
+    attempt(() => terminateRunSessions(exactRunId));
+    attempt(() => {
+      owned = readOwnedRoots(exactRunId);
+    });
+    attempt(() => cleanupDatabases(exactRunId));
+    attempt(() => cleanupOwnedPrimaryFixtures(owned));
+    attempt(() => cleanupRateKeys(exactRunId));
+    attempt(() => cleanupRegistryAndRole(exactRunId));
+    if (errors.length === 0) state.removeRunState(exactRunId);
+    return errors;
+  }
+
+  function recoverStaleManifests() {
+    const errors = state
+      .readRecoverableManifests(runId)
+      .flatMap((manifest) => cleanupRun(manifest.body.runId));
+    if (errors.length) throw new AggregateError(errors, 'stale integration recovery failed');
+  }
+
+  function setupRegistryAndRole() {
+    containerSuperuserPsql(`begin;
+      create role ${body.role} login superuser password '${runPassword}';
+      create schema ${body.ownershipSchema} authorization ${body.role};
+      create table ${body.ownershipSchema}.organizations(id uuid primary key);
+      create table ${body.ownershipSchema}.users(id uuid primary key);
+      alter table ${body.ownershipSchema}.organizations owner to ${body.role};
+      alter table ${body.ownershipSchema}.users owner to ${body.role};
+      create function ${body.ownershipSchema}.capture_organization() returns trigger language plpgsql
+        security definer set search_path=pg_catalog,${body.ownershipSchema} as $fn$ begin
+        if session_user='${body.role}' then insert into ${body.ownershipSchema}.organizations(id)
+        values(new.id) on conflict do nothing; end if; return new; end $fn$;
+      create function ${body.ownershipSchema}.capture_user() returns trigger language plpgsql
+        security definer set search_path=pg_catalog,${body.ownershipSchema} as $fn$ begin
+        if session_user='${body.role}' then insert into ${body.ownershipSchema}.users(id)
+        values(new.id) on conflict do nothing; end if; return new; end $fn$;
+      alter function ${body.ownershipSchema}.capture_organization() owner to ${body.role};
+      alter function ${body.ownershipSchema}.capture_user() owner to ${body.role};
+      create trigger tryoutflow_capture_org_${runId} after insert on public.organizations
+        for each row execute function ${body.ownershipSchema}.capture_organization();
+      create trigger tryoutflow_capture_user_${runId} after insert on auth.users
+        for each row execute function ${body.ownershipSchema}.capture_user(); commit;`);
+  }
+
+  const marker = `lock-acquired-${randomUUID()}`;
+  fence();
+  transition('waiting-lock', ['validating-identity']);
+  holder = spawn('psql', ['-X', '-qAt', operationalDatabaseUrl], {
+    env: { ...process.env, PGAPPNAME: `tryoutflow-integration-supervisor:${runId}` },
+    stdio: ['pipe', 'pipe', 'inherit'],
+  });
+  let holderOutput = '';
+  const holderClosed = new Promise((resolve) => holder.once('close', resolve));
+  const acquired = new Promise((resolve, reject) => {
+    holder.stdout.setEncoding('utf8').on('data', (chunk) => {
+      holderOutput += chunk;
+      if (holderOutput.includes(marker)) resolve();
+    });
+    holder.once('error', reject);
+    holder.once('close', (code) => {
+      if (!holderOutput.includes(marker))
+        reject(new Error(`integration lock session exited ${code}`));
+    });
+  });
+  holder.stdin.write(`select pg_advisory_lock(${lockKey}); select '${marker}';\n`);
+
+  let childResult = { code: 1, signal: null };
+  let executionError;
+  try {
+    await phase('waiting-lock');
+    await acquired;
+    lockAcquired = true;
+    fence();
+    transition('post-lock', ['waiting-lock']);
+    await phase('post-lock');
+    fence();
+    transition('recovering', ['post-lock']);
+    recoverStaleManifests();
+    await phase('recovery');
+    fence();
+    transition('committing-manifest', ['recovering']);
+    state.writeManifest(body);
+    await phase('manifest-commit');
+    fence();
+    transition('creating-registry', ['committing-manifest']);
+    setupRegistryAndRole();
+    await phase('registry-transaction');
+    transition('preparing-command', ['creating-registry']);
+    await phase('counter-fixture-setup');
+    await phase('pre-spawn');
+    fence();
+    const testDatabase = new URL(operationalDatabaseUrl);
+    testDatabase.username = body.role;
+    testDatabase.password = runPassword;
+    const [executable, ...args] = command;
+    transition('running-command', ['preparing-command']);
+    commandChild = spawn(executable, args, {
+      env: {
+        ...process.env,
+        PGAPPNAME: `tryoutflow-integration-run:${runId}`,
+        SUPABASE_DB_URL: testDatabase.toString(),
+        TRYOUTFLOW_INTEGRATION_RUN_ID: runId,
+        TRYOUTFLOW_INTEGRATION_RATE_KEY_LOG: state.rateKeyPath(runId),
+      },
+      stdio: 'inherit',
+      detached: true,
+    });
+    childResult = await new Promise((resolve) => {
+      commandChild.once('error', (error) => resolve({ code: 1, signal: null, error }));
+      commandChild.once('close', (code, signal) => resolve({ code, signal }));
+    });
+  } catch (error) {
+    executionError = error;
+    beginTermination(requestedExitCode ?? 1);
+  } finally {
+    supervisorState = 'cleaning';
+    signalOwnedGroup('SIGTERM');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    signalOwnedGroup('SIGKILL');
+    if (escalation) clearTimeout(escalation);
+    await phase('cleanup', { allowCancellation: true });
+    if (lockAcquired) {
+      const errors = cleanupRun(runId);
+      if (errors.length)
+        executionError ??= new AggregateError(errors, 'integration cleanup failed');
+    }
+    if (holder && !holder.killed) holder.stdin.end('\\q\n');
+    await holderClosed;
+    supervisorState = 'finished';
+  }
+  if (executionError && requestedExitCode === null) console.error(executionError);
+  if (childResult.error) console.error(childResult.error);
+  return (
+    requestedExitCode ??
+    (executionError
+      ? 1
+      : (childResult.code ?? (childResult.signal ? signalExitCode(childResult.signal) : 1)))
   );
-  containerSuperuserPsql(`create role ${runRole} login superuser password '${runPassword}'`);
-  setupOwnershipRegistry(ownershipSchema, runRole);
-  // Rate buckets outlive transactions. Service-bound suites are serialized against this exact,
-  // validated local database, so the local-only boundary may reset them under the exclusive lock.
-  psql('delete from public.registration_rate_counters');
-  const testDatabase = new URL(operationalDatabaseUrl);
-  testDatabase.username = runRole;
-  testDatabase.password = runPassword;
-  const testDatabaseUrl = testDatabase.toString();
-  const [executable, ...args] = command;
-  commandChild = spawn(executable, args, {
-    env: {
-      ...process.env,
-      PGAPPNAME: `tryoutflow-integration-run:${runId}`,
-      SUPABASE_DB_URL: testDatabaseUrl,
-      TRYOUTFLOW_INTEGRATION_RUN_ID: runId,
-    },
-    stdio: 'inherit',
-    detached: true,
-  });
-  childResult = await new Promise((resolveResult) => {
-    commandChild.once('error', (error) => resolveResult({ code: 1, signal: null, error }));
-    commandChild.once('close', (code, signal) => resolveResult({ code, signal }));
-  });
-} catch (error) {
-  executionError = error;
-  beginTermination(requestedExitCode ?? 1);
-} finally {
-  signalOwnedGroup('SIGTERM');
-  await new Promise((resolveWait) => setTimeout(resolveWait, 50));
-  signalOwnedGroup('SIGKILL');
-  if (escalation) clearTimeout(escalation);
-  if (lockAcquired) {
-    try {
-      terminateRunSessions(runRole);
-      const owned = readOwnedRoots(ownershipSchema);
-      cleanupPrefixes(databasePrefixes);
-      cleanupOwnedPrimaryFixtures(owned);
-      teardownOwnershipRegistry(ownershipSchema);
-      dropRunRole(runRole);
-      psql('delete from public.registration_rate_counters');
-      rmSync(manifestPath, { force: true });
-    } catch (cleanupError) {
-      executionError ??= cleanupError;
-    }
-  }
-  clearInterval(ownerWatch);
-  if (!holder.killed) holder.stdin.end('\\q\n');
-  await holderClosed;
 }
 
-if (executionError) console.error(executionError);
-if (childResult.error) console.error(childResult.error);
-const signalNumbers = { SIGINT: 2, SIGTERM: 15, SIGKILL: 9 };
-process.exitCode =
-  requestedExitCode ??
-  (executionError
-    ? 1
-    : (childResult.code ??
-      (childResult.signal ? 128 + (signalNumbers[childResult.signal] ?? 0) : 1)));
+let exitCode = 1;
+try {
+  exitCode = await supervise();
+} catch (error) {
+  if (requestedExitCode === null) console.error(error);
+  exitCode = requestedExitCode ?? 1;
+} finally {
+  if (escalation) clearTimeout(escalation);
+  clearInterval(ownerWatch);
+}
+process.exitCode = exitCode;

@@ -2,18 +2,73 @@
 
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
 import { resolveAndValidateLocalDatabase } from '../../../scripts/lib/local-supabase-database.mjs';
+import { createSupervisorStateStore } from '../../../scripts/lib/integration-supervisor-state.mjs';
 
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const runner = resolve('scripts/run-integration-tests.mjs');
 const fixture = resolve('tests/fixtures/integration-lock/record-run.mjs');
+
+describe('authenticated integration supervisor state', () => {
+  it('accepts only an identity-bound, internally consistent, authentic manifest', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-supervisor-state-'));
+    chmodSync(baseDirectory, 0o700);
+    const identity = '1'.repeat(64);
+    const runId = '2'.repeat(16);
+    const store = createSupervisorStateStore({ baseDirectory, identity });
+    const body = store.manifestBody(runId);
+
+    store.writeManifest(body);
+    expect(store.readRecoverableManifests()).toEqual([{ body, path: store.manifestPath(runId) }]);
+
+    const serialized = JSON.parse(readFileSync(store.manifestPath(runId), 'utf8')) as {
+      body: typeof body;
+      authentication: string;
+    };
+    serialized.body.role = `tryoutflow_run_${'3'.repeat(16)}`;
+    writeFileSync(store.manifestPath(runId), JSON.stringify(serialized));
+    expect(store.readRecoverableManifests()).toEqual([]);
+    expect(readdirSync(store.directory).some((entry) => entry.includes('.quarantine-'))).toBe(true);
+  });
+
+  it('quarantines torn state and rejects symlinked or non-private state directories', () => {
+    const baseDirectory = mkdtempSync(join(tmpdir(), 'tryoutflow-supervisor-state-adversarial-'));
+    chmodSync(baseDirectory, 0o700);
+    const store = createSupervisorStateStore({ baseDirectory, identity: '4'.repeat(64) });
+    writeFileSync(join(store.directory, `${'5'.repeat(16)}.json`), '{"body":');
+    expect(store.readRecoverableManifests()).toEqual([]);
+    expect(readdirSync(store.directory).some((entry) => entry.includes('.quarantine-'))).toBe(true);
+
+    const symlinkBase = join(baseDirectory, 'linked');
+    symlinkSync(store.directory, symlinkBase);
+    expect(() =>
+      createSupervisorStateStore({ baseDirectory: symlinkBase, identity: '6'.repeat(64) }),
+    ).toThrow(/symlink|private directory/u);
+
+    const openBase = join(baseDirectory, 'open');
+    mkdirSync(openBase, { mode: 0o755 });
+    expect(() =>
+      createSupervisorStateStore({ baseDirectory: openBase, identity: '7'.repeat(64) }),
+    ).toThrow(/private directory/u);
+  });
+});
 
 function start(
   output: string,
@@ -23,6 +78,8 @@ function start(
     databaseUrl?: string;
     fixtureArguments?: string[];
     fixtureEnvironment?: NodeJS.ProcessEnv;
+    hookFile?: string;
+    pausePhase?: string;
   } = {},
 ) {
   return spawn(process.execPath, [runner], {
@@ -39,6 +96,12 @@ function start(
         counterKey,
         ...(options.fixtureArguments ?? []),
       ]),
+      ...(options.hookFile
+        ? {
+            TRYOUTFLOW_INTEGRATION_TEST_HOOK_FILE: options.hookFile,
+            TRYOUTFLOW_INTEGRATION_TEST_PAUSE_PHASE: options.pausePhase,
+          }
+        : {}),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -103,7 +166,104 @@ function ownedFixtureResidue(
   ).trim();
 }
 
+function supervisorResidue(runId: string, counterKey: string) {
+  return execFileSync(
+    'psql',
+    [
+      '-X',
+      '-At',
+      databaseUrl,
+      '-c',
+      `select (select count(*) from pg_database where datname like 'tryoutflow\\_%\\_${runId}\\_%' escape '\\')||'|'||(select count(*) from public.registration_rate_counters where key_hash='${counterKey}')||'|'||(select count(*) from pg_roles where rolname='tryoutflow_run_${runId}')||'|'||(select count(*) from pg_namespace where nspname='tryoutflow_harness_${runId}')||'|'||(select count(*) from pg_trigger where tgname in('tryoutflow_capture_org_${runId}','tryoutflow_capture_user_${runId}'))`,
+    ],
+    { encoding: 'utf8' },
+  ).trim();
+}
+
 describe('full integration command database lock', () => {
+  it('preserves unrelated durable counters while removing the exact supervised fixture counter', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-counter-owner-'));
+    const fixtureCounter = createHash('sha256').update(randomUUID()).digest('hex');
+    const unrelatedCounter = createHash('sha256').update(randomUUID()).digest('hex');
+    execFileSync('psql', [
+      databaseUrl,
+      '-c',
+      `insert into public.registration_rate_counters(key_hash,attempts,window_started_at,expires_at) values('${unrelatedCounter}',1,clock_timestamp(),clock_timestamp()+interval '10 minutes')`,
+    ]);
+    try {
+      const result = await completion(start(join(directory, 'run.jsonl'), 0, fixtureCounter));
+      expect(result).toEqual({ code: 0, signal: null, stderr: '' });
+      expect(residue('tryoutflow_fixture_never_', fixtureCounter)).toBe('0|0');
+      expect(residue('tryoutflow_fixture_never_', unrelatedCounter)).toBe('0|1');
+    } finally {
+      execFileSync('psql', [
+        databaseUrl,
+        '-c',
+        `delete from public.registration_rate_counters where key_hash in('${fixtureCounter}','${unrelatedCounter}')`,
+      ]);
+    }
+  });
+
+  it.each(
+    [
+      'identity-validation',
+      'waiting-lock',
+      'post-lock',
+      'recovery',
+      'manifest-commit',
+      'registry-transaction',
+      'counter-fixture-setup',
+      'pre-spawn',
+      'cleanup',
+    ].flatMap((phase) => [
+      [phase, 'SIGTERM'],
+      [phase, 'SIGKILL'],
+    ]) as Array<[string, 'SIGTERM' | 'SIGKILL']>,
+  )(
+    'fences setup and cleans exact state at %s when the runner receives %s',
+    async (phaseName, signal) => {
+      const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-phase-signal-'));
+      const output = join(directory, 'command.jsonl');
+      const hooks = join(directory, 'hooks.jsonl');
+      const fixtureCounter = createHash('sha256').update(randomUUID()).digest('hex');
+      const unrelatedCounter = createHash('sha256').update(randomUUID()).digest('hex');
+      execFileSync('psql', [
+        databaseUrl,
+        '-c',
+        `insert into public.registration_rate_counters(key_hash,attempts,window_started_at,expires_at) values('${unrelatedCounter}',1,clock_timestamp(),clock_timestamp()+interval '10 minutes')`,
+      ]);
+      try {
+        const child = start(output, phaseName === 'cleanup' ? 0 : 30_000, fixtureCounter, {
+          hookFile: hooks,
+          pausePhase: phaseName,
+        });
+        await waitForFile(hooks, new RegExp(`"phase":"${phaseName}"`, 'u'), 10_000);
+        const hook = readFileSync(hooks, 'utf8')
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line) as { phase: string; runId: string })
+          .find((entry) => entry.phase === phaseName)!;
+        child.kill(signal);
+        const result = await completion(child);
+        if (signal === 'SIGTERM') expect(result.code).toBe(143);
+        else expect(result.signal).toBe('SIGKILL');
+
+        const recovery = await completion(start(join(directory, 'recovery.jsonl'), 0));
+        expect(recovery.code).toBe(0);
+        expect(supervisorResidue(hook.runId, fixtureCounter)).toBe('0|0|0|0|0');
+        expect(residue('tryoutflow_fixture_never_', unrelatedCounter)).toBe('0|1');
+        if (phaseName !== 'cleanup') expect(existsSync(output)).toBe(false);
+      } finally {
+        execFileSync('psql', [
+          databaseUrl,
+          '-c',
+          `delete from public.registration_rate_counters where key_hash in('${fixtureCounter}','${unrelatedCounter}')`,
+        ]);
+      }
+    },
+    30_000,
+  );
+
   it('serializes simultaneous processes instead of overlapping shared fixtures', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-lock-'));
     const output = join(directory, 'runs.jsonl');
@@ -182,6 +342,44 @@ describe('full integration command database lock', () => {
     spoof.kill('SIGKILL');
   });
 
+  it('quarantines a forged mixed manifest without interrupting its referenced active run', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-forged-manifest-'));
+    const output = join(directory, 'active.jsonl');
+    const active = start(output, 500);
+    await waitForFile(output, /"event":"start"/u);
+    const activeRunId = (
+      JSON.parse(readFileSync(output, 'utf8').trim().split('\n')[0]!) as { runId: string }
+    ).runId;
+    const validated = resolveAndValidateLocalDatabase(databaseUrl);
+    const state = createSupervisorStateStore({ identity: validated.identity });
+    const forgedRunId = randomUUID().replaceAll('-', '').slice(0, 16);
+    state.writeManifest(state.manifestBody(forgedRunId));
+    const forgedPath = state.manifestPath(forgedRunId);
+    const forged = JSON.parse(readFileSync(forgedPath, 'utf8')) as {
+      body: { role: string };
+      authentication: string;
+    };
+    forged.body.role = `tryoutflow_run_${activeRunId}`;
+    writeFileSync(forgedPath, JSON.stringify(forged));
+
+    const followerOutput = join(directory, 'follower.jsonl');
+    const follower = start(followerOutput, 0);
+    const [activeResult, followerResult] = await Promise.all([
+      completion(active),
+      completion(follower),
+    ]);
+    expect(activeResult.code).toBe(0);
+    expect(followerResult.code).toBe(0);
+    expect(readFileSync(output, 'utf8')).toMatch(/"event":"end"/u);
+    expect(readFileSync(followerOutput, 'utf8')).toMatch(/"event":"start"/u);
+    expect(existsSync(forgedPath)).toBe(false);
+    expect(
+      readdirSync(state.directory).some((entry) =>
+        entry.startsWith(`${forgedRunId}.json.quarantine-`),
+      ),
+    ).toBe(true);
+  });
+
   it('recovers only exact resources named by a stale run manifest', async () => {
     const validated = resolveAndValidateLocalDatabase(databaseUrl);
     const staleRunId = randomUUID().replaceAll('-', '').slice(0, 16);
@@ -190,9 +388,8 @@ describe('full integration command database lock', () => {
     const staleOwnershipSchema = `tryoutflow_harness_${staleRunId}`;
     const staleOrganizationId = randomUUID();
     const staleUserId = randomUUID();
-    const manifestDirectory = join(tmpdir(), 'tryoutflow-integration-runs', validated.identity);
-    const manifest = join(manifestDirectory, `${staleRunId}.json`);
-    mkdirSync(manifestDirectory, { recursive: true });
+    const state = createSupervisorStateStore({ identity: validated.identity });
+    const manifest = state.manifestPath(staleRunId);
     execFileSync('psql', [databaseUrl, '-c', `create role ${staleRole}`]);
     execFileSync('psql', [databaseUrl, '-c', `create database ${databaseName}`]);
     execFileSync('psql', [
@@ -210,14 +407,7 @@ describe('full integration command database lock', () => {
       '-c',
       `insert into ${staleOwnershipSchema}.organizations values('${staleOrganizationId}'); insert into ${staleOwnershipSchema}.users values('${staleUserId}')`,
     ]);
-    writeFileSync(
-      manifest,
-      JSON.stringify({
-        runId: staleRunId,
-        role: staleRole,
-        ownershipSchema: staleOwnershipSchema,
-      }),
-    );
+    state.writeManifest(state.manifestBody(staleRunId));
     try {
       const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-stale-'));
       const result = await completion(start(join(directory, 'run.jsonl'), 0));
@@ -316,10 +506,11 @@ describe('full integration command database lock', () => {
       };
       const unrelatedOrganizationId = randomUUID();
       const unrelatedUserId = randomUUID();
+      const unrelatedCounter = createHash('sha256').update(randomUUID()).digest('hex');
       execFileSync('psql', [
         databaseUrl,
         '-c',
-        `insert into auth.users(id) values('${unrelatedUserId}'); insert into public.organizations(id,name,slug) values('${unrelatedOrganizationId}','Unrelated concurrent local write','unrelated-${unrelatedOrganizationId}')`,
+        `insert into auth.users(id) values('${unrelatedUserId}'); insert into public.organizations(id,name,slug) values('${unrelatedOrganizationId}','Unrelated concurrent local write','unrelated-${unrelatedOrganizationId}'); insert into public.registration_rate_counters(key_hash,attempts,window_started_at,expires_at) values('${unrelatedCounter}',1,clock_timestamp(),clock_timestamp()+interval '10 minutes')`,
       ]);
       child.kill(signal);
       const result = await completion(child);
@@ -354,15 +545,15 @@ describe('full integration command database lock', () => {
             databaseUrl,
             '-At',
             '-c',
-            `select (select count(*) from public.organizations where id='${unrelatedOrganizationId}')||'|'||(select count(*) from auth.users where id='${unrelatedUserId}')`,
+            `select (select count(*) from public.organizations where id='${unrelatedOrganizationId}')||'|'||(select count(*) from auth.users where id='${unrelatedUserId}')||'|'||(select count(*) from public.registration_rate_counters where key_hash='${unrelatedCounter}')`,
           ],
           { encoding: 'utf8' },
         ).trim(),
-      ).toBe('1|1');
+      ).toBe('1|1|1');
       execFileSync('psql', [
         databaseUrl,
         '-c',
-        `delete from public.organizations where id='${unrelatedOrganizationId}'; delete from auth.users where id='${unrelatedUserId}'`,
+        `delete from public.organizations where id='${unrelatedOrganizationId}'; delete from auth.users where id='${unrelatedUserId}'; delete from public.registration_rate_counters where key_hash='${unrelatedCounter}'`,
       ]);
     },
     20_000,
