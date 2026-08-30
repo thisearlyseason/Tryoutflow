@@ -2522,6 +2522,7 @@ export type Database = {
           cancel_at: string | null;
           cancel_at_period_end: boolean | null;
           canceled_at: string | null;
+          claimed_organization_id: string | null;
           current_period_end: string | null;
           current_period_start: string | null;
           event_precedence: number;
@@ -2543,6 +2544,7 @@ export type Database = {
           cancel_at?: string | null;
           cancel_at_period_end?: boolean | null;
           canceled_at?: string | null;
+          claimed_organization_id?: string | null;
           current_period_end?: string | null;
           current_period_start?: string | null;
           event_precedence: number;
@@ -2564,6 +2566,7 @@ export type Database = {
           cancel_at?: string | null;
           cancel_at_period_end?: boolean | null;
           canceled_at?: string | null;
+          claimed_organization_id?: string | null;
           current_period_end?: string | null;
           current_period_start?: string | null;
           event_precedence?: number;

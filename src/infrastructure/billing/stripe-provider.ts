@@ -127,6 +127,13 @@ export class StripeBillingProvider implements BillingProvider {
           body: body.toString(),
           signal: combinedSignal,
         });
+        // A timer callback can itself be delayed by a busy event loop. The monotonic deadline is
+        // authoritative, so abort and fail uncertain before interpreting even an explicit HTTP
+        // status that arrived after the caller's delivery window.
+        if (performance.now() >= deadlineAt) {
+          controller.abort();
+          throw new DOMException('Provider deadline exceeded', 'AbortError');
+        }
         if (!response.ok) {
           const retryable = response.status === 429 || response.status >= 500;
           throw {
@@ -135,13 +142,17 @@ export class StripeBillingProvider implements BillingProvider {
           } satisfies BillingProviderError;
         }
         const json = await readBoundedJsonResponse(response, combinedSignal);
-        if (performance.now() >= deadlineAt)
+        if (performance.now() >= deadlineAt) {
+          controller.abort();
           throw new DOMException('Provider deadline exceeded', 'AbortError');
+        }
         const parsed = responseSchema.safeParse(json);
         if (!parsed.success)
           throw { code: 'delivery_uncertain', retryable: false } satisfies BillingProviderError;
-        if (performance.now() >= deadlineAt)
+        if (performance.now() >= deadlineAt) {
+          controller.abort();
           throw new DOMException('Provider deadline exceeded', 'AbortError');
+        }
         return { sessionId: parsed.data.id, url: parsed.data.url };
       })();
       // The single race covers headers, bounded body consumption, decoding, parsing, and schema

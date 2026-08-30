@@ -112,6 +112,49 @@ describe('BillingProvider contract', () => {
     ).rejects.toEqual(expected);
   });
 
+  it.each([200, 400, 408, 429, 500])(
+    'treats a late HTTP %i result as uncertain before status classification',
+    async (status) => {
+      vi.useFakeTimers();
+      const performanceSpy = vi.spyOn(performance, 'now');
+      try {
+        let resolveRequest!: (response: Response) => void;
+        let observedSignal: AbortSignal | undefined;
+        performanceSpy.mockReturnValueOnce(1_000).mockReturnValue(1_251);
+        const provider = new StripeBillingProvider(
+          { secretKey: `sk_test_${'x'.repeat(32)}`, timeoutMs: 250 },
+          async (_input, init) => {
+            observedSignal = init?.signal ?? undefined;
+            return new Promise<Response>((resolve) => {
+              resolveRequest = resolve;
+            });
+          },
+        );
+        const pending = provider.createPortalSession(
+          {
+            organizationId: '11111111-1111-4111-8111-111111111111',
+            customerId: 'cus_1234567890abcdef',
+            returnUrl: 'https://app.example.com/billing',
+          },
+          `billing:portal:late-${status}`,
+        );
+        resolveRequest(
+          status === 200
+            ? Response.json({
+                id: 'bps_1234567890abcdef',
+                url: 'https://billing.stripe.com/test',
+              })
+            : new Response(null, { status }),
+        );
+        await expect(pending).rejects.toEqual({ code: 'delivery_uncertain', retryable: false });
+        expect(observedSignal?.aborted).toBe(true);
+      } finally {
+        performanceSpy.mockRestore();
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it('fails closed on malformed provider success and configuration', async () => {
     expect(() => new StripeBillingProvider({ secretKey: 'short' })).toThrow();
     const provider = new StripeBillingProvider(
