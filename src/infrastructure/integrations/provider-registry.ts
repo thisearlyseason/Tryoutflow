@@ -23,7 +23,14 @@ export function createTeamManagementProviderRegistry(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ) {
   const enabled = environment.ENABLE_MOCK_THE_SQUAD_PROVIDER === 'true';
-  const mockProvider = enabled ? new MockTheSquadProvider({ fixture: 'success' }) : null;
+  const fixture =
+    environment.MOCK_THE_SQUAD_FIXTURE === 'partial-failure' ? 'partial-failure' : 'success';
+  const mockProvider = enabled
+    ? new MockTheSquadProvider({
+        fixture,
+        dynamicRosterFixture: environment.MOCK_THE_SQUAD_DYNAMIC_ROSTER === 'true',
+      })
+    : null;
   return Object.freeze({
     get(providerKey: string): TeamManagementProvider {
       if (providerKey !== 'the-squad') {

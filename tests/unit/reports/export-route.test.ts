@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { handleExportRequest } from '../../../src/app/api/organizations/[organizationId]/exports/[exportType]/route';
+import { handleExportRequest } from '../../../src/app/api/organizations/[organizationId]/exports/[exportType]/export-request';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
 
 const organizationId = '29000000-0000-4000-8000-000000000001';

@@ -11,6 +11,7 @@ export const BILLING_REQUEST_MAX_BYTES = 1_024;
 
 export type BillingRouteDependencies = Readonly<{
   canonicalOrigin: string;
+  providerReturnOrigin?: string;
   provider: BillingProvider;
   prices: StripePriceMapping;
   authenticate(
@@ -26,7 +27,14 @@ export function billingJsonError(status: number, code: string) {
 
 export async function readBillingJson(request: Request, canonicalOrigin: string): Promise<unknown> {
   if (request.method !== 'POST') throw { status: 405 };
-  if (new URL(request.url).origin !== canonicalOrigin) throw { status: 403 };
+  const internalUrl = new URL(request.url);
+  const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',', 1)[0]?.trim();
+  const protocol =
+    forwardedProtocol === 'http' || forwardedProtocol === 'https'
+      ? `${forwardedProtocol}:`
+      : internalUrl.protocol;
+  const host = request.headers.get('host') ?? internalUrl.host;
+  if (`${protocol}//${host}` !== canonicalOrigin) throw { status: 403 };
   if (request.headers.get('origin') !== canonicalOrigin) throw { status: 403 };
   if (
     request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !==

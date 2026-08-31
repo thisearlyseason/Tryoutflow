@@ -1,7 +1,7 @@
 'use client';
 
 import * as Dialog from '@radix-ui/react-dialog';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 
 import { Button } from '../../../components/ui/button';
 import type { RosterTeamView, RosterWorkspaceAthlete } from './roster-builder';
@@ -12,6 +12,7 @@ export function MoveAthleteDialog({
   onClose,
   onConfirm,
   open,
+  returnFocusRef,
   teams,
 }: {
   athlete: RosterWorkspaceAthlete | null;
@@ -19,6 +20,7 @@ export function MoveAthleteDialog({
   onClose(): void;
   onConfirm(teamId: string | null): Promise<void>;
   open: boolean;
+  returnFocusRef: RefObject<HTMLElement | null>;
   teams: readonly RosterTeamView[];
 }) {
   const [destination, setDestination] = useState('pool');
@@ -36,7 +38,13 @@ export function MoveAthleteDialog({
     >
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 grid max-h-[90dvh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-[var(--radius-surface)] bg-[var(--color-surface)] p-5 shadow-xl">
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-50 grid max-h-[90dvh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-[var(--radius-surface)] bg-[var(--color-surface)] p-5 shadow-xl"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            returnFocusRef.current?.focus();
+          }}
+        >
           <Dialog.Title className="text-xl font-bold">
             Move {athlete?.displayName ?? 'athlete'}
           </Dialog.Title>

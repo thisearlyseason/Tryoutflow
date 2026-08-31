@@ -9,7 +9,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import {
   handleStripeWebhook as POST,
   parseStripeSignatureTimestamp,
-} from '../../../src/app/api/webhooks/stripe/route';
+} from '../../../src/app/api/webhooks/stripe/stripe-webhook';
 import { FixedClock } from '../../../src/lib/clock';
 import { entitlementsFor } from '../../../src/modules/subscriptions/domain/entitlements';
 

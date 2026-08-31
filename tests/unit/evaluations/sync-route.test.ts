@@ -107,6 +107,37 @@ describe('evaluation mutation route', () => {
     expect(sync).toHaveBeenCalledWith(expect.objectContaining({ evaluationId }), actor);
   });
 
+  it('compares Origin to the browser Host when the framework URL uses an internal host', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: userId } } });
+    const actor = { organizationId: validBody.scope.organizationId };
+    findAuthorizationContext.mockResolvedValue(actor);
+    sync.mockResolvedValue({
+      ok: true,
+      value: {
+        outcome: 'synced',
+        clientMutationId: validBody.clientMutationId,
+        evaluationId,
+        expectedVersion: 0,
+        payloadDigest: 'a'.repeat(64),
+        serverVersion: 1,
+        acknowledgedAt: '2026-08-29T12:00:00.000Z',
+      },
+    });
+    const response = await POST(
+      new Request(`http://internal:3112/api/evaluations/${evaluationId}/mutations`, {
+        method: 'POST',
+        headers: {
+          host: '127.0.0.1:3112',
+          origin: 'http://127.0.0.1:3112',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(validBody),
+      }) as never,
+      { params: Promise.resolve({ evaluationId }) },
+    );
+    expect(response.status).toBe(200);
+  });
+
   it('keeps unexpected authentication/storage failures retryable', async () => {
     getUser.mockRejectedValue(new Error('temporary auth service failure'));
     const response = await POST(

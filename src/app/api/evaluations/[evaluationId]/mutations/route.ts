@@ -19,7 +19,21 @@ function error(status: number, code: string) {
 async function readJson(request: NextRequest): Promise<unknown> {
   const mime = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
   if (mime !== 'application/json') throw { status: 415 };
-  if (request.headers.get('origin') !== new URL(request.url).origin) throw { status: 403 };
+  const host = request.headers.get('host');
+  const forwardedProtocol = request.headers
+    .get('x-forwarded-proto')
+    ?.split(',', 1)[0]
+    ?.trim()
+    .toLowerCase();
+  const protocol =
+    forwardedProtocol === 'http' || forwardedProtocol === 'https'
+      ? forwardedProtocol
+      : new URL(request.url).protocol.slice(0, -1);
+  const expectedOrigin =
+    host && /^[A-Za-z0-9.:[\]-]+$/u.test(host)
+      ? `${protocol}://${host}`
+      : new URL(request.url).origin;
+  if (request.headers.get('origin') !== expectedOrigin) throw { status: 403 };
   const contentLength = request.headers.get('content-length');
   if (contentLength !== null) {
     const announced = Number(contentLength);

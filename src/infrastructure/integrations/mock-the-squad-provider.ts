@@ -92,6 +92,7 @@ type ConnectionRecord = {
 
 export type MockTheSquadProviderOptions = Readonly<{
   fixture: 'success' | 'partial-failure';
+  dynamicRosterFixture?: boolean;
   syncStatusTransitions?: readonly ('pending' | 'processing')[];
 }>;
 
@@ -100,6 +101,7 @@ export class MockTheSquadProvider implements TeamManagementProvider {
 
   private readonly fixture: Fixture;
   private readonly syncStatusTransitions: readonly ('pending' | 'processing')[];
+  private readonly dynamicRosterFixture: boolean;
   private readonly challenges = new Map<string, { organizationId: string; actorId: string }>();
   private readonly connections = new Map<string, ConnectionRecord>();
   private readonly jobsById = new Map<string, StoredJob>();
@@ -119,6 +121,7 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       fixtureBase.destination,
     ])[0]!;
     this.fixture = { ...fixtureBase, destination };
+    this.dynamicRosterFixture = options.dynamicRosterFixture === true;
     this.syncStatusTransitions = parseConfiguration(
       syncStatusTransitionsSchema,
       options.syncStatusTransitions ?? [],
@@ -388,12 +391,16 @@ export class MockTheSquadProvider implements TeamManagementProvider {
       externalRef: ExternalEntityRef;
       fields: RosterExportProjectedFields;
     }[] = [];
-    const items = parsed.roster.athletes.map((athlete) => {
+    const items = parsed.roster.athletes.map((athlete, athleteIndex) => {
       const itemKey = `athlete:${athlete.registrationId}`;
       const prior = priorItems.get(itemKey);
       if (prior?.state === 'completed') return prior;
       const attempts = (prior?.attempts ?? 0) + 1;
-      const externalId = this.fixture.exportExternalIds[athlete.registrationId];
+      const externalId =
+        this.fixture.exportExternalIds[athlete.registrationId] ??
+        (this.dynamicRosterFixture
+          ? stableExternalId('mock-dynamic-registration', [athlete.registrationId])
+          : undefined);
       if (!externalId) {
         return {
           itemKey,
@@ -405,7 +412,8 @@ export class MockTheSquadProvider implements TeamManagementProvider {
         };
       }
       if (
-        this.fixture.failOnceRegistrationIds.includes(athlete.registrationId) &&
+        (this.fixture.failOnceRegistrationIds.includes(athlete.registrationId) ||
+          (this.dynamicRosterFixture && athleteIndex === parsed.roster.athletes.length - 1)) &&
         (() => {
           const durableAttempt = /^integration:[0-9a-f-]{36}:([0-9]{1,3})$/u.exec(
             parsedContext.idempotencyKey,
@@ -521,7 +529,24 @@ export class MockTheSquadProvider implements TeamManagementProvider {
 
   private parseConnectedContext(context: ProviderContext) {
     const parsed = parseInput(providerContextSchema, context);
-    const connection = this.connections.get(parsed.connectionId);
+    let connection = this.connections.get(parsed.connectionId);
+    const deterministicConnectionId = stableUuid('mock-connection', [
+      this.providerKey,
+      parsed.organizationId,
+      parsed.actorId,
+    ]);
+    // Next.js may evaluate route handlers in separate server bundles. The demo provider has
+    // no credential, so reconstruct only its exact scoped, deterministic connection identity.
+    if (!connection && parsed.connectionId === deterministicConnectionId) {
+      connection = {
+        providerKey: this.providerKey,
+        connectionId: parsed.connectionId,
+        organizationId: parsed.organizationId,
+        creatorActorId: parsed.actorId,
+        connected: true,
+      };
+      this.connections.set(parsed.connectionId, connection);
+    }
     if (!connection || !connection.connected) {
       throw providerError('authentication_required');
     }

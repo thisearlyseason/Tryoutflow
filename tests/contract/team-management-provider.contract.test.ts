@@ -828,6 +828,23 @@ describe('TeamManagementProvider contract', () => {
     expect(enabled.list()).toEqual([
       { providerKey: 'the-squad', displayName: 'The Squad (demo/mock)', mockData: true },
     ]);
+
+    const partial = createTeamManagementProviderRegistry({
+      ENABLE_MOCK_THE_SQUAD_PROVIDER: 'true',
+      MOCK_THE_SQUAD_FIXTURE: 'partial-failure',
+    });
+    expect(partial.get('the-squad')).toBeInstanceOf(MockTheSquadProvider);
+  });
+
+  it('reconstructs an exact deterministic demo connection across server route bundles', async () => {
+    const firstBundle = new MockTheSquadProvider({ fixture: 'success' });
+    const connected = await connectProvider(firstBundle);
+    const jobBundle = new MockTheSquadProvider({ fixture: 'success' });
+
+    await expect(jobBundle.verifyConnection(connected)).resolves.toMatchObject({
+      state: 'healthy',
+      mockData: true,
+    });
   });
 
   it('binds a connection challenge to the organization and actor that began it', async () => {

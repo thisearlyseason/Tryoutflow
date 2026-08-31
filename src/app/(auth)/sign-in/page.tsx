@@ -50,23 +50,37 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         {message ? <p role="alert">{message}</p> : null}
         <form action={submit}>
           <label htmlFor="email">Email</label>
-          <input autoComplete="email" id="email" name="email" required type="email" />
+          <input
+            className="min-h-11 px-3"
+            autoComplete="email"
+            id="email"
+            name="email"
+            required
+            type="email"
+          />
           <label htmlFor="password">Password</label>
           <input
             autoComplete="current-password"
+            className="min-h-11 px-3"
             id="password"
             minLength={1}
             name="password"
             required
             type="password"
           />
-          <button type="submit">Sign in</button>
+          <button className="min-h-11 px-4" type="submit">
+            Sign in
+          </button>
         </form>
         <p>
-          <a href="/forgot-password">Forgot your password?</a>
+          <a className="inline-flex min-h-11 items-center" href="/forgot-password">
+            Forgot your password?
+          </a>
         </p>
         <p>
-          <a href="/verify-email">Need a new verification link?</a>
+          <a className="inline-flex min-h-11 items-center" href="/verify-email">
+            Need a new verification link?
+          </a>
         </p>
       </section>
     </main>

@@ -49,6 +49,9 @@ describe('rankings workspace', () => {
       />,
     );
     expect(screen.getByText('Tied at rank 1')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '1 athletes · snapshot 2026-08-29 12:00:00 UTC',
+    );
     expect(screen.getByText(/evaluations complete/)).toHaveTextContent(
       '2 of 3 evaluations complete',
     );
@@ -62,6 +65,10 @@ describe('rankings workspace', () => {
     expect(screen.getByRole('link', { name: /compare selected/i })).toHaveAttribute(
       'aria-disabled',
       'true',
+    );
+    expect(screen.getByRole('link', { name: /compare selected/i })).toHaveAttribute(
+      'href',
+      './compare?athletes=',
     );
   });
 

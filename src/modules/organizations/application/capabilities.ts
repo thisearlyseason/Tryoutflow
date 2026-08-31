@@ -142,6 +142,10 @@ export function can(
     return false;
   }
 
+  if (capability === 'organization:read') {
+    return true;
+  }
+
   if (hasOrganizationCapability(context, capability)) {
     return true;
   }

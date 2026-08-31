@@ -121,6 +121,31 @@ describe('tryout configuration commands', () => {
     expect(repository.createDraft).not.toHaveBeenCalled();
   });
 
+  it('interprets browser datetime-local registration values in the tryout timezone', async () => {
+    const repository = gateway();
+
+    const result = await createTryout(
+      {
+        organizationId,
+        name: 'Fall ID Camp',
+        sport: 'Hockey',
+        timezone: 'America/Edmonton',
+        registrationStartsAt: '2026-09-01T08:00',
+        registrationEndsAt: '2026-09-30T20:00',
+      },
+      { authorization: ownerAuthorization },
+      { gateway: repository },
+    );
+
+    expect(result.ok).toBe(true);
+    expect(repository.createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        registrationStartsAt: new Date('2026-09-01T14:00:00.000Z'),
+        registrationEndsAt: new Date('2026-10-01T02:00:00.000Z'),
+      }),
+    );
+  });
+
   it('sends an expected version to the atomic publish transition', async () => {
     const repository = gateway();
     const finalizedAt = new Date('2026-08-28T14:00:00.000Z');

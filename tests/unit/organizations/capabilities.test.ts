@@ -42,6 +42,10 @@ const checkinContext: AuthorizationContext = {
 };
 
 describe('capabilities', () => {
+  it('allows an active member to enter the organization shell before scoped authorization', () => {
+    expect(can(checkinContext, 'organization:read', { organizationId: organizationA })).toBe(true);
+  });
+
   it('allows an evaluator to update only an assigned evaluation of their own', () => {
     expect(
       can(evaluatorContext, 'evaluation:update-own', {

@@ -8,17 +8,26 @@ import { getStripePriceMapping } from '../../../../../modules/subscriptions/doma
 import { loadOwnedSubscriptionAccount } from '../../../../../modules/subscriptions/infrastructure/owned-subscription-account';
 import { createSubscriptionCheckoutIntentStore } from '../../../../../modules/subscriptions/infrastructure/subscription-checkout-intent-store';
 import { StripeBillingProvider } from '../../../../../infrastructure/billing/stripe-provider';
+import { FakeBillingProvider } from '../../../../../infrastructure/billing/fake-billing-provider';
 
 export async function createBillingRouteDependencies(): Promise<BillingRouteDependencies> {
   const client = await createServerSupabaseClient();
   const environment = getBillingEnvironment();
+  const publicOrigin = getPublicAppOrigin();
+  const fakeProvider = process.env.TRYOUTFLOW_FAKE_BILLING_PROVIDER === 'true';
   const checkoutIntents = createSubscriptionCheckoutIntentStore(
     client,
     createAdminSupabaseClient(),
   );
   return {
-    canonicalOrigin: getPublicAppOrigin(),
-    provider: new StripeBillingProvider({ secretKey: environment.STRIPE_SECRET_KEY }),
+    canonicalOrigin:
+      fakeProvider && process.env.TASK30_LOCAL_REQUEST_ORIGIN
+        ? process.env.TASK30_LOCAL_REQUEST_ORIGIN
+        : publicOrigin,
+    ...(fakeProvider ? { providerReturnOrigin: publicOrigin } : {}),
+    provider: fakeProvider
+      ? new FakeBillingProvider()
+      : new StripeBillingProvider({ secretKey: environment.STRIPE_SECRET_KEY }),
     prices: getStripePriceMapping(),
     async authenticate(organizationId: OrganizationId) {
       const {

@@ -335,6 +335,12 @@ export function RosterBuilder({
   const [message, setMessage] = useState('');
   const statusRef = useRef<HTMLDivElement>(null);
   const recoveryRef = useRef<HTMLElement>(null);
+  const moveTriggerRef = useRef<HTMLElement>(null);
+  const finalizeTriggerRef = useRef<HTMLElement>(null);
+  const openMove = (athlete: RosterWorkspaceAthlete) => {
+    moveTriggerRef.current = document.activeElement as HTMLElement | null;
+    setMoveTarget(athlete);
+  };
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
@@ -587,7 +593,10 @@ export function RosterBuilder({
           {canEdit && snapshot.state === 'draft' ? (
             <Button
               disabled={!hydrated || staleVersion !== null}
-              onClick={() => setFinalizeOpen(true)}
+              onClick={(event) => {
+                finalizeTriggerRef.current = event.currentTarget;
+                setFinalizeOpen(true);
+              }}
             >
               Finalize roster
             </Button>
@@ -698,7 +707,7 @@ export function RosterBuilder({
             athletes={visibleAthletes.filter((athlete) => athlete.teamId === null)}
             disabled={!editable}
             filtered={positionFilter !== 'all'}
-            onMove={setMoveTarget}
+            onMove={openMove}
             onSelect={(registrationId, checked) =>
               setSelected((current) => {
                 const next = new Set(current);
@@ -717,7 +726,7 @@ export function RosterBuilder({
               disabled={!editable}
               filtered={positionFilter !== 'all'}
               key={team.id}
-              onMove={setMoveTarget}
+              onMove={openMove}
               onSelect={(registrationId, checked) =>
                 setSelected((current) => {
                   const next = new Set(current);
@@ -741,6 +750,7 @@ export function RosterBuilder({
             moveTarget ? performMove(moveTarget.registrationId, teamId) : Promise.resolve()
           }
           open={moveTarget !== null}
+          returnFocusRef={moveTriggerRef}
           teams={snapshot.teams}
         />
         <FinalizeRosterDialog
@@ -748,6 +758,7 @@ export function RosterBuilder({
           onConfirm={finalize}
           onOpenChange={setFinalizeOpen}
           open={finalizeOpen}
+          returnFocusRef={finalizeTriggerRef}
         />
 
         <Dialog.Root open={bulkOpen} onOpenChange={(next) => !busy && setBulkOpen(next)}>

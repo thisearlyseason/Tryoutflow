@@ -7,11 +7,14 @@ import type { BillingProvider } from '../../../src/infrastructure/billing/billin
 import { parseOrganizationId, parseUserId } from '../../../src/lib/ids';
 import { createCheckoutSession } from '../../../src/modules/subscriptions/application/create-checkout-session';
 import { createPortalSession } from '../../../src/modules/subscriptions/application/create-portal-session';
-import type { SubscriptionAccount } from '../../../src/modules/subscriptions/application/subscription-account';
+import {
+  subscriptionAccountRowSchema,
+  type SubscriptionAccount,
+} from '../../../src/modules/subscriptions/application/subscription-account';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
 import type { CheckoutIntentStore } from '../../../src/modules/subscriptions/application/checkout-intent';
-import { handleCheckoutRequest } from '../../../src/app/api/organizations/[organizationId]/billing/checkout/route';
-import { handlePortalRequest } from '../../../src/app/api/organizations/[organizationId]/billing/portal/route';
+import { handleCheckoutRequest } from '../../../src/app/api/organizations/[organizationId]/billing/checkout/checkout-request';
+import { handlePortalRequest } from '../../../src/app/api/organizations/[organizationId]/billing/portal/portal-request';
 
 const organizationId = parseOrganizationId('11111111-1111-4111-8111-111111111111');
 const otherOrganizationId = parseOrganizationId('22222222-2222-4222-8222-222222222222');
@@ -130,6 +133,26 @@ function dependencies(
 }
 
 describe('owner billing sessions', () => {
+  it('accepts PostgREST UTC-offset timestamptz values', () => {
+    expect(
+      subscriptionAccountRowSchema.parse({
+        organization_id: organizationId,
+        provider_customer_id: null,
+        provider_subscription_id: null,
+        provider_price_id: null,
+        plan_key: null,
+        state: 'trialing',
+        current_period_start: null,
+        current_period_end: null,
+        cancel_at_period_end: null,
+        cancel_at: null,
+        canceled_at: null,
+        trial_end: '2026-09-14T12:00:00+00:00',
+        verified_at: '2026-08-31T12:00:00+00:00',
+        version: 1,
+      }).state,
+    ).toBe('trialing');
+  });
   it('requires the current active owner record at execution time', async () => {
     const adminResult = await createCheckoutSession(
       {
@@ -606,6 +629,21 @@ describe('billing session HTTP boundary', () => {
         )
       ).status,
     ).toBe(400);
+
+    const proxied = checkoutRequest(
+      { plan: 'club' },
+      {
+        host: 'app.tryoutflow.test',
+        'x-forwarded-proto': 'https',
+      },
+    );
+    Object.defineProperty(proxied, 'url', {
+      value: `http://next-internal:3000/api/organizations/${organizationId}/billing/checkout`,
+    });
+    expect(
+      (await handleCheckoutRequest(proxied, organizationId, routeDependencies(trialAccount)))
+        .status,
+    ).toBe(200);
   });
 
   it('does not expose whether another tenant has billing state', async () => {
