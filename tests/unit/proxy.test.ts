@@ -96,4 +96,14 @@ describe('proxy public marketing boundary', () => {
     expect(createServerClient).toHaveBeenCalledOnce();
     expect(getUser).toHaveBeenCalledOnce();
   });
+
+  it('redirects anonymous platform administration requests to sign in', async () => {
+    getUser.mockResolvedValue({ data: { user: null }, error: null });
+
+    const response = await proxy(requestFor('/platform/health'));
+
+    expect(response.headers.get('location')).toBe(
+      `http://localhost/sign-in?next=${encodeURIComponent('/platform/health')}`,
+    );
+  });
 });

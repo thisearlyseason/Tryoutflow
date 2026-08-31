@@ -39,6 +39,7 @@ export default defineConfig({
     'role-denials.spec.ts',
     'concurrency-and-replay.spec.ts',
     'responsive-and-accessibility.spec.ts',
+    'platform-administration.spec.ts',
     'viewports.spec.ts',
   ],
   globalSetup: './tests/e2e/global-database-lifecycle.ts',

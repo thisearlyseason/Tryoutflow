@@ -82,6 +82,7 @@ export type Task30Scenario = Readonly<{
     reviewer: BrowserUser;
     member: BrowserUser;
     otherOwner: BrowserUser;
+    platformAdministrator: BrowserUser;
   }>;
   database: Readonly<{
     execute(sql: string): void;
@@ -229,6 +230,7 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
     alter table public.roster_versions enable always trigger prevent_finalized_roster_version_mutation;
     alter table public.tryout_teams enable always trigger prevent_finalized_roster_team_mutation;
     delete from public.organizations where id=any(array[${organizations}]::uuid[]);
+    delete from public.platform_administrators where user_id=any(array[${users}]::uuid[]);
     delete from public.profiles where id=any(array[${users}]::uuid[]);
     set local session_replication_role=origin;
     delete from auth.users where id=any(array[${users}]::uuid[]);
@@ -363,6 +365,8 @@ function seedScenarioSql(
       ${member(users.reviewer, 'member')},
       ${member(users.member, 'member')},
       ('${stableUuid(`${key}:member:other-owner`)}','${ids.otherOrganization}','${users.otherOwner.id}','owner','active');
+    insert into public.platform_administrators(user_id,granted_by_user_id)
+      values('${users.platformAdministrator.id}','${users.owner.id}');
     insert into public.tryouts(id,organization_id,name,slug,sport,timezone,registration_starts_at,registration_ends_at,starts_at,ends_at)
       values('${ids.tryout}','${ids.organization}','${tryoutName}','${organizationSlug}-critical-flow','Hockey','America/Edmonton',
         '2026-08-01T00:00:00Z','2026-09-30T23:59:59Z','2026-09-15T16:00:00Z','2026-09-16T22:00:00Z');
@@ -485,6 +489,7 @@ export const test = base.extend<Task30Fixtures>({
       'reviewer',
       'member',
       'other-owner',
+      'platform-administrator',
     ] as const;
     const created = await Promise.all(
       roles.map((role) => createBrowserUser(request, local, key, role)),
@@ -500,6 +505,7 @@ export const test = base.extend<Task30Fixtures>({
       reviewer: created[7]!,
       member: created[8]!,
       otherOwner: created[9]!,
+      platformAdministrator: created[10]!,
     } as const;
     const organizationName = `Task 30 ${key} Hockey`;
     const organizationSlug = `${key}-hockey`;

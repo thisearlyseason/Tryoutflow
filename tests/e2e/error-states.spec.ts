@@ -132,7 +132,12 @@ test('failed checkout reports exact recovery copy, restores focus, and double-cl
   const checkoutUrl = `http://127.0.0.1:3112/api/organizations/${scenario.ids.organization}/billing/checkout`;
   monitor.expectRequestFailure({
     count: 1,
-    errorText: browserName === 'chromium' ? 'net::ERR_FAILED' : 'Blocked by Web Inspector',
+    errorText:
+      browserName === 'chromium'
+        ? 'net::ERR_FAILED'
+        : browserName === 'firefox'
+          ? 'NS_ERROR_FAILURE'
+          : 'Blocked by Web Inspector',
     label: 'one deliberate Task 31 checkout request failure',
     method: 'POST',
     url: checkoutUrl,
@@ -188,6 +193,7 @@ test('integration review tolerates back, forward, and refresh without queuing or
   await page.getByLabel('First name').check();
   await page.getByLabel('Last name').check();
   await page.getByLabel('Team name').check();
+  expectCancellableServerAction(monitor, page, 'Task 31 history initial export preview');
   await page.getByRole('button', { name: 'Preview export' }).click();
   await expect(page.getByRole('heading', { name: 'Review 2 athletes' })).toBeVisible();
 
@@ -205,6 +211,7 @@ test('integration review tolerates back, forward, and refresh without queuing or
 
   await page.getByLabel('External destination').selectOption('mock-team-blue');
   await page.getByLabel('First name').check();
+  expectCancellableServerAction(monitor, page, 'Task 31 history recovery export preview');
   await page.getByRole('button', { name: 'Preview export' }).click();
   await expect(page.getByRole('heading', { name: 'Review 2 athletes' })).toBeVisible();
   monitor.assertClean();

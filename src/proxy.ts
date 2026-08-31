@@ -36,10 +36,12 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await proxyClient.supabase.auth.getUser();
 
-  if (
-    (request.nextUrl.pathname === '/app' || request.nextUrl.pathname.startsWith('/app/')) &&
-    !user
-  ) {
+  const protectedApplicationPath =
+    request.nextUrl.pathname === '/app' ||
+    request.nextUrl.pathname.startsWith('/app/') ||
+    request.nextUrl.pathname === '/platform' ||
+    request.nextUrl.pathname.startsWith('/platform/');
+  if (protectedApplicationPath && !user) {
     const redirectResponse = NextResponse.redirect(signInUrl(request));
     proxyClient
       .response()

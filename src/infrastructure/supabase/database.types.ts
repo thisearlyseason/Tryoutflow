@@ -2141,6 +2141,30 @@ export type Database = {
           },
         ];
       };
+      platform_administrators: {
+        Row: {
+          created_at: string;
+          disabled_at: string | null;
+          granted_by_user_id: string;
+          status: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          disabled_at?: string | null;
+          granted_by_user_id: string;
+          status?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          disabled_at?: string | null;
+          granted_by_user_id?: string;
+          status?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       platform_support_elevations: {
         Row: {
           audit_log_id: string;
@@ -3907,6 +3931,18 @@ export type Database = {
         };
         Returns: Json;
       };
+      begin_support_elevation: {
+        Args: {
+          p_expires_at: string;
+          p_organization_id: string;
+          p_reason: string;
+        };
+        Returns: {
+          elevation_id: string;
+          expires_at: string;
+          outcome: string;
+        }[];
+      };
       can_access_evaluation: {
         Args: {
           evaluator_user_id: string;
@@ -4621,6 +4657,7 @@ export type Database = {
         Args: { allowed_roles?: string[]; target_organization_id: string };
         Returns: boolean;
       };
+      is_active_platform_administrator: { Args: never; Returns: boolean };
       is_valid_organization_slug: { Args: { value: string }; Returns: boolean };
       is_valid_registration_calendar_date: {
         Args: { value: string };
@@ -4875,6 +4912,67 @@ export type Database = {
         Args: { p_organization_id: string };
         Returns: boolean;
       };
+      platform_health: {
+        Args: never;
+        Returns: {
+          communication_failures: number;
+          database_status: string;
+          failed_jobs: number;
+          integration_failures: number;
+          synchronization_problems: number;
+          webhook_failures: number;
+        }[];
+      };
+      platform_list_audit_events: {
+        Args: { p_limit?: number };
+        Returns: {
+          action: string;
+          actor_user_id: string;
+          audit_id: string;
+          entity_id: string;
+          entity_type: string;
+          occurred_at: string;
+          organization_id: string;
+          organization_slug: string;
+        }[];
+      };
+      platform_list_organizations: {
+        Args: { p_limit?: number };
+        Returns: {
+          organization_created_at: string;
+          organization_id: string;
+          organization_name: string;
+          organization_slug: string;
+          organization_status: string;
+        }[];
+      };
+      platform_list_subscriptions: {
+        Args: { p_limit?: number };
+        Returns: {
+          cancel_at_period_end: boolean;
+          current_period_end: string;
+          organization_id: string;
+          organization_name: string;
+          organization_slug: string;
+          plan_key: string;
+          subscription_state: string;
+          trial_end: string;
+          verified_at: string;
+        }[];
+      };
+      platform_list_support_elevations: {
+        Args: { p_limit?: number };
+        Returns: {
+          created_at: string;
+          elevation_id: string;
+          expires_at: string;
+          organization_id: string;
+          organization_slug: string;
+          reason: string;
+          revoked_at: string;
+          support_user_id: string;
+        }[];
+      };
       preview_decision_message_batch: {
         Args: {
           p_decision: string;
@@ -4894,6 +4992,12 @@ export type Database = {
           p_template_id: string;
         };
         Returns: Json;
+      };
+      public_health_check: {
+        Args: never;
+        Returns: {
+          status: string;
+        }[];
       };
       public_registration_tryout: {
         Args: { p_tryout_slug: string };
@@ -5348,6 +5452,17 @@ export type Database = {
         }[];
       };
       save_tryout_wizard_configuration: {
+        Args: {
+          p_organization_id: string;
+          p_payload: Json;
+          p_step: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+        }[];
+      };
+      save_tryout_wizard_configuration_v088: {
         Args: {
           p_organization_id: string;
           p_payload: Json;

@@ -41,6 +41,7 @@ export function OrganizationNavigation({
         ['Evaluators', `/app/${organizationSlug}/evaluators`],
         ['Members', `/app/${organizationSlug}/organization/members`],
         ['Integrations', `/app/${organizationSlug}/organization/integrations`],
+        ['Audit', `/app/${organizationSlug}/organization/audit`],
         ['Settings', `/app/${organizationSlug}/organization/settings`],
         ...(authorization.organizationRole === 'owner'
           ? [['Billing', `/app/${organizationSlug}/organization/billing`]]
