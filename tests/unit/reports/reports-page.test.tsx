@@ -49,4 +49,21 @@ describe('reports page', () => {
       expect.stringContaining('rosterVersionId=29000000-0000-4000-8000-000000000003'),
     );
   });
+
+  it('gives a finalized-roster reviewer only the exact approved download affordance', () => {
+    render(
+      <ReportsPage
+        access={{
+          kind: 'reviewer_roster',
+          rosterVersionId: '29000000-0000-4000-8000-000000000003',
+        }}
+        organizationId="29000000-0000-4000-8000-000000000001"
+        tryoutId="29000000-0000-4000-8000-000000000002"
+      />,
+    );
+    expect(screen.getByRole('link', { name: /finalized roster CSV/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /athletes CSV/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /evaluations CSV/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/completed evaluations/i)).not.toBeInTheDocument();
+  });
 });

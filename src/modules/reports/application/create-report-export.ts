@@ -3,14 +3,16 @@ import { z } from 'zod';
 import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import { can } from '../../organizations/application/capabilities';
-import { exportAthletesCsv, type AthleteExportRow } from './export-athletes-csv';
-import { exportEvaluationsCsv, type EvaluationExportRow } from './export-evaluations-csv';
-import { exportRosterCsv, type RosterExportSnapshot } from './export-roster-csv';
+import { encodeAthletesCsv, type AthleteExportRow } from './export-athletes-csv';
+import { encodeEvaluationsCsv, type EvaluationExportRow } from './export-evaluations-csv';
+import { encodeRosterCsv, type RosterExportSnapshot } from './export-roster-csv';
 import { CsvExportLimitError, MAX_EXPORT_ROWS } from './csv';
 
 export type ReportExportType = 'athletes' | 'evaluations' | 'roster';
 export type ReportExportProjection =
-  | Readonly<{ outcome: 'forbidden' | 'invalid_scope' | 'not_finalized' }>
+  | Readonly<{
+      outcome: 'forbidden' | 'invalid_scope' | 'not_finalized' | 'snapshot_unavailable';
+    }>
   | Readonly<{
       outcome: 'ok';
       exportType: 'athletes';
@@ -90,8 +92,22 @@ export async function createReportExport(
   gateway: ReportExportGateway,
 ): Promise<
   AppResult<
-    Readonly<{ csv: string; filename: string; rowCount: number; truncated: boolean }>,
-    Readonly<{ code: 'not_found' | 'forbidden' | 'not_finalized' | 'too_large' | 'unexpected' }>
+    Readonly<{
+      chunks: readonly Uint8Array[];
+      byteLength: number;
+      filename: string;
+      rowCount: number;
+      truncated: boolean;
+    }>,
+    Readonly<{
+      code:
+        | 'not_found'
+        | 'forbidden'
+        | 'not_finalized'
+        | 'snapshot_unavailable'
+        | 'too_large'
+        | 'unexpected';
+    }>
   >
 > {
   const parsed = inputSchema.safeParse(input);
@@ -100,22 +116,23 @@ export async function createReportExport(
   try {
     const projection = await gateway.load({ ...parsed.data, maxRows: MAX_EXPORT_ROWS });
     if (projection.outcome !== 'ok') {
-      return failure({
-        code: projection.outcome === 'not_finalized' ? 'not_finalized' : 'forbidden',
-      });
+      if (projection.outcome === 'not_finalized') return failure({ code: 'not_finalized' });
+      if (projection.outcome === 'snapshot_unavailable')
+        return failure({ code: 'snapshot_unavailable' });
+      return failure({ code: 'forbidden' });
     }
     if (projection.exportType !== parsed.data.exportType) return failure({ code: 'unexpected' });
     if (projection.truncated) return failure({ code: 'too_large' });
-    const csv =
+    const encoded =
       projection.exportType === 'athletes'
-        ? exportAthletesCsv(projection.rows)
+        ? encodeAthletesCsv(projection.rows)
         : projection.exportType === 'evaluations'
-          ? exportEvaluationsCsv(projection.rows)
-          : exportRosterCsv(projection.snapshot);
+          ? encodeEvaluationsCsv(projection.rows)
+          : encodeRosterCsv(projection.snapshot);
     const rowCount =
       projection.exportType === 'roster' ? projection.snapshot.rows.length : projection.rows.length;
     return success({
-      csv,
+      ...encoded,
       filename: `${slug(projection.scopeLabel)}-${projection.exportType}.csv`,
       rowCount,
       truncated: projection.truncated,

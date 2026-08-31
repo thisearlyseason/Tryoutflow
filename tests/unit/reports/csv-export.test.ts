@@ -90,18 +90,37 @@ describe('RFC 4180 report exports', () => {
       athleteNumber: 12,
       preferredName: 'Synthetic Athlete',
       session: 'Skills',
-      completionState: 'completed',
-      overallScore: '80.0',
+      completedCount: 1,
+      lockedCount: 0,
+      reopenedCount: 1,
+      draftCount: 1,
+      invalidCount: 1,
+      scoredEvaluatorCount: 1,
+      overallScore: '92.0000',
       evaluatorName: 'Must Not Export',
       privateNotes: 'Must Not Export',
     } as EvaluationExportRow & { evaluatorName: string; privateNotes: string };
 
     const csv = exportEvaluationsCsv([maliciousProjection]);
     expect(csv).toBe(
-      'Athlete number,Preferred name,Session,Completion state,Overall score\r\n' +
-        '12,Synthetic Athlete,Skills,completed,80.0\r\n',
+      'Athlete number,Preferred name,Session,Completed,Locked,Reopened,Draft,Invalid,Scored evaluators,Overall score\r\n' +
+        '12,Synthetic Athlete,Skills,1,0,1,1,1,1,92.0000\r\n',
     );
-    expect(csv).not.toMatch(/Must Not Export|note|evaluator/iu);
+    expect(csv).not.toMatch(/Must Not Export|private note|evaluator name|evaluator id/iu);
+  });
+
+  it('leaves an unregistered organization athlete registration state empty', () => {
+    expect(
+      exportAthletesCsv([
+        {
+          athleteNumber: null,
+          preferredName: 'Unregistered',
+          familyName: 'Synthetic',
+          position: null,
+          registrationStatus: null,
+        },
+      ]),
+    ).toContain(',Unregistered,Synthetic,,\r\n');
   });
 });
 
@@ -142,8 +161,13 @@ describe('authorized server export snapshots', () => {
           athleteNumber: 12,
           preferredName: 'Synthetic Athlete',
           session: 'Skills',
-          completionState: 'completed',
-          overallScore: '80.0',
+          completedCount: 1,
+          lockedCount: 0,
+          reopenedCount: 0,
+          draftCount: 0,
+          invalidCount: 0,
+          scoredEvaluatorCount: 1,
+          overallScore: '80.0000',
         },
       ],
       truncated: false,
@@ -154,7 +178,9 @@ describe('authorized server export snapshots', () => {
       director,
       { load },
     );
-    expect(result.ok && result.value.csv).toContain('Synthetic Athlete');
+    expect(
+      result.ok && result.value.chunks.map((chunk) => new TextDecoder().decode(chunk)).join(''),
+    ).toContain('Synthetic Athlete');
     expect(load).toHaveBeenCalledWith({
       organizationId: ids.organization,
       tryoutId: ids.tryout,

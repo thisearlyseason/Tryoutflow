@@ -14,8 +14,8 @@ export default async function OrganizationReportsPage({
     const summary = await new SupabaseReportGateway(current.client).summary(
       current.organization.id,
     );
-    return summary ? (
-      <ReportsPage organizationId={current.organization.id} summary={summary} />
+    return summary?.kind === 'manager' ? (
+      <ReportsPage organizationId={current.organization.id} access={summary} />
     ) : (
       <ErrorState
         title="Reports unavailable"

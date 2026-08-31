@@ -18,7 +18,11 @@ describe('CSV export route', () => {
     const execute = vi.fn().mockResolvedValue({
       ok: true,
       value: {
-        csv: 'Athlete number,Preferred name\r\n7,Zoë\r\n',
+        chunks: [
+          new TextEncoder().encode('Athlete number,Preferred name\r\n'),
+          new TextEncoder().encode('7,Zoë\r\n'),
+        ],
+        byteLength: 45,
         filename: 'Badlands-U15-athletes.csv',
         rowCount: 1,
         truncated: false,
@@ -45,6 +49,92 @@ describe('CSV export route', () => {
       { organizationId, tryoutId, rosterVersionId: undefined, exportType: 'athletes' },
       actor,
     );
+  });
+
+  it('pulls one encoded chunk at a time and stops after consumer cancellation', async () => {
+    const response = await handleExportRequest(
+      new Request(`http://localhost/api/x?tryoutId=${tryoutId}`),
+      { organizationId, exportType: 'athletes' },
+      {
+        authorize: async () => actor,
+        execute: async () => ({
+          ok: true,
+          value: {
+            chunks: [
+              new TextEncoder().encode('header\r\n'),
+              new TextEncoder().encode('first\r\n'),
+              new TextEncoder().encode('second\r\n'),
+            ],
+            byteLength: 23,
+            filename: 'report.csv',
+            rowCount: 2,
+            truncated: false,
+          },
+        }),
+      },
+    );
+    const reader = response.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe('header\r\n');
+    await reader.cancel('slow consumer disconnected');
+    expect(await reader.read()).toEqual({ done: true, value: undefined });
+  });
+
+  it('maps an asynchronous execution rejection to a private typed 503 response', async () => {
+    const response = await handleExportRequest(
+      new Request(`http://localhost/api/x?tryoutId=${tryoutId}`),
+      { organizationId, exportType: 'athletes' },
+      {
+        authorize: async () => actor,
+        execute: async () => {
+          throw new Error('sensitive database detail');
+        },
+      },
+    );
+    expect(response.status).toBe(503);
+    expect(await response.text()).toBe('The export is temporarily unavailable.');
+    expect(response.headers.get('content-type')).not.toBe('text/csv; charset=utf-8');
+  });
+
+  it('does not start projection work for an already aborted request', async () => {
+    const controller = new AbortController();
+    controller.abort('navigation changed');
+    const execute = vi.fn();
+    const response = await handleExportRequest(
+      new Request(`http://localhost/api/x?tryoutId=${tryoutId}`, { signal: controller.signal }),
+      { organizationId, exportType: 'athletes' },
+      { authorize: async () => actor, execute },
+    );
+    expect(response.status).toBe(499);
+    expect(execute).not.toHaveBeenCalled();
+    expect(response.headers.get('content-type')).not.toBe('text/csv; charset=utf-8');
+  });
+
+  it('stops a Unicode stream on request abort between pull chunks', async () => {
+    const controller = new AbortController();
+    const response = await handleExportRequest(
+      new Request(`http://localhost/api/x?tryoutId=${tryoutId}`, { signal: controller.signal }),
+      { organizationId, exportType: 'athletes' },
+      {
+        authorize: async () => actor,
+        execute: async () => ({
+          ok: true,
+          value: {
+            chunks: [
+              new TextEncoder().encode('name\r\n'),
+              new TextEncoder().encode('Zoë 守門員\r\n'),
+            ],
+            byteLength: 24,
+            filename: 'report.csv',
+            rowCount: 1,
+            truncated: false,
+          },
+        }),
+      },
+    );
+    const reader = response.body!.getReader();
+    expect(new TextDecoder().decode((await reader.read()).value)).toBe('name\r\n');
+    controller.abort('client disconnected');
+    await expect(reader.read()).rejects.toBe('client disconnected');
   });
 
   it('uses one non-oracular response for invalid IDs, missing sessions, and denied scope', async () => {

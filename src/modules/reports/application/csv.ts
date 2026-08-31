@@ -36,14 +36,33 @@ function field(value: string | number | null): string {
   return /[",\r\n]/u.test(escaped) ? `"${escaped.replaceAll('"', '""')}"` : escaped;
 }
 
+export type CsvEncoding = Readonly<{
+  chunks: readonly Uint8Array[];
+  byteLength: number;
+}>;
+
+export function serializeCsvChunks(
+  headers: readonly string[],
+  rows: readonly (readonly (string | number | null)[])[],
+): CsvEncoding {
+  if (rows.length > MAX_EXPORT_ROWS) throw new CsvExportLimitError('row_limit');
+  const encoder = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+  let byteLength = 0;
+  for (const values of [headers, ...rows]) {
+    const chunk = encoder.encode(`${values.map(field).join(',')}\r\n`);
+    byteLength += chunk.byteLength;
+    if (byteLength > MAX_EXPORT_BYTES) throw new CsvExportLimitError('byte_limit');
+    chunks.push(chunk);
+  }
+  return { chunks, byteLength };
+}
+
 export function serializeCsv(
   headers: readonly string[],
   rows: readonly (readonly (string | number | null)[])[],
 ): string {
-  if (rows.length > MAX_EXPORT_ROWS) throw new CsvExportLimitError('row_limit');
-  const content = `${headers.map(field).join(',')}\r\n${rows.map((row) => row.map(field).join(',')).join('\r\n')}${rows.length > 0 ? '\r\n' : ''}`;
-  if (new TextEncoder().encode(content).byteLength > MAX_EXPORT_BYTES) {
-    throw new CsvExportLimitError('byte_limit');
-  }
-  return content;
+  const encoded = serializeCsvChunks(headers, rows);
+  const decoder = new TextDecoder();
+  return encoded.chunks.map((chunk) => decoder.decode(chunk)).join('');
 }

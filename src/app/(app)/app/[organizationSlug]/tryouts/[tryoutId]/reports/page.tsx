@@ -16,7 +16,7 @@ export default async function TryoutReportsPage({
       tryoutId,
     );
     return summary ? (
-      <ReportsPage organizationId={current.organization.id} summary={summary} tryoutId={tryoutId} />
+      <ReportsPage organizationId={current.organization.id} access={summary} tryoutId={tryoutId} />
     ) : (
       <ErrorState
         title="Reports unavailable"

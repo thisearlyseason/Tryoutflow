@@ -63,8 +63,8 @@ export function OrganizationNavigation({
           `/app/${organizationSlug}/tryouts/${tryoutId}/rosters`,
           `Rosters for tryout ${tryoutId}`,
         ]),
-        ...staffedTryouts.map((tryoutId, index) => [
-          staffedTryouts.length === 1 ? 'Reports' : `Reports ${index + 1}`,
+        ...rankedTryouts.map((tryoutId, index) => [
+          rankedTryouts.length === 1 ? 'Reports' : `Reports ${index + 1}`,
           `/app/${organizationSlug}/tryouts/${tryoutId}/reports`,
           `Reports for tryout ${tryoutId}`,
         ]),

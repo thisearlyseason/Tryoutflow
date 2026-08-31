@@ -30,6 +30,14 @@ const scopedEvaluator: AuthorizationContext = {
   assignments: [{ role: 'evaluator', scope: { kind: 'session', tryoutId, sessionId } }],
 };
 
+const scopedReviewer: AuthorizationContext = {
+  userId,
+  organizationId,
+  organizationRole: 'member',
+  membershipStatus: 'active',
+  assignments: [{ role: 'reviewer', scope: { kind: 'session', tryoutId, sessionId } }],
+};
+
 describe('least-privileged organization route context', () => {
   it('loads only safe shell fields for an active scoped director with a known slug', async () => {
     const result = await resolveOrganizationRouteContext('badlands', userId, {
@@ -106,5 +114,16 @@ describe('least-privileged organization route context', () => {
     );
     expect(screen.queryByRole('link', { name: 'Athletes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Staff for tryout/ })).not.toBeInTheDocument();
+  });
+
+  it('gives an actively assigned reviewer the exact tryout report destination without organization reports', () => {
+    render(<OrganizationNavigation authorization={scopedReviewer} organizationSlug="badlands" />);
+    expect(screen.getByRole('link', { name: `Reports for tryout ${tryoutId}` })).toHaveAttribute(
+      'href',
+      `/app/badlands/tryouts/${tryoutId}/reports`,
+    );
+    expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Athletes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Evaluate' })).not.toBeInTheDocument();
   });
 });

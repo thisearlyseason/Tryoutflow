@@ -13,16 +13,21 @@ const athleteRow = z.strictObject({
   preferredName: z.string().min(1).max(120),
   familyName: z.string().min(1).max(120).nullable(),
   position: z.string().min(1).max(120).nullable(),
-  registrationStatus: z.enum(['submitted', 'withdrawn', 'cancelled']),
+  registrationStatus: z.enum(['submitted', 'withdrawn', 'cancelled']).nullable(),
 });
 const evaluationRow = z.strictObject({
   athleteNumber: z.number().int().min(1).max(9999).nullable(),
   preferredName: z.string().min(1).max(120),
   session: z.string().min(1).max(160),
-  completionState: z.enum(['draft', 'completed', 'locked', 'reopened', 'not_started']),
+  completedCount: z.number().int().min(0).max(1000),
+  lockedCount: z.number().int().min(0).max(1000),
+  reopenedCount: z.number().int().min(0).max(1000),
+  draftCount: z.number().int().min(0).max(1000),
+  invalidCount: z.number().int().min(0).max(1000),
+  scoredEvaluatorCount: z.number().int().min(0).max(1000),
   overallScore: z
     .string()
-    .regex(/^(?:100(?:\.0)?|[0-9]{1,2}(?:\.[0-9])?)$/u)
+    .regex(/^(?:100|[0-9]{1,2})\.\d{4}$/u)
     .nullable(),
 });
 const rosterRow = z.strictObject({
@@ -31,7 +36,9 @@ const rosterRow = z.strictObject({
   decision: z.enum(['undecided', 'callback', 'selected', 'waitlisted', 'released', 'withdrawn']),
   team: z.string().min(1).max(120).nullable(),
 });
-const denied = z.strictObject({ outcome: z.enum(['forbidden', 'invalid_scope', 'not_finalized']) });
+const denied = z.strictObject({
+  outcome: z.enum(['forbidden', 'invalid_scope', 'not_finalized', 'snapshot_unavailable']),
+});
 const common = {
   outcome: z.literal('ok'),
   scopeLabel: z.string().trim().min(1).max(321),
@@ -67,25 +74,35 @@ export function parseReportExportProjection(input: unknown): ReportExportProject
   return parsed.data as ReportExportProjection;
 }
 
-export type ReportSummary = Readonly<{
+export type ManagerReportSummary = Readonly<{
   athleteCount: number;
   completedEvaluationCount: number;
   incompleteEvaluationCount: number;
   finalizedRosterCount: number;
   latestFinalizedRosterId: string | null;
 }>;
-const summaryResponse = z.strictObject({
-  outcome: z.enum(['ok', 'forbidden']),
-  summary: z
-    .strictObject({
+export type ReportPageAccess =
+  | Readonly<{ kind: 'manager'; summary: ManagerReportSummary }>
+  | Readonly<{ kind: 'reviewer_roster'; rosterVersionId: string }>;
+const summaryResponse = z.union([
+  z.strictObject({ outcome: z.literal('forbidden') }),
+  z.strictObject({
+    outcome: z.literal('ok'),
+    access: z.literal('manager'),
+    summary: z.strictObject({
       athleteCount: z.number().int().min(0).max(1_000_000),
       completedEvaluationCount: z.number().int().min(0).max(10_000_000),
       incompleteEvaluationCount: z.number().int().min(0).max(10_000_000),
       finalizedRosterCount: z.number().int().min(0).max(1_000_000),
       latestFinalizedRosterId: z.uuid().nullable(),
-    })
-    .optional(),
-});
+    }),
+  }),
+  z.strictObject({
+    outcome: z.literal('ok'),
+    access: z.literal('reviewer_roster'),
+    rosterVersionId: z.uuid(),
+  }),
+]);
 
 export class SupabaseReportGateway implements ReportExportGateway {
   constructor(private readonly client: SupabaseClient<Database>) {}
@@ -103,7 +120,7 @@ export class SupabaseReportGateway implements ReportExportGateway {
     return parseReportExportProjection(data[0]?.result);
   }
 
-  async summary(organizationId: string, tryoutId?: string): Promise<ReportSummary | null> {
+  async summary(organizationId: string, tryoutId?: string): Promise<ReportPageAccess | null> {
     const { data, error } = await this.client.rpc('load_report_summary', {
       p_organization_id: organizationId,
       p_tryout_id: tryoutId,
@@ -112,6 +129,9 @@ export class SupabaseReportGateway implements ReportExportGateway {
       throw error ?? new Error('Invalid report summary');
     const parsed = summaryResponse.safeParse(data[0]?.result);
     if (!parsed.success) throw new Error('Invalid report summary');
-    return parsed.data.outcome === 'ok' && parsed.data.summary ? parsed.data.summary : null;
+    if (parsed.data.outcome !== 'ok') return null;
+    return parsed.data.access === 'manager'
+      ? { kind: 'manager', summary: parsed.data.summary }
+      : { kind: 'reviewer_roster', rosterVersionId: parsed.data.rosterVersionId };
   }
 }
