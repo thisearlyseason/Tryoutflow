@@ -194,13 +194,18 @@ export default async function RosterExportPage({
     );
   }
 
-  async function confirmAction(input: { previewId: string; confirmationToken: string }) {
+  async function confirmAction(input: {
+    previewId: string;
+    sourceDigest: string;
+    confirmationToken: string;
+  }) {
     'use server';
     const current = await requireOrganizationRouteContext(organizationSlug);
     return startRosterExport(
       {
         organizationId: current.organization.id,
         previewId: input.previewId,
+        sourceDigest: input.sourceDigest,
         confirmationToken: input.confirmationToken,
         idempotencyKey: digestToken('export', input.previewId),
       },

@@ -73,6 +73,7 @@ describe('integration export UI', () => {
     const preview = vi.fn().mockResolvedValue({
       outcome: 'previewed',
       previewId: 'preview:task27:00000001',
+      sourceDigest: 'b'.repeat(64),
       confirmationToken: 'confirmation:task27:00000001',
       snapshotDigest: 'a'.repeat(64),
       totalItems: 2,
@@ -109,6 +110,7 @@ describe('integration export UI', () => {
       state: 'processing',
       retriedItemCount: 1,
       preservedCompletedItemCount: 1,
+      preservedSkippedItemCount: 2,
       completedCount: 7,
       skippedCount: 2,
       failedCount: 3,
@@ -154,7 +156,10 @@ describe('integration export UI', () => {
     await user.click(screen.getByLabelText(/i reviewed the exact destination and fields/i));
     await user.click(screen.getByRole('button', { name: /confirm and queue export/i }));
     expect(confirm).toHaveBeenCalledWith(
-      expect.objectContaining({ previewId: 'preview:task27:00000001' }),
+      expect.objectContaining({
+        previewId: 'preview:task27:00000001',
+        sourceDigest: 'b'.repeat(64),
+      }),
     );
     expect(screen.getByRole('status')).toHaveTextContent(/needs attention/i);
     expect(screen.getByText(/delivery is uncertain/i)).toBeVisible();
@@ -169,6 +174,7 @@ describe('integration export UI', () => {
         onPreview={async () => ({
           outcome: 'previewed',
           previewId: 'preview:task27:empty:0001',
+          sourceDigest: 'b'.repeat(64),
           confirmationToken: 'confirmation:task27:empty:0001',
           snapshotDigest: 'a'.repeat(64),
           totalItems: 0,
@@ -184,7 +190,7 @@ describe('integration export UI', () => {
           failedCount: 0,
           retryEligibleCount: 0,
         })}
-        onRetry={async () => ({ outcome: 'nothing_to_retry' })}
+        onRetry={async () => ({ outcome: 'unavailable' })}
       />,
     );
     await user.selectOptions(
@@ -208,7 +214,7 @@ describe('integration export UI', () => {
         destinations={[destination]}
         onPreview={async () => ({ outcome: 'unavailable' })}
         onConfirm={async () => ({ outcome: 'conflict' })}
-        onRetry={async () => ({ outcome: 'nothing_to_retry' })}
+        onRetry={async () => ({ outcome: 'unavailable' })}
         initialJob={{
           id: '10000000-0000-4000-8000-000000000001',
           state: 'failed',
@@ -223,6 +229,94 @@ describe('integration export UI', () => {
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
+  it.each([
+    {
+      outcome: 'replayed',
+      state: 'processing',
+      completedCount: 7,
+      skippedCount: 2,
+      failedCount: 1,
+      retryEligibleCount: 0,
+      message: /retry queued for failed or reviewable items only/i,
+    },
+    {
+      outcome: 'nothing_to_retry',
+      state: 'completed',
+      completedCount: 8,
+      skippedCount: 2,
+      failedCount: 0,
+      retryEligibleCount: 0,
+      message: /no retryable items were changed/i,
+    },
+    {
+      outcome: 'manual_attention_required',
+      state: 'needs_attention',
+      completedCount: 6,
+      skippedCount: 1,
+      failedCount: 2,
+      retryEligibleCount: 0,
+      message: /manual attention is required/i,
+    },
+  ] as const)('replaces stale retry UI from the $outcome durable projection', async (durable) => {
+    const user = userEvent.setup();
+    render(
+      <RosterExportWizard
+        rosterVersionId="10000000-0000-4000-8000-000000000002"
+        destinations={[destination]}
+        onPreview={async () => ({ outcome: 'unavailable' })}
+        onConfirm={async () => ({ outcome: 'conflict' })}
+        onRetry={async () => ({
+          ...durable,
+          jobId: '10000000-0000-4000-8000-000000000001',
+          retriedItemCount: durable.outcome === 'replayed' ? 1 : 0,
+          preservedCompletedItemCount: durable.completedCount,
+          preservedSkippedItemCount: durable.skippedCount,
+        })}
+        initialJob={{
+          id: '10000000-0000-4000-8000-000000000001',
+          state: 'partially_completed',
+          completedCount: 1,
+          skippedCount: 0,
+          failedCount: 4,
+          retryEligibleCount: 1,
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
+    expect(screen.getByRole('status')).toHaveTextContent(
+      `${durable.completedCount} completed · ${durable.skippedCount} skipped · ${durable.failedCount} failed/reviewable`,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(durable.state.replaceAll('_', ' '));
+    expect(screen.getAllByText(durable.message).at(-1)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
+  it('fails closed instead of retaining a stale retry action for a malformed job-bound result', async () => {
+    const user = userEvent.setup();
+    render(
+      <RosterExportWizard
+        rosterVersionId="10000000-0000-4000-8000-000000000002"
+        destinations={[destination]}
+        onPreview={async () => ({ outcome: 'unavailable' })}
+        onConfirm={async () => ({ outcome: 'conflict' })}
+        onRetry={async () => ({ outcome: 'nothing_to_retry' }) as never}
+        initialJob={{
+          id: '10000000-0000-4000-8000-000000000001',
+          state: 'partially_completed',
+          completedCount: 1,
+          skippedCount: 0,
+          failedCount: 4,
+          retryEligibleCount: 1,
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
+    expect(screen.getByText(/durable retry returned an invalid projection/i)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+  });
+
   it('renders an explicit preview error when the server action is unavailable', async () => {
     const user = userEvent.setup();
     render(
@@ -233,7 +327,7 @@ describe('integration export UI', () => {
           throw new Error('private provider failure');
         }}
         onConfirm={async () => ({ outcome: 'conflict' })}
-        onRetry={async () => ({ outcome: 'nothing_to_retry' })}
+        onRetry={async () => ({ outcome: 'unavailable' })}
       />,
     );
     await user.selectOptions(

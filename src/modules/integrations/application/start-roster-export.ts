@@ -4,9 +4,11 @@ import { can, type AuthorizationContext } from '../../organizations/application/
 import { parseOrganizationId } from '../../../lib/ids';
 
 const token = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{15,199}$/u);
+const sourceDigest = z.string().regex(/^[0-9a-f]{64}$/u);
 const startRosterExportInputSchema = z.strictObject({
   organizationId: z.uuid(),
   previewId: token,
+  sourceDigest,
   confirmationToken: token,
   idempotencyKey: token,
 });
@@ -39,6 +41,7 @@ export type StartRosterExportGateway = Readonly<{
     organizationId: string;
     actorId: string;
     previewId: string;
+    sourceDigest: string;
     confirmationToken: string;
     idempotencyKey: string;
   }): Promise<Exclude<StartRosterExportResult, { outcome: 'invalid_input' | 'unavailable' }>>;

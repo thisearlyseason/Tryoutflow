@@ -43,6 +43,7 @@ export default function Page() {
       onPreview={async () => ({
         outcome: 'previewed',
         previewId: 'preview:task27:00000001',
+        sourceDigest: 'b'.repeat(64),
         confirmationToken: 'confirmation:task27:00000001',
         snapshotDigest: 'a'.repeat(64),
         totalItems: 2,
@@ -78,6 +79,8 @@ export default function Page() {
         jobId: '10000000-0000-4000-8000-000000000001',
         state: 'pending',
         retriedItemCount: 1,
+        preservedCompletedItemCount: 1,
+        preservedSkippedItemCount: 0,
         completedCount: 1,
         skippedCount: 0,
         failedCount: 0,

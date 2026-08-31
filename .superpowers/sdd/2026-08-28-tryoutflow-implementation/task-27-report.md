@@ -292,3 +292,72 @@ Migration `202608280080_close_integration_claim_and_retention.sql` is additive. 
 ### Round 3 release concern
 
 No blocking concern. The provider is still deliberately demo/mock-only and disabled by default. Production operations must schedule the protected processor so bounded poison cleanup and preview retention continue; delivery uncertainty still requires explicit operator reconciliation rather than an automatic retry that could duplicate external intent.
+
+## Review fix round 4/5
+
+### Findings reproduced before production edits
+
+All five review findings were reproduced against the round-3 tree before migration 081 or the application changes were written.
+
+- Live catalog and runtime probes showed that `authenticated` could execute `confirm_roster_export_preview_v2`. Direct v2 calls reached replay or initial queue mutation before the v3 token check, while SQL `NULL` token/digest inputs bypassed ordinary regular-expression and inequality predicates. The initial pgTAP 063 run failed 28 of 36 assertions, including the expected sole authenticated confirmation boundary.
+- A stage-`redacted` preview could still retain its full `preview_snapshot`, including provider labels and approved-contact display data. Historical sync jobs could retain the pre-078 `roster_snapshot` and `provider_confirmation_token`. Byte probes found those values even though the row stage claimed redaction.
+- The active provider-await rehearsal crossed source expiry and retention processing with a valid, unexpired handed-off lease. Before the fix the exact provider receipt was classified `delivery_uncertain` instead of accepted, demonstrating that source expiry could destroy an in-flight accepted completion.
+- Focused gateway/application/UI tests began with 5 failures in 28 tests. Job-bound retry outcomes omitted or synthesized durable state/counts, and the UI could retain a stale Retry control after receiving an incomplete `nothing_to_retry` result. A later self-review RED deliberately supplied that malformed result and confirmed the stale control before tightening the UI boundary.
+- Natural purge/retry/claim interleaving had no stable serialization point: purge locked the current outbox set before sync, retry locked sync before inserting, and claim could lock a newly inserted outbox before waiting on sync. The first pgTAP/concurrency draft therefore could neither find retry v4 nor prove that new outboxes could not enter the purge lock set mid-transaction.
+- A later historical-repair self-review fixture exposed two more failed assertions: a preview already clean and marked `redacted` could leave sensitive `approved_projection` bytes on a linked failed job with no retry-eligible items. The repair predicate was expanded before final verification.
+
+### Round 4 durable design
+
+Migration `202608280081_close_integration_confirmation_retention_and_locking.sql` is additive. Migrations 077–080 remain unchanged.
+
+- Confirmation v4 is the sole authenticated confirmation boundary. It accepts preview ID, exact source digest, exact confirmation token, and exact idempotency scope; rejects every `NULL`, malformed, changed, or cross-scope value before hashing, locking, or mutation; and permits only exact live or consumed replay. V1–v3 are revoked from `PUBLIC`, `anon`, `authenticated`, and `service_role`; v4 is granted only to `authenticated`.
+- Redaction is defined by bytes, not by stage: a redacted preview has an empty roster, null provider token, null preview snapshot, and a redaction timestamp; legacy sync roster/token fields remain null. Terminal completion, failure, cancellation, attention, expiry, and bounded purge paths clear preview, job, and outbox-sensitive payload fields in the same transaction while retaining hashes, result receipts, durable mappings, and privacy-safe counts.
+- A private bounded historical repair revisits stage-redacted-but-sensitive rows and terminal/no-retry jobs. It skips active unexpired provider leases, uses the same stable sync serialization key as runtime paths, and defers those rows until they are no longer active. The migration-time drain therefore cannot invalidate an accepted in-flight provider completion.
+- Every purge, retry, claim, authorize, complete, and fail path acquires a private per-sync advisory serialization key before any mutable row-lock set. This prevents a retry insert or claimant from changing the purge set mid-transaction and gives all execution/retention paths one stable prefix independent of which outbox rows currently exist.
+- Retry v4 returns an exact same-transaction durable projection for every job-bound outcome: outcome, job ID/state, retried and preserved counts, current completed/skipped/failed counts, and retry eligibility. Gateway and application contracts reject incomplete, inconsistent, or unknown projections. The UI replaces its job view for `queued`, `replayed`, `nothing_to_retry`, and `manual_attention_required` only from that validated projection and clears stale job controls on an invalid boundary response.
+- Source digest is carried from preview through the server action, application boundary, gateway, and confirmation RPC. This closes the exact-live and exact-consumed source binding instead of relying on a preview ID alone.
+
+### Round 4 files
+
+- `supabase/migrations/202608280081_close_integration_confirmation_retention_and_locking.sql`
+- `supabase/tests/063_integration_round4_closure.test.sql`
+- `src/infrastructure/supabase/database.types.ts`
+- `src/modules/integrations/application/preview-roster-export.ts`
+- `src/modules/integrations/application/start-roster-export.ts`
+- `src/modules/integrations/application/retry-sync-job.ts`
+- `src/modules/integrations/infrastructure/supabase-integration-gateway.ts`
+- `src/modules/integrations/ui/roster-export-wizard.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rosters/[rosterVersionId]/export/page.tsx`
+- `tests/integration/integrations/roster-export.test.ts`
+- `tests/unit/integrations/roster-export.test.ts`
+- `tests/unit/integrations/supabase-integration-gateway.test.ts`
+- `tests/unit/integrations/roster-export-ui.test.tsx`
+- `tests/fixtures/integrations/app/page.tsx`
+
+### Final GREEN evidence
+
+- Clean local reset applied migrations 001–081 in order. Focused pgTAP 063 passed 38/38; the full database suite passed 63 files / 1,715 assertions.
+- Focused integration unit coverage passed 3 files / 33 tests after the exact retry and malformed-boundary fixes.
+- The expanded real-database scenario passed with exact live/consumed token-digest-scope checks, all retry outcomes, PII/token byte probes across terminal paths, active handed-off completion after source expiry, and natural three-session purge/retry/claim progress without deadlock or a missed active outbox.
+- The full isolated integration suite passed twice: 26 files / 192 tests on each run. Task 26 provider contracts passed 3 files / 143 tests.
+- Full `npm run verify` passed formatting, ESLint, strict TypeScript, 58 unit files / 779 tests, and the production Next.js build. An independent production build also passed.
+- A controlled migration rehearsal built migrations 001–080, injected a stage-redacted sensitive preview and terminal legacy sync/job/outbox history, observed the pre-081 probe `true|true|true|completed`, then applied 081. The post-081 probe returned `true|true|true|true|true`: sensitive preview/sync bytes were gone while request/token/result hashes, external receipt, and completed outbox evidence were unchanged.
+- The active-provider-await integration rehearsal retained its unexpired handed-off lease through cleanup and accepted the exact provider completion receipt after source expiry. No new handoff is authorized from an expired source.
+- Production-path Chromium passed 1/1 through real local authentication, feature registry, application route/components, server actions, RPC persistence, protected worker processing, durable refresh, and axe. Chromium + Mobile Chrome fixture coverage passed 4/4, including retry replacement, 375 px overflow, target sizing, and critical accessibility.
+- Database type generation was identical across consecutive runs with SHA-256 `6dae6a70a02561fc7df66360fb38019d4ee6a0d4294da6f90fff0e5288503565`.
+- `npm audit --omit=dev` found 0 vulnerabilities. `git diff --check`, old-migration audit, broad-`any`/suppression scan, credential-pattern scan, and live-Squad-endpoint scan passed.
+- Live catalog audit returned `true|6|true|true|true`: RLS is enabled on all six integration tables; all six audited public execution boundaries have empty search paths; authenticated callers have only v4 confirmation/retry authority; v1–v3 confirmation boundaries are retired; and service workers retain completion/failure authority.
+
+### Round 4 self-review
+
+- Categorical no-resend: ordinary claim still excludes every provider-started outbox. Expiry, exhaustion, failure, purge, retry, and saturation do not turn handed-off intent into resendable work.
+- Revocation linearization: membership removal, connection disconnect, roster/source invalidation, and pre-handoff source expiry stop authorization. Once the provider marker is durably written, exact completion may finish; ambiguous or expired leases become manual attention rather than ordinary retry.
+- Safe retry matrix: only durable item-level retry eligibility enters a new attempt. Completed/skipped evidence is preserved; permanent failure, exhaustion, handoff uncertainty, and operator-review states never invent a Retry control.
+- Replay: changed/null token, digest, organization, actor, or idempotency scope fails without mutation. Exact consumed confirmation and exact terminal result replay remain available after raw-token/source redaction because their privacy-safe digests and receipt authority survive.
+- Privacy: preview source, provider labels, approved-contact display bytes, legacy sync roster/token bytes, and transient outbox payloads are probed absent after every terminal family. Active work is not prematurely scrubbed, and bounded cleanup later revisits it safely.
+- Preview CAS and mapping safety: confirmation remains bound to immutable preview/source evidence. Completion keeps generation fencing and organization/connection/entity-scoped mapping locks and uniqueness; the new sync serialization prefix does not weaken mapping convergence.
+- Tenant/ACL/cold-start safety: RLS and actor scope remain authoritative, helper functions are private, public security-definer functions use empty search paths, database types are deterministic, and Task 26 remains a disabled-by-default synthetic provider with no live endpoint or credential.
+
+### Round 4 release concern
+
+No blocking concern. The provider is still intentionally synthetic and disabled by default. Production must keep the protected processor scheduled so queued work, deferred active-lease repair, poison cleanup, and bounded privacy retention progress. Delivery uncertainty still requires explicit reconciliation and is never automatically retried.

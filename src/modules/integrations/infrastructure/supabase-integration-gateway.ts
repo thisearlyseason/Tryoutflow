@@ -9,6 +9,15 @@ import type { StartRosterExportGateway } from '../application/start-roster-expor
 import type { DemoConnectionGateway } from '../application/connect-demo-provider';
 
 const id = z.uuid();
+const durableJobState = z.enum([
+  'pending',
+  'processing',
+  'completed',
+  'partially_completed',
+  'failed',
+  'needs_attention',
+  'cancelled',
+]);
 const previewContextRowSchema = z.discriminatedUnion('outcome', [
   z.strictObject({
     outcome: z.literal('ok'),
@@ -34,7 +43,7 @@ const confirmationSchema = z.discriminatedUnion('outcome', [
   z.strictObject({
     outcome: z.enum(['queued', 'replayed', 'completed']),
     job_id: id,
-    state: z.string(),
+    state: durableJobState,
     item_count: z.number().int(),
     completed_count: z.number().int(),
     skipped_count: z.number().int(),
@@ -64,7 +73,7 @@ const retrySchema = z.discriminatedUnion('outcome', [
   z.strictObject({
     outcome: z.enum(['queued', 'replayed']),
     job_id: id,
-    state: z.string(),
+    state: durableJobState,
     retried_item_count: z.number().int().min(1).max(5_100),
     preserved_completed_item_count: z.number().int().min(0).max(5_100),
     preserved_skipped_item_count: z.number().int().min(0).max(5_100),
@@ -74,23 +83,28 @@ const retrySchema = z.discriminatedUnion('outcome', [
     retry_eligible_count: z.number().int().min(0).max(5_100),
   }),
   z.strictObject({
-    outcome: z.enum([
-      'forbidden',
-      'not_found',
-      'nothing_to_retry',
-      'conflict',
-      'invalid_input',
-      'manual_attention_required',
-    ]),
-    job_id: id.nullable(),
-    state: z.string().nullable(),
-    retried_item_count: z.number().int().min(0).max(5_100),
+    outcome: z.enum(['nothing_to_retry', 'manual_attention_required']),
+    job_id: id,
+    state: durableJobState,
+    retried_item_count: z.literal(0),
     preserved_completed_item_count: z.number().int().min(0).max(5_100),
     preserved_skipped_item_count: z.number().int().min(0).max(5_100),
     completed_count: z.number().int().min(0).max(5_100),
     skipped_count: z.number().int().min(0).max(5_100),
     failed_count: z.number().int().min(0).max(5_100),
     retry_eligible_count: z.number().int().min(0).max(5_100),
+  }),
+  z.strictObject({
+    outcome: z.enum(['forbidden', 'not_found', 'conflict', 'invalid_input']),
+    job_id: z.null(),
+    state: z.null(),
+    retried_item_count: z.literal(0),
+    preserved_completed_item_count: z.literal(0),
+    preserved_skipped_item_count: z.literal(0),
+    completed_count: z.literal(0),
+    skipped_count: z.literal(0),
+    failed_count: z.literal(0),
+    retry_eligible_count: z.literal(0),
   }),
 ]);
 
@@ -172,9 +186,10 @@ export class SupabaseIntegrationGateway
   }
 
   async confirmPreview(input: Parameters<StartRosterExportGateway['confirmPreview']>[0]) {
-    const { data, error } = await this.client.rpc('confirm_roster_export_preview_v3', {
+    const { data, error } = await this.client.rpc('confirm_roster_export_preview_v4', {
       p_organization_id: input.organizationId,
       p_provider_preview_id: input.previewId,
+      p_source_digest: input.sourceDigest,
       p_confirmation_token: input.confirmationToken,
       p_idempotency_key: input.idempotencyKey,
     });
@@ -201,7 +216,7 @@ export class SupabaseIntegrationGateway
   }
 
   async retry(input: Parameters<RetrySyncJobGateway['retry']>[0]) {
-    const { data, error } = await this.client.rpc('retry_integration_sync_job_v3', {
+    const { data, error } = await this.client.rpc('retry_integration_sync_job_v4', {
       p_organization_id: input.organizationId,
       p_job_id: input.jobId,
       p_idempotency_key: input.idempotencyKey,
@@ -209,7 +224,12 @@ export class SupabaseIntegrationGateway
     if (error) throw error;
     const parsed = retrySchema.safeParse(data);
     if (!parsed.success) throw new Error('Invalid integration retry result');
-    if (parsed.data.outcome === 'queued' || parsed.data.outcome === 'replayed') {
+    if (
+      parsed.data.outcome === 'queued' ||
+      parsed.data.outcome === 'replayed' ||
+      parsed.data.outcome === 'nothing_to_retry' ||
+      parsed.data.outcome === 'manual_attention_required'
+    ) {
       return {
         outcome: parsed.data.outcome,
         jobId: parsed.data.job_id,

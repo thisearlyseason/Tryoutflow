@@ -15,7 +15,8 @@ const fieldOptions = [
 ] as const;
 
 type Field = (typeof fieldOptions)[number][0];
-type PreviewResult = ({ outcome: 'previewed' } & RosterExportPreview) | { outcome: string };
+type ReviewedRosterExportPreview = RosterExportPreview & Readonly<{ sourceDigest: string }>;
+type PreviewResult = ({ outcome: 'previewed' } & ReviewedRosterExportPreview) | { outcome: string };
 type JobView = Readonly<{
   id: string;
   state:
@@ -40,16 +41,22 @@ type ConfirmResult = {
   failedCount?: number;
   retryEligibleCount?: number;
 };
-type RetryResult = {
-  outcome: string;
-  jobId?: string;
-  state?: string;
-  retriedItemCount?: number;
-  completedCount?: number;
-  skippedCount?: number;
-  failedCount?: number;
-  retryEligibleCount?: number;
-};
+type RetryResult =
+  | {
+      outcome: 'queued' | 'replayed' | 'nothing_to_retry' | 'manual_attention_required';
+      jobId: string;
+      state: string;
+      retriedItemCount: number;
+      preservedCompletedItemCount: number;
+      preservedSkippedItemCount: number;
+      completedCount: number;
+      skippedCount: number;
+      failedCount: number;
+      retryEligibleCount: number;
+    }
+  | {
+      outcome: 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'unavailable';
+    };
 
 const jobStates = new Set<JobView['state']>([
   'pending',
@@ -76,7 +83,11 @@ type RosterExportWizardProps = Readonly<{
     destination: ExternalRosterDestination;
     approvedFields: readonly Field[];
   }): Promise<PreviewResult>;
-  onConfirm(input: { previewId: string; confirmationToken: string }): Promise<ConfirmResult>;
+  onConfirm(input: {
+    previewId: string;
+    sourceDigest: string;
+    confirmationToken: string;
+  }): Promise<ConfirmResult>;
   onRetry(jobId: string): Promise<RetryResult>;
   initialJob?: JobView;
   availabilityMessage?: string;
@@ -93,7 +104,7 @@ export function RosterExportWizard({
 }: RosterExportWizardProps) {
   const [destinationId, setDestinationId] = useState('');
   const [approvedFields, setApprovedFields] = useState<Field[]>([]);
-  const [preview, setPreview] = useState<RosterExportPreview | null>(null);
+  const [preview, setPreview] = useState<ReviewedRosterExportPreview | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const [job, setJob] = useState<JobView | null>(initialJob ?? null);
   const [message, setMessage] = useState('');
@@ -135,6 +146,7 @@ export function RosterExportWizard({
     try {
       const result = await onConfirm({
         previewId: preview.previewId,
+        sourceDigest: preview.sourceDigest,
         confirmationToken: preview.confirmationToken,
       });
       if (['queued', 'replayed', 'completed'].includes(result.outcome) && result.jobId) {
@@ -172,18 +184,33 @@ export function RosterExportWizard({
     setPending(true);
     try {
       const result = await onRetry(job.id);
-      if ((result.outcome === 'queued' || result.outcome === 'replayed') && result.jobId) {
-        if (!isJobState(result.state)) {
-          setMessage('The durable retry returned an invalid state. Refresh before taking action.');
-          return;
-        }
+      if (
+        result.outcome === 'queued' ||
+        result.outcome === 'replayed' ||
+        result.outcome === 'nothing_to_retry' ||
+        result.outcome === 'manual_attention_required'
+      ) {
         if (
+          typeof result.jobId !== 'string' ||
+          result.jobId.length === 0 ||
+          !isJobState(result.state) ||
+          !isNonnegativeInteger(result.retriedItemCount) ||
+          !isNonnegativeInteger(result.preservedCompletedItemCount) ||
+          !isNonnegativeInteger(result.preservedSkippedItemCount) ||
           !isNonnegativeInteger(result.completedCount) ||
           !isNonnegativeInteger(result.skippedCount) ||
           !isNonnegativeInteger(result.failedCount) ||
-          !isNonnegativeInteger(result.retryEligibleCount)
+          !isNonnegativeInteger(result.retryEligibleCount) ||
+          ((result.outcome === 'queued' || result.outcome === 'replayed') &&
+            result.retriedItemCount === 0) ||
+          ((result.outcome === 'nothing_to_retry' ||
+            result.outcome === 'manual_attention_required') &&
+            result.retriedItemCount !== 0)
         ) {
-          setMessage('The durable retry returned invalid counts. Refresh before taking action.');
+          setJob(null);
+          setMessage(
+            'The durable retry returned an invalid projection. Refresh before taking action.',
+          );
           return;
         }
         setJob({

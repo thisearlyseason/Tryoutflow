@@ -89,7 +89,7 @@ export type PreviewRosterExportDependencies = Readonly<{
 }>;
 
 export type PreviewRosterExportResult =
-  | ({ outcome: 'previewed' } & RosterExportPreview)
+  | ({ outcome: 'previewed'; sourceDigest: string } & RosterExportPreview)
   | {
       outcome:
         | 'invalid_input'
@@ -221,7 +221,7 @@ export async function previewRosterExport(
       preview,
     });
     if (stored.outcome === 'created' || stored.outcome === 'replayed') {
-      return { outcome: 'previewed', ...preview };
+      return { outcome: 'previewed', sourceDigest: context.sourceDigest, ...preview };
     }
     return stored;
   } catch {

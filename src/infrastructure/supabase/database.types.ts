@@ -4199,6 +4199,16 @@ export type Database = {
         };
         Returns: string;
       };
+      complete_integration_outbox_job_legacy_080: {
+        Args: {
+          p_external_job_id: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_result: Json;
+        };
+        Returns: string;
+      };
       complete_outbox_job: {
         Args: {
           p_job_id: string;
@@ -4280,6 +4290,22 @@ export type Database = {
         SetofOptions: {
           from: '*';
           to: 'integration_export_confirmation_v3_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      confirm_roster_export_preview_v4: {
+        Args: {
+          p_confirmation_token: string;
+          p_idempotency_key: string;
+          p_organization_id: string;
+          p_provider_preview_id: string;
+          p_source_digest: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_export_confirmation_v4_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_export_confirmation_v4_result';
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -4487,6 +4513,16 @@ export type Database = {
         Returns: string;
       };
       fail_integration_outbox_job_legacy_078: {
+        Args: {
+          p_error_code: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_retryable: boolean;
+        };
+        Returns: string;
+      };
+      fail_integration_outbox_job_legacy_080: {
         Args: {
           p_error_code: string;
           p_job_id: string;
@@ -5174,6 +5210,20 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      retry_integration_sync_job_v4: {
+        Args: {
+          p_idempotency_key: string;
+          p_job_id: string;
+          p_organization_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_retry_v4_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_retry_v4_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       revise_roster_version: {
         Args: {
           p_confirmation: string;
@@ -5518,6 +5568,16 @@ export type Database = {
         failed_count: number | null;
         retry_eligible_count: number | null;
       };
+      integration_export_confirmation_v4_result: {
+        outcome: string | null;
+        job_id: string | null;
+        state: string | null;
+        item_count: number | null;
+        completed_count: number | null;
+        skipped_count: number | null;
+        failed_count: number | null;
+        retry_eligible_count: number | null;
+      };
       integration_export_source_result: {
         outcome: string | null;
         source_id: string | null;
@@ -5542,6 +5602,18 @@ export type Database = {
         preserved_skipped_item_count: number | null;
       };
       integration_retry_v3_result: {
+        outcome: string | null;
+        job_id: string | null;
+        state: string | null;
+        retried_item_count: number | null;
+        preserved_completed_item_count: number | null;
+        preserved_skipped_item_count: number | null;
+        completed_count: number | null;
+        skipped_count: number | null;
+        failed_count: number | null;
+        retry_eligible_count: number | null;
+      };
+      integration_retry_v4_result: {
         outcome: string | null;
         job_id: string | null;
         state: string | null;

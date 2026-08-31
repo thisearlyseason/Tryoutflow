@@ -233,6 +233,7 @@ describe('durable roster export commands', () => {
     const input = {
       organizationId: ids.organization,
       previewId: 'preview:task27:00000001',
+      sourceDigest: 'b'.repeat(64),
       confirmationToken: 'confirmation:task27:00000001',
       idempotencyKey: 'export:task27:00000001',
     };
@@ -250,6 +251,7 @@ describe('durable roster export commands', () => {
     const retry = vi.fn().mockResolvedValue({
       outcome: 'queued',
       jobId: ids.job,
+      state: 'pending',
       retriedItemCount: 1,
       preservedCompletedItemCount: 1,
       preservedSkippedItemCount: 0,
@@ -272,6 +274,7 @@ describe('durable roster export commands', () => {
     expect(result).toEqual({
       outcome: 'queued',
       jobId: ids.job,
+      state: 'pending',
       retriedItemCount: 1,
       preservedCompletedItemCount: 1,
       preservedSkippedItemCount: 0,
@@ -284,4 +287,46 @@ describe('durable roster export commands', () => {
       expect.objectContaining({ actorId: ids.actor, jobId: ids.job }),
     );
   });
+
+  it.each([
+    ['replayed', 'processing', 1, 5, 1, 0, 0],
+    ['nothing_to_retry', 'completed', 0, 5, 1, 0, 0],
+    ['manual_attention_required', 'needs_attention', 0, 2, 1, 3, 0],
+  ] as const)(
+    'does not discard the authoritative %s job projection',
+    async (
+      outcome,
+      state,
+      retriedItemCount,
+      completedCount,
+      skippedCount,
+      failedCount,
+      retryEligibleCount,
+    ) => {
+      const durable = {
+        outcome,
+        jobId: ids.job,
+        state,
+        retriedItemCount,
+        preservedCompletedItemCount: completedCount,
+        preservedSkippedItemCount: skippedCount,
+        completedCount,
+        skippedCount,
+        failedCount,
+        retryEligibleCount,
+      } as const;
+
+      await expect(
+        retrySyncJob(
+          {
+            organizationId: ids.organization,
+            jobId: ids.job,
+            idempotencyKey: `retry:task27:${outcome}:01`,
+          },
+          owner(),
+          { gateway: { retry: vi.fn().mockResolvedValue(durable) } },
+        ),
+      ).resolves.toEqual(durable);
+    },
+  );
 });

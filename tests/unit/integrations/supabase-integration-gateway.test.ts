@@ -154,6 +154,7 @@ describe('SupabaseIntegrationGateway', () => {
         organizationId: ids.organization,
         actorId: ids.actor,
         previewId: 'preview:task27:00000001',
+        sourceDigest: 'b'.repeat(64),
         confirmationToken: 'confirmation:task27:00000001',
         idempotencyKey: 'export:task27:00000001',
       }),
@@ -186,7 +187,74 @@ describe('SupabaseIntegrationGateway', () => {
       failedCount: 1,
       retryEligibleCount: 0,
     });
+    expect(rpc).toHaveBeenNthCalledWith(1, 'confirm_roster_export_preview_v4', {
+      p_organization_id: ids.organization,
+      p_provider_preview_id: 'preview:task27:00000001',
+      p_source_digest: 'b'.repeat(64),
+      p_confirmation_token: 'confirmation:task27:00000001',
+      p_idempotency_key: 'export:task27:00000001',
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'retry_integration_sync_job_v4', {
+      p_organization_id: ids.organization,
+      p_job_id: ids.job,
+      p_idempotency_key: 'retry:task27:00000001',
+    });
   });
+
+  it.each([
+    ['queued', 'pending', 1, 4, 2, 0, 0],
+    ['replayed', 'processing', 1, 4, 2, 0, 0],
+    ['nothing_to_retry', 'completed', 0, 4, 2, 0, 0],
+    ['manual_attention_required', 'needs_attention', 0, 3, 1, 2, 0],
+  ] as const)(
+    'preserves the exact durable projection for job-bound %s',
+    async (
+      outcome,
+      state,
+      retriedItemCount,
+      completedCount,
+      skippedCount,
+      failedCount,
+      retryEligibleCount,
+    ) => {
+      const rpc = vi.fn().mockResolvedValue({
+        data: {
+          outcome,
+          job_id: ids.job,
+          state,
+          retried_item_count: retriedItemCount,
+          preserved_completed_item_count: completedCount,
+          preserved_skipped_item_count: skippedCount,
+          completed_count: completedCount,
+          skipped_count: skippedCount,
+          failed_count: failedCount,
+          retry_eligible_count: retryEligibleCount,
+        },
+        error: null,
+      });
+      const gateway = new SupabaseIntegrationGateway({ rpc } as never);
+
+      await expect(
+        gateway.retry({
+          organizationId: ids.organization,
+          actorId: ids.actor,
+          jobId: ids.job,
+          idempotencyKey: 'retry:task27:projection:01',
+        }),
+      ).resolves.toEqual({
+        outcome,
+        jobId: ids.job,
+        state,
+        retriedItemCount,
+        preservedCompletedItemCount: completedCount,
+        preservedSkippedItemCount: skippedCount,
+        completedCount,
+        skippedCount,
+        failedCount,
+        retryEligibleCount,
+      });
+    },
+  );
 
   it.each([
     'forbidden',
@@ -217,6 +285,7 @@ describe('SupabaseIntegrationGateway', () => {
           organizationId: ids.organization,
           actorId: ids.actor,
           previewId: 'preview:task27:00000001',
+          sourceDigest: 'b'.repeat(64),
           confirmationToken: 'confirmation:task27:00000001',
           idempotencyKey: 'export:task27:00000001',
         }),
@@ -245,6 +314,7 @@ describe('SupabaseIntegrationGateway', () => {
         organizationId: ids.organization,
         actorId: ids.actor,
         previewId: 'preview:task27:00000001',
+        sourceDigest: 'b'.repeat(64),
         confirmationToken: 'confirmation:task27:00000001',
         idempotencyKey: 'export:task27:00000001',
       }),

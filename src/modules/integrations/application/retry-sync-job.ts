@@ -10,11 +10,19 @@ const retrySyncJobInputSchema = z.strictObject({
 });
 
 export type RetrySyncJobInput = z.input<typeof retrySyncJobInputSchema>;
+type DurableSyncJobState =
+  | 'pending'
+  | 'processing'
+  | 'completed'
+  | 'partially_completed'
+  | 'failed'
+  | 'needs_attention'
+  | 'cancelled';
 export type RetrySyncJobResult =
   | {
-      outcome: 'queued' | 'replayed';
+      outcome: 'queued' | 'replayed' | 'nothing_to_retry' | 'manual_attention_required';
       jobId: string;
-      state: string;
+      state: DurableSyncJobState;
       retriedItemCount: number;
       preservedCompletedItemCount: number;
       preservedSkippedItemCount: number;
@@ -24,14 +32,7 @@ export type RetrySyncJobResult =
       retryEligibleCount: number;
     }
   | {
-      outcome:
-        | 'invalid_input'
-        | 'forbidden'
-        | 'not_found'
-        | 'nothing_to_retry'
-        | 'manual_attention_required'
-        | 'conflict'
-        | 'unavailable';
+      outcome: 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'unavailable';
     };
 
 export type RetrySyncJobGateway = Readonly<{
