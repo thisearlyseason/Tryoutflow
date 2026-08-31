@@ -1703,7 +1703,7 @@ export type Database = {
           organization_id: string;
           provider_confirmation_token: string | null;
           provider_key: string;
-          provider_preview_id: string;
+          provider_preview_id: string | null;
           request_digest: string;
           roster_snapshot: Json | null;
           roster_version: number;
@@ -1732,7 +1732,7 @@ export type Database = {
           organization_id: string;
           provider_confirmation_token?: string | null;
           provider_key: string;
-          provider_preview_id: string;
+          provider_preview_id?: string | null;
           request_digest: string;
           roster_snapshot?: Json | null;
           roster_version: number;
@@ -1761,7 +1761,7 @@ export type Database = {
           organization_id?: string;
           provider_confirmation_token?: string | null;
           provider_key?: string;
-          provider_preview_id?: string;
+          provider_preview_id?: string | null;
           request_digest?: string;
           roster_snapshot?: Json | null;
           roster_version?: number;

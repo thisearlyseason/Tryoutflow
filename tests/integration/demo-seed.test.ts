@@ -74,14 +74,19 @@ describe('deterministic Badlands demo seed', () => {
     ).toBe(0);
   });
 
-  it('uses stable UUIDs and timestamps so repeating the seed is row-stable', () => {
+  it('preserves legacy immutable bytes and exact canonical lineage cardinalities on replay', () => {
     const before =
       psql(`select encode(extensions.digest(string_agg(row_data,'|' order by row_data),'sha256'),'hex')
       from (
         select id::text||':'||given_name||':'||family_name row_data from public.athletes where organization_id='29000000-0000-4000-8000-000000000001'
-        union all select id::text||':'||state||':'||version from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001'
+        union all select id::text||':'||state||':'||version||':'||coalesce(finalized_at::text,'') from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||state from public.integration_sync_jobs where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||status from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'
+        union all select 'legacy-published-rubric:'||status||':'||coalesce(published_at::text,'') from public.rubric_versions where id='29000000-0000-4000-8000-000000000054'
+        union all select 'legacy-published-category:'||id::text||':'||name||':'||weight::text||':'||scale_min::text||':'||scale_max::text from public.rubric_categories where rubric_version_id='29000000-0000-4000-8000-000000000054'
+        union all select 'canonical-lineage:'||count(*)::text from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'
+        union all select 'canonical-lineage:'||count(*)::text from public.evaluations where tryout_id='29000000-0000-4000-8000-000000000201'
+        union all select 'canonical-lineage:'||count(*)::text from public.roster_versions where id='29000000-0000-4000-8000-000000000283'
         union all select id::text||':'||state||':'||version from public.evaluations where id in ('29000000-0000-4000-8000-000000000261','29000000-0000-4000-8000-000000000262')
         union all select roster_version_id::text||':'||item_count from private.roster_report_snapshots where roster_version_id='29000000-0000-4000-8000-000000000283'
       ) stable`);
@@ -92,9 +97,14 @@ describe('deterministic Badlands demo seed', () => {
       psql(`select encode(extensions.digest(string_agg(row_data,'|' order by row_data),'sha256'),'hex')
       from (
         select id::text||':'||given_name||':'||family_name row_data from public.athletes where organization_id='29000000-0000-4000-8000-000000000001'
-        union all select id::text||':'||state||':'||version from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001'
+        union all select id::text||':'||state||':'||version||':'||coalesce(finalized_at::text,'') from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||state from public.integration_sync_jobs where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||status from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'
+        union all select 'legacy-published-rubric:'||status||':'||coalesce(published_at::text,'') from public.rubric_versions where id='29000000-0000-4000-8000-000000000054'
+        union all select 'legacy-published-category:'||id::text||':'||name||':'||weight::text||':'||scale_min::text||':'||scale_max::text from public.rubric_categories where rubric_version_id='29000000-0000-4000-8000-000000000054'
+        union all select 'canonical-lineage:'||count(*)::text from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'
+        union all select 'canonical-lineage:'||count(*)::text from public.evaluations where tryout_id='29000000-0000-4000-8000-000000000201'
+        union all select 'canonical-lineage:'||count(*)::text from public.roster_versions where id='29000000-0000-4000-8000-000000000283'
         union all select id::text||':'||state||':'||version from public.evaluations where id in ('29000000-0000-4000-8000-000000000261','29000000-0000-4000-8000-000000000262')
         union all select roster_version_id::text||':'||item_count from private.roster_report_snapshots where roster_version_id='29000000-0000-4000-8000-000000000283'
       ) stable`);
@@ -110,7 +120,10 @@ describe('deterministic Badlands demo seed', () => {
           'complete',(select state from public.evaluations where id='29000000-0000-4000-8000-000000000261'),
           'incomplete',(select state from public.evaluations where id='29000000-0000-4000-8000-000000000262'),
           'snapshot',(select count(*) from private.roster_report_snapshots where roster_version_id='29000000-0000-4000-8000-000000000283'),
-          'versions',(select count(*) from public.roster_versions where tryout_id='29000000-0000-4000-8000-000000000201')
+          'versions',(select count(*) from public.roster_versions where tryout_id='29000000-0000-4000-8000-000000000201'),
+          'rubricVersions',(select count(*) from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'),
+          'evaluations',(select count(*) from public.evaluations where tryout_id='29000000-0000-4000-8000-000000000201'),
+          'teams',(select count(*) from public.tryout_teams where id='29000000-0000-4000-8000-000000000281')
         )`),
       ),
     ).toEqual({
@@ -120,6 +133,9 @@ describe('deterministic Badlands demo seed', () => {
       incomplete: 'draft',
       snapshot: 1,
       versions: 1,
+      rubricVersions: 1,
+      evaluations: 2,
+      teams: 1,
     });
   });
 

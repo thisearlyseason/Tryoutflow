@@ -2,7 +2,7 @@
 
 ## Status
 
-Round-two follow-up: report count/abort/legacy-snapshot changes were audited, and migration 084 closes the report candidate-index, submitted-lifecycle summary, and terminal fixture-redaction gaps.
+Round-two follow-up: report count/abort/legacy-snapshot changes were audited, and migration 084 closes the report candidate-index, submitted-lifecycle summary, terminal fixture-redaction, and append-only pre-fix fixture convergence gaps.
 
 ## Round-two evidence
 
@@ -11,7 +11,7 @@ Round-two follow-up: report count/abort/legacy-snapshot changes were audited, an
 - Migration 084 adds exact index-backed candidate keys, preserves stable tenant ordering, and keeps `maxRows + 1` candidate materialization ahead of report joins/grouping. pgTAP 066 records the composite indexes, bounded cardinality, and EXPLAIN acceptance.
 - Summary evaluation counts now join the submitted registration population used by evaluation CSV candidates. Final roster discovery selects only verified immutable snapshots, exposes unavailable legacy finals explicitly, and never emits a broken roster-download link.
 - Completed and failed Badlands mock jobs retain completed/failed state, durable item outcome, external mapping, and result evidence while approved projection, provider preview, confirmation token, and raw roster fields are redacted. Migration 084 upgrades the pre-existing fixture to the same redacted fixed point; replay preserves it.
-- Seed replay now adds a fixed, append-only U15 Converged Demo lineage beside pre-084 history: its own published 90/10 rubric, sessions, registrations, evaluations, and final roster snapshot. It does not touch old finalized/published records, and the canonical lineage is stable across replay.
+- Seed replay now adds a fixed, append-only U15 Converged Demo lineage beside pre-084 history: its own published 90/10 rubric, sessions, registrations, evaluations, and final roster snapshot. It does not touch old finalized/published records, and the canonical lineage is stable across replay. The convergence integration assertion snapshots legacy published rubric bytes and finalized roster facts before replay, then proves exact one-rubric/two-evaluation/one-roster canonical cardinalities afterwards.
 
 ## Review closure
 
@@ -44,25 +44,22 @@ Round-two follow-up: report count/abort/legacy-snapshot changes were audited, an
 
 ```text
 supabase db reset --no-seed && npm run test:db
-  PASS — migrations 001–083; 65 files / 1,750 assertions
+  PASS — migrations 001–084; 66 files / 1,759 assertions
 
 supabase db reset
-  PASS — migrations 001–083 plus deterministic Badlands seed
+  PASS — migrations 001–084 plus deterministic Badlands seed
 
-npm run test:unit
-  PASS — 67 files / 931 tests
+npx supabase test db supabase/tests/064_reports_and_onboarding.test.sql supabase/tests/065_report_snapshot_math_and_bounds.test.sql supabase/tests/066_report_candidate_index_bounds.test.sql
+  PASS on the seeded database — 3 files / 44 assertions
 
 npm run test:integration
-  PASS twice under the Task 20 supervisor — 27 files / 199 tests on each run (43.19s and 42.14s)
+  PASS twice under the Task 20 supervisor — 27 files / 200 tests on each run (42.75s and 44.33s)
 
-npm run test:integration -- tests/integration/demo-seed.test.ts
-  PASS — 1 file / 7 tests, including convergence, immutable/revision snapshots, population parity, and canonical weighted totals
+npx vitest run --config vitest.integration.config.ts tests/integration/demo-seed.test.ts
+  PASS — 1 file / 8 tests, including replay digest, legacy immutable-byte preservation, exact canonical lineage cardinalities, convergence, immutable/revision snapshots, population parity, and canonical weighted totals
 
-npm run test:db -- supabase/tests/064_reports_and_onboarding.test.sql supabase/tests/065_report_snapshot_math_and_bounds.test.sql
-  PASS on the seeded database — 2 files / 35 assertions
-
-npm run db:types && cmp regenerated types with the pre-run copy
-  PASS — byte-identical
+npm run db:types (twice)
+  PASS — identical SHA-256 cbcb54c829d573df0e991e6d426f8044ae57fc8f6289cc96b2358d8ccf352824 on both runs; generated nullable provider_preview_id types updated for migration 084
 
 npx vitest run --config vitest.config.ts tests/unit/reports
   PASS — 4 files / 31 tests
@@ -74,12 +71,12 @@ npm run format:check && npm run lint && npm run typecheck
   PASS
 
 npm run verify
-  PASS — formatting, lint, typecheck, 67 unit files / 931 tests, and the Task 28 production marketing build (unit duration 107.00s)
+  PASS — formatting, lint, typecheck, 67 unit files / 940 tests, and the Task 28 production marketing build (unit duration 106.32s)
 
 production environment variables + npm run build
   PASS — optimized production build and route collection
 
-local Supabase environment + npx playwright test tests/e2e/onboarding-and-reports.spec.ts --project=chromium --project='Mobile Safari' --workers=1
+local Supabase environment + npx playwright test tests/e2e/onboarding-and-reports.spec.ts --project=chromium --project='Mobile Safari'
   PASS — 6 authenticated/anonymous tests, including reviewer/evaluator/member/disabled/cross-tenant role matrix, axe, downloads, and 320 px layout
 
 npm audit --audit-level=high
