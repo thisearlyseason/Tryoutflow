@@ -36,6 +36,33 @@ function fixtureEnvironment(nonce: string) {
   return { ...process.env, MARKETING_GATE_NONCE: nonce };
 }
 
+type OwnedServer = Awaited<ReturnType<typeof startOwnedServer>>;
+
+async function startParallelOwnedServers(
+  options: Parameters<typeof startOwnedServer>[0][],
+  onOwnedServer: (owned: OwnedServer) => void = () => {},
+): Promise<OwnedServer[]> {
+  const ownedServers = new Set<OwnedServer>();
+  const starts = options.map(async (options_) => {
+    const owned = await startOwnedServer(options_);
+    ownedServers.add(owned);
+    onOwnedServer(owned);
+    return owned;
+  });
+  let allStartsSucceeded = false;
+
+  try {
+    const servers = await Promise.all(starts);
+    allStartsSucceeded = true;
+    return servers;
+  } finally {
+    await Promise.allSettled(starts);
+    if (!allStartsSucceeded) {
+      await Promise.allSettled([...ownedServers].map(({ child }) => stopOwnedServer(child)));
+    }
+  }
+}
+
 describe('marketing production artifact gate', () => {
   it('rejects a placeholder or wrong canonical origin in a rendered marketing response', () => {
     expect(() =>
@@ -100,16 +127,15 @@ describe('marketing production artifact gate', () => {
   it('starts two owned listeners in parallel without probing another process', async () => {
     const firstNonce = 'parallel-first-nonce';
     const secondNonce = 'parallel-second-nonce';
-    const servers = await Promise.all(
-      [firstNonce, secondNonce].map((nonce) =>
-        startOwnedServer({
+    let servers: OwnedServer[] | undefined;
+    try {
+      servers = await startParallelOwnedServers(
+        [firstNonce, secondNonce].map((nonce) => ({
           arguments_: [fixture],
           command: process.execPath,
           environment: fixtureEnvironment(nonce),
-        }),
-      ),
-    );
-    try {
+        })),
+      );
       expect(new Set(servers.map(({ port }) => port)).size).toBe(2);
       await expect(fetch(servers[0]!.baseUrl)).resolves.toMatchObject({ ok: true });
       await expect(fetch(servers[1]!.baseUrl)).resolves.toMatchObject({ ok: true });
@@ -119,7 +145,48 @@ describe('marketing production artifact gate', () => {
         secondNonce,
       ]);
     } finally {
-      await Promise.all(servers.map(({ child }) => stopOwnedServer(child)));
+      if (servers) await Promise.allSettled(servers.map(({ child }) => stopOwnedServer(child)));
+    }
+  });
+
+  it('stops a fulfilled owned listener when a parallel sibling startup rejects', async () => {
+    let fulfilled: Awaited<ReturnType<typeof startOwnedServer>> | undefined;
+    try {
+      await expect(
+        startParallelOwnedServers(
+          [
+            {
+              arguments_: [fixture],
+              command: process.execPath,
+              environment: fixtureEnvironment('partial-start-success'),
+            },
+            {
+              arguments_: ['--eval', 'setTimeout(() => process.exit(3), 400)'],
+              command: process.execPath,
+              environment: fixtureEnvironment('partial-start-failure'),
+            },
+          ],
+          (owned) => {
+            fulfilled = owned;
+          },
+        ),
+      ).rejects.toThrow(/Server child exited with status 3/u);
+
+      expect(fulfilled).toBeDefined();
+      await expect(fetch(fulfilled!.baseUrl)).rejects.toThrow();
+      expect({
+        childExited: fulfilled!.child.exitCode !== null,
+        stderrOpen: !fulfilled!.child.stderr!.destroyed,
+        stdoutOpen: !fulfilled!.child.stdout!.destroyed,
+      }).toEqual({
+        childExited: true,
+        stderrOpen: false,
+        stdoutOpen: false,
+      });
+    } finally {
+      if (fulfilled && fulfilled.child.exitCode === null) {
+        await Promise.allSettled([stopOwnedServer(fulfilled.child)]);
+      }
     }
   });
 });

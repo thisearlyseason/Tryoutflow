@@ -171,3 +171,40 @@ npm audit --audit-level=high
 ```
 
 `next-env.d.ts` was again restored from the Playwright dev-server side effect to its tracked `.next/types` references. `git diff --check` passed and the final process audit found no production-gate child residue.
+
+## Fix round 4 — parallel listener-start cleanup
+
+### Root cause and RED evidence
+
+- The concurrent owned-listener test started both children with `Promise.all` before entering its cleanup `try` block. If one startup rejected after its sibling had fulfilled, the test exited before it could stop the fulfilled child.
+- A deterministic fixture startup plus a delayed `node --eval` exit reproduced the leak. Before the cleanup change, the fulfilled fixture child remained alive, its listener still served requests, and both stdio handles remained open after the sibling rejected with exit status 3.
+
+### Delivered
+
+- Added a test-only parallel-start helper that tracks each fulfilled owned server as it starts. Its `finally` first waits for every startup promise to settle, then uses `Promise.allSettled` to stop all tracked fulfilled children whenever the parallel operation did not fully succeed.
+- Cleanup failures are settled rather than allowed to mask the original startup rejection. Successful parallel starts remain owned by the caller and retain their existing cleanup path.
+- Added the partial-start regression assertion: after the expected sibling failure, the fulfilled child has exited, its listener no longer accepts fetches, and its stdout/stderr handles are closed.
+- Audited `scripts/verify-marketing-production.mjs`: its production artifact flow owns a single server and already stops that server in `finally`; it has no analogous parallel-start lifecycle.
+
+### Verification
+
+```text
+npx vitest run --config vitest.config.ts tests/unit/marketing/production-artifact-gate.test.ts --reporter=dot
+  RED — fulfilled child, listener, stdout, and stderr all remained live after a sibling exited 3
+  GREEN — 1 file / 6 tests
+
+npm run test:marketing:production
+  PASS — production build, static-route assertions, exact canonicals, and owned-server teardown
+
+npx playwright test tests/e2e/marketing.spec.ts --project=chromium --project=webkit --project='Mobile Safari'
+  PASS — 36 tests
+
+npm run verify
+  BLOCKED BY UNRELATED FLAKE — 894/896 unit tests passed; two `integration-command-lock.test.ts` tests hit their existing 5-second timeout. The isolated file then passed 59/59 in 104.61 seconds.
+
+npm audit --audit-level=high
+  PASS — 0 vulnerabilities
+
+git diff --check
+  PASS
+```
