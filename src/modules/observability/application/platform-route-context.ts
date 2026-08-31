@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
-import { AppError } from '../domain/app-error';
+import { AppError, appErrorDetails } from '../domain/app-error';
 import { SupabasePlatformAdministrationGateway } from '../infrastructure/supabase-platform-administration-gateway';
 
 /** Reauthorizes current durable platform authority for every protected page render/action. */
@@ -15,9 +15,9 @@ export async function requirePlatformRouteContext() {
   try {
     await gateway.health();
   } catch (error) {
-    if (error instanceof AppError && error.category === 'permission') notFound();
-    if (error instanceof AppError) throw error;
-    throw new AppError('platform_unavailable');
+    const details = appErrorDetails(error);
+    if (details.category === 'permission') notFound();
+    throw new AppError(details.code === 'unexpected_error' ? 'platform_unavailable' : details.code);
   }
   return { client, gateway, user };
 }

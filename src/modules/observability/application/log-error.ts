@@ -1,5 +1,6 @@
 import { appErrorDetails, type AppErrorCategory, type AppErrorCode } from '../domain/app-error';
 import { correlationIdValue } from '../domain/correlation-id';
+import { snapshotOwnPrimitives } from '../domain/primitive-snapshot';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 const operations = new Set([
@@ -41,21 +42,31 @@ export interface OperationalLogger {
   error(record: OperationalErrorRecord): void;
 }
 
+function uuidValue(value: unknown): string | undefined {
+  return typeof value === 'string' && uuidPattern.test(value) ? value : undefined;
+}
+
+function issuedCorrelationValue(value: unknown): string | undefined {
+  return correlationIdValue(value) ?? undefined;
+}
+
+function operationValue(value: unknown): string | undefined {
+  return typeof value === 'string' && operations.has(value) ? value : undefined;
+}
+
+const logContextNormalizers = {
+  actorId: uuidValue,
+  jobId: uuidValue,
+  organizationId: uuidValue,
+  correlationId: issuedCorrelationValue,
+  requestId: issuedCorrelationValue,
+  operation: operationValue,
+} as const;
+
 /** Builds a new context exclusively from closed operations and non-sensitive identifiers. */
 export function redactLogContext(context: LogContext): RedactedLogContext {
-  const safe: Record<string, string> = {};
-  for (const key of uuidKeys) {
-    const value = context[key];
-    if (typeof value === 'string' && uuidPattern.test(value)) safe[key] = value;
-  }
-  for (const key of correlationKeys) {
-    const value = correlationIdValue(context[key]);
-    if (value) safe[key] = value;
-  }
-  if (typeof context.operation === 'string' && operations.has(context.operation)) {
-    safe.operation = context.operation;
-  }
-  return safe;
+  const snapshot = snapshotOwnPrimitives(context, logContextNormalizers);
+  return snapshot ? Object.freeze({ ...snapshot }) : {};
 }
 
 export function logError(

@@ -6,6 +6,7 @@ import {
   correlationIdValue,
   type CorrelationId,
 } from '../../modules/observability/domain/correlation-id';
+import { snapshotOwnPrimitives } from '../../modules/observability/domain/primitive-snapshot';
 
 export const analyticsEventNames = [
   'workflow.started',
@@ -29,8 +30,19 @@ const analyticsEventBoundary = z.strictObject({
   name: z.enum(analyticsEventNames),
   workflow: z.enum(analyticsWorkflows),
   organizationId: z.uuid(),
-  correlationId: z.unknown(),
+  correlationId: z.uuid(),
 });
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+const analyticsEventNormalizers = {
+  name: stringValue,
+  workflow: stringValue,
+  organizationId: stringValue,
+  correlationId: (value: unknown) => correlationIdValue(value) ?? undefined,
+} as const;
 
 export type AnalyticsEvent = Readonly<{
   name: (typeof analyticsEventNames)[number];
@@ -43,15 +55,22 @@ export type RecordedAnalyticsEvent = Readonly<Omit<AnalyticsEvent, 'correlationI
   Readonly<{ correlationId: string }>;
 
 export function serializeAnalyticsEvent(event: unknown): RecordedAnalyticsEvent | null {
-  const parsed = analyticsEventBoundary.safeParse(event);
+  const snapshot = snapshotOwnPrimitives(event, analyticsEventNormalizers, {
+    rejectUnknownKeys: true,
+  });
+  if (!snapshot) return null;
+  let parsed: ReturnType<typeof analyticsEventBoundary.safeParse>;
+  try {
+    parsed = analyticsEventBoundary.safeParse(snapshot);
+  } catch {
+    return null;
+  }
   if (!parsed.success) return null;
-  const correlationId = correlationIdValue(parsed.data.correlationId);
-  if (!correlationId) return null;
   return {
     name: parsed.data.name,
     workflow: parsed.data.workflow,
     organizationId: parsed.data.organizationId,
-    correlationId,
+    correlationId: parsed.data.correlationId,
   };
 }
 

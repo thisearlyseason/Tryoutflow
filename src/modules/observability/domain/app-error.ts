@@ -1,3 +1,5 @@
+import { snapshotOwnPrimitives } from './primitive-snapshot';
+
 export type AppErrorCategory =
   'validation' | 'permission' | 'conflict' | 'network' | 'integration' | 'unexpected';
 
@@ -38,6 +40,8 @@ const definitions = {
 
 export type AppErrorCode = keyof typeof definitions;
 
+const issuedAppErrors = new WeakSet<object>();
+
 function isAppErrorCode(value: unknown): value is AppErrorCode {
   return typeof value === 'string' && Object.hasOwn(definitions, value);
 }
@@ -46,12 +50,14 @@ export function appErrorDetails(error: unknown): Readonly<{
   category: AppErrorCategory;
   code: AppErrorCode;
 }> {
-  let code: AppErrorCode = 'unexpected_error';
-  try {
-    if (error instanceof AppError && isAppErrorCode(error.code)) code = error.code;
-  } catch {
-    // Prototype-forged and accessor-backed objects collapse to the closed unexpected record.
-  }
+  const snapshot =
+    (typeof error === 'object' && error !== null && issuedAppErrors.has(error)
+      ? snapshotOwnPrimitives(error, {
+          code: (value) => (isAppErrorCode(value) ? value : undefined),
+        })
+      : null) ?? null;
+  const requestedCode = snapshot?.code;
+  const code = isAppErrorCode(requestedCode) ? requestedCode : 'unexpected_error';
   return { category: definitions[code].category, code };
 }
 
@@ -67,6 +73,7 @@ export class AppError extends Error {
     this.name = 'AppError';
     this.category = definition.category;
     this.code = code;
+    issuedAppErrors.add(this);
   }
 
   toJSON() {

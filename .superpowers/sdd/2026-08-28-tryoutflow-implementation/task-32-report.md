@@ -1,13 +1,32 @@
 # Task 32 privacy-safe operations and runbooks report
 
+## Review closure — fix round 2
+
+The remaining adversarial privacy-boundary finding against
+`bdadd85710f7a8f2aa167b30053cec5d3c3bfb46` is closed.
+
+- Log context and analytics input now cross one shared nonthrowing snapshot boundary. It accepts
+  only non-array records, reads each allow-listed own field exactly once, normalizes only primitive
+  safe values into a frozen null-prototype record, and never reads the original object again.
+- Inherited fields, symbol metadata, extra analytics keys, arrays, functions, alternating proxies,
+  mutating getters, and throwing getters/proxy traps all produce closed safe output or a closed
+  invalid outcome. Getter and proxy exception messages are never logged, serialized, or returned.
+- `AppError` instances carry module-private runtime authenticity. Their own code is snapshotted once
+  and checked with an own-key closed enum before category derivation; prototype forgeries, wrapped
+  proxies, throwing accessors, and `toString`/`constructor` values normalize to `unexpected_error`.
+- Platform route handling derives denial and recovery exclusively from the normalized closed code,
+  never from a mutable raw category, and reconstructs a safe error rather than rethrowing an
+  untrusted object. Failures from a trusted logger/output boundary still propagate after safe record
+  construction instead of being silently swallowed.
+
 ## Review closure — fix round 1
 
-All four review findings against `709409f9579f880e9c974355fd5ef48431e2226b` are closed.
+The four first-review findings against `709409f9579f880e9c974355fd5ef48431e2226b` are closed.
 
 - Structured errors now accept only closed error codes. Category and recovery message are derived
   from that code, `toJSON` emits only closed code/category fields, and invalid constructor casts,
   object-shaped values, prototype forgeries, and accessor failures collapse to
-  `unexpected_error`. Logging re-normalizes even `instanceof AppError` values before emission.
+  `unexpected_error`. Logging re-normalizes module-issued application errors before emission.
 - Correlation/request IDs are opaque server-issued UUIDv4 objects backed by module-private runtime
   authenticity. Raw strings, copied objects, branded casts, email/phone/token/score/note/secret
   values, and extra metadata cannot cross log or analytics boundaries. Analytics event names and
@@ -72,7 +91,9 @@ provider error as a cause.
 `logError` and analytics events are constructed from explicit allowlists. Correlation IDs are
 opaque, server-issued UUIDv4 values with runtime authenticity; operation names, workflows, event
 names, and error codes are closed enums. Unsafe or forged errors become `unexpected_error`, and raw
-exceptions or caller messages are never serialized.
+exceptions or caller messages are never serialized. Untrusted containers are reduced once to
+own-field, primitive-only, immutable null-prototype snapshots inside a nonthrowing boundary before
+closed validation or transformation.
 
 The boundary does not accept scores, notes, guardian/contact data, credentials, provider secrets,
 tokens, raw payloads, or arbitrary tenant content. The analytics contract is server-only and
@@ -139,11 +160,13 @@ or browser-noise monitor was weakened. The final complete matrix passed without 
 | True 090→091 upgrade fixture         | 1/1 passed: 9/9 rows and original audit/core fields preserved, 7 invalid/expired/future rows revoked with 7 appended audits, exact 5m/4h rows active, constraints validated. |
 | Seeded supervised integration, run 1 | 30 files / 212 tests passed.                                                                                                                                                 |
 | Seeded supervised integration, run 2 | 30 files / 212 tests passed.                                                                                                                                                 |
-| Final repository verification        | Prettier, ESLint, TypeScript, 78 unit files / 1,001 tests, and production marketing verification passed.                                                                     |
+| Round 2 adversarial privacy gate     | 2 files / 18 tests passed for one-read snapshots, accessors, proxies, inherited/symbol keys, mutation, non-records, and closed route errors.                                 |
+| Final repository verification        | Prettier, ESLint, TypeScript, 78 unit files / 1,010 tests, and production marketing verification passed.                                                                     |
 | Contract suite                       | 4 files / 145 tests passed, including the deterministic analytics fake and server-only import enforcement.                                                                   |
 | Full browser release matrix          | 155/155 passed across Chromium, Firefox, WebKit, Mobile Chrome, and Mobile Safari with `--retries=0`.                                                                        |
 | Final focused platform browser gate  | 6/6 passed on Chromium and Mobile Safari with `--retries=0`.                                                                                                                 |
 | Review platform + Task 31 regression | 35/35 platform/error-state cases passed across all five projects through canonical `test:e2e`, retries 0.                                                                    |
+| Round 2 platform browser gate        | 15/15 platform administration cases passed across all five projects through canonical `test:e2e`, retries 0.                                                                 |
 | Standalone production build          | Compiled, typed, generated 33 static pages, and finalized all platform/API routes.                                                                                           |
 | Dependency audit                     | `npm audit --audit-level=high`: 0 vulnerabilities.                                                                                                                           |
 | Diff gates                           | `git diff --check` passed; baseline remained the requested commit before the Task 32 commit.                                                                                 |
