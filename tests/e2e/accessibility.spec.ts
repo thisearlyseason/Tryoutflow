@@ -137,8 +137,24 @@ test('rankings and roster expose semantic filters, alternatives, and dialog focu
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`,
   );
   await auditHeading(page, `${scenario.tryoutName} rosters`);
+  const select = page.getByLabel('Select Roster Mover');
   const move = page.getByRole('button', { name: 'Move Roster Mover' });
-  await move.focus();
+  const forwardTab =
+    testInfo.project.name === 'webkit' || testInfo.project.name === 'Mobile Safari'
+      ? 'Alt+Tab'
+      : 'Tab';
+  const backwardTab =
+    testInfo.project.name === 'webkit' || testInfo.project.name === 'Mobile Safari'
+      ? 'Alt+Shift+Tab'
+      : 'Shift+Tab';
+  await select.focus();
+  await expect(select).toBeFocused();
+  await page.keyboard.press(forwardTab);
+  await expect(move).toBeFocused();
+  await page.keyboard.press(backwardTab);
+  await expect(select).toBeFocused();
+  await page.keyboard.press(forwardTab);
+  await expect(move).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog', { name: 'Move Roster Mover' })).toBeVisible();
   await expect(page.getByLabel('Destination team')).toBeFocused();

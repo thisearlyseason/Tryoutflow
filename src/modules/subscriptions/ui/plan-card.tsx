@@ -58,18 +58,21 @@ export function PlanCard({
 }) {
   const [state, setState] = useState<'idle' | 'loading' | 'error' | 'conflict'>('idle');
   const actionRef = useRef<HTMLButtonElement>(null);
+  const checkoutInFlight = useRef(false);
 
   useEffect(() => {
     if (state === 'error' || state === 'conflict') actionRef.current?.focus();
   }, [state]);
 
   async function choosePlan() {
-    if (state === 'loading' || disabled || globallyBusy) return;
+    if (checkoutInFlight.current || state === 'loading' || disabled || globallyBusy) return;
+    checkoutInFlight.current = true;
     setState('loading');
     onBusyChange?.(true);
     try {
       window.location.assign(await requestCheckout(organizationId, plan.key));
     } catch (error) {
+      checkoutInFlight.current = false;
       setState(
         error instanceof Error && error.message === 'checkout_in_progress' ? 'conflict' : 'error',
       );
@@ -94,7 +97,10 @@ export function PlanCard({
         busy={state === 'loading'}
         className="mt-5 w-full"
         disabled={disabled || globallyBusy}
-        onClick={() => void choosePlan()}
+        onClick={(event) => {
+          if (event.detail > 1) return;
+          void choosePlan();
+        }}
       >
         {state === 'loading' ? `Opening ${plan.name} checkout…` : `Choose ${plan.name}`}
       </Button>

@@ -371,22 +371,33 @@ export async function loseResponseAfterApplicationCommit(page: Page, matcher: Re
 export async function holdResponseAfterApplicationCommit(page: Page, matcher: RequestMatcher) {
   let release!: () => void;
   let reached!: () => void;
+  let finish!: () => void;
   const held = new Promise<void>((resolve) => (release = resolve));
   const requested = new Promise<void>((resolve) => (reached = resolve));
+  const completed = new Promise<void>((resolve) => (finish = resolve));
+  let matchingRequests = 0;
   let used = false;
   await page.route('**/*', async (route: Route) => {
-    if (used || !matcher(route.request())) return route.fallback();
+    if (!matcher(route.request())) return route.fallback();
+    matchingRequests += 1;
+    if (used) return route.fallback();
     used = true;
-    const response = await route.fetch();
-    reached();
-    await held;
-    await route.fulfill({ response });
+    try {
+      const response = await route.fetch();
+      reached();
+      await held;
+      await route.fulfill({ response });
+    } finally {
+      finish();
+    }
   });
   return {
+    matchingRequestCount: () => matchingRequests,
     requested,
     release,
     async cleanup() {
       release();
+      if (used) await completed;
       await page.unroute('**/*');
       expect(used, 'the application-boundary delayed-response route was exercised').toBe(true);
     },

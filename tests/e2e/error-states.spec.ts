@@ -3,7 +3,6 @@ import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableServerAction,
   holdResponseAfterApplicationCommit,
-  monitorBrowserErrors,
   reconnect,
   setOffline,
 } from './helpers/network';
@@ -57,22 +56,70 @@ test('slow check-in search announces loading, disables repeat submission, and re
 }) => {
   const monitor = await signInAs(page, scenario.users.checkin, scenario.organizationSlug);
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/check-in`);
-  const delayed = await holdResponseAfterApplicationCommit(
+  const status = page.getByRole('status');
+  const searchRegion = page.getByRole('search', { name: 'Registration search' });
+  const delayedSearch = await holdResponseAfterApplicationCommit(
     page,
     (request) =>
       request.method() === 'POST' &&
       request.url() === page.url() &&
       typeof request.headers()['next-action'] === 'string',
   );
-  await page.getByLabel('Search registrations').fill('Exact');
-  await page.getByRole('button', { name: 'Search' }).dblclick();
-  await delayed.requested;
-  await expect(page.getByRole('button', { name: 'Searching…' })).toBeDisabled();
-  await expect(page.getByRole('status')).toHaveText('Search for a registration to begin.');
-  delayed.release();
-  await expect(page.getByRole('heading', { name: 'Exact Aggregate' })).toBeVisible();
-  await expect(page.getByRole('status')).toHaveText('1 found.');
-  await delayed.cleanup();
+  try {
+    await page.getByLabel('Search registrations').fill('Exact');
+    await page.getByRole('button', { name: 'Search' }).evaluate((button: HTMLButtonElement) => {
+      button.click();
+      button.click();
+    });
+    await delayedSearch.requested;
+    expect(delayedSearch.matchingRequestCount(), 'one initiating search Server Action').toBe(1);
+    await expect(page.getByRole('button', { name: 'Searching…' })).toBeDisabled();
+    await expect(searchRegion).toHaveAttribute('aria-busy', 'true');
+    await expect(status).toHaveText('Searching registrations…');
+    delayedSearch.release();
+    await expect(page.getByRole('heading', { name: 'Exact Aggregate' })).toBeVisible();
+    await expect(status).toHaveText('1 found.');
+    await expect(searchRegion).toHaveAttribute('aria-busy', 'false');
+    expect(delayedSearch.matchingRequestCount(), 'no later search Server Action').toBe(1);
+  } finally {
+    await delayedSearch.cleanup();
+  }
+
+  expect(
+    scenario.database.scalar(
+      `select count(*) from public.checkins where organization_id='${scenario.ids.organization}' and tryout_id='${scenario.ids.tryout}' and registration_id='${scenario.ids.registrationA}' and session_id='${scenario.ids.session}' and reversed_at is null`,
+    ),
+  ).toBe('0');
+  await page.getByLabel('Requested number (optional)').fill('91');
+  const delayedCheckin = await holdResponseAfterApplicationCommit(
+    page,
+    (request) =>
+      request.method() === 'POST' &&
+      request.url() === page.url() &&
+      typeof request.headers()['next-action'] === 'string',
+  );
+  try {
+    const checkIn = page.getByRole('button', { name: 'Check in Exact Aggregate' });
+    await checkIn.evaluate((button: HTMLButtonElement) => {
+      button.click();
+      button.click();
+    });
+    await delayedCheckin.requested;
+    expect(delayedCheckin.matchingRequestCount(), 'one initiating check-in Server Action').toBe(1);
+    await expect(checkIn).toBeDisabled();
+    await expect(searchRegion).toHaveAttribute('aria-busy', 'false');
+    await expect(status).toHaveText('Checking in Exact Aggregate…');
+    delayedCheckin.release();
+    await expect(status).toHaveText('Exact Aggregate checked in. #91.');
+    expect(delayedCheckin.matchingRequestCount(), 'no later check-in Server Action').toBe(1);
+  } finally {
+    await delayedCheckin.cleanup();
+  }
+  expect(
+    scenario.database.scalar(
+      `select count(*)::text || ':' || min(assigned_number_snapshot)::text from public.checkins where organization_id='${scenario.ids.organization}' and tryout_id='${scenario.ids.tryout}' and registration_id='${scenario.ids.registrationA}' and session_id='${scenario.ids.session}' and reversed_at is null`,
+    ),
+  ).toBe('1:91');
   monitor.assertClean();
 });
 
@@ -105,7 +152,10 @@ test('failed checkout reports exact recovery copy, restores focus, and double-cl
     await route.abort('failed');
   });
   const chooseTeam = page.getByRole('button', { name: 'Choose Team' });
-  await chooseTeam.dblclick();
+  await chooseTeam.evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
   await expect(
     page.getByText('Checkout could not be opened. Nothing was changed. Please try again.'),
   ).toBeVisible();

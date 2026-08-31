@@ -90,11 +90,13 @@ export function CheckinWorkspace({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<CheckinSearchResult[] | null>(null);
   const [message, setMessage] = useState('Search for a registration to begin.');
+  const [operation, setOperation] = useState<'checkin' | 'search' | null>(null);
   const [placementIndex, setPlacementIndex] = useState(0);
   const [requestedNumber, setRequestedNumber] = useState('');
   const [pending, startTransition] = useTransition();
   const requestKeys = useRef(new Map<string, string>());
   const inFlightRequests = useRef(new Set<string>());
+  const searchInFlight = useRef(false);
 
   function runSearch() {
     const bounded = query.trim();
@@ -102,6 +104,10 @@ export function CheckinWorkspace({
       setMessage('Enter between 2 and 120 characters.');
       return;
     }
+    if (searchInFlight.current) return;
+    searchInFlight.current = true;
+    setOperation('search');
+    setMessage('Searching registrations…');
     startTransition(async () => {
       try {
         const placement = placements[placementIndex];
@@ -131,6 +137,9 @@ export function CheckinWorkspace({
       } catch {
         setResults(null);
         setMessage('Search could not be completed. Try again.');
+      } finally {
+        searchInFlight.current = false;
+        setOperation(null);
       }
     });
   }
@@ -145,6 +154,8 @@ export function CheckinWorkspace({
     ]);
     if (inFlightRequests.current.has(requestPayload)) return;
     inFlightRequests.current.add(requestPayload);
+    setOperation('checkin');
+    setMessage(`Checking in ${result.athleteName}…`);
     startTransition(async () => {
       try {
         let requestKey = requestKeys.current.get(requestPayload);
@@ -195,13 +206,19 @@ export function CheckinWorkspace({
         );
       } finally {
         inFlightRequests.current.delete(requestPayload);
+        setOperation(null);
       }
     });
   }
 
   return (
     <div className="grid min-w-0 gap-5">
-      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <div
+        aria-busy={operation === 'search'}
+        aria-label="Registration search"
+        className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+        role="search"
+      >
         <label className="block font-bold" htmlFor="checkin-search">
           Search registrations
         </label>
@@ -221,11 +238,14 @@ export function CheckinWorkspace({
           <button
             className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-5 font-bold text-[var(--color-primary-foreground)] disabled:opacity-60"
             disabled={pending}
-            onClick={runSearch}
+            onClick={(event) => {
+              if (event.detail > 1) return;
+              runSearch();
+            }}
             style={{ minHeight: 44 }}
             type="button"
           >
-            {pending ? 'Searching…' : 'Search'}
+            {operation === 'search' ? 'Searching…' : 'Search'}
           </button>
         </div>
       </div>
@@ -262,7 +282,12 @@ export function CheckinWorkspace({
           </label>
         </div>
       ) : null}
-      <p aria-live="polite" className="text-sm text-[var(--color-text-muted)]" role="status">
+      <p
+        aria-atomic="true"
+        aria-live="polite"
+        className="text-sm text-[var(--color-text-muted)]"
+        role="status"
+      >
         {message}
       </p>
       {results ? (
@@ -290,7 +315,10 @@ export function CheckinWorkspace({
                   result.status === 'cancelled' ||
                   result.status === 'missing_information'
                 }
-                onClick={() => checkIn(result)}
+                onClick={(event) => {
+                  if (event.detail > 1) return;
+                  checkIn(result);
+                }}
                 style={{ minHeight: 44 }}
                 type="button"
               >
