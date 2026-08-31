@@ -49,7 +49,7 @@ export function MarketingShell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </div>
-          <Link className={marketingLinkClassName} href="/sign-in">
+          <Link className={marketingLinkClassName} href="/sign-in" prefetch={false}>
             Sign in
           </Link>
           <Link

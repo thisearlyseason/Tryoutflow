@@ -50,8 +50,7 @@ test('scenario 13 — evaluator at 375px keeps save/navigation reachable, 44px c
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 375, height: 812 });
-  await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
   await page.goto(
     `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationD}`,
   );
@@ -92,8 +91,7 @@ test('narrow roster supports keyboard movement, consequential focus, 44px contro
     description: `role=director; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); roster=${scenario.ids.draftRoster}; viewport=320x844`,
   });
   await page.setViewportSize({ width: 320, height: 844 });
-  await signInAs(page, scenario.users.director, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.director, scenario.organizationSlug);
   await page.goto(
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`,
   );

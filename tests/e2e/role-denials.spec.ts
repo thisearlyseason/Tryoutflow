@@ -11,8 +11,7 @@ test('scenario 6 — other-tenant owner is denied a direct organization and tryo
     type: 'scope',
     description: `role=owner of ${scenario.otherOrganizationSlug}; deniedOrganization=${scenario.organizationSlug}; deniedTryout=${scenario.tryoutName} (${scenario.ids.tryout})`,
   });
-  await signInAs(page, scenario.users.otherOwner, scenario.otherOrganizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.otherOwner, scenario.otherOrganizationSlug);
   // Chromium and WebKit log a main-document 404 as a console resource
   // diagnostic; Firefox renders the verified 404 without a console event.
   if (browserName !== 'firefox') {

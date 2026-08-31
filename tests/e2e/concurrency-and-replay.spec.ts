@@ -2,6 +2,7 @@ import { signInAs } from './helpers/auth';
 import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableServerAction,
+  expectNextRscCancellation,
   holdResponseAfterApplicationCommit,
   loseResponseAfterApplicationCommit,
   monitorBrowserErrors,
@@ -15,8 +16,7 @@ test('rankings preserve an exact tie and compare both athletes with completion e
     type: 'scope',
     description: `role=director; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); athletes=Tie Alpha/Tie Beta`,
   });
-  await signInAs(page, scenario.users.director, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.director, scenario.organizationSlug);
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rankings`);
   const alpha = page.getByRole('listitem').filter({ hasText: 'Tie Alpha' });
   const beta = page.getByRole('listitem').filter({ hasText: 'Tie Beta' });
@@ -27,6 +27,13 @@ test('rankings preserve an exact tie and compare both athletes with completion e
   await expect(alpha).toContainText('1 of 3 evaluations complete');
   await page.getByLabel('Select Tie Alpha for comparison').check();
   await page.getByLabel('Select Tie Beta for comparison').check();
+  if (testInfo.project.name === 'chromium' || testInfo.project.name === 'Mobile Chrome') {
+    expectNextRscCancellation(
+      monitor,
+      `${new URL(page.url()).origin}/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/compare?athletes=${scenario.ids.athleteB},${scenario.ids.athleteC}`,
+      'Chromium selected-athlete comparison navigation cancellation',
+    );
+  }
   await page.getByRole('link', { name: 'Compare selected (2/4)' }).click();
   await expect(page.getByRole('heading', { name: 'Athlete comparison' })).toBeVisible();
   await expect(page.getByRole('table')).toContainText('Tie Alpha');
@@ -50,8 +57,7 @@ test('two director tabs reject a stale roster mutation after the first committed
     type: 'scope',
     description: `role=director; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); roster=${scenario.ids.draftRoster}`,
   });
-  await signInAs(page, scenario.users.director, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.director, scenario.organizationSlug);
   const sibling = await context.newPage();
   const siblingMonitor = monitorBrowserErrors(sibling);
   const path = `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`;
@@ -97,8 +103,7 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
     type: 'scope',
     description: `role=owner; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); finalizedRoster=${scenario.ids.finalRoster}; provider=The Squad demo/mock`,
   });
-  await signInAs(page, scenario.users.owner, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   monitor.expectRequestFailure({
     count: 1,
     errorText: ['net::ERR_FAILED', 'NS_ERROR_FAILURE', 'Load failed', 'Blocked by Web Inspector'],

@@ -131,6 +131,7 @@ export function RankingsWorkspace({
         <Link
           className="inline-flex min-h-11 items-center self-end font-bold"
           href={`?pageSize=${initial.pageSize}`}
+          prefetch={false}
         >
           Clear filters
         </Link>
@@ -151,6 +152,7 @@ export function RankingsWorkspace({
               aria-disabled={selected.length < 2}
               className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--color-primary)] px-4 font-bold aria-disabled:pointer-events-none aria-disabled:opacity-50"
               href={comparisonHref}
+              prefetch={false}
             >
               Compare selected ({selected.length}/4)
             </Link>
@@ -230,6 +232,7 @@ export function RankingsWorkspace({
                 <Link
                   className="inline-flex min-h-11 items-center font-bold"
                   href={pageHref(initial.page - 1)}
+                  prefetch={false}
                 >
                   Previous page
                 </Link>
@@ -243,6 +246,7 @@ export function RankingsWorkspace({
                 <Link
                   className="inline-flex min-h-11 items-center font-bold"
                   href={pageHref(initial.page + 1)}
+                  prefetch={false}
                 >
                   Next page
                 </Link>

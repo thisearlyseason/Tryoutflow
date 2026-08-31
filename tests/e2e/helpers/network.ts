@@ -25,6 +25,17 @@ export type ExpectedRequestFailure = CountedExpectation &
 
 export type ExpectedCancellableRequest = ExpectedRequestFailure;
 
+export type ExpectedRscCancellation = CountedExpectation &
+  Readonly<{
+    errorText: string | readonly string[];
+    headers: Readonly<Record<string, TextMatcher> & { rsc: '1' }>;
+    method: 'GET';
+    /** Exact absolute application URL before Next.js adds its generated `_rsc` token. */
+    url: string;
+  }>;
+
+export type ExpectedCancellableRscRequest = ExpectedRscCancellation;
+
 export type ExpectedConsoleError = CountedExpectation &
   Readonly<{
     text: TextMatcher;
@@ -33,8 +44,10 @@ export type ExpectedConsoleError = CountedExpectation &
 
 export type BrowserErrorMonitor = Readonly<{
   expectCancellableRequest(expectation: ExpectedCancellableRequest): void;
+  expectCancellableRscRequest(expectation: ExpectedCancellableRscRequest): void;
   expectConsoleError(expectation: ExpectedConsoleError): void;
   expectRequestFailure(expectation: ExpectedRequestFailure): void;
+  expectRscCancellation(expectation: ExpectedRscCancellation): void;
   assertClean(): void;
   stop(): void;
 }>;
@@ -51,12 +64,40 @@ function validExpectation(expectation: CountedExpectation) {
   if (expectation.label.trim().length === 0) throw new Error('expected failure needs a label');
 }
 
+function matchesGeneratedRscUrl(requestUrl: string, expectedApplicationUrl: string) {
+  try {
+    const actual = new URL(requestUrl);
+    const expected = new URL(expectedApplicationUrl);
+    const tokens = actual.searchParams.getAll('_rsc');
+    if (expected.searchParams.has('_rsc') || tokens.length !== 1 || tokens[0]?.length === 0) {
+      return false;
+    }
+    actual.searchParams.delete('_rsc');
+    actual.search = actual.searchParams.toString();
+    expected.search = expected.searchParams.toString();
+    return actual.href === expected.href;
+  } catch {
+    return false;
+  }
+}
+
 export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
   const failures: string[] = [];
   const consoleExpectations: Array<ExpectedConsoleError & { consumed: number }> = [];
   const cancellableExpectations: Array<ExpectedCancellableRequest & { consumed: number }> = [];
   const cancellableRequests = new WeakMap<Request, ExpectedCancellableRequest>();
+  const cancellableRscExpectations: Array<ExpectedCancellableRscRequest & { consumed: number }> =
+    [];
+  const cancellableRscRequests = new WeakMap<Request, ExpectedCancellableRscRequest>();
   const requestExpectations: Array<ExpectedRequestFailure & { consumed: number }> = [];
+  const rscExpectations: Array<ExpectedRscCancellation & { consumed: number }> = [];
+  const rscRequests = new WeakMap<
+    Request,
+    {
+      expectation: ExpectedRscCancellation & { consumed: number };
+      resolvedUrl: string;
+    }
+  >();
   const onConsole = (message: ConsoleMessage) => {
     if (message.type() !== 'error') return;
     const text = message.text();
@@ -94,6 +135,46 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
     }
     if (cancellableExpectations.some((candidate) => requestMatches(request, candidate))) {
       failures.push(`unexpected declared request: ${request.method()} ${request.url()}`);
+      return;
+    }
+    const cancellableRscExpectation = cancellableRscExpectations.find(
+      (candidate) =>
+        candidate.consumed < candidate.count &&
+        candidate.method === request.method() &&
+        matchesGeneratedRscUrl(request.url(), candidate.url) &&
+        Object.entries(candidate.headers).every(([name, expected]) =>
+          matches(request.headers()[name] ?? '', expected),
+        ),
+    );
+    if (cancellableRscExpectation) {
+      cancellableRscExpectation.consumed += 1;
+      cancellableRscRequests.set(request, cancellableRscExpectation);
+      return;
+    }
+    if (
+      cancellableRscExpectations.some(
+        (candidate) =>
+          candidate.method === request.method() &&
+          matchesGeneratedRscUrl(request.url(), candidate.url) &&
+          Object.entries(candidate.headers).every(([name, expected]) =>
+            matches(request.headers()[name] ?? '', expected),
+          ),
+      )
+    ) {
+      failures.push(`unexpected declared RSC request: ${request.method()} ${request.url()}`);
+      return;
+    }
+    const rscExpectation = rscExpectations.find(
+      (candidate) =>
+        candidate.consumed < candidate.count &&
+        candidate.method === request.method() &&
+        matchesGeneratedRscUrl(request.url(), candidate.url) &&
+        Object.entries(candidate.headers).every(([name, expected]) =>
+          matches(request.headers()[name] ?? '', expected),
+        ),
+    );
+    if (rscExpectation) {
+      rscRequests.set(request, { expectation: rscExpectation, resolvedUrl: request.url() });
     }
   };
   const onRequestFailed = (request: Request) => {
@@ -113,6 +194,33 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
       );
       return;
     }
+    const cancellableRsc = cancellableRscRequests.get(request);
+    if (cancellableRsc) {
+      const allowed =
+        typeof cancellableRsc.errorText === 'string'
+          ? errorText === cancellableRsc.errorText
+          : cancellableRsc.errorText.includes(errorText);
+      if (allowed) return;
+      failures.push(
+        `unexpected RSC cancellation: ${method} ${url} ${errorText} (${cancellableRsc.label})`,
+      );
+      return;
+    }
+    const rsc = rscRequests.get(request);
+    if (rsc) {
+      const allowed =
+        typeof rsc.expectation.errorText === 'string'
+          ? errorText === rsc.expectation.errorText
+          : rsc.expectation.errorText.includes(errorText);
+      if (allowed && rsc.resolvedUrl === url && rsc.expectation.consumed < rsc.expectation.count) {
+        rsc.expectation.consumed += 1;
+        return;
+      }
+      failures.push(
+        `unexpected RSC cancellation: ${method} ${url} ${errorText} (${rsc.expectation.label})`,
+      );
+      return;
+    }
     const expectation = requestExpectations.find(
       (candidate) =>
         candidate.consumed < candidate.count &&
@@ -129,9 +237,6 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
       expectation.consumed += 1;
       return;
     }
-    if (method === 'GET' && url.includes('_rsc=') && errorText === 'net::ERR_ABORTED') {
-      return;
-    }
     failures.push(`unexpected request failure: ${method} ${url} ${errorText}`);
   };
   page.on('console', onConsole);
@@ -143,6 +248,14 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
       validExpectation(expectation);
       cancellableExpectations.push({ ...expectation, consumed: 0 });
     },
+    expectCancellableRscRequest(expectation) {
+      validExpectation(expectation);
+      const declared = new URL(expectation.url);
+      if (declared.searchParams.has('_rsc')) {
+        throw new Error(`RSC expectation must omit the generated _rsc token: ${expectation.label}`);
+      }
+      cancellableRscExpectations.push({ ...expectation, consumed: 0 });
+    },
     expectConsoleError(expectation) {
       validExpectation(expectation);
       consoleExpectations.push({ ...expectation, consumed: 0 });
@@ -151,8 +264,22 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
       validExpectation(expectation);
       requestExpectations.push({ ...expectation, consumed: 0 });
     },
+    expectRscCancellation(expectation) {
+      validExpectation(expectation);
+      const declared = new URL(expectation.url);
+      if (declared.searchParams.has('_rsc')) {
+        throw new Error(`RSC expectation must omit the generated _rsc token: ${expectation.label}`);
+      }
+      rscExpectations.push({ ...expectation, consumed: 0 });
+    },
     assertClean() {
-      const missing = [...consoleExpectations, ...cancellableExpectations, ...requestExpectations]
+      const missing = [
+        ...consoleExpectations,
+        ...cancellableExpectations,
+        ...cancellableRscExpectations,
+        ...requestExpectations,
+        ...rscExpectations,
+      ]
         .filter((expectation) => expectation.consumed !== expectation.count)
         .map(
           (expectation) =>
@@ -183,6 +310,38 @@ export function expectCancellableServerAction(
     label,
     method: 'POST',
     url: page.url(),
+  });
+}
+
+export function expectNextRscCancellation(
+  monitor: BrowserErrorMonitor,
+  url: string,
+  label: string,
+  count = 1,
+) {
+  monitor.expectRscCancellation({
+    count,
+    errorText: 'net::ERR_ABORTED',
+    headers: { rsc: '1' },
+    label,
+    method: 'GET',
+    url,
+  });
+}
+
+export function expectCancellableNextRscRequest(
+  monitor: BrowserErrorMonitor,
+  url: string,
+  label: string,
+  count = 1,
+) {
+  monitor.expectCancellableRscRequest({
+    count,
+    errorText: 'net::ERR_ABORTED',
+    headers: { rsc: '1' },
+    label,
+    method: 'GET',
+    url,
   });
 }
 

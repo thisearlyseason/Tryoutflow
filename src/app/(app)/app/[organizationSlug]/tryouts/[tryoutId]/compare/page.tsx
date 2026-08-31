@@ -44,6 +44,7 @@ export default async function ComparePage({
       <Link
         className="mt-6 inline-flex min-h-11 items-center font-bold text-[var(--color-primary)]"
         href="./rankings"
+        prefetch={false}
       >
         Back to rankings
       </Link>

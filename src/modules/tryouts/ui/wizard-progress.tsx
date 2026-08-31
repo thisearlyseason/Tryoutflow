@@ -39,6 +39,7 @@ export function WizardProgress({
                       : 'bg-[var(--color-surface-muted)] text-[var(--color-text)]'
                 }`}
                 href={`${hrefBase}/${step}`}
+                prefetch={false}
               >
                 <span aria-hidden="true">{complete ? '✓' : index + 1}</span>
                 {labels[step]}

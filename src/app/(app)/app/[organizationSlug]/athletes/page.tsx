@@ -53,12 +53,14 @@ export default async function AthletesPage({
             <Link
               className="inline-flex min-h-[var(--target-mobile)] items-center rounded-[var(--radius-control)] border border-[var(--color-border)] px-4 font-bold"
               href={`/app/${organizationSlug}/athletes/duplicates`}
+              prefetch={false}
             >
               Review duplicates
             </Link>
             <Link
               className="inline-flex min-h-[var(--target-mobile)] items-center rounded-[var(--radius-control)] bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)]"
               href={`/app/${organizationSlug}/athletes/import`}
+              prefetch={false}
             >
               Import CSV
             </Link>
@@ -79,6 +81,7 @@ export default async function AthletesPage({
             <Link
               className="font-bold text-[var(--color-primary)] underline"
               href={`/app/${organizationSlug}/athletes/${athlete.id}`}
+              prefetch={false}
             >
               {athlete.given_name} {athlete.family_name}
             </Link>
@@ -104,6 +107,7 @@ export default async function AthletesPage({
               <Link
                 className="rounded border border-[var(--color-border)] px-4 py-2 font-bold"
                 href={`?page=${page - 1}`}
+                prefetch={false}
               >
                 Previous
               </Link>
@@ -112,6 +116,7 @@ export default async function AthletesPage({
               <Link
                 className="rounded border border-[var(--color-border)] px-4 py-2 font-bold"
                 href={`?page=${page + 1}`}
+                prefetch={false}
               >
                 Next
               </Link>

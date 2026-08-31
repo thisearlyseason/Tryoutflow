@@ -70,8 +70,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
     type: 'scope',
     description: `role=owner; organization=${organizationSlug}; tryout=${tryoutName}`,
   });
-  await signInAs(page, newOwner);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, newOwner);
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
   await page.getByLabel('Organization URL').fill(organizationSlug);
@@ -184,8 +183,7 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   await expect(page.getByText('Your registration is confirmed.')).toBeVisible();
   publicMonitor.assertClean();
   publicMonitor.stop();
-  await signInAs(page, scenario.users.administrator, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.administrator, scenario.organizationSlug);
   await page.goto(`/app/${scenario.organizationSlug}/athletes`);
   await expect(page.getByRole('link', { name: `Browser ${familyName}` })).toBeVisible();
 
@@ -311,8 +309,7 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   scenario,
 }, testInfo) => {
   scope(testInfo, 'evaluator-three', scenario);
-  await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
   monitor.expectRequestFailure({
     count: 1,
     errorText: ['net::ERR_FAILED', 'NS_ERROR_FAILURE', 'Load failed', 'Blocked by Web Inspector'],
@@ -404,8 +401,7 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
   scenario,
 }, testInfo) => {
   scope(testInfo, 'director', scenario);
-  await signInAs(page, scenario.users.director, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.director, scenario.organizationSlug);
   const rosterPath = `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.division}`;
   await page.goto(rosterPath);
   await expect(page.getByRole('heading', { name: 'Create a draft roster' })).toBeVisible();
@@ -549,8 +545,7 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   scenario,
 }, testInfo) => {
   scope(testInfo, 'owner', scenario);
-  await signInAs(page, scenario.users.owner, scenario.organizationSlug);
-  const monitor = monitorBrowserErrors(page);
+  const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   // Chromium and WebKit report a completed attachment handoff as a failed
   // document navigation. Firefox completes it without requestfailed.
   if (browserName === 'chromium') {

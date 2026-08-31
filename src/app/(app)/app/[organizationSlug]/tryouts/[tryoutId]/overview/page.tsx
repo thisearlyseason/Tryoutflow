@@ -39,24 +39,28 @@ export default async function TryoutOverviewPage({
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`/app/${organizationSlug}/tryouts/${tryoutId}/staff`}
+            prefetch={false}
           >
             Manage staff
           </Link>
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`/app/${organizationSlug}/tryouts/${tryoutId}/live`}
+            prefetch={false}
           >
             Live dashboard
           </Link>
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`/app/${organizationSlug}/tryouts/${tryoutId}/rankings`}
+            prefetch={false}
           >
             Rankings
           </Link>
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`/app/${organizationSlug}/tryouts/${tryoutId}/rosters`}
+            prefetch={false}
           >
             Rosters
           </Link>

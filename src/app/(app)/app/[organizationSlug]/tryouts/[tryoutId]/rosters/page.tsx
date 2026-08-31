@@ -358,6 +358,7 @@ export default async function RostersPage({
               className="inline-flex min-h-11 min-w-0 items-center rounded-[var(--radius-control)] border border-[var(--color-border)] px-4 font-bold aria-[current=page]:border-[var(--color-primary)] aria-[current=page]:text-[var(--color-primary)]"
               href={`?division=${candidate.id}`}
               key={candidate.id}
+              prefetch={false}
             >
               {candidate.name}
             </Link>

@@ -103,7 +103,7 @@ describe('Task 30 browser error monitor', () => {
     expect(() => duplicate.assertClean()).toThrow(/unexpected console error/u);
   });
 
-  it('never consumes page errors and ignores only exact cancelled RSC GETs', () => {
+  it('fails an undeclared cancelled RSC GET and every page error', () => {
     const page = new FakePage();
     const monitor = monitorBrowserErrors(page as unknown as Page);
     page.emit(
@@ -114,29 +114,242 @@ describe('Task 30 browser error monitor', () => {
         url: 'http://127.0.0.1:3112/app/org/home?_rsc=abc',
       }),
     );
-    expect(() => monitor.assertClean()).not.toThrow();
+    expect(() => monitor.assertClean()).toThrow(
+      /unexpected request failure: GET .*home\?_rsc=abc net::ERR_ABORTED/u,
+    );
 
     page.emit('pageerror', new Error('hydration exploded'));
-    expect(() => monitor.assertClean()).toThrow(/pageerror: hydration exploded/u);
+    expect(() => monitor.assertClean()).toThrow(
+      /unexpected request failure.*pageerror: hydration exploded/su,
+    );
   });
 
-  it('can detach a clean public-flow monitor before narrowly exempted auth setup', () => {
+  it('consumes one exact declared RSC cancellation', () => {
     const page = new FakePage();
     const monitor = monitorBrowserErrors(page as unknown as Page);
-    expect(() => monitor.assertClean()).not.toThrow();
-
-    monitor.stop();
+    monitor.expectRequestFailure({
+      count: 1,
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      label: 'one exact home RSC cancellation',
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/home?_rsc=abc',
+    });
     page.emit(
       'requestfailed',
       failedRequest({
         errorText: 'net::ERR_ABORTED',
-        headers: { 'next-action': 'auth-action' },
-        method: 'POST',
-        url: 'http://127.0.0.1:3112/sign-in',
+        headers: { rsc: '1' },
+        method: 'GET',
+        url: 'http://127.0.0.1:3112/app/org/home?_rsc=abc',
       }),
     );
 
     expect(() => monitor.assertClean()).not.toThrow();
+  });
+
+  it('binds a generated RSC URL to the exact initiating request before consuming its failure', () => {
+    const page = new FakePage();
+    const monitor = monitorBrowserErrors(page as unknown as Page);
+    monitor.expectRscCancellation({
+      count: 1,
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      label: 'one generated home RSC cancellation',
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/home?athletes=alpha,beta',
+    });
+    const request = failedRequest({
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/home?athletes=alpha,beta&_rsc=generated-token',
+    });
+    page.emit('request', request);
+    page.emit('requestfailed', request);
+
+    expect(() => monitor.assertClean()).not.toThrow();
+  });
+
+  it('fails unused, extra, and mismatched generated RSC cancellations', () => {
+    const expectation = {
+      count: 1,
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      label: 'one generated home RSC cancellation',
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/home',
+    } as const;
+    const exactRequest = () =>
+      failedRequest({
+        errorText: 'net::ERR_ABORTED',
+        headers: { rsc: '1' },
+        method: 'GET',
+        url: 'http://127.0.0.1:3112/app/org/home?_rsc=generated-token',
+      });
+
+    const unusedPage = new FakePage();
+    const unused = monitorBrowserErrors(unusedPage as unknown as Page);
+    unused.expectRscCancellation(expectation);
+    expect(() => unused.assertClean()).toThrow(
+      /missing 1 of 1: one generated home RSC cancellation/u,
+    );
+
+    const extraPage = new FakePage();
+    const extra = monitorBrowserErrors(extraPage as unknown as Page);
+    extra.expectRscCancellation(expectation);
+    const first = exactRequest();
+    const second = exactRequest();
+    extraPage.emit('request', first);
+    extraPage.emit('requestfailed', first);
+    extraPage.emit('request', second);
+    extraPage.emit('requestfailed', second);
+    expect(() => extra.assertClean()).toThrow(/unexpected request failure/u);
+
+    const mismatchPage = new FakePage();
+    const mismatch = monitorBrowserErrors(mismatchPage as unknown as Page);
+    mismatch.expectRscCancellation(expectation);
+    const mismatched = failedRequest({
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/other?_rsc=generated-token',
+    });
+    mismatchPage.emit('request', mismatched);
+    mismatchPage.emit('requestfailed', mismatched);
+    expect(() => mismatch.assertClean()).toThrow(
+      /unexpected request failure.*missing 1.*one generated home RSC cancellation/su,
+    );
+  });
+
+  it('counts an exact generated RSC request and permits cancellation only for that request', () => {
+    const page = new FakePage();
+    const monitor = monitorBrowserErrors(page as unknown as Page);
+    monitor.expectCancellableRscRequest({
+      count: 1,
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      label: 'one exact generated comparison request',
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/compare?athletes=alpha,beta',
+    });
+    const request = failedRequest({
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/compare?athletes=alpha,beta&_rsc=generated',
+    });
+    page.emit('request', request);
+    page.emit('requestfailed', request);
+
+    expect(() => monitor.assertClean()).not.toThrow();
+  });
+
+  it('fails missing, extra, and mismatched generated cancellable RSC requests', () => {
+    const expectation = {
+      count: 1,
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      label: 'one exact generated comparison request',
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/app/org/compare?athletes=alpha,beta',
+    } as const;
+    const exactRequest = () =>
+      failedRequest({
+        errorText: 'net::ERR_ABORTED',
+        headers: { rsc: '1' },
+        method: 'GET',
+        url: `${expectation.url}&_rsc=generated`,
+      });
+
+    const missingPage = new FakePage();
+    const missing = monitorBrowserErrors(missingPage as unknown as Page);
+    missing.expectCancellableRscRequest(expectation);
+    expect(() => missing.assertClean()).toThrow(
+      /missing 1 of 1: one exact generated comparison request/u,
+    );
+
+    const extraPage = new FakePage();
+    const extra = monitorBrowserErrors(extraPage as unknown as Page);
+    extra.expectCancellableRscRequest(expectation);
+    extraPage.emit('request', exactRequest());
+    extraPage.emit('request', exactRequest());
+    expect(() => extra.assertClean()).toThrow(/unexpected declared RSC request/u);
+
+    const mismatchPage = new FakePage();
+    const mismatch = monitorBrowserErrors(mismatchPage as unknown as Page);
+    mismatch.expectCancellableRscRequest(expectation);
+    const wrong = failedRequest({
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '0' },
+      method: 'GET',
+      url: `${expectation.url}&_rsc=generated`,
+    });
+    mismatchPage.emit('request', wrong);
+    mismatchPage.emit('requestfailed', wrong);
+    expect(() => mismatch.assertClean()).toThrow(
+      /unexpected request failure.*missing 1.*one exact generated comparison request/su,
+    );
+  });
+
+  it('fails extra, mismatched, and unused declared RSC cancellations', () => {
+    const exactUrl = 'http://127.0.0.1:3112/app/org/home?_rsc=abc';
+    const expectation = {
+      count: 1,
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      label: 'one exact home RSC cancellation',
+      method: 'GET',
+      url: exactUrl,
+    } as const;
+
+    const extraPage = new FakePage();
+    const extra = monitorBrowserErrors(extraPage as unknown as Page);
+    extra.expectRequestFailure(expectation);
+    const exactFailure = failedRequest({
+      errorText: 'net::ERR_ABORTED',
+      headers: { rsc: '1' },
+      method: 'GET',
+      url: exactUrl,
+    });
+    extraPage.emit('requestfailed', exactFailure);
+    extraPage.emit('requestfailed', exactFailure);
+    expect(() => extra.assertClean()).toThrow(/unexpected request failure/u);
+
+    const mismatchedPage = new FakePage();
+    const mismatched = monitorBrowserErrors(mismatchedPage as unknown as Page);
+    mismatched.expectRequestFailure(expectation);
+    mismatchedPage.emit(
+      'requestfailed',
+      failedRequest({
+        errorText: 'net::ERR_ABORTED',
+        headers: { rsc: '1' },
+        method: 'GET',
+        url: 'http://127.0.0.1:3112/app/org/other?_rsc=abc',
+      }),
+    );
+    expect(() => mismatched.assertClean()).toThrow(
+      /unexpected request failure.*missing 1.*one exact home RSC cancellation/su,
+    );
+
+    const unusedPage = new FakePage();
+    const unused = monitorBrowserErrors(unusedPage as unknown as Page);
+    unused.expectRequestFailure(expectation);
+    expect(() => unused.assertClean()).toThrow(/missing 1 of 1: one exact home RSC cancellation/u);
+  });
+
+  it('detaches only the selected page monitor without hiding errors on another page', () => {
+    const page = new FakePage();
+    const monitor = monitorBrowserErrors(page as unknown as Page);
+    const otherPage = new FakePage();
+    const otherMonitor = monitorBrowserErrors(otherPage as unknown as Page);
+
+    monitor.stop();
+    page.emit('pageerror', new Error('detached page error'));
+    otherPage.emit('pageerror', new Error('still monitored page error'));
+
+    expect(() => monitor.assertClean()).not.toThrow();
+    expect(() => otherMonitor.assertClean()).toThrow(/pageerror: still monitored page error/u);
   });
 
   it('counts an exact Server Action request while accepting only its exact browser cancellation', () => {
