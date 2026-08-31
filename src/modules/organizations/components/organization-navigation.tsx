@@ -36,6 +36,7 @@ export function OrganizationNavigation({
         ['Home', `/app/${organizationSlug}/home`],
         ['Tryouts', `/app/${organizationSlug}/tryouts`],
         ['Athletes', `/app/${organizationSlug}/athletes`],
+        ['Reports', `/app/${organizationSlug}/reports`],
         ...evaluatorLinks,
         ['Evaluators', `/app/${organizationSlug}/evaluators`],
         ['Members', `/app/${organizationSlug}/organization/members`],
@@ -61,6 +62,11 @@ export function OrganizationNavigation({
           rosteredTryouts.length === 1 ? 'Rosters' : `Rosters ${index + 1}`,
           `/app/${organizationSlug}/tryouts/${tryoutId}/rosters`,
           `Rosters for tryout ${tryoutId}`,
+        ]),
+        ...staffedTryouts.map((tryoutId, index) => [
+          staffedTryouts.length === 1 ? 'Reports' : `Reports ${index + 1}`,
+          `/app/${organizationSlug}/tryouts/${tryoutId}/reports`,
+          `Reports for tryout ${tryoutId}`,
         ]),
         ...staffedTryouts.map((tryoutId, index) => [
           staffedTryouts.length === 1 ? 'Live' : `Live ${index + 1}`,

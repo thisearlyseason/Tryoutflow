@@ -4718,6 +4718,12 @@ export type Database = {
           result: Json;
         }[];
       };
+      load_onboarding_facts: {
+        Args: { p_organization_id: string };
+        Returns: {
+          result: Json;
+        }[];
+      };
       load_ranking_snapshot: {
         Args: {
           p_athlete_ids?: string[];
@@ -4728,6 +4734,24 @@ export type Database = {
           p_session_id?: string;
           p_tryout_id: string;
         };
+        Returns: {
+          result: Json;
+        }[];
+      };
+      load_report_export: {
+        Args: {
+          p_export_type: string;
+          p_max_rows?: number;
+          p_organization_id: string;
+          p_roster_version_id?: string;
+          p_tryout_id?: string;
+        };
+        Returns: {
+          result: Json;
+        }[];
+      };
+      load_report_summary: {
+        Args: { p_organization_id: string; p_tryout_id?: string };
         Returns: {
           result: Json;
         }[];
