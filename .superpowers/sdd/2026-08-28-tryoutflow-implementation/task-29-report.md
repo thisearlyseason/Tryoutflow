@@ -2,7 +2,17 @@
 
 ## Status
 
-Round-four follow-up: migration 086 closes the remaining duplicate-registration-history work below the tryout athlete cap.  It is additive, preserves all pre-existing finalized, published, withdrawn, and cancelled history, and keeps latest registration status live after the naturally unique athlete population is bounded.
+Round-five follow-up: migration 087 closes the same-organization multi-key population deadlock and makes the exact production candidate helper directly explainable. It is additive, keeps 086's compatibility boundary, preserves cross-organization concurrency, and adds no client retry contract.
+
+## Round-five evidence
+
+- The natural pre-087 two-session probe inserted athlete A then B against B then A and PostgreSQL aborted one transaction with `deadlock detected` inside `maintain_report_tryout_athlete_population`. pgTAP 069 reproduced the same failure for insert, replica-role delete, and mixed insert/delete transactions before the fix.
+- Migration 087 adds an exact UUID-keyed private organization fence. Insert/delete maintenance acquires it before any per-athlete witness mutation; truncate and rebuild acquire all fences in UUID order after excluding concurrent registration writers. Same-organization work is serialized before per-key locks, while a second organization commits while the first fence is held.
+- The fence row lock is transaction-scoped by design: ordinary one-statement registration writes hold it only through their commit, while a deliberately long same-organization transaction queues later population maintenance until commit or rollback. Cross-organization registration latency is unchanged. Table-wide rebuild/truncate intentionally coordinate every organization and remain rare owner-only maintenance paths.
+- An `ENABLE ALWAYS` organization-delete trigger removes fence rows even for replica-role owner cleanup. Migration replay also removes pre-existing fence orphans. After both supervised integration runs the live audit was `organizations=1`, `fences=1`, `staleFences=0`, and `populationDrift=0`.
+- Production athlete export now calls the exact owner-only `SECURITY INVOKER`, stable, fully qualified `private.explainable_report_athlete_candidates` function. Its compatibility wrapper remains fixed-search-path `SECURITY DEFINER` for earlier internal contracts; no client or service role can execute either helper directly.
+- pgTAP 069 runs `EXPLAIN (ANALYZE, FORMAT JSON)` on that exact production function call. With 12,000 same-athlete histories in the requested tryout plus 12,000 newer histories in another tryout, the inlined plan has no `Function Scan`, sequential scan, or history-sized sort; it reads exactly three population rows and three registration rows from the two intended indexes for `maxRows=2`.
+- A source/interface mutation guard fails if the production helper reintroduces `DISTINCT ON`, if the report RPC returns to the opaque compatibility wrapper, or if a function-level setting/security-definer attribute prevents inlining. Natural sessions cover A→B/B→A, same-key contention, replica deletes, mixed delete/insert, rollback release, cross-organization parallelism, and final witness/history equality without retries.
 
 ## Round-four evidence
 
@@ -60,19 +70,22 @@ Round-four follow-up: migration 086 closes the remaining duplicate-registration-
 
 ```text
 supabase db reset --no-seed && npm run test:db
-  PASS — migrations 001–086; 68 files / 1,822 assertions
+  PASS — migrations 001–087; 69 files / 1,872 assertions
 
 supabase db reset
-  PASS — migrations 001–086 plus deterministic Badlands seed
+  PASS — migrations 001–087 plus deterministic Badlands seed
 
 npx supabase test db supabase/tests/068_report_duplicate_history_bounds.test.sql
   PASS on clean and seeded databases — 1 file / 55 assertions; old/new actual registration leaf reads 12,002/3
 
-two concurrent psql registration transactions + two `psql -1` migration 086 replays
-  PASS — membership witness and registration history both remained exactly 2
+npx supabase test db supabase/tests/069_report_population_fence_and_production_plan.test.sql
+  PASS on clean and seeded databases — 1 file / 50 assertions; actual production-helper population/registration leaf reads 3/3 across 24,002 histories
+
+natural dblink PostgreSQL sessions + two `psql -1` migration 087 replays
+  PASS — insert/delete/mixed/rollback/same-key/cross-org cases completed without retry; zero population drift and zero stale fences
 
 npm run test:integration
-  PASS twice under the Task 20 supervisor — 27 files / 201 tests on each run (43.42s and 42.97s)
+  PASS twice under the Task 20 supervisor — 27 files / 201 tests on each run (40.66s and 41.08s)
 
 npx vitest run --config vitest.integration.config.ts tests/integration/demo-seed.test.ts
   PASS — 1 file / 9 tests, including replay digest, legacy immutable-byte preservation, active canonical evaluator assignments, mixed verified/unavailable snapshot discovery, exact canonical lineage cardinalities, convergence, immutable/revision snapshots, population parity, and canonical weighted totals
@@ -108,6 +121,7 @@ git diff --check
 ## Audit notes
 
 - The authenticated browser command must bind the Playwright web server to the same local Supabase runtime used by its setup. A diagnostic run with the config's intentionally fake fallback URL correctly failed sign-in; direct local GoTrue authentication passed, and the same suite passed 6/6 after supplying the local URL and keys.
+- pgTAP 069 derives its secondary-session address from PostgreSQL's own server address and port, so it exercises independent natural sessions without depending on a Docker host alias or an external retry harness. Every independently committed fixture is explicitly deleted; post-run audits found zero fixture organizations/registrations and the test-local `dblink` extension rolled back.
 - Source/CSV contract scans found only the intentional `example.test` synthetic identities and explanatory privacy copy. Browser downloads additionally assert the absence of guardian, email, phone, birth, emergency, eligibility, private-note, and evaluator fields.
 - `next-env.d.ts` was temporarily rewritten by the development server and restored to its tracked `.next/types` references. No generated dev-path change is included.
 - The integration supervisor initially rejected the local database before acquiring a lock because a direct Homebrew Supabase CLI `2.72.7` reset had recreated the database container without `com.supabase.cli.workdir`. The repository pins CLI `2.116.0`; recreating the disposable stack through `npm run supabase:start` and `npm run supabase:reset` restored the exact worktree label. Task 20 then validated the endpoint/container PostgreSQL identity, and both full supervised runs exited cleanly with zero residual runner sessions, isolated databases, harness schemas, or run roles.
