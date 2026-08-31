@@ -3,6 +3,9 @@ import 'server-only';
 import { z } from 'zod';
 
 import { stripePriceIdSchema } from '../../../infrastructure/billing/billing-provider';
+import { PLAN_CATALOG } from './plan-catalog';
+
+export { PLAN_CATALOG } from './plan-catalog';
 
 export const planKeySchema = z.enum(['trial', 'team', 'club', 'association']);
 export type PlanKey = z.infer<typeof planKeySchema>;
@@ -10,12 +13,8 @@ export type PlanKey = z.infer<typeof planKeySchema>;
 export const paidPlanKeySchema = z.enum(['team', 'club', 'association']);
 export type PaidPlanKey = z.infer<typeof paidPlanKeySchema>;
 
-export const launchPlans = Object.freeze({
-  trial: { key: 'trial', name: 'Trial', monthlyPriceCad: null },
-  team: { key: 'team', name: 'Team', monthlyPriceCad: 49 },
-  club: { key: 'club', name: 'Club', monthlyPriceCad: 129 },
-  association: { key: 'association', name: 'Association', monthlyPriceCad: 249 },
-} satisfies Record<PlanKey, { key: PlanKey; name: string; monthlyPriceCad: number | null }>);
+/** Backwards-compatible name for authenticated billing surfaces. */
+export const launchPlans = PLAN_CATALOG;
 
 const stripePriceEnvironmentSchema = z
   .object({
