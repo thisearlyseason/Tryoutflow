@@ -135,3 +135,39 @@ npm audit --audit-level=high
 ```
 
 `next-env.d.ts` remained in its source-controlled `.next/types` form after browser testing; the transient dev-server rewrite was restored only as generated output. Final source scans found no marketing client directive, Supabase client, or fetch call, and `git diff --check` passed.
+
+## Fix round 3 — race-free production artifact listener
+
+### Root cause and RED evidence
+
+- The artifact gate previously asked the operating system for an available port, closed that listener, then passed the released number to `next start`. Any unrelated process could bind it in the interval, making the gate flaky and potentially allowing it to probe the wrong listener.
+- The installed Next CLI accepts `next start --port 0` and prints the actual OS-assigned listener as a `Local` URL. A deterministic test releases a candidate port and immediately occupies it; a child started with that released number exits non-zero. The new child-owned-start tests were RED before the helper existed (`startOwnedServer is not a function`).
+
+### Delivered
+
+- The gate now starts `next start` with port `0`; the operating system atomically assigns a listener to the direct child. It parses only that child process’s stdout `Local: http://127.0.0.1:<port>` record, rejects invalid/missing output within 20 seconds, and confirms the child remains alive before fetching it.
+- The response verification remains unchanged: every public response must have its exact absolute canonical bytes, be 200 and cookie-free, and make no observable Supabase call. The child lifecycle plus exact rendered content/origin ensures the gate cannot accept another process’s listener.
+- Failed startup, timeout, and successful completion all stop the owned child, escalating to `SIGKILL` only after a bounded graceful shutdown. No listener is preallocated and released.
+- Added a fixture-backed forced-collision regression, two concurrent child-owned listener test with distinct nonce response headers, and post-gate process audit. The direct artifact gate has no `next start` or fixture residue after completion.
+
+### Verification
+
+```text
+npx vitest run --config vitest.config.ts tests/unit/marketing/production-artifact-gate.test.ts --reporter=dot
+  RED — 2 failures: startOwnedServer missing
+  GREEN — 5 tests (deterministic collision, forced collision, parallel owned listeners)
+
+npm run test:marketing:production
+  PASS — production build and exact-public-route artifact assertions using an OS-assigned child port
+
+npm run verify
+  PASS — formatting, ESLint, strict TypeScript, full unit suite, and production artifact gate
+
+npx playwright test tests/e2e/marketing.spec.ts --project=chromium --project=webkit --project='Mobile Safari'
+  PASS — 36 tests
+
+npm audit --audit-level=high
+  PASS — 0 vulnerabilities
+```
+
+`next-env.d.ts` was again restored from the Playwright dev-server side effect to its tracked `.next/types` references. `git diff --check` passed and the final process audit found no production-gate child residue.

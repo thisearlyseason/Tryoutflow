@@ -49,15 +49,6 @@ async function closeServer(server) {
   await once(server, 'close');
 }
 
-async function availablePort() {
-  const server = createServer();
-  try {
-    return await listen(server);
-  } finally {
-    await closeServer(server);
-  }
-}
-
 function run(command, arguments_, environment) {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(command, arguments_, {
@@ -73,7 +64,48 @@ function run(command, arguments_, environment) {
   });
 }
 
-async function waitForServer(child, url) {
+export async function startOwnedServer({ command, arguments_, environment }) {
+  const child = spawn(command, arguments_, {
+    cwd: repositoryRoot,
+    env: { ...environment, PORT: '0' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let startupOutput = '';
+
+  try {
+    const port = await new Promise((resolvePort, rejectPort) => {
+      const timeout = setTimeout(() => {
+        rejectPort(new Error(`Timed out waiting for child-owned ephemeral port: ${startupOutput}`));
+      }, 20_000);
+      const finish = (callback, value) => {
+        clearTimeout(timeout);
+        callback(value);
+      };
+      child.once('error', (error) => finish(rejectPort, error));
+      child.once('close', (code) => {
+        finish(rejectPort, new Error(`Server child exited with status ${code}: ${startupOutput}`));
+      });
+      child.stdout.on('data', (chunk) => {
+        startupOutput += chunk.toString();
+        const match = startupOutput.match(
+          /(?:^|\n)- Local:\s+http:\/\/127\.0\.0\.1:(\d+)(?:\r?\n|$)/u,
+        );
+        const port = Number(match?.[1]);
+        if (Number.isInteger(port) && port > 0 && port <= 65535) finish(resolvePort, port);
+      });
+      child.stderr.on('data', (chunk) => {
+        startupOutput += chunk.toString();
+      });
+    });
+
+    return { baseUrl: `http://127.0.0.1:${port}`, child, port };
+  } catch (error) {
+    await stopOwnedServer(child);
+    throw error;
+  }
+}
+
+async function waitForOwnedServer(child, url) {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error(`next start exited with status ${child.exitCode}`);
@@ -85,10 +117,10 @@ async function waitForServer(child, url) {
     }
     await delay(100);
   }
-  throw new Error('Timed out waiting for next start');
+  throw new Error('Timed out waiting for child-owned next start');
 }
 
-async function stop(child) {
+export async function stopOwnedServer(child) {
   if (child.exitCode !== null) return;
   const closed = once(child, 'close');
   child.kill('SIGTERM');
@@ -126,24 +158,19 @@ export async function runMarketingProductionArtifactGate() {
     NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${supabasePort}`,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'production-artifact-gate-key',
   };
-  let server;
+  let ownedServer;
 
   try {
     await run(process.execPath, [nextBinary, 'build'], environment);
     await assertStaticMarketingRoutes();
 
-    const port = await availablePort();
-    server = spawn(
-      process.execPath,
-      [nextBinary, 'start', '--hostname', '127.0.0.1', '--port', String(port)],
-      {
-        cwd: repositoryRoot,
-        env: environment,
-        stdio: 'inherit',
-      },
-    );
-    const baseUrl = `http://127.0.0.1:${port}`;
-    await waitForServer(server, baseUrl);
+    ownedServer = await startOwnedServer({
+      arguments_: [nextBinary, 'start', '--hostname', '127.0.0.1', '--port', '0'],
+      command: process.execPath,
+      environment,
+    });
+    const { baseUrl, child } = ownedServer;
+    await waitForOwnedServer(child, baseUrl);
 
     for (const path of MARKETING_PATHS) {
       const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
@@ -166,7 +193,7 @@ export async function runMarketingProductionArtifactGate() {
       );
     }
   } finally {
-    if (server) await stop(server);
+    if (ownedServer) await stopOwnedServer(ownedServer.child);
     await closeServer(supabaseServer);
   }
 }
