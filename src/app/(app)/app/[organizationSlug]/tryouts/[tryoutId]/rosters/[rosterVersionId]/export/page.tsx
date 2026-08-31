@@ -129,6 +129,7 @@ export default async function RosterExportPage({
         completedCount: number;
         skippedCount: number;
         failedCount: number;
+        retryEligibleCount: number;
       }
     | undefined;
   const parsedLatestJob = latestJob
@@ -137,7 +138,7 @@ export default async function RosterExportPage({
   if (latestJob && parsedLatestJob.success) {
     const { data: items, error: itemsError } = await scoped.client
       .from('integration_sync_items')
-      .select('state')
+      .select('state,retry_eligible')
       .eq('organization_id', scoped.organization.id)
       .eq('sync_job_id', latestJob.id);
     if (itemsError) {
@@ -150,6 +151,10 @@ export default async function RosterExportPage({
         skippedCount: items?.filter((item) => item.state === 'skipped').length ?? 0,
         failedCount:
           items?.filter((item) => ['failed', 'requires_review'].includes(item.state)).length ?? 0,
+        retryEligibleCount:
+          items?.filter(
+            (item) => ['failed', 'requires_review'].includes(item.state) && item.retry_eligible,
+          ).length ?? 0,
       };
     }
   }

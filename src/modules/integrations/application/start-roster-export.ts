@@ -21,6 +21,7 @@ export type StartRosterExportResult =
       completedCount: number;
       skippedCount: number;
       failedCount: number;
+      retryEligibleCount: number;
     }
   | {
       outcome:

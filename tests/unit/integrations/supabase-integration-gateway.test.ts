@@ -128,6 +128,7 @@ describe('SupabaseIntegrationGateway', () => {
           completed_count: 0,
           skipped_count: 0,
           failed_count: 0,
+          retry_eligible_count: 0,
         },
         error: null,
       })
@@ -160,6 +161,7 @@ describe('SupabaseIntegrationGateway', () => {
       completedCount: 0,
       skippedCount: 0,
       failedCount: 0,
+      retryEligibleCount: 0,
     });
     await expect(
       gateway.retry({
@@ -171,6 +173,7 @@ describe('SupabaseIntegrationGateway', () => {
     ).resolves.toEqual({
       outcome: 'queued',
       jobId: ids.job,
+      state: 'pending',
       retriedItemCount: 1,
       preservedCompletedItemCount: 2,
       preservedSkippedItemCount: 1,

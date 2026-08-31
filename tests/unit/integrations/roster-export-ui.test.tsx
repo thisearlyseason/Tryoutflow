@@ -94,12 +94,19 @@ describe('integration export UI', () => {
         },
       ],
     });
-    const confirm = vi
-      .fn()
-      .mockResolvedValue({ outcome: 'queued', jobId: '10000000-0000-4000-8000-000000000001' });
+    const confirm = vi.fn().mockResolvedValue({
+      outcome: 'replayed',
+      jobId: '10000000-0000-4000-8000-000000000001',
+      state: 'needs_attention',
+      completedCount: 1,
+      skippedCount: 0,
+      failedCount: 1,
+      retryEligibleCount: 0,
+    });
     const retry = vi.fn().mockResolvedValue({
       outcome: 'queued',
       jobId: '10000000-0000-4000-8000-000000000001',
+      state: 'processing',
       retriedItemCount: 1,
       preservedCompletedItemCount: 1,
     });
@@ -116,6 +123,7 @@ describe('integration export UI', () => {
           completedCount: 1,
           skippedCount: 0,
           failedCount: 1,
+          retryEligibleCount: 1,
         }}
       />,
     );
@@ -134,12 +142,15 @@ describe('integration export UI', () => {
     expect(screen.getByText('One', { selector: 'dd' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
     expect(retry).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001');
+    expect(screen.getByRole('status')).toHaveTextContent(/processing/i);
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
     await user.click(screen.getByLabelText(/i reviewed the exact destination and fields/i));
     await user.click(screen.getByRole('button', { name: /confirm and queue export/i }));
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({ previewId: 'preview:task27:00000001' }),
     );
-    expect(screen.getByRole('status')).toHaveTextContent(/pending/i);
+    expect(screen.getByRole('status')).toHaveTextContent(/needs attention/i);
+    expect(screen.getByText(/delivery is uncertain/i)).toBeVisible();
   });
 
   it('shows a newly confirmed empty export as completed with no transfer', async () => {
@@ -164,6 +175,7 @@ describe('integration export UI', () => {
           completedCount: 0,
           skippedCount: 0,
           failedCount: 0,
+          retryEligibleCount: 0,
         })}
         onRetry={async () => ({ outcome: 'nothing_to_retry' })}
       />,
@@ -180,6 +192,28 @@ describe('integration export UI', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       /0 completed · 0 skipped · 0 failed\/reviewable · completed/i,
     );
+  });
+
+  it('does not offer ordinary retry for an ambiguous review item', () => {
+    render(
+      <RosterExportWizard
+        rosterVersionId="10000000-0000-4000-8000-000000000002"
+        destinations={[destination]}
+        onPreview={async () => ({ outcome: 'unavailable' })}
+        onConfirm={async () => ({ outcome: 'conflict' })}
+        onRetry={async () => ({ outcome: 'nothing_to_retry' })}
+        initialJob={{
+          id: '10000000-0000-4000-8000-000000000001',
+          state: 'failed',
+          completedCount: 0,
+          skippedCount: 0,
+          failedCount: 1,
+          retryEligibleCount: 0,
+        }}
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(/failed/i);
+    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
   it('renders an explicit preview error when the server action is unavailable', async () => {

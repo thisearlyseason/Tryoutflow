@@ -1436,6 +1436,7 @@ export type Database = {
           created_at: string;
           created_by_user_id: string;
           destination_snapshot: Json;
+          existing_athlete_ids: string[];
           expires_at: string;
           id: string;
           organization_id: string;
@@ -1459,6 +1460,7 @@ export type Database = {
           created_at?: string;
           created_by_user_id: string;
           destination_snapshot: Json;
+          existing_athlete_ids?: string[];
           expires_at?: string;
           id?: string;
           organization_id: string;
@@ -1482,6 +1484,7 @@ export type Database = {
           created_at?: string;
           created_by_user_id?: string;
           destination_snapshot?: Json;
+          existing_athlete_ids?: string[];
           expires_at?: string;
           id?: string;
           organization_id?: string;
@@ -1529,6 +1532,7 @@ export type Database = {
           available_at: string;
           cancelled_at: string | null;
           completed_at: string | null;
+          completion_result_digest: string | null;
           created_at: string;
           dead_lettered_at: string | null;
           id: string;
@@ -1556,6 +1560,7 @@ export type Database = {
           available_at?: string;
           cancelled_at?: string | null;
           completed_at?: string | null;
+          completion_result_digest?: string | null;
           created_at?: string;
           dead_lettered_at?: string | null;
           id?: string;
@@ -1583,6 +1588,7 @@ export type Database = {
           available_at?: string;
           cancelled_at?: string | null;
           completed_at?: string | null;
+          completion_result_digest?: string | null;
           created_at?: string;
           dead_lettered_at?: string | null;
           id?: string;
@@ -4183,6 +4189,16 @@ export type Database = {
         };
         Returns: string;
       };
+      complete_integration_outbox_job_legacy_078: {
+        Args: {
+          p_external_job_id: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_result: Json;
+        };
+        Returns: string;
+      };
       complete_outbox_job: {
         Args: {
           p_job_id: string;
@@ -4249,6 +4265,21 @@ export type Database = {
         SetofOptions: {
           from: '*';
           to: 'integration_export_confirmation_v2_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      confirm_roster_export_preview_v3: {
+        Args: {
+          p_confirmation_token: string;
+          p_idempotency_key: string;
+          p_organization_id: string;
+          p_provider_preview_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_export_confirmation_v3_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_export_confirmation_v3_result';
           isOneToOne: true;
           isSetofReturn: false;
         };
@@ -4446,6 +4477,16 @@ export type Database = {
         Returns: string;
       };
       fail_integration_outbox_job_legacy_077: {
+        Args: {
+          p_error_code: string;
+          p_job_id: string;
+          p_lease_generation: number;
+          p_lease_token: string;
+          p_retryable: boolean;
+        };
+        Returns: string;
+      };
+      fail_integration_outbox_job_legacy_078: {
         Args: {
           p_error_code: string;
           p_job_id: string;
@@ -5452,6 +5493,16 @@ export type Database = {
         completed_count: number | null;
         skipped_count: number | null;
         failed_count: number | null;
+      };
+      integration_export_confirmation_v3_result: {
+        outcome: string | null;
+        job_id: string | null;
+        state: string | null;
+        item_count: number | null;
+        completed_count: number | null;
+        skipped_count: number | null;
+        failed_count: number | null;
+        retry_eligible_count: number | null;
       };
       integration_export_source_result: {
         outcome: string | null;

@@ -14,6 +14,7 @@ export type RetrySyncJobResult =
   | {
       outcome: 'queued' | 'replayed';
       jobId: string;
+      state: string;
       retriedItemCount: number;
       preservedCompletedItemCount: number;
       preservedSkippedItemCount: number;

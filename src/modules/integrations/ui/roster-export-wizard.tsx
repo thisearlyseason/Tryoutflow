@@ -29,6 +29,7 @@ type JobView = Readonly<{
   completedCount: number;
   skippedCount: number;
   failedCount: number;
+  retryEligibleCount: number;
 }>;
 type ConfirmResult = {
   outcome: string;
@@ -37,8 +38,28 @@ type ConfirmResult = {
   completedCount?: number;
   skippedCount?: number;
   failedCount?: number;
+  retryEligibleCount?: number;
 };
-type RetryResult = { outcome: string; jobId?: string };
+type RetryResult = {
+  outcome: string;
+  jobId?: string;
+  state?: string;
+  retriedItemCount?: number;
+};
+
+const jobStates = new Set<JobView['state']>([
+  'pending',
+  'processing',
+  'completed',
+  'partially_completed',
+  'failed',
+  'needs_attention',
+  'cancelled',
+]);
+
+function isJobState(value: string | undefined): value is JobView['state'] {
+  return value !== undefined && jobStates.has(value as JobView['state']);
+}
 
 type RosterExportWizardProps = Readonly<{
   rosterVersionId: string;
@@ -109,12 +130,17 @@ export function RosterExportWizard({
         confirmationToken: preview.confirmationToken,
       });
       if (['queued', 'replayed', 'completed'].includes(result.outcome) && result.jobId) {
+        if (!isJobState(result.state)) {
+          setMessage('The durable job returned an invalid state. Refresh before taking action.');
+          return;
+        }
         setJob({
           id: result.jobId,
-          state: result.state === 'completed' ? 'completed' : 'pending',
+          state: result.state,
           completedCount: result.completedCount ?? 0,
           skippedCount: result.skippedCount ?? 0,
           failedCount: result.failedCount ?? 0,
+          retryEligibleCount: result.retryEligibleCount ?? 0,
         });
         setMessage(
           result.outcome === 'completed'
@@ -138,6 +164,19 @@ export function RosterExportWizard({
     setPending(true);
     try {
       const result = await onRetry(job.id);
+      if ((result.outcome === 'queued' || result.outcome === 'replayed') && result.jobId) {
+        if (!isJobState(result.state)) {
+          setMessage('The durable retry returned an invalid state. Refresh before taking action.');
+          return;
+        }
+        setJob({
+          ...job,
+          id: result.jobId,
+          state: result.state,
+          failedCount: Math.max(0, job.failedCount - (result.retriedItemCount ?? 0)),
+          retryEligibleCount: 0,
+        });
+      }
       setMessage(
         result.outcome === 'manual_attention_required'
           ? 'Delivery is uncertain. Manual attention is required; retry is disabled.'
@@ -297,15 +336,20 @@ export function RosterExportWizard({
               Delivery is uncertain. Manual attention is required; retry is disabled to prevent a
               duplicate external transfer.
             </p>
-          ) : job.failedCount > 0 ? (
+          ) : job.retryEligibleCount > 0 ? (
             <button
               type="button"
               disabled={pending}
               onClick={retry}
               className="mt-4 min-h-11 rounded-xl border-2 border-coral-600 px-5 py-3 font-bold text-coral-800"
             >
-              Retry {job.failedCount} failed item{job.failedCount === 1 ? '' : 's'}
+              Retry {job.retryEligibleCount} failed item
+              {job.retryEligibleCount === 1 ? '' : 's'}
             </button>
+          ) : job.failedCount > 0 ? (
+            <p className="mt-3 font-semibold text-amber-900">
+              These items are not safe for automatic retry. Review them manually.
+            </p>
           ) : null}
         </section>
       ) : null}

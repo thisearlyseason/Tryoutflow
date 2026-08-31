@@ -39,6 +39,7 @@ const confirmationSchema = z.discriminatedUnion('outcome', [
     completed_count: z.number().int(),
     skipped_count: z.number().int(),
     failed_count: z.number().int(),
+    retry_eligible_count: z.number().int().min(0).max(5_100),
   }),
   z.strictObject({
     outcome: z.enum([
@@ -162,7 +163,7 @@ export class SupabaseIntegrationGateway
   }
 
   async confirmPreview(input: Parameters<StartRosterExportGateway['confirmPreview']>[0]) {
-    const { data, error } = await this.client.rpc('confirm_roster_export_preview_v2', {
+    const { data, error } = await this.client.rpc('confirm_roster_export_preview_v3', {
       p_organization_id: input.organizationId,
       p_provider_preview_id: input.previewId,
       p_confirmation_token: input.confirmationToken,
@@ -184,6 +185,7 @@ export class SupabaseIntegrationGateway
         completedCount: parsed.data.completed_count,
         skippedCount: parsed.data.skipped_count,
         failedCount: parsed.data.failed_count,
+        retryEligibleCount: parsed.data.retry_eligible_count,
       };
     }
     return { outcome: parsed.data.outcome };
@@ -202,6 +204,7 @@ export class SupabaseIntegrationGateway
       return {
         outcome: parsed.data.outcome,
         jobId: parsed.data.job_id,
+        state: parsed.data.state,
         retriedItemCount: parsed.data.retried_item_count,
         preservedCompletedItemCount: parsed.data.preserved_completed_item_count,
         preservedSkippedItemCount: parsed.data.preserved_skipped_item_count,

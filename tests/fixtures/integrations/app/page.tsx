@@ -64,14 +64,28 @@ export default function Page() {
           },
         ],
       })}
-      onConfirm={async () => ({ outcome: 'queued', jobId: '10000000-0000-4000-8000-000000000001' })}
-      onRetry={async () => ({ outcome: 'queued', jobId: '10000000-0000-4000-8000-000000000001' })}
+      onConfirm={async () => ({
+        outcome: 'queued',
+        jobId: '10000000-0000-4000-8000-000000000001',
+        state: 'pending',
+        completedCount: 0,
+        skippedCount: 0,
+        failedCount: 0,
+        retryEligibleCount: 0,
+      })}
+      onRetry={async () => ({
+        outcome: 'queued',
+        jobId: '10000000-0000-4000-8000-000000000001',
+        state: 'pending',
+        retriedItemCount: 1,
+      })}
       initialJob={{
         id: '10000000-0000-4000-8000-000000000001',
         state: 'partially_completed',
         completedCount: 1,
         skippedCount: 0,
         failedCount: 1,
+        retryEligibleCount: 1,
       }}
     />
   );
