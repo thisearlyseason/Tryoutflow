@@ -7,10 +7,9 @@ declare
   session_id uuid;
   ordinal integer := 0;
 begin
-  -- Replay is an intentional no-op. Every persisted identity below is fixed.
-  if exists(select 1 from public.organizations where id='29000000-0000-4000-8000-000000000001') then
-    return;
-  end if;
+  -- First creation exercises the real schema and immutable domain triggers.
+  -- The convergence section below runs on every replay.
+  if not exists(select 1 from public.organizations where id='29000000-0000-4000-8000-000000000001') then
 
   insert into auth.users(id,aud,role,email,email_confirmed_at,created_at,updated_at) values
     ('29000000-0000-4000-8000-000000000011','authenticated','authenticated','owner@badlands.example.test',fixed_time,fixed_time,fixed_time),
@@ -62,8 +61,8 @@ begin
   insert into public.rubric_versions(id,organization_id,tryout_id,rubric_id,version_number,status,published_at,created_at,updated_at)
   values('29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000053',1,'draft',null,fixed_time,fixed_time);
   insert into public.rubric_categories(id,organization_id,tryout_id,rubric_version_id,name,sort_order,weight,scale_min,scale_max,is_priority,created_at,updated_at) values
-    ('29000000-0000-4000-8000-000000000055','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000054','Skating',0,50,1,5,true,fixed_time,fixed_time),
-    ('29000000-0000-4000-8000-000000000056','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000054','Game sense',1,50,1,5,false,fixed_time,fixed_time);
+    ('29000000-0000-4000-8000-000000000055','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000054','Skating',0,90,1,5,true,fixed_time,fixed_time),
+    ('29000000-0000-4000-8000-000000000056','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000054','Game sense',1,10,1,10,false,fixed_time,fixed_time);
   insert into public.session_rubrics(id,organization_id,tryout_id,session_id,rubric_version_id,created_at,updated_at) values
     ('29000000-0000-4000-8000-000000000057','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000037','29000000-0000-4000-8000-000000000054',fixed_time,fixed_time),
     ('29000000-0000-4000-8000-000000000058','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000038','29000000-0000-4000-8000-000000000054',fixed_time,fixed_time);
@@ -105,8 +104,8 @@ begin
   insert into public.evaluations(id,organization_id,tryout_id,division_id,tryout_registration_id,tryout_session_id,evaluator_user_id,rubric_version_id,state,version,created_at,updated_at)
   values('29000000-0000-4000-8000-000000000121','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033','29000000-0000-4000-8000-000000000071','29000000-0000-4000-8000-000000000037','29000000-0000-4000-8000-000000000013','29000000-0000-4000-8000-000000000054','draft',1,fixed_time,fixed_time);
   insert into public.evaluation_scores(id,organization_id,tryout_id,evaluation_id,rubric_version_id,rubric_category_id,value,created_at,updated_at) values
-    ('29000000-0000-4000-8000-000000000131','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000121','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000055',4,fixed_time,fixed_time),
-    ('29000000-0000-4000-8000-000000000132','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000121','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000056',4,fixed_time,fixed_time);
+    ('29000000-0000-4000-8000-000000000131','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000121','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000055',5,fixed_time,fixed_time),
+    ('29000000-0000-4000-8000-000000000132','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000121','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000056',2,fixed_time,fixed_time);
   insert into public.evaluation_notes(id,organization_id,evaluation_id,evaluator_user_id,note,created_at,updated_at)
   values('29000000-0000-4000-8000-000000000141','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000121','29000000-0000-4000-8000-000000000013','Synthetic private note that must never appear in reports.',fixed_time,fixed_time);
   perform private.permit_evaluation_write('29000000-0000-4000-8000-000000000121','complete');
@@ -117,8 +116,8 @@ begin
   insert into public.evaluations(id,organization_id,tryout_id,division_id,tryout_registration_id,tryout_session_id,evaluator_user_id,rubric_version_id,state,version,created_at,updated_at)
   values('29000000-0000-4000-8000-000000000122','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033','29000000-0000-4000-8000-000000000072','29000000-0000-4000-8000-000000000037','29000000-0000-4000-8000-000000000014','29000000-0000-4000-8000-000000000054','draft',1,fixed_time,fixed_time);
   insert into public.evaluation_scores(id,organization_id,tryout_id,evaluation_id,rubric_version_id,rubric_category_id,value,created_at,updated_at) values
-    ('29000000-0000-4000-8000-000000000133','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000122','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000055',4,fixed_time,fixed_time),
-    ('29000000-0000-4000-8000-000000000134','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000122','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000056',4,fixed_time,fixed_time);
+    ('29000000-0000-4000-8000-000000000133','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000122','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000055',5,fixed_time,fixed_time),
+    ('29000000-0000-4000-8000-000000000134','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000122','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000056',2,fixed_time,fixed_time);
   perform private.permit_evaluation_write('29000000-0000-4000-8000-000000000122','complete');
   update public.evaluations set state='completed',version=2,completed_at='2026-08-28 18:21:00+00',updated_at='2026-08-28 18:21:00+00' where id='29000000-0000-4000-8000-000000000122';
   delete from private.evaluation_write_permits where transaction_id=txid_current() and evaluation_id='29000000-0000-4000-8000-000000000122';
@@ -148,6 +147,7 @@ begin
   insert into public.roster_assignments(organization_id,tryout_id,division_id,roster_version_id,registration_id,team_id,assigned_by_user_id,assigned_at) values
     ('29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033','29000000-0000-4000-8000-000000000153','29000000-0000-4000-8000-000000000071','29000000-0000-4000-8000-000000000151','29000000-0000-4000-8000-000000000012',fixed_time),
     ('29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033','29000000-0000-4000-8000-000000000153','29000000-0000-4000-8000-000000000075','29000000-0000-4000-8000-000000000152','29000000-0000-4000-8000-000000000012',fixed_time);
+  perform private.capture_roster_report_snapshot('29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033','29000000-0000-4000-8000-000000000153','2026-08-28 18:30:00+00');
   update public.roster_versions set state='finalized',version=2,finalized_by_user_id='29000000-0000-4000-8000-000000000012',finalized_at='2026-08-28 18:30:00+00',updated_at='2026-08-28 18:30:00+00' where id='29000000-0000-4000-8000-000000000153';
   insert into public.audit_logs(id,organization_id,actor_user_id,action,entity_type,entity_id,occurred_at)
   values('29000000-0000-4000-8000-000000000154','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000012','roster.finalized','roster_version','29000000-0000-4000-8000-000000000153','2026-08-28 18:30:00+00');
@@ -157,9 +157,50 @@ begin
   insert into public.integration_connections(id,organization_id,provider_key,display_name,state,mock_data,created_by_user_id,connected_at,last_verified_at,created_at,updated_at)
   values('29000000-0000-4000-8000-000000000161','29000000-0000-4000-8000-000000000001','the-squad','The Squad demo/mock','connected',true,'29000000-0000-4000-8000-000000000011',fixed_time,fixed_time,fixed_time,fixed_time);
   insert into public.integration_sync_jobs(id,organization_id,connection_id,provider_key,business_idempotency_key,request_digest,roster_version_id,roster_version,destination_snapshot,approved_fields,provider_preview_id,state,external_job_id,mock_data,created_by_user_id,completed_at,last_error,created_at,updated_at,approved_projection) values
-    ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:success:0001',repeat('6',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],'preview:badlands:success:0001','completed','mock-job-success',true,'29000000-0000-4000-8000-000000000011','2026-08-28 18:40:00+00',null,fixed_time,'2026-08-28 18:40:00+00','[]'),
-    ('29000000-0000-4000-8000-000000000163','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:failure:0001',repeat('7',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],'preview:badlands:failure:0001','failed',null,true,'29000000-0000-4000-8000-000000000011',null,'{"code":"synthetic_failure","retryable":false}',fixed_time,'2026-08-28 18:41:00+00','[]');
+    ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:success:0001',repeat('6',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],'preview:badlands:success:0001','completed','mock-job-success',true,'29000000-0000-4000-8000-000000000011','2026-08-28 18:40:00+00',null,fixed_time,'2026-08-28 18:40:00+00','[{"itemKey":"athlete:29000000-0000-4000-8000-000000000071","firstName":"Avery","lastName":"Synthetic","teamName":"Badlands Blue"}]'),
+    ('29000000-0000-4000-8000-000000000163','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:failure:0001',repeat('7',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],'preview:badlands:failure:0001','failed',null,true,'29000000-0000-4000-8000-000000000011',null,'{"code":"synthetic_failure","retryable":false}',fixed_time,'2026-08-28 18:41:00+00','[{"itemKey":"athlete:29000000-0000-4000-8000-000000000072","firstName":"Blake","lastName":"Synthetic"}]');
   insert into public.tryout_setup_progress(id,organization_id,tryout_id,completed_steps,last_step,updated_at)
   values('29000000-0000-4000-8000-000000000171','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032',array['basics','divisions','sessions','registration','rubrics','review','publish'],'publish',fixed_time);
+  end if;
+
+  -- Replay convergence repairs mutable demo facts without bypassing RLS,
+  -- immutable snapshot triggers, or integration lifecycle constraints.
+  -- A second independent evaluator scores Avery identically. This exercises
+  -- the real per-evaluator calculation followed by athlete aggregation.
+  if not exists(select 1 from public.evaluations where id='29000000-0000-4000-8000-000000000124') then
+    perform private.permit_evaluation_write('29000000-0000-4000-8000-000000000124','save');
+    insert into public.evaluations(id,organization_id,tryout_id,division_id,tryout_registration_id,tryout_session_id,evaluator_user_id,rubric_version_id,state,version,created_at,updated_at)
+    values('29000000-0000-4000-8000-000000000124','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033','29000000-0000-4000-8000-000000000071','29000000-0000-4000-8000-000000000037','29000000-0000-4000-8000-000000000014','29000000-0000-4000-8000-000000000054','draft',1,fixed_time,fixed_time);
+    insert into public.evaluation_scores(id,organization_id,tryout_id,evaluation_id,rubric_version_id,rubric_category_id,value,created_at,updated_at) values
+      ('29000000-0000-4000-8000-000000000137','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000124','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000055',5,fixed_time,fixed_time),
+      ('29000000-0000-4000-8000-000000000138','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000124','29000000-0000-4000-8000-000000000054','29000000-0000-4000-8000-000000000056',2,fixed_time,fixed_time);
+    perform private.permit_evaluation_write('29000000-0000-4000-8000-000000000124','complete');
+    update public.evaluations set state='completed',version=2,completed_at='2026-08-28 18:22:00+00',updated_at='2026-08-28 18:22:00+00'
+      where id='29000000-0000-4000-8000-000000000124';
+    delete from private.evaluation_write_permits where transaction_id=txid_current() and evaluation_id='29000000-0000-4000-8000-000000000124';
+  end if;
+  update public.athletes set given_name='Avery',family_name='Synthetic',normalized_given_name='avery',normalized_family_name='synthetic'
+    where id='29000000-0000-4000-8000-000000000061' and (given_name,family_name,normalized_given_name,normalized_family_name) is distinct from ('Avery','Synthetic','avery','synthetic');
+  insert into public.tryout_setup_progress(id,organization_id,tryout_id,completed_steps,last_step,updated_at)
+  values('29000000-0000-4000-8000-000000000171','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032',array['basics','divisions','sessions','registration','rubrics','review','publish'],'publish',fixed_time)
+  on conflict(id) do update set completed_steps=excluded.completed_steps,last_step=excluded.last_step
+  where tryout_setup_progress.completed_steps is distinct from excluded.completed_steps or tryout_setup_progress.last_step is distinct from excluded.last_step;
+  update public.integration_sync_jobs set approved_projection=
+    '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000071","firstName":"Avery","lastName":"Synthetic","teamName":"Badlands Blue"}]'
+    where id='29000000-0000-4000-8000-000000000162' and approved_projection is distinct from
+      '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000071","firstName":"Avery","lastName":"Synthetic","teamName":"Badlands Blue"}]'::jsonb;
+  update public.integration_sync_jobs set approved_projection=
+    '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000072","firstName":"Blake","lastName":"Synthetic"}]'
+    where id='29000000-0000-4000-8000-000000000163' and approved_projection is distinct from
+      '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000072","firstName":"Blake","lastName":"Synthetic"}]'::jsonb;
+  insert into public.integration_sync_items(id,organization_id,sync_job_id,item_key,entity_type,internal_entity_id,operation,state,attempts,external_ref,completed_at,created_at,updated_at) values
+    ('29000000-0000-4000-8000-000000000181','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000162','athlete:29000000-0000-4000-8000-000000000071','athlete','29000000-0000-4000-8000-000000000071','create','completed',1,'{"externalId":"synthetic-athlete-071","entityType":"athlete"}','2026-08-28 18:40:00+00',fixed_time,'2026-08-28 18:40:00+00')
+  on conflict(id) do nothing;
+  insert into public.integration_sync_items(id,organization_id,sync_job_id,item_key,entity_type,internal_entity_id,operation,state,attempts,normalized_error,retry_eligible,created_at,updated_at) values
+    ('29000000-0000-4000-8000-000000000182','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000163','athlete:29000000-0000-4000-8000-000000000072','athlete','29000000-0000-4000-8000-000000000072','create','failed',1,'{"code":"synthetic_failure","retryable":false}',false,fixed_time,'2026-08-28 18:41:00+00')
+  on conflict(id) do nothing;
+  insert into public.external_entity_mappings(id,organization_id,connection_id,provider_key,entity_type,internal_entity_id,external_id,external_ref,first_sync_job_id,last_sync_job_id,created_at,updated_at)
+  values('29000000-0000-4000-8000-000000000183','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','athlete','29000000-0000-4000-8000-000000000071','synthetic-athlete-071','{"externalId":"synthetic-athlete-071","entityType":"athlete"}','29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000162',fixed_time,'2026-08-28 18:40:00+00')
+  on conflict(id) do nothing;
 end
 $seed$;

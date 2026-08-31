@@ -13,6 +13,23 @@ function psql(sql: string): string {
   }).trim();
 }
 
+function psqlTransaction(sql: string): string {
+  return execFileSync(
+    'psql',
+    ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', 'begin', '-c', sql, '-c', 'rollback'],
+    { encoding: 'utf8' },
+  ).trim();
+}
+
+function jsonResult(output: string): unknown {
+  const line = output
+    .split('\n')
+    .reverse()
+    .find((candidate) => candidate.startsWith('{'));
+  if (!line) throw new Error('SQL command did not return a JSON object');
+  return JSON.parse(line);
+}
+
 describe('deterministic Badlands demo seed', () => {
   it('contains realistic edge cases without live contact data', () => {
     const facts = JSON.parse(
@@ -76,5 +93,123 @@ describe('deterministic Badlands demo seed', () => {
         union all select id::text||':'||state from public.integration_sync_jobs where organization_id='29000000-0000-4000-8000-000000000001'
       ) stable`);
     expect(after).toBe(before);
+  });
+
+  it('converges deleted and corrupted mutable demo subsets with consistent mock sync evidence', () => {
+    psql(`update public.athletes set given_name='Corrupted' where id='29000000-0000-4000-8000-000000000061';
+      delete from public.tryout_setup_progress where id='29000000-0000-4000-8000-000000000171';
+      update public.integration_sync_jobs set approved_projection='[]' where id='29000000-0000-4000-8000-000000000162';
+      delete from public.integration_sync_items where sync_job_id in ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000163');
+      delete from public.external_entity_mappings where connection_id='29000000-0000-4000-8000-000000000161'`);
+    execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', databaseUrl, '-f', 'supabase/seed.sql'], {
+      encoding: 'utf8',
+    });
+    expect(
+      JSON.parse(
+        psql(`select jsonb_build_object(
+          'name',(select given_name from public.athletes where id='29000000-0000-4000-8000-000000000061'),
+          'setup',(select count(*) from public.tryout_setup_progress where id='29000000-0000-4000-8000-000000000171'),
+          'projections',(select count(*) from public.integration_sync_jobs where id in ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000163') and jsonb_array_length(approved_projection)>0),
+          'items',(select count(*) from public.integration_sync_items where sync_job_id in ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000163')),
+          'mappings',(select count(*) from public.external_entity_mappings where connection_id='29000000-0000-4000-8000-000000000161')
+        )`),
+      ),
+    ).toEqual({ name: 'Avery', setup: 1, projections: 2, items: 2, mappings: 1 });
+  });
+
+  it('keeps a finalized roster projection unchanged when live identity and number records change', () => {
+    const result = jsonResult(
+      psqlTransaction(`set local role authenticated;
+        select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000011',true);
+        create temporary table before_export as select result from public.load_report_export(
+          '29000000-0000-4000-8000-000000000001','roster','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000153',5000);
+        reset role;
+        update public.athletes set given_name='Changed after finalization' where id='29000000-0000-4000-8000-000000000061';
+        update public.tryout_numbers set released_at='2026-08-29 00:00:00+00' where registration_id='29000000-0000-4000-8000-000000000071';
+        set local role authenticated;
+        select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000011',true);
+        select jsonb_build_object('same',(select result from before_export)=(select result from public.load_report_export(
+          '29000000-0000-4000-8000-000000000001','roster','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000153',5000)));`),
+    );
+    expect(result).toEqual({ same: true });
+  });
+
+  it('rejects finalized decision/team mutations and captures a distinct correction snapshot', () => {
+    expect(() =>
+      psqlTransaction(`update public.roster_decisions set status='released'
+        where roster_version_id='29000000-0000-4000-8000-000000000153'
+          and registration_id='29000000-0000-4000-8000-000000000071'`),
+    ).toThrow(/finalized roster snapshots are immutable/iu);
+    expect(() =>
+      psqlTransaction(`update public.tryout_teams set name='Changed live team'
+        where id='29000000-0000-4000-8000-000000000151'`),
+    ).toThrow(/teams in finalized rosters are immutable/iu);
+
+    const result = jsonResult(
+      psqlTransaction(`delete from public.roster_versions where id='29000000-0000-4000-8000-000000000155';
+        set local role authenticated;
+        select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000011',true);
+        create temporary table original as select result from public.load_report_export(
+          '29000000-0000-4000-8000-000000000001','roster','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000153',5000);
+        create temporary table revised as select roster_version_id from public.revise_roster_version(
+          '29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033',
+          '29000000-0000-4000-8000-000000000153',2,'Synthetic correction changes a final selection.','REVISE ROSTER');
+        select * from public.change_roster_decisions(
+          '29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033',
+          (select roster_version_id from revised),
+          '[{"registrationId":"29000000-0000-4000-8000-000000000071","status":"released"}]',1,'CONFIRM DECISIONS');
+        select * from public.move_roster_athlete(
+          '29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033',
+          (select roster_version_id from revised),'29000000-0000-4000-8000-000000000071','29000000-0000-4000-8000-000000000152',2);
+        select * from public.finalize_roster_version(
+          '29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000033',
+          (select roster_version_id from revised),3,'FINALIZE ROSTER');
+        select jsonb_build_object(
+          'originalUnchanged',(select result from original)=(select result from public.load_report_export(
+            '29000000-0000-4000-8000-000000000001','roster','29000000-0000-4000-8000-000000000032','29000000-0000-4000-8000-000000000153',5000)),
+          'revisionDiffers',(select result from original)<>(select result from public.load_report_export(
+            '29000000-0000-4000-8000-000000000001','roster','29000000-0000-4000-8000-000000000032',(select roster_version_id from revised),5000)),
+          'revisedRow',(select item from public.load_report_export(
+            '29000000-0000-4000-8000-000000000001','roster','29000000-0000-4000-8000-000000000032',(select roster_version_id from revised),5000),
+            jsonb_array_elements(result#>'{snapshot,rows}') item where item->>'preferredName'='Avery')
+        );`),
+    );
+    expect(result).toMatchObject({
+      originalUnchanged: true,
+      revisionDiffers: true,
+      revisedRow: { decision: 'released', team: 'Badlands Gold' },
+    });
+  });
+
+  it('uses the same all-athlete population for organization summary and export', () => {
+    const result = jsonResult(
+      psqlTransaction(`insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date)
+        values('29000000-0000-4000-8000-000000000099','29000000-0000-4000-8000-000000000001','Unregistered','Synthetic','unregistered','synthetic','2012-09-09');
+        set local role authenticated;
+        select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000011',true);
+        with exported as (select result from public.load_report_export('29000000-0000-4000-8000-000000000001','athletes',null,null,5000)),
+        summary as (select result from public.load_report_summary('29000000-0000-4000-8000-000000000001',null))
+        select jsonb_build_object(
+          'summary',(select (result#>>'{summary,athleteCount}')::int from summary),
+          'rows',(select jsonb_array_length(result->'rows') from exported),
+          'unregistered',(select item->'registrationStatus' from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Unregistered')
+        );`),
+    );
+    expect(result).toEqual({ summary: 6, rows: 6, unregistered: null });
+  });
+
+  it('matches Task 18 weighted totals and preserves incomplete lifecycle counts', () => {
+    const result = jsonResult(
+      psqlTransaction(`set local role authenticated;
+        select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000011',true);
+        with exported as (select result from public.load_report_export(
+          '29000000-0000-4000-8000-000000000001','evaluations','29000000-0000-4000-8000-000000000032',null,5000))
+        select jsonb_build_object(
+          'weighted',(select item->>'overallScore' from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Avery' and item->>'session'='Skills and skating'),
+          'completed',(select (item->>'completedCount')::int from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Avery' and item->>'session'='Skills and skating'),
+          'draft',(select (item->>'draftCount')::int from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Casey' and item->>'session'='Scrimmage')
+        );`),
+    );
+    expect(result).toEqual({ weighted: '92.0000', completed: 2, draft: 1 });
   });
 });

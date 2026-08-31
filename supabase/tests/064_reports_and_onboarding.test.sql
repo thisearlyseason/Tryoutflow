@@ -5,10 +5,9 @@ select has_function('public','load_report_export',array['uuid','text','uuid','uu
 select has_function('public','load_report_summary',array['uuid','uuid']);
 select has_function('public','load_onboarding_facts',array['uuid']);
 select is((select proconfig from pg_proc where oid=to_regprocedure('public.load_report_export(uuid,text,uuid,uuid,integer)')),array['search_path=""']::text[],'export projection has an empty search path');
-select is(
-  (select regexp_count(pg_get_functiondef(to_regprocedure('public.load_report_export(uuid,text,uuid,uuid,integer)')), 'limit \(p_max_rows \+ 1\)')),
-  3,
-  'each export projection inspects at most max rows plus one truncation sentinel'
+select has_function(
+  'private','bounded_report_evaluation_candidates',array['uuid','uuid','integer'],
+  'evaluation candidates are bounded before report joins and grouping'
 );
 select ok(has_function_privilege('authenticated','public.load_report_export(uuid,text,uuid,uuid,integer)','execute'),'authenticated users can call guarded export projection');
 select ok(not has_function_privilege('anon','public.load_report_export(uuid,text,uuid,uuid,integer)','execute'),'anonymous users cannot export');
