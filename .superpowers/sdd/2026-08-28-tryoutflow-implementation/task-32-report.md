@@ -1,5 +1,19 @@
 # Task 32 privacy-safe operations and runbooks report
 
+## Review closure — fix round 3
+
+The revoked-proxy escape against `50586cfdc55ae5f6f6c662a9203b332fbc8d929b` is closed.
+
+- The primitive snapshot's complete input-shape inspection now runs inside the same nonthrowing
+  boundary as own-key discovery, property access, normalization, and freezing. In particular,
+  `Array.isArray` can no longer propagate the engine exception raised by a revoked proxy.
+- Revoked record and array proxies now produce a closed null/empty outcome through the primitive
+  helper, redaction, structured logging, application-error normalization, analytics serialization,
+  the fake analytics provider, and platform route recovery. Proxy arrays remain rejected, and
+  nested revoked/proxy arrays are safely dropped without inspecting or reporting exception text.
+- Trusted logger/output failures remain outside the untrusted snapshot catch and continue to
+  propagate as programmer/provider failures.
+
 ## Review closure — fix round 2
 
 The remaining adversarial privacy-boundary finding against
@@ -161,12 +175,14 @@ or browser-noise monitor was weakened. The final complete matrix passed without 
 | Seeded supervised integration, run 1 | 30 files / 212 tests passed.                                                                                                                                                 |
 | Seeded supervised integration, run 2 | 30 files / 212 tests passed.                                                                                                                                                 |
 | Round 2 adversarial privacy gate     | 2 files / 18 tests passed for one-read snapshots, accessors, proxies, inherited/symbol keys, mutation, non-records, and closed route errors.                                 |
-| Final repository verification        | Prettier, ESLint, TypeScript, 78 unit files / 1,010 tests, and production marketing verification passed.                                                                     |
+| Round 3 revoked-proxy privacy gate   | 2 files / 21 tests passed for direct/public-consumer revoked proxies plus nested and proxied arrays.                                                                         |
+| Final repository verification        | Prettier, ESLint, TypeScript, 78 unit files / 1,013 tests, and production marketing verification passed.                                                                     |
 | Contract suite                       | 4 files / 145 tests passed, including the deterministic analytics fake and server-only import enforcement.                                                                   |
 | Full browser release matrix          | 155/155 passed across Chromium, Firefox, WebKit, Mobile Chrome, and Mobile Safari with `--retries=0`.                                                                        |
 | Final focused platform browser gate  | 6/6 passed on Chromium and Mobile Safari with `--retries=0`.                                                                                                                 |
 | Review platform + Task 31 regression | 35/35 platform/error-state cases passed across all five projects through canonical `test:e2e`, retries 0.                                                                    |
 | Round 2 platform browser gate        | 15/15 platform administration cases passed across all five projects through canonical `test:e2e`, retries 0.                                                                 |
+| Round 3 platform browser smoke       | 3/3 platform administration cases passed on Chromium through canonical `test:e2e`, retries 0.                                                                                |
 | Standalone production build          | Compiled, typed, generated 33 static pages, and finalized all platform/API routes.                                                                                           |
 | Dependency audit                     | `npm audit --audit-level=high`: 0 vulnerabilities.                                                                                                                           |
 | Diff gates                           | `git diff --check` passed; baseline remained the requested commit before the Task 32 commit.                                                                                 |

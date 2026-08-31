@@ -93,4 +93,17 @@ describe('platform route context', () => {
     expect(JSON.stringify(received)).not.toMatch(/sk_private|private@example\.com|score_98/u);
     expect(mocks.notFound).not.toHaveBeenCalled();
   });
+
+  it('normalizes a revoked proxy rejection to the closed platform recovery error', async () => {
+    const revoked = Proxy.revocable(new AppError('platform_forbidden'), {});
+    revoked.revoke();
+    mocks.health.mockRejectedValue(revoked.proxy);
+
+    await expect(requirePlatformRouteContext()).rejects.toMatchObject({
+      category: 'unexpected',
+      code: 'platform_unavailable',
+      message: 'Platform administration is unavailable.',
+    });
+    expect(mocks.notFound).not.toHaveBeenCalled();
+  });
 });

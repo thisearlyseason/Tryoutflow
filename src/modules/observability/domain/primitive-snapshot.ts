@@ -15,9 +15,9 @@ export function snapshotOwnPrimitives(
   normalizers: Readonly<Record<string, PrimitiveNormalizer>>,
   options: SnapshotOptions = {},
 ): Readonly<Record<string, SnapshotPrimitive>> | null {
-  if (typeof input !== 'object' || input === null || Array.isArray(input)) return null;
-
   try {
+    if (typeof input !== 'object' || input === null || Array.isArray(input)) return null;
+
     const allowedKeys = Object.keys(normalizers);
     if (options.rejectUnknownKeys) {
       const allowed = new Set(allowedKeys);

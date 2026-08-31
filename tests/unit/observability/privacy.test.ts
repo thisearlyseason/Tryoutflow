@@ -11,6 +11,7 @@ import {
   createCorrelationId,
   type CorrelationId,
 } from '../../../src/modules/observability/domain/correlation-id';
+import { snapshotOwnPrimitives } from '../../../src/modules/observability/domain/primitive-snapshot';
 import {
   logError,
   redactLogContext,
@@ -241,6 +242,62 @@ describe('privacy-safe observability', () => {
     expect(redactLogContext(callable as never)).toEqual({});
   });
 
+  it('closes revoked and proxied arrays at the primitive, redaction, and logging boundaries', () => {
+    const revokedRecord = Proxy.revocable({}, {});
+    revokedRecord.revoke();
+    const revokedArray = Proxy.revocable([], {});
+    revokedArray.revoke();
+    const proxiedArray = new Proxy([], {});
+    const nestedRevokedArray = Proxy.revocable([], {});
+    nestedRevokedArray.revoke();
+    const normalizeOperation = {
+      operation: (value: unknown) => (typeof value === 'string' ? value : undefined),
+    };
+
+    for (const input of [revokedRecord.proxy, revokedArray.proxy, proxiedArray]) {
+      let snapshot: ReturnType<typeof snapshotOwnPrimitives> | undefined;
+      expect(() => {
+        snapshot = snapshotOwnPrimitives(input, normalizeOperation);
+      }).not.toThrow();
+      expect(snapshot).toBeNull();
+      expect(() => redactLogContext(input as never)).not.toThrow();
+      expect(redactLogContext(input as never)).toEqual({});
+    }
+
+    const nested = snapshotOwnPrimitives(
+      { operation: nestedRevokedArray.proxy },
+      normalizeOperation,
+    );
+    expect(nested).not.toBeNull();
+    expect(Object.getPrototypeOf(nested)).toBeNull();
+    expect(Object.isFrozen(nested)).toBe(true);
+    expect(Object.keys(nested ?? {})).toEqual([]);
+    expect(redactLogContext({ operation: nestedRevokedArray.proxy })).toEqual({});
+
+    const revokedError = Proxy.revocable(new AppError('integration_unavailable'), {});
+    revokedError.revoke();
+    const records: unknown[] = [];
+    expect(appErrorDetails(revokedError.proxy)).toEqual({
+      category: 'unexpected',
+      code: 'unexpected_error',
+    });
+    expect(() =>
+      logError(
+        { error: (record) => records.push(record) },
+        revokedError.proxy,
+        revokedRecord.proxy,
+      ),
+    ).not.toThrow();
+    expect(records).toEqual([
+      {
+        category: 'unexpected',
+        code: 'unexpected_error',
+        context: {},
+        level: 'error',
+      },
+    ]);
+  });
+
   it('logs only closed errors and allow-listed safe context values', () => {
     const records: unknown[] = [];
     const logger: OperationalLogger = { error: (record) => records.push(record) };
@@ -332,6 +389,32 @@ describe('privacy-safe observability', () => {
     await expect(provider.track(throwing as never)).rejects.toThrow(
       'Invalid privacy-safe analytics event',
     );
+    expect(provider.events).toEqual([]);
+  });
+
+  it('returns a closed invalid analytics outcome for revoked and nested proxy arrays', async () => {
+    const revokedEvent = Proxy.revocable({}, {});
+    revokedEvent.revoke();
+    const revokedCorrelation = Proxy.revocable([], {});
+    revokedCorrelation.revoke();
+    const nestedEvent = {
+      name: 'workflow.completed',
+      workflow: 'evaluation_sync',
+      organizationId,
+      correlationId: revokedCorrelation.proxy,
+    };
+    const provider = new FakeAnalyticsProvider();
+
+    for (const event of [revokedEvent.proxy, new Proxy([], {}), nestedEvent]) {
+      let serialized: ReturnType<typeof serializeAnalyticsEvent> | undefined;
+      expect(() => {
+        serialized = serializeAnalyticsEvent(event);
+      }).not.toThrow();
+      expect(serialized).toBeNull();
+      await expect(provider.track(event as never)).rejects.toThrow(
+        'Invalid privacy-safe analytics event',
+      );
+    }
     expect(provider.events).toEqual([]);
   });
 
