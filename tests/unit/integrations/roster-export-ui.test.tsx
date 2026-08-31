@@ -109,6 +109,10 @@ describe('integration export UI', () => {
       state: 'processing',
       retriedItemCount: 1,
       preservedCompletedItemCount: 1,
+      completedCount: 7,
+      skippedCount: 2,
+      failedCount: 3,
+      retryEligibleCount: 1,
     });
     render(
       <RosterExportWizard
@@ -143,7 +147,10 @@ describe('integration export UI', () => {
     await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
     expect(retry).toHaveBeenCalledWith('10000000-0000-4000-8000-000000000001');
     expect(screen.getByRole('status')).toHaveTextContent(/processing/i);
-    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /7 completed · 2 skipped · 3 failed\/reviewable/i,
+    );
+    expect(screen.getByRole('button', { name: /retry 1 failed item/i })).toBeVisible();
     await user.click(screen.getByLabelText(/i reviewed the exact destination and fields/i));
     await user.click(screen.getByRole('button', { name: /confirm and queue export/i }));
     expect(confirm).toHaveBeenCalledWith(

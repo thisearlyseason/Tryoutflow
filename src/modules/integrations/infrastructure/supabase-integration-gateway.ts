@@ -56,6 +56,7 @@ const confirmationSchema = z.discriminatedUnion('outcome', [
     completed_count: z.number().int(),
     skipped_count: z.number().int(),
     failed_count: z.number().int(),
+    retry_eligible_count: z.number().int().min(0).max(5_100),
   }),
 ]);
 
@@ -67,6 +68,10 @@ const retrySchema = z.discriminatedUnion('outcome', [
     retried_item_count: z.number().int().min(1).max(5_100),
     preserved_completed_item_count: z.number().int().min(0).max(5_100),
     preserved_skipped_item_count: z.number().int().min(0).max(5_100),
+    completed_count: z.number().int().min(0).max(5_100),
+    skipped_count: z.number().int().min(0).max(5_100),
+    failed_count: z.number().int().min(0).max(5_100),
+    retry_eligible_count: z.number().int().min(0).max(5_100),
   }),
   z.strictObject({
     outcome: z.enum([
@@ -82,6 +87,10 @@ const retrySchema = z.discriminatedUnion('outcome', [
     retried_item_count: z.number().int().min(0).max(5_100),
     preserved_completed_item_count: z.number().int().min(0).max(5_100),
     preserved_skipped_item_count: z.number().int().min(0).max(5_100),
+    completed_count: z.number().int().min(0).max(5_100),
+    skipped_count: z.number().int().min(0).max(5_100),
+    failed_count: z.number().int().min(0).max(5_100),
+    retry_eligible_count: z.number().int().min(0).max(5_100),
   }),
 ]);
 
@@ -192,7 +201,7 @@ export class SupabaseIntegrationGateway
   }
 
   async retry(input: Parameters<RetrySyncJobGateway['retry']>[0]) {
-    const { data, error } = await this.client.rpc('retry_integration_sync_job_v2', {
+    const { data, error } = await this.client.rpc('retry_integration_sync_job_v3', {
       p_organization_id: input.organizationId,
       p_job_id: input.jobId,
       p_idempotency_key: input.idempotencyKey,
@@ -208,6 +217,10 @@ export class SupabaseIntegrationGateway
         retriedItemCount: parsed.data.retried_item_count,
         preservedCompletedItemCount: parsed.data.preserved_completed_item_count,
         preservedSkippedItemCount: parsed.data.preserved_skipped_item_count,
+        completedCount: parsed.data.completed_count,
+        skippedCount: parsed.data.skipped_count,
+        failedCount: parsed.data.failed_count,
+        retryEligibleCount: parsed.data.retry_eligible_count,
       };
     }
     return { outcome: parsed.data.outcome };

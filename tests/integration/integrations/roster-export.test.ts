@@ -322,6 +322,17 @@ describe('durable mock roster export', () => {
     const second = confirmations.find((result) => result.outcome === 'replayed')!;
     expect(first.outcome).toBe('queued');
     expect(second).toMatchObject({ outcome: 'replayed', job_id: first.job_id });
+    const changedTokenReplay = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.confirm_roster_export_preview_v3('${ids.organization}','${preview.previewId}','confirmation:task27:changed:02','export:task27:0000001') result`,
+          )
+        ).stdout,
+      ),
+    ) as { outcome: string; job_id: string | null };
+    expect.soft(changedTokenReplay).toMatchObject({ outcome: 'conflict', job_id: null });
     expect(
       lastLine(
         (
@@ -814,7 +825,9 @@ describe('durable mock roster export', () => {
     await queueExport('export:task27:exhausted:0001', 'preview:task27:exhausted:0001');
     const exhaustedClaim = await claim();
     await psql(
-      `update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second',max_attempts=attempt_count where id='${exhaustedClaim.outboxJobId}';
+      `update public.integration_sync_items set state='completed',completed_at=clock_timestamp()
+         where id=(select id from public.integration_sync_items where sync_job_id='${exhaustedClaim.syncJobId}' order by item_key limit 1);
+       update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second',max_attempts=attempt_count where id='${exhaustedClaim.outboxJobId}';
        update public.athletes set given_name='Healthy behind exhausted' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
     );
     await queueExport('export:task27:healthy-behind:01', 'preview:task27:healthy-behind:01');
@@ -829,10 +842,72 @@ describe('durable mock roster export', () => {
         ).stdout,
       ),
     ).toBe('dead_letter|true');
+    expect
+      .soft(
+        lastLine(
+          (
+            await psql(
+              `select state from public.integration_sync_jobs where id='${exhaustedClaim.syncJobId}'`,
+            )
+          ).stdout,
+        ),
+      )
+      .toBe('partially_completed');
     await psql(
       `update public.integration_outbox_jobs set status='cancelled',cancelled_at=clock_timestamp(),lease_owner=null,lease_token=null,lease_expires_at=null where id='${healthyBehind.outboxJobId}';
        update public.integration_sync_jobs set state='cancelled',cancelled_at=clock_timestamp() where id='${healthyBehind.syncJobId}';
        update public.integration_sync_items set state='cancelled',normalized_error='{"code":"test_cleanup","retryable":false}' where sync_job_id='${healthyBehind.syncJobId}' and state not in ('completed','skipped')`,
+    );
+
+    const poisonJobs = [];
+    for (const suffix of ['01', '02']) {
+      await psql(
+        `update public.athletes set given_name='Poison ${suffix}' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+      );
+      poisonJobs.push(
+        await queueExport(
+          `export:task27:claim-poison:${suffix}`,
+          `preview:task27:claim-poison:${suffix}`,
+        ),
+      );
+    }
+    await psql(
+      `update public.athletes set given_name='Never reclaim handoff' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    await queueExport('export:task27:never-reclaim:01', 'preview:task27:never-reclaim:01');
+    const poisonClaims = [await claim(), await claim()];
+    const neverReclaim = await claim();
+    await psql(
+      `update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second',max_attempts=attempt_count
+         where id in (${poisonClaims.map((item) => `'${item.outboxJobId}'`).join(',')})`,
+    );
+    await expect(gateway.authorize(neverReclaim)).resolves.toBe('authorized');
+    await psql(
+      `update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${neverReclaim.outboxJobId}';
+       update public.athletes set given_name='Healthy after handoff' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const healthyAfterHandoff = await queueExport(
+      'export:task27:healthy-after:01',
+      'preview:task27:healthy-after:01',
+    );
+    const saturatedClaimRows = JSON.parse(
+      lastLine(
+        (
+          await asService(
+            `select coalesce(json_agg(row_to_json(job)),'[]') from public.claim_integration_outbox_jobs('task27-saturated',1,90) job`,
+          )
+        ).stdout,
+      ),
+    ) as Array<{ outbox_job_id: string; sync_job_id: string }>;
+    expect.soft(saturatedClaimRows).toHaveLength(1);
+    expect.soft(saturatedClaimRows[0]?.sync_job_id).toBe(healthyAfterHandoff.job_id);
+    expect.soft(saturatedClaimRows[0]?.outbox_job_id).not.toBe(neverReclaim.outboxJobId);
+    await psql(
+      `update public.integration_outbox_jobs set status='cancelled',cancelled_at=clock_timestamp(),lease_owner=null,lease_token=null,lease_expires_at=null
+         where (id in ('${neverReclaim.outboxJobId}',${poisonClaims.map((item) => `'${item.outboxJobId}'`).join(',')}) or sync_job_id='${healthyAfterHandoff.job_id}')
+           and status in ('pending','leased');
+       update public.integration_sync_jobs set state='cancelled',cancelled_at=clock_timestamp()
+         where id in ('${neverReclaim.syncJobId}',${poisonJobs.map((item) => `'${item.job_id}'`).join(',')},'${healthyAfterHandoff.job_id}')`,
     );
 
     const retentionSources = await Promise.all([
@@ -887,6 +962,108 @@ describe('durable mock roster export', () => {
       ),
     ).toBe('ready');
     await expect(gateway.authorize(activeRetentionClaim)).resolves.toBe('authorization_revoked');
+
+    await psql(
+      `update public.athletes set given_name='Cleanup auth lock race' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const cleanupAuthJob = await queueExport(
+      'export:task27:cleanup-auth:01',
+      'preview:task27:cleanup-auth:01',
+    );
+    const cleanupAuthClaim = await claim();
+    const cleanupAuthSource = lastLine(
+      (
+        await psql(
+          `select source_preview_id from public.integration_sync_jobs where id='${cleanupAuthJob.job_id}'`,
+        )
+      ).stdout,
+    );
+    await psql(
+      `update public.integration_export_previews set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 second' where id='${cleanupAuthSource}'`,
+    );
+    const authLockTransaction = psql(
+      `begin;
+       select id from public.integration_outbox_jobs where id='${cleanupAuthClaim.outboxJobId}' for update;
+       select pg_sleep(0.12);
+       set role service_role;
+       select set_config('request.jwt.claim.role','service_role',false);
+       select public.authorize_integration_outbox_submission('${cleanupAuthClaim.outboxJobId}','${cleanupAuthClaim.leaseToken}',${cleanupAuthClaim.leaseGeneration});
+       reset role;
+       commit`,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    const cleanupDuringAuth = asService(`select public.purge_expired_integration_previews(1)`);
+    const cleanupAuthSettled = await Promise.allSettled([authLockTransaction, cleanupDuringAuth]);
+    expect.soft(cleanupAuthSettled.every((result) => result.status === 'fulfilled')).toBe(true);
+
+    await psql(
+      `update public.athletes set given_name='Cleanup completion lock race' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const cleanupCompletionJob = await queueExport(
+      'export:task27:cleanup-complete:01',
+      'preview:task27:cleanup-complete:01',
+    );
+    const cleanupCompletionClaim = await claim();
+    await expect(gateway.authorize(cleanupCompletionClaim)).resolves.toBe('authorized');
+    const cleanupCompletionResult = syncJobResultSchema.parse(
+      await provider.exportFinalizedRoster(
+        {
+          organizationId: cleanupCompletionClaim.organizationId,
+          actorId: cleanupCompletionClaim.actorUserId,
+          connectionId: cleanupCompletionClaim.connectionId,
+          correlationId: `integration:${cleanupCompletionClaim.syncJobId}`,
+          idempotencyKey: cleanupCompletionClaim.providerIdempotencyKey,
+        },
+        cleanupCompletionClaim.confirmedRequest,
+      ),
+    );
+    const cleanupCompletionSource = lastLine(
+      (
+        await psql(
+          `select source_preview_id from public.integration_sync_jobs where id='${cleanupCompletionJob.job_id}'`,
+        )
+      ).stdout,
+    );
+    await psql(
+      `update public.integration_export_previews set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 second' where id='${cleanupCompletionSource}'`,
+    );
+    const completionLockTransaction = psql(
+      `begin;
+       select id from public.integration_outbox_jobs where id='${cleanupCompletionClaim.outboxJobId}' for update;
+       select pg_sleep(0.12);
+       set role service_role;
+       select set_config('request.jwt.claim.role','service_role',false);
+       select public.complete_integration_outbox_job('${cleanupCompletionClaim.outboxJobId}','${cleanupCompletionClaim.leaseToken}',${cleanupCompletionClaim.leaseGeneration},'${cleanupCompletionResult.externalJobId}',${jsonSql(cleanupCompletionResult)});
+       reset role;
+       select pg_sleep(0.12);
+       commit`,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    const cleanupDuringCompletion = asService(
+      `select public.purge_expired_integration_previews(1)`,
+    );
+    const cleanupCompletionSettled = await Promise.allSettled([
+      completionLockTransaction,
+      cleanupDuringCompletion,
+    ]);
+    expect
+      .soft(cleanupCompletionSettled.every((result) => result.status === 'fulfilled'))
+      .toBe(true);
+    expect
+      .soft(
+        lastLine(
+          (
+            await psql(
+              `select outbox.status||'|'||preview.stage||'|'||(sync.external_job_id is not null)::text
+               from public.integration_sync_jobs sync
+               join public.integration_export_previews preview on preview.id=sync.source_preview_id
+               join public.integration_outbox_jobs outbox on outbox.sync_job_id=sync.id
+               where sync.id='${cleanupCompletionJob.job_id}'`,
+            )
+          ).stdout,
+        ),
+      )
+      .toBe('completed|redacted|true');
 
     await psql(
       `update public.athletes set given_name='Mapping race one' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,

@@ -18,6 +18,10 @@ export type RetrySyncJobResult =
       retriedItemCount: number;
       preservedCompletedItemCount: number;
       preservedSkippedItemCount: number;
+      completedCount: number;
+      skippedCount: number;
+      failedCount: number;
+      retryEligibleCount: number;
     }
   | {
       outcome:

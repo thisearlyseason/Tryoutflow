@@ -252,6 +252,11 @@ describe('durable roster export commands', () => {
       jobId: ids.job,
       retriedItemCount: 1,
       preservedCompletedItemCount: 1,
+      preservedSkippedItemCount: 0,
+      completedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      retryEligibleCount: 0,
     });
 
     const result = await retrySyncJob(
@@ -269,6 +274,11 @@ describe('durable roster export commands', () => {
       jobId: ids.job,
       retriedItemCount: 1,
       preservedCompletedItemCount: 1,
+      preservedSkippedItemCount: 0,
+      completedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      retryEligibleCount: 0,
     });
     expect(retry).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: ids.actor, jobId: ids.job }),

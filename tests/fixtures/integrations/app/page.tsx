@@ -78,6 +78,10 @@ export default function Page() {
         jobId: '10000000-0000-4000-8000-000000000001',
         state: 'pending',
         retriedItemCount: 1,
+        completedCount: 1,
+        skippedCount: 0,
+        failedCount: 0,
+        retryEligibleCount: 0,
       })}
       initialJob={{
         id: '10000000-0000-4000-8000-000000000001',

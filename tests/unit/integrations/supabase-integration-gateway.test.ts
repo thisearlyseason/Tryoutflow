@@ -140,6 +140,10 @@ describe('SupabaseIntegrationGateway', () => {
           preserved_completed_item_count: 2,
           preserved_skipped_item_count: 1,
           state: 'pending',
+          completed_count: 2,
+          skipped_count: 1,
+          failed_count: 1,
+          retry_eligible_count: 0,
         },
         error: null,
       });
@@ -177,7 +181,74 @@ describe('SupabaseIntegrationGateway', () => {
       retriedItemCount: 1,
       preservedCompletedItemCount: 2,
       preservedSkippedItemCount: 1,
+      completedCount: 2,
+      skippedCount: 1,
+      failedCount: 1,
+      retryEligibleCount: 0,
     });
+  });
+
+  it.each([
+    'forbidden',
+    'not_found',
+    'stale',
+    'conflict',
+    'already_consumed',
+    'invalid_input',
+  ] as const)(
+    'maps the exact %s confirmation outcome instead of collapsing it',
+    async (outcome) => {
+      const rpc = vi.fn().mockResolvedValue({
+        data: {
+          outcome,
+          job_id: null,
+          state: null,
+          item_count: 0,
+          completed_count: 0,
+          skipped_count: 0,
+          failed_count: 0,
+          retry_eligible_count: 0,
+        },
+        error: null,
+      });
+      const gateway = new SupabaseIntegrationGateway({ rpc } as never);
+      await expect(
+        gateway.confirmPreview({
+          organizationId: ids.organization,
+          actorId: ids.actor,
+          previewId: 'preview:task27:00000001',
+          confirmationToken: 'confirmation:task27:00000001',
+          idempotencyKey: 'export:task27:00000001',
+        }),
+      ).resolves.toEqual({ outcome });
+    },
+  );
+
+  it('rejects unknown confirmation fields fail closed', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        outcome: 'conflict',
+        job_id: null,
+        state: null,
+        item_count: 0,
+        completed_count: 0,
+        skipped_count: 0,
+        failed_count: 0,
+        retry_eligible_count: 0,
+        unexpected_private_detail: 'must-not-cross',
+      },
+      error: null,
+    });
+    const gateway = new SupabaseIntegrationGateway({ rpc } as never);
+    await expect(
+      gateway.confirmPreview({
+        organizationId: ids.organization,
+        actorId: ids.actor,
+        previewId: 'preview:task27:00000001',
+        confirmationToken: 'confirmation:task27:00000001',
+        idempotencyKey: 'export:task27:00000001',
+      }),
+    ).rejects.toThrow('Invalid integration export confirmation result');
   });
 
   it('persists the exact actor-scoped demo connection through the narrow RPC', async () => {

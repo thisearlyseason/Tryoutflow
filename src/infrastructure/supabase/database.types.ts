@@ -5160,6 +5160,20 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      retry_integration_sync_job_v3: {
+        Args: {
+          p_idempotency_key: string;
+          p_job_id: string;
+          p_organization_id: string;
+        };
+        Returns: Database['public']['CompositeTypes']['integration_retry_v3_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'integration_retry_v3_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       revise_roster_version: {
         Args: {
           p_confirmation: string;
@@ -5526,6 +5540,18 @@ export type Database = {
         retried_item_count: number | null;
         preserved_completed_item_count: number | null;
         preserved_skipped_item_count: number | null;
+      };
+      integration_retry_v3_result: {
+        outcome: string | null;
+        job_id: string | null;
+        state: string | null;
+        retried_item_count: number | null;
+        preserved_completed_item_count: number | null;
+        preserved_skipped_item_count: number | null;
+        completed_count: number | null;
+        skipped_count: number | null;
+        failed_count: number | null;
+        retry_eligible_count: number | null;
       };
       queue_communication_result: {
         outcome: string | null;

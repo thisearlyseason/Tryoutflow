@@ -45,6 +45,10 @@ type RetryResult = {
   jobId?: string;
   state?: string;
   retriedItemCount?: number;
+  completedCount?: number;
+  skippedCount?: number;
+  failedCount?: number;
+  retryEligibleCount?: number;
 };
 
 const jobStates = new Set<JobView['state']>([
@@ -59,6 +63,10 @@ const jobStates = new Set<JobView['state']>([
 
 function isJobState(value: string | undefined): value is JobView['state'] {
   return value !== undefined && jobStates.has(value as JobView['state']);
+}
+
+function isNonnegativeInteger(value: number | undefined): value is number {
+  return value !== undefined && Number.isInteger(value) && value >= 0;
 }
 
 type RosterExportWizardProps = Readonly<{
@@ -169,12 +177,22 @@ export function RosterExportWizard({
           setMessage('The durable retry returned an invalid state. Refresh before taking action.');
           return;
         }
+        if (
+          !isNonnegativeInteger(result.completedCount) ||
+          !isNonnegativeInteger(result.skippedCount) ||
+          !isNonnegativeInteger(result.failedCount) ||
+          !isNonnegativeInteger(result.retryEligibleCount)
+        ) {
+          setMessage('The durable retry returned invalid counts. Refresh before taking action.');
+          return;
+        }
         setJob({
-          ...job,
           id: result.jobId,
           state: result.state,
-          failedCount: Math.max(0, job.failedCount - (result.retriedItemCount ?? 0)),
-          retryEligibleCount: 0,
+          completedCount: result.completedCount,
+          skippedCount: result.skippedCount,
+          failedCount: result.failedCount,
+          retryEligibleCount: result.retryEligibleCount,
         });
       }
       setMessage(
