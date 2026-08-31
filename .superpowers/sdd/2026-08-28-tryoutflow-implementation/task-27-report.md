@@ -225,3 +225,70 @@ Migration `202608280079_close_integration_execution_races.sql` is additive; migr
 ### Round 2 release concern
 
 No blocking concern. The provider remains intentionally synthetic, and the protected processor must remain scheduled so queued work, bounded terminalization, and seven-day retention cleanup progress. Delivery uncertainty intentionally requires operator reconciliation; it is not automatically retryable because duplicate external intent cannot be ruled out.
+
+## Review fix round 3/5
+
+### Findings reproduced before production edits
+
+Each review finding was reproduced against the round-2 implementation before migration 080 or the TypeScript changes were written.
+
+- Focused gateway and UI tests began with 8 failures in 17 tests. The confirmation parser rejected the complete v3 failure shape, six typed SQL outcomes collapsed to an unavailable error, and retry rendering retained client-synthesized counts instead of an authoritative durable projection.
+- The initial `062_integration_round3_closure.test.sql` run failed 6 of 9 assertions because retry v3, categorical handoff exclusion, exact token-digest replay binding, and the retention lock-order proof did not exist.
+- The expanded real-database scenario reported seven independent failures with soft assertions: a changed valid-shaped confirmation token replayed, mixed completed/exhausted work became wholly failed, a stale handed-off row was re-claimed under poison saturation, cleanup raced authorization and completion into rejected transactions, and the accepted completion could not reach terminal/redacted truth after that lock failure.
+- A controlled 079-era retention rehearsal inserted an overlong expired ready preview containing a confirmation token, raw roster name, and provider preview label while a linked terminal job/outbox retained privacy-safe request/token/result hashes and an external receipt. Before 080 the probe returned `true|true|true` for overlong expiry, token presence, and private roster bytes.
+- The first post-fix retention rehearsal exposed one additional privacy RED: the token and roster were removed but `preview_snapshot` still retained the display label. Migration 080 and pgTAP 062 were tightened before the full gate run so all three short-lived provider/source representations are now redacted.
+
+### Round 3 durable design
+
+Migration `202608280080_close_integration_claim_and_retention.sql` is additive. Migrations 077, 078, and 079 remain byte-untouched.
+
+- Ordinary claim selection and its locked-row recheck both require `provider_submission_started_at is null`. Poison terminalization remains bounded, but saturation or delayed cleanup cannot make a prior handoff eligible for another provider submission. Healthy work behind poisoned and handed-off rows remains claimable with `p_batch_size = 1`.
+- Claim, authorization, completion, and retention use the same row-lock prefix: exact outbox row(s), then sync job, then dependent authorization/source/mapping rows. Purge first selects IDs without row locks, locks all linked outboxes in deterministic ID order, then locks the sync job and preview. Natural cleanup-versus-authorization and cleanup-versus-completion sessions finish without deadlock or losing an accepted completion.
+- Confirmation v3 binds replay to the stored SHA-256 confirmation-token digest after the serialized v2 business-key transition. Exact consumed/redacted replay remains possible; a changed valid-shaped token returns typed conflict with no additional job/outbox mutation.
+- Retry v3 returns one exact same-transaction projection: outcome, job ID/state, retried count, preserved completed/skipped counts, and current completed/skipped/failed/retry-eligible counts. Strict discriminated Zod schemas accept every documented SQL outcome, reject unknown fields, and preserve typed stale/conflict/forbidden/not-found/already-consumed/invalid-input results.
+- The UI replaces its prior job view only from that validated durable projection. It does not decrement or zero counts locally, so concurrent worker progress and exact replay are rendered truthfully and retry controls follow the returned durable eligibility.
+- Exhausted pre-handoff terminalization computes the sync state from every durable item. All failures produce `failed`; any preserved completed/skipped item alongside failures produces `partially_completed`. Completed and skipped evidence is never overwritten.
+- Every historical preview is capped to `created_at + 7 days`. Expired ready sources are processed in deterministic batches of 500 during the upgrade and bounded batches thereafter. Tokens, roster source bytes, and provider preview bytes are redacted; unconsumed orphan previews are deleted; handed-off active work becomes attention; provably pre-handoff work is cancelled; durable approved projections, mappings, hashes, receipts, jobs, and audit evidence remain.
+
+### Round 3 files
+
+- `supabase/migrations/202608280080_close_integration_claim_and_retention.sql`
+- `supabase/tests/062_integration_round3_closure.test.sql`
+- `src/infrastructure/supabase/database.types.ts`
+- `src/modules/integrations/application/retry-sync-job.ts`
+- `src/modules/integrations/infrastructure/supabase-integration-gateway.ts`
+- `src/modules/integrations/ui/roster-export-wizard.tsx`
+- `tests/integration/integrations/roster-export.test.ts`
+- `tests/unit/integrations/roster-export.test.ts`
+- `tests/unit/integrations/supabase-integration-gateway.test.ts`
+- `tests/unit/integrations/roster-export-ui.test.tsx`
+- `tests/fixtures/integrations/app/page.tsx`
+
+### Final GREEN evidence
+
+- Clean local reset applied migrations 001–080 in order.
+- Focused pgTAP 062: 9/9 assertions passed. Full pgTAP: 62 files / 1,677 assertions passed.
+- Focused round-3 unit coverage: 3 files / 22 tests passed after the strict gateway and authoritative UI changes.
+- The expanded real-database round-3 scenario passed twice, including poisoned-row saturation, token replay, mixed exhaustion, and both cleanup interleavings.
+- Full isolated integration suite passed twice: 26 files / 192 tests on each run.
+- Task 26 provider contracts: 3 files / 143 tests passed.
+- Full `npm run verify`: formatting, ESLint, strict TypeScript, 58 unit files / 768 tests, and production Next.js build passed. An independent production build also passed.
+- The 079-to-080 retention rehearsal finished with capped expiry; null token, roster, and preview bytes; and unchanged request digest, token digest, external job receipt, completion-result digest, and completed outbox state.
+- Production-path Chromium: 1/1 passed through real local authentication, feature registry, application route/components, server actions, RPC persistence, protected worker processing, refreshed durable state, and axe without route interception.
+- Chromium + Mobile Chrome fixture: 4/4 passed, including retry projection, 375 px overflow, target sizing, and critical axe accessibility.
+- Database type generation was reproducible across consecutive runs with SHA-256 `6e28d2e9dd41ac1fd27721ac1a245b63d873e4174c038d581e5ae64a0881ceac`.
+- `npm audit --omit=dev`: 0 vulnerabilities. `git diff --check`, old-migration diff, broad-`any`/suppression scan, and live-Squad-endpoint/credential scan passed.
+- Live catalog checks confirmed RLS on all six integration tables, empty search paths on the four replaced/new public RPCs, authenticated-only confirmation/retry access, and service-role-only claim/purge access.
+
+### Round 3 self-review
+
+- Claim and handoff truth: no ordinary claim path can lease a row with the provider-start marker, regardless of cleanup batch size or queue order. Poison cleanup can lag safely without enabling duplicate external intent.
+- Locking: every modified multi-row execution or retention path starts outbox → sync. Purge locks all outboxes in sorted order before the job and preview; completion retains sorted mapping locks after its outbox/sync/source prefix. The natural two-session tests cover both blocking directions.
+- Replay and strict contracts: confirmation replay includes exact token digest; retry results are exact durable projections. Unknown fields fail closed and documented business outcomes remain typed rather than converted to infrastructure unavailability.
+- Privacy and retention: short-lived source, provider preview, and confirmation-token material is removed no later than the seven-day cap. Jobs retain only approved projection and privacy-safe identifiers/digests; receipt/mapping/audit authority survives redaction.
+- Retry and uncertainty: only current durable `retry_eligible` item truth controls the UI. Handoff uncertainty, ambiguous review, permanent failure, and exhaustion remain outside ordinary retry.
+- Tenant and privilege safety: existing organization-scoped keys, RLS, mapping uniqueness, fencing, and ACLs remain intact. The new type/RPC is additive and strict; no live endpoint, credential, or provider authority was introduced.
+
+### Round 3 release concern
+
+No blocking concern. The provider is still deliberately demo/mock-only and disabled by default. Production operations must schedule the protected processor so bounded poison cleanup and preview retention continue; delivery uncertainty still requires explicit operator reconciliation rather than an automatic retry that could duplicate external intent.
