@@ -19,7 +19,7 @@ Round-one review findings implemented and verified locally.
 - The first focused report/onboarding run was RED because the CSV commands, server projection gateway, route, report UI, and durable onboarding projection did not exist.
 - RED cases were added for RFC 4180 quoting, Unicode/null/newline handling, prefixed spreadsheet formulas, immutable finalized-roster exports, private-field omission, evaluator/general-member denial, execution-time reauthorization, invalid IDs, empty reports, durable checklist derivation, strict projection parsing, route response contracts, row/byte overflow, and server truncation.
 - The initial pgTAP report suite was RED before migration 082. It is now GREEN with 19 assertions covering ACLs, empty `search_path`, exact scope, offboarding, non-oracular denial, allow-listed fields, maximum-row enforcement, and `maxRows + 1` database work bounds.
-- A final audit found the original projection counted every candidate row before reporting truncation. A new pgTAP assertion failed `0 != 3`; each query now inspects at most 5,001 rows and the assertion passes for all three projections.
+- A final audit found the original projection counted every candidate row before reporting truncation. Behavioral pgTAP coverage now proves the additive bounded helpers inspect only `maxRows + 1` candidates before expensive evaluation work; roster rows come from the already bounded immutable snapshot.
 
 ## Delivered
 
@@ -41,13 +41,16 @@ supabase db reset
   PASS — migrations 001–083 plus deterministic Badlands seed
 
 npm run test:unit
-  PASS — 67 files / 924 tests
+  PASS — 67 files / 931 tests
 
 npm run test:integration
-  PASS twice — 27 files / 194 tests on each run
+  PASS twice under the Task 20 supervisor — 27 files / 199 tests on each run (43.19s and 42.14s)
 
-npx vitest run --config vitest.integration.config.ts tests/integration/demo-seed.test.ts
+npm run test:integration -- tests/integration/demo-seed.test.ts
   PASS — 1 file / 7 tests, including convergence, immutable/revision snapshots, population parity, and canonical weighted totals
+
+npm run test:db -- supabase/tests/064_reports_and_onboarding.test.sql supabase/tests/065_report_snapshot_math_and_bounds.test.sql
+  PASS on the seeded database — 2 files / 35 assertions
 
 npm run db:types && cmp regenerated types with the pre-run copy
   PASS — byte-identical
@@ -60,6 +63,9 @@ npx vitest run --config vitest.config.ts tests/unit/organizations/organization-r
 
 npm run format:check && npm run lint && npm run typecheck
   PASS
+
+npm run verify
+  PASS — formatting, lint, typecheck, 67 unit files / 931 tests, and the Task 28 production marketing build (unit duration 107.00s)
 
 production environment variables + npm run build
   PASS — optimized production build and route collection
@@ -76,13 +82,14 @@ git diff --check
 
 ## Audit notes
 
-- The authenticated browser command must bind the Playwright web server to the same local Supabase runtime used by its setup. A diagnostic run with the config's intentionally fake fallback URL correctly failed sign-in; direct local GoTrue authentication passed, and the same suite passed 4/4 after supplying the local URL and keys.
+- The authenticated browser command must bind the Playwright web server to the same local Supabase runtime used by its setup. A diagnostic run with the config's intentionally fake fallback URL correctly failed sign-in; direct local GoTrue authentication passed, and the same suite passed 6/6 after supplying the local URL and keys.
 - Source/CSV contract scans found only the intentional `example.test` synthetic identities and explanatory privacy copy. Browser downloads additionally assert the absence of guardian, email, phone, birth, emergency, eligibility, private-note, and evaluator fields.
 - `next-env.d.ts` was temporarily rewritten by the development server and restored to its tracked `.next/types` references. No generated dev-path change is included.
+- The integration supervisor initially rejected the local database before acquiring a lock because a direct Homebrew Supabase CLI `2.72.7` reset had recreated the database container without `com.supabase.cli.workdir`. The repository pins CLI `2.116.0`; recreating the disposable stack through `npm run supabase:start` and `npm run supabase:reset` restored the exact worktree label. Task 20 then validated the endpoint/container PostgreSQL identity, and both full supervised runs exited cleanly with zero residual runner sessions, isolated databases, harness schemas, or run roles.
+- The earlier full-verify pause was not a deadlock or a failing test. The unit suite's integration-supervisor recovery tests intentionally exercise bounded process timeouts and are quiet while running. With no competing process in this worktree, the fresh suite completed normally in 107 seconds before the production gate ran.
 
 ## Concerns
 
 - Oversized snapshots are intentionally rejected rather than partially downloaded. Organization owners can narrow athlete exports to a tryout; additional filter-specific exports remain future product work.
 - The seeded identities deliberately have no passwords. Authenticated browser coverage creates and removes ephemeral local users instead of adding reusable credentials to the repository.
-- The repository's supervised integration runner refuses the locally installed Supabase CLI database container because that older CLI omitted its expected `com.supabase.cli.workdir` label. Focused Task 29 integration is green; a direct unsupervised full-suite diagnostic is not a valid substitute because several suites require supervisor isolation. The clean unseeded full pgTAP suite is authoritative for schema verification. Running the full integration suite twice remains an environment/tooling concern until the local Supabase CLI/container label is refreshed.
-- Full pgTAP on a seeded database is not fixture-isolated: older tests intentionally assume empty global tables and collide with the Badlands slug/counts. The complete suite passes after the required unseeded reset; pgTAP 064/065 pass on the seeded database.
+- The canonical full pgTAP suite is intentionally run after an unseeded reset because older suites own empty-global fixtures. Seed verification is separate: seeded pgTAP 064/065 and the supervised demo-seed integration suite both pass.
