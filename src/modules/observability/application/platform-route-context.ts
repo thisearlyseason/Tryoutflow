@@ -17,11 +17,7 @@ export async function requirePlatformRouteContext() {
   } catch (error) {
     if (error instanceof AppError && error.category === 'permission') notFound();
     if (error instanceof AppError) throw error;
-    throw new AppError({
-      category: 'unexpected',
-      code: 'platform_unavailable',
-      message: 'Platform administration is unavailable.',
-    });
+    throw new AppError('platform_unavailable');
   }
   return { client, gateway, user };
 }

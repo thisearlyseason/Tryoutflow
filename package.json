@@ -23,7 +23,7 @@
     "db:types": "supabase gen types typescript --local > src/infrastructure/supabase/database.types.ts && prettier --write src/infrastructure/supabase/database.types.ts && node scripts/postprocess-database-types.mjs && prettier --write src/infrastructure/supabase/database.types.ts",
     "supabase:start": "supabase start",
     "supabase:reset": "supabase db reset",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --retries=0",
     "test:e2e:checkin": "playwright test --config=playwright.checkin.config.ts --project=chromium --project='Mobile Safari'",
     "test:e2e:evaluation": "playwright test --config=playwright.evaluation.config.ts --project='Mobile Chrome' --project='Mobile Safari'",
     "test:e2e:messages": "playwright test --config=playwright.messages.config.ts --project=chromium --project=webkit --project='Mobile Safari'",

@@ -1,26 +1,38 @@
-import { AppError, type AppErrorCategory } from '../domain/app-error';
+import { appErrorDetails, type AppErrorCategory, type AppErrorCode } from '../domain/app-error';
+import { correlationIdValue } from '../domain/correlation-id';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
-const correlationPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/u;
-const operationPattern = /^[a-z][a-z0-9_.-]{2,63}$/u;
+const operations = new Set([
+  'health.read',
+  'platform.authorize',
+  'platform.organizations.list',
+  'platform.subscriptions.list',
+  'platform.audit.list',
+  'platform.support.list',
+  'platform.support.begin',
+]);
 
 const uuidKeys = ['actorId', 'jobId', 'organizationId'] as const;
 const correlationKeys = ['correlationId', 'requestId'] as const;
-const operationKeys = ['code', 'operation'] as const;
 
+export type OperationalLogOperation =
+  | 'health.read'
+  | 'platform.authorize'
+  | 'platform.organizations.list'
+  | 'platform.subscriptions.list'
+  | 'platform.audit.list'
+  | 'platform.support.list'
+  | 'platform.support.begin';
 export type LogContext = Readonly<Record<string, unknown>>;
 export type RedactedLogContext = Readonly<
   Partial<
-    Record<
-      (typeof uuidKeys)[number] | (typeof correlationKeys)[number] | (typeof operationKeys)[number],
-      string
-    >
+    Record<(typeof uuidKeys)[number] | (typeof correlationKeys)[number] | 'operation', string>
   >
 >;
 
 export type OperationalErrorRecord = Readonly<{
   category: AppErrorCategory;
-  code: string;
+  code: AppErrorCode;
   context: RedactedLogContext;
   level: 'error';
 }>;
@@ -29,21 +41,19 @@ export interface OperationalLogger {
   error(record: OperationalErrorRecord): void;
 }
 
-function allowedString(value: unknown, pattern: RegExp): value is string {
-  return typeof value === 'string' && pattern.test(value);
-}
-
-/** Builds a new context exclusively from non-sensitive, bounded identifiers. */
+/** Builds a new context exclusively from closed operations and non-sensitive identifiers. */
 export function redactLogContext(context: LogContext): RedactedLogContext {
   const safe: Record<string, string> = {};
-  for (const key of [...uuidKeys].sort()) {
-    if (allowedString(context[key], uuidPattern)) safe[key] = context[key];
+  for (const key of uuidKeys) {
+    const value = context[key];
+    if (typeof value === 'string' && uuidPattern.test(value)) safe[key] = value;
   }
-  for (const key of [...correlationKeys].sort()) {
-    if (allowedString(context[key], correlationPattern)) safe[key] = context[key];
+  for (const key of correlationKeys) {
+    const value = correlationIdValue(context[key]);
+    if (value) safe[key] = value;
   }
-  for (const key of [...operationKeys].sort()) {
-    if (allowedString(context[key], operationPattern)) safe[key] = context[key];
+  if (typeof context.operation === 'string' && operations.has(context.operation)) {
+    safe.operation = context.operation;
   }
   return safe;
 }
@@ -53,13 +63,10 @@ export function logError(
   error: unknown,
   context: LogContext = {},
 ): void {
-  const applicationError = error instanceof AppError ? error : null;
+  const applicationError = appErrorDetails(error);
   logger.error({
-    category: applicationError?.category ?? 'unexpected',
-    code:
-      applicationError && allowedString(applicationError.code, operationPattern)
-        ? applicationError.code
-        : 'unexpected_error',
+    category: applicationError.category,
+    code: applicationError.code,
     context: redactLogContext(context),
     level: 'error',
   });

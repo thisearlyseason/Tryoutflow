@@ -2,7 +2,7 @@ begin;
 
 set local search_path=extensions,public;
 
-select plan(44);
+select plan(56);
 
 select has_table('public','platform_administrators','platform authority has a durable relation');
 select ok((select relrowsecurity from pg_class where oid='public.platform_administrators'::regclass),'platform authority has RLS enabled');
@@ -23,6 +23,9 @@ select function_privs_are('public','has_active_platform_support_elevation',array
 select function_privs_are('public','has_active_platform_support_elevation',array['uuid'],'service_role',array[]::text[],'service role cannot bypass the support authorization helper');
 select function_privs_are('public','platform_health',array[]::text[],'authenticated',array['EXECUTE'],'authenticated callers reach the guarded detailed health query');
 select function_privs_are('public','platform_health',array[]::text[],'anon',array[]::text[],'anonymous cannot invoke detailed health');
+select ok((select convalidated from pg_constraint where conname='platform_support_elevations_reason_not_blank'),'legacy reason evidence is covered by a validated active-row constraint');
+select ok((select convalidated from pg_constraint where conname='platform_support_elevations_reason_bound_check'),'support reason bounds are validated for the complete authoritative relation');
+select ok((select convalidated from pg_constraint where conname='platform_support_elevations_duration_bound_check'),'support duration bounds are validated for the complete authoritative relation');
 select is(
   (select count(*) from pg_proc routine join pg_namespace namespace on namespace.oid=routine.pronamespace
     where namespace.nspname='public' and routine.proname in(
@@ -114,6 +117,29 @@ select is((select count(*) from public.platform_list_audit_events(20) where acti
 select is((select count(*) from public.platform_list_support_elevations(20) where reason='Investigate support ticket T32-100'),1::bigint,'platform support view returns explicit support evidence');
 
 reset role;
+alter table public.platform_support_elevations
+  drop constraint platform_support_elevations_reason_not_blank,
+  drop constraint platform_support_elevations_reason_bound_check,
+  drop constraint platform_support_elevations_duration_bound_check;
+update public.platform_support_elevations set reason='short';
+select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'legacy short reasons never confer support authority');
+update public.platform_support_elevations set reason=repeat('x',501);
+select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'legacy overlong reasons never confer support authority');
+update public.platform_support_elevations set reason='Investigate'||chr(10)||'ticket T32-100';
+select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'legacy control characters never confer support authority');
+update public.platform_support_elevations set reason='Investigate support ticket T32-100',created_at=clock_timestamp()-interval '1 minute',expires_at=clock_timestamp()+interval '1 minute';
+select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'legacy elevations shorter than five minutes never confer authority while current');
+update public.platform_support_elevations set created_at=clock_timestamp()-interval '1 minute',expires_at=clock_timestamp()+interval '4 hours';
+select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'legacy elevations longer than four hours never confer authority while current');
+update public.platform_support_elevations set created_at=clock_timestamp()+interval '1 hour',expires_at=clock_timestamp()+interval '90 minutes';
+select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'future-created legacy elevations never confer early authority');
+update public.platform_support_elevations set created_at=clock_timestamp()-interval '10 minutes',expires_at=clock_timestamp()-interval '5 minutes';
+select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'expired legacy elevations remain inactive');
+update public.platform_support_elevations set created_at=clock_timestamp()-interval '1 minute',expires_at=clock_timestamp()+interval '4 minutes';
+select ok(public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'exactly five-minute current elevations remain authoritative');
+update public.platform_support_elevations set created_at=clock_timestamp()-interval '1 minute',expires_at=clock_timestamp()+interval '3 hours 59 minutes';
+select ok(public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'exactly four-hour current elevations remain authoritative');
+update public.platform_support_elevations set created_at=clock_timestamp(),expires_at=clock_timestamp()+interval '30 minutes';
 update public.platform_administrators set status='disabled',disabled_at=clock_timestamp()
 where user_id='81000000-0000-4000-8000-000000000001';
 select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'disabling platform authority immediately disables an unexpired support elevation');

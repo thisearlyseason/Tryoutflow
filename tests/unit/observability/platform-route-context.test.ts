@@ -36,26 +36,14 @@ describe('platform route context', () => {
   });
 
   it('maps current platform authorization denial to the non-oracular not-found boundary', async () => {
-    mocks.health.mockRejectedValue(
-      new AppError({
-        category: 'permission',
-        code: 'platform_forbidden',
-        message: 'Platform authorization required.',
-      }),
-    );
+    mocks.health.mockRejectedValue(new AppError('platform_forbidden'));
 
     await expect(requirePlatformRouteContext()).rejects.toThrow('NEXT_NOT_FOUND');
     expect(mocks.notFound).toHaveBeenCalledOnce();
   });
 
   it('lets an operational failure reach the generic platform error boundary', async () => {
-    mocks.health.mockRejectedValue(
-      new AppError({
-        category: 'unexpected',
-        code: 'platform_unavailable',
-        message: 'Platform administration is unavailable.',
-      }),
-    );
+    mocks.health.mockRejectedValue(new AppError('platform_unavailable'));
 
     await expect(requirePlatformRouteContext()).rejects.toMatchObject({
       category: 'unexpected',

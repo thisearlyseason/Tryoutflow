@@ -49,7 +49,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: true,
-  retries: 1,
+  retries: 0,
   timeout: 90_000,
   expect: { timeout: 12_000 },
   outputDir: 'output/playwright/test-results',

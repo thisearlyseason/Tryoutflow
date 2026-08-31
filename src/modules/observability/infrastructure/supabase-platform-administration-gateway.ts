@@ -15,17 +15,9 @@ function platformFailure(error?: unknown): AppError {
   const databaseCode =
     typeof error === 'object' && error !== null && 'code' in error ? error.code : null;
   if (databaseCode === '42501') {
-    return new AppError({
-      category: 'permission',
-      code: 'platform_forbidden',
-      message: 'Platform authorization required.',
-    });
+    return new AppError('platform_forbidden');
   }
-  return new AppError({
-    category: 'unexpected',
-    code: 'platform_unavailable',
-    message: 'Platform administration is unavailable.',
-  });
+  return new AppError('platform_unavailable');
 }
 
 function requireData<T>(result: { data: T | null; error: unknown }): T {

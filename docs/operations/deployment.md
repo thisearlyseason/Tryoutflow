@@ -14,7 +14,7 @@ npm run test:integration
 npm run test:integration
 npm run verify
 npm run build
-npm run test:e2e
+npm run test:e2e -- --retries=0
 git diff --check
 git status --short
 ```

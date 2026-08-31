@@ -1,22 +1,23 @@
 import 'server-only';
 
 import {
-  analyticsEventSchema,
+  serializeAnalyticsEvent,
   type AnalyticsEvent,
   type AnalyticsProvider,
+  type RecordedAnalyticsEvent,
 } from './analytics-provider';
 
 /** Deterministic, side-effect-free analytics adapter for local and contract tests. */
 export class FakeAnalyticsProvider implements AnalyticsProvider {
-  readonly #events: AnalyticsEvent[] = [];
+  readonly #events: RecordedAnalyticsEvent[] = [];
 
-  get events(): readonly AnalyticsEvent[] {
+  get events(): readonly RecordedAnalyticsEvent[] {
     return this.#events.map((event) => ({ ...event }));
   }
 
   async track(event: AnalyticsEvent): Promise<void> {
-    const parsed = analyticsEventSchema.safeParse(event);
-    if (!parsed.success) throw new Error('Invalid privacy-safe analytics event');
-    this.#events.push({ ...parsed.data });
+    const serialized = serializeAnalyticsEvent(event);
+    if (!serialized) throw new Error('Invalid privacy-safe analytics event');
+    this.#events.push(serialized);
   }
 }

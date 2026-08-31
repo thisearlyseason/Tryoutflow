@@ -5,31 +5,45 @@ import type {
   AnalyticsProvider,
 } from '../../src/infrastructure/analytics/analytics-provider';
 import { FakeAnalyticsProvider } from '../../src/infrastructure/analytics/fake-analytics-provider';
-
-const events: readonly AnalyticsEvent[] = [
-  {
-    name: 'workflow.started',
-    workflow: 'tryout_setup',
-    organizationId: '11111111-1111-4111-8111-111111111111',
-    correlationId: 'correlation_01HF4J8M8M4VK8TQXV0E9PKM31',
-  },
-  {
-    name: 'workflow.completed',
-    workflow: 'tryout_setup',
-    organizationId: '11111111-1111-4111-8111-111111111111',
-    correlationId: 'correlation_01HF4J8M8M4VK8TQXV0E9PKM31',
-  },
-];
+import { createCorrelationId } from '../../src/modules/observability/domain/correlation-id';
 
 function analyticsProviderContract(
   factory: () => AnalyticsProvider & { events: readonly unknown[] },
 ) {
   it('records validated events deterministically in submission order', async () => {
+    const correlationId = createCorrelationId();
+    const events: readonly AnalyticsEvent[] = [
+      {
+        name: 'workflow.started',
+        workflow: 'tryout_setup',
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        correlationId,
+      },
+      {
+        name: 'workflow.completed',
+        workflow: 'tryout_setup',
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        correlationId,
+      },
+    ];
     const provider = factory();
     for (const event of events) await provider.track(event);
 
-    expect(provider.events).toEqual(events);
-    expect(provider.events).not.toBe(events);
+    expect(provider.events).toEqual([
+      {
+        name: 'workflow.started',
+        workflow: 'tryout_setup',
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        correlationId: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+      },
+      {
+        name: 'workflow.completed',
+        workflow: 'tryout_setup',
+        organizationId: '11111111-1111-4111-8111-111111111111',
+        correlationId: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+      },
+    ]);
+    expect(provider.events[0]).not.toBe(provider.events[1]);
   });
 }
 

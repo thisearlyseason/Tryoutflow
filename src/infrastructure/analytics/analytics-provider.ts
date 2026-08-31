@@ -2,29 +2,58 @@ import 'server-only';
 
 import { z } from 'zod';
 
-const correlationIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{7,63}$/u);
+import {
+  correlationIdValue,
+  type CorrelationId,
+} from '../../modules/observability/domain/correlation-id';
 
-export const analyticsEventSchema = z
-  .object({
-    name: z.enum(['workflow.started', 'workflow.completed', 'workflow.failed']),
-    workflow: z.enum([
-      'onboarding',
-      'tryout_setup',
-      'registration',
-      'checkin',
-      'evaluation_sync',
-      'roster',
-      'communication',
-      'integration_export',
-      'report_export',
-      'billing',
-    ]),
-    organizationId: z.uuid(),
-    correlationId: correlationIdSchema,
-  })
-  .strict();
+export const analyticsEventNames = [
+  'workflow.started',
+  'workflow.completed',
+  'workflow.failed',
+] as const;
+export const analyticsWorkflows = [
+  'onboarding',
+  'tryout_setup',
+  'registration',
+  'checkin',
+  'evaluation_sync',
+  'roster',
+  'communication',
+  'integration_export',
+  'report_export',
+  'billing',
+] as const;
 
-export type AnalyticsEvent = z.infer<typeof analyticsEventSchema>;
+const analyticsEventBoundary = z.strictObject({
+  name: z.enum(analyticsEventNames),
+  workflow: z.enum(analyticsWorkflows),
+  organizationId: z.uuid(),
+  correlationId: z.unknown(),
+});
+
+export type AnalyticsEvent = Readonly<{
+  name: (typeof analyticsEventNames)[number];
+  workflow: (typeof analyticsWorkflows)[number];
+  organizationId: string;
+  correlationId: CorrelationId;
+}>;
+
+export type RecordedAnalyticsEvent = Readonly<Omit<AnalyticsEvent, 'correlationId'>> &
+  Readonly<{ correlationId: string }>;
+
+export function serializeAnalyticsEvent(event: unknown): RecordedAnalyticsEvent | null {
+  const parsed = analyticsEventBoundary.safeParse(event);
+  if (!parsed.success) return null;
+  const correlationId = correlationIdValue(parsed.data.correlationId);
+  if (!correlationId) return null;
+  return {
+    name: parsed.data.name,
+    workflow: parsed.data.workflow,
+    organizationId: parsed.data.organizationId,
+    correlationId,
+  };
+}
 
 export interface AnalyticsProvider {
   track(event: AnalyticsEvent): Promise<void>;

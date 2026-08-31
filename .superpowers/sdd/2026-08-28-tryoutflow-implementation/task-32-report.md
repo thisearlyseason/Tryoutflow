@@ -1,5 +1,29 @@
 # Task 32 privacy-safe operations and runbooks report
 
+## Review closure — fix round 1
+
+All four review findings against `709409f9579f880e9c974355fd5ef48431e2226b` are closed.
+
+- Structured errors now accept only closed error codes. Category and recovery message are derived
+  from that code, `toJSON` emits only closed code/category fields, and invalid constructor casts,
+  object-shaped values, prototype forgeries, and accessor failures collapse to
+  `unexpected_error`. Logging re-normalizes even `instanceof AppError` values before emission.
+- Correlation/request IDs are opaque server-issued UUIDv4 objects backed by module-private runtime
+  authenticity. Raw strings, copied objects, branded casts, email/phone/token/score/note/secret
+  values, and extra metadata cannot cross log or analytics boundaries. Analytics event names and
+  workflows are closed enums and the fake stores only a newly constructed serialized allow-list.
+- Additive migration 091 locks the support relation, revokes malformed, expired, or future-created
+  open legacy rows without rewriting/deleting their evidence, appends one immutable invalidation
+  audit event per row using closed reason codes, validates the complete constraints, and makes the
+  authorization helper recheck reason, creation, duration, expiry, revocation, actor, and platform
+  authority. Exact five-minute and four-hour current rows remain active.
+- The canonical `test:e2e` script, repository config, CI gate, and documented release command now
+  all run with retries disabled. A behavioral unit fixture intentionally fails and proves the npm
+  release command produces exactly one Playwright attempt even when its fixture config requests a
+  retry.
+- Organization audit wording is corrected to the authoritative owner/administrator capability and
+  RLS contract. Director authorization was not broadened.
+
 ## Outcome
 
 Task 32 is implemented from baseline `7f6963e8b8349fe392fccfe79e2643b35c88b30f`.
@@ -8,14 +32,15 @@ analytics, coarse public health with authorized operational detail, organization
 views, transactionally bounded support elevation, and actionable operations runbooks.
 
 The production surfaces are `/platform/organizations`, `/platform/subscriptions`,
-`/platform/health`, `/platform/support`, `/platform/audit`, and the owner/director organization
+`/platform/health`, `/platform/support`, `/platform/audit`, and the owner/administrator organization
 audit page. Anonymous and non-platform callers receive non-oracular denials. Platform operational
 failures reach a generic platform error boundary without exposing provider messages.
 
 ## Authorization and durable evidence
 
-Migration `202608310090_observability_and_platform_administration.sql` is additive and owns the
-security-critical platform boundary:
+Migrations `202608310090_observability_and_platform_administration.sql` and
+`202608310091_validate_support_elevation_history.sql` are additive and own the security-critical
+platform boundary:
 
 - `platform_administrators` is a durable, RLS-protected authority table with no direct client-table
   privileges. Every platform function checks current administrator state at execution time.
@@ -26,16 +51,17 @@ security-critical platform boundary:
   another user or silently grants a tenant role. Tenant membership and platform/support authority
   continue to be evaluated at execution time by their respective authorization helpers.
 - Active support authorization now also requires that the actor remains an active platform
-  administrator. Disabling the administrator immediately invalidates an otherwise unexpired
-  elevation.
+  administrator and that the preserved row has an exact safe reason, non-future creation, current
+  expiry, and five-minute-to-four-hour creation-relative duration. Disabling the administrator
+  immediately invalidates an otherwise unexpired elevation.
 - Privileged functions use `SECURITY DEFINER` with an explicitly empty `search_path`. Direct grants
   are exact; internal authorization helpers are revoked from `public`, `anon`, `authenticated`,
   and `service_role`. Public health alone is executable anonymously and returns only a coarse
   status. Detailed health, platform listings, audit, subscriptions, and support require current
   platform authority.
 - Audit history is append-only, immutable evidence. Organization audit reads require a current
-  owner/director capability; platform audit requires current platform authority. Cross-tenant and
-  unauthorized identifiers do not become existence oracles.
+  owner/administrator capability; platform audit requires current platform authority. Cross-tenant
+  and unauthorized identifiers do not become existence oracles.
 
 The generated Supabase types include the new durable table and RPC contracts. Application
 gateways convert database failures to the closed `AppError` taxonomy and never retain a raw
@@ -44,8 +70,9 @@ provider error as a cause.
 ## Privacy-safe observability and analytics
 
 `logError` and analytics events are constructed from explicit allowlists. Correlation IDs are
-strict UUIDs; operation names and error codes have bounded, non-sensitive formats. Unsafe error
-codes become `unexpected_error`, and raw exceptions are never serialized.
+opaque, server-issued UUIDv4 values with runtime authenticity; operation names, workflows, event
+names, and error codes are closed enums. Unsafe or forged errors become `unexpected_error`, and raw
+exceptions or caller messages are never serialized.
 
 The boundary does not accept scores, notes, guardian/contact data, credentials, provider secrets,
 tokens, raw payloads, or arbitrary tenant content. The analytics contract is server-only and
@@ -58,7 +85,7 @@ operational counts only.
 
 Platform navigation and pages provide organization, subscription, health, support, and audit
 workflows with responsive layouts, semantic controls, bounded support inputs, explicit success and
-error states, and safe empty states. Organization owners/directors can inspect their safe audit
+error states, and safe empty states. Organization owners/administrators can inspect their safe audit
 history; ordinary members cannot. The shared Task 30 fixtures now provision a real durable
 platform administrator and clean all associated rows.
 
@@ -104,20 +131,22 @@ or browser-noise monitor was weakened. The final complete matrix passed without 
 
 ## Verification evidence
 
-| Gate | Result |
-| --- | --- |
-| Clean unseeded local reset | All 90 additive migrations applied from scratch, including migration 090. |
-| Generated database types | Regenerated successfully after the clean reset; formatting/post-processing passed. |
-| Full pgTAP | 72 files / 1,924 assertions passed; Task 32 contributes 44 assertions. |
-| Seeded supervised integration, run 1 | 29 files / 211 tests passed. |
-| Seeded supervised integration, run 2 | 29 files / 211 tests passed. |
-| Final repository verification | Prettier, ESLint, TypeScript, 78 unit files / 999 tests, and production marketing verification passed. |
-| Analytics provider contract | Included in the passing unit gate with deterministic fake and server-only import enforcement. |
-| Full browser release matrix | 155/155 passed across Chromium, Firefox, WebKit, Mobile Chrome, and Mobile Safari with `--retries=0`. |
-| Final focused platform browser gate | 6/6 passed on Chromium and Mobile Safari with `--retries=0`. |
-| Standalone production build | Compiled, typed, generated 33 static pages, and finalized all platform/API routes. |
-| Dependency audit | `npm audit --audit-level=high`: 0 vulnerabilities. |
-| Diff gates | `git diff --check` passed; baseline remained the requested commit before the Task 32 commit. |
+| Gate                                 | Result                                                                                                                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Clean unseeded local reset           | All 91 additive migrations applied from scratch, including migrations 090–091.                                                                                               |
+| Generated database types             | Regenerated successfully after the clean reset; formatting/post-processing passed.                                                                                           |
+| Full pgTAP                           | 72 files / 1,936 assertions passed; Task 32 contributes 56 assertions.                                                                                                       |
+| True 090→091 upgrade fixture         | 1/1 passed: 9/9 rows and original audit/core fields preserved, 7 invalid/expired/future rows revoked with 7 appended audits, exact 5m/4h rows active, constraints validated. |
+| Seeded supervised integration, run 1 | 30 files / 212 tests passed.                                                                                                                                                 |
+| Seeded supervised integration, run 2 | 30 files / 212 tests passed.                                                                                                                                                 |
+| Final repository verification        | Prettier, ESLint, TypeScript, 78 unit files / 1,001 tests, and production marketing verification passed.                                                                     |
+| Contract suite                       | 4 files / 145 tests passed, including the deterministic analytics fake and server-only import enforcement.                                                                   |
+| Full browser release matrix          | 155/155 passed across Chromium, Firefox, WebKit, Mobile Chrome, and Mobile Safari with `--retries=0`.                                                                        |
+| Final focused platform browser gate  | 6/6 passed on Chromium and Mobile Safari with `--retries=0`.                                                                                                                 |
+| Review platform + Task 31 regression | 35/35 platform/error-state cases passed across all five projects through canonical `test:e2e`, retries 0.                                                                    |
+| Standalone production build          | Compiled, typed, generated 33 static pages, and finalized all platform/API routes.                                                                                           |
+| Dependency audit                     | `npm audit --audit-level=high`: 0 vulnerabilities.                                                                                                                           |
+| Diff gates                           | `git diff --check` passed; baseline remained the requested commit before the Task 32 commit.                                                                                 |
 
 The database's expected immutable-roster error messages appeared while integration tests asserted
 rejected writes; all corresponding assertions passed. Supabase's inherited `[inbucket]`
