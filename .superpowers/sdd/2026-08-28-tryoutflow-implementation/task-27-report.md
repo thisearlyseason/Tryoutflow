@@ -2,10 +2,11 @@
 
 ## Status
 
-Complete after review fix round 1/5.
+Complete after review fix round 2/5.
 
 - Original implementation: `07e396c` (`feat: add idempotent mock roster export`)
 - Review hardening: `7054702` (`fix(integrations): harden durable export execution`)
+- Review fix round 2: `0e21243` (`fix(integrations): close execution and replay races`)
 
 The implementation now persists actor-scoped integration connections, immutable export sources and approved projections, sync jobs/items, provider attempts, and athlete/team/roster-version mappings. It also provides truthful retry/manual-attention UI, a discoverable finalized-roster export entry point, and a production-route browser traversal through local authentication, RPC persistence, the protected processor, and refreshed durable state.
 
@@ -146,3 +147,81 @@ The review findings were reproduced before their production changes:
 ## Release concerns
 
 No blocking concern. The production-path browser evidence uses the real application and local Supabase, but the provider remains intentionally synthetic. Operations must keep the protected processor schedule active so preview retention and queued work progress. Enabling `ENABLE_MOCK_THE_SQUAD_PROVIDER` demonstrates mock behavior only; it does not configure or authorize a live Squad integration.
+
+## Review fix round 2/5
+
+### Findings reproduced before production edits
+
+All ten review findings were evaluated against the live schema or production components before the fixes were accepted.
+
+- The first `061_integration_execution_closure.test.sql` RED run failed 8 of 16 assertions: immutable mapping snapshots, completion receipts, retention caps, legacy-context closure, and worker ACLs were absent. Expanding the retry-safety matrix to 23 assertions then stopped at the missing private eligibility predicate, leaving seven planned assertions unrun.
+- Focused UI RED was 2 failures in 7 tests: a queued retry retained the old partial/retry state, and an ambiguous review item still received an ordinary retry control.
+- Exact-state contract RED was 2 failures in 10 focused tests: confirmation rejected the new durable eligible count, and retry rendering coerced the returned state to `pending`.
+- Preview CAS reproduced duplicate-A/omit-B acceptance risks, operation and label tampering, and ordering/empty behavior. A later self-review RED proved a missing `operation` was accepted as `created` because SQL three-valued logic bypassed the comparison.
+- Exact preview replay RED returned `replayed` for the same preview ID with a changed confirmation token and payload.
+- Real two-session authorization races were added for membership offboarding, connection disconnect, and exact source invalidation in both lock orderings. Early test iterations exposed output parsing, promise-ordering, and timeout issues before the production behavior was considered green.
+- The exhausted-attempt scenario proved an expired max-attempt lease could hide healthy work under the old claimant. The final test verifies terminalization does not increment beyond `max_attempts` and a healthy job behind it is still claimed.
+- The retention scenarios reproduced cap/cap+1 deletion, active-lease preservation, and post-expiry handoff denial.
+- Completion replay after source redaction initially validated raw source first and could not provide exact terminal replay. Changed provider-result ordering now produces `terminal_conflict` while the exact prior result replays.
+- Cold-registry runs initially attempted `create` despite durable mappings. Test helpers now consume the database-issued mapping snapshot, matching the application boundary.
+- A natural two-session failure-edge RED returned `lease_conflict`: failure saw a valid handed-off lease, blocked on its row, and resumed after expiry. The final transition locks first and records `needs_attention` atomically.
+
+### Durable schema and execution design
+
+Migration `202608280079_close_integration_execution_races.sql` is additive; migrations 077 and 078 were not edited.
+
+- Preview sources now snapshot the exact durable athlete-mapping set. The compare-and-save RPC requires one unique provider item for every source registration, rejects duplicates/omissions/extras, validates exact operation, privacy-safe label, approved projection, mock flag, item count, and provider identifiers, and binds ready-stage replay to the same token and complete preview payload.
+- Preview expiry is database-capped at source creation plus seven days. Claim and authorization refuse an expired source. The bounded purge selects at most `p_limit`, skips active leases, cancels provably pre-handoff work, marks handed-off work uncertain, redacts token/raw roster material, and preserves privacy-safe jobs, items, mappings, receipts, and audit evidence. The protected processor invokes it opportunistically.
+- Handoff authorization locks outbox, sync job, exact initiating membership, actor-bound connection, roster version, and source in one canonical order. Validation occurs under those locks immediately before the provider marker. Revocation that owns its row first cancels with no handoff; authorization that owns the rows first records the already-started linearization point. Later invalidity is delivery uncertainty, never a claim of cancellation.
+- Claims terminalize a bounded set of expired handed-off or exhausted leases separately from healthy claims. Exhausted pre-handoff work becomes nonretryable terminal failure without incrementing beyond the constraint; handed-off work becomes manual attention.
+- Failure after the handoff marker transitions atomically to uncertainty while holding the outbox row, including the lease-expiry edge. Ordinary retry eligibility is computed only for normalized `failed` items explicitly marked retryable with the allowlisted safe codes `rate_limited`, `provider_temporary`, or `timeout`. Permanent errors, ambiguous review, exhaustion, and delivery uncertainty cannot enter ordinary retry.
+- Completion stores a privacy-safe SHA-256 digest of the canonical provider result. Exact terminal completion replays before consulting redacted source bytes; changed external job or result evidence conflicts. Athlete, team, and roster-version mapping keys are locked in deterministic order before any legacy mapping write, independent of provider result order.
+- A v3 confirmation summary returns the durable job state, all item counts, and the exact retry-eligible count in the same transaction. Retry returns its durable state. The UI renders these values directly, removes the old retry control after queueing, distinguishes skipped/completed/failed-reviewable items, preserves empty no-transfer truth, and separates failed-safe retry from uncertainty/manual review.
+- `load_roster_export_context` is revoked from all runtime roles. Recreated completion/failure RPCs and their legacy implementations are revoked from public/anon/authenticated and granted only to `service_role`. New private helpers are not executable by runtime roles; every new privileged function has an empty search path.
+
+### Round 2 files
+
+- `supabase/migrations/202608280079_close_integration_execution_races.sql`
+- `supabase/tests/061_integration_execution_closure.test.sql`
+- `src/infrastructure/supabase/database.types.ts`
+- `src/modules/integrations/application/start-roster-export.ts`
+- `src/modules/integrations/application/retry-sync-job.ts`
+- `src/modules/integrations/infrastructure/supabase-integration-gateway.ts`
+- `src/modules/integrations/ui/roster-export-wizard.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rosters/[rosterVersionId]/export/page.tsx`
+- `tests/integration/integrations/roster-export.test.ts`
+- `tests/unit/integrations/roster-export-ui.test.tsx`
+- `tests/unit/integrations/supabase-integration-gateway.test.ts`
+- `tests/fixtures/integrations/app/page.tsx`
+
+### Final GREEN evidence
+
+- Clean local reset applied migrations 001–079 in order.
+- Focused pgTAP 061: 25/25 assertions passed.
+- Full pgTAP: 61 files / 1,668 assertions passed.
+- Expanded real-database integration scenario: passed after the final replay/operation/lease-edge fixes.
+- Full isolated integration suite, twice: 26 files / 192 tests passed on each run.
+- Task 26 provider contracts: 3 files / 143 tests passed.
+- Full `npm run verify`: formatting, ESLint, strict TypeScript, 58 unit files / 761 tests, and production Next.js build passed.
+- Independent `npm run build`: passed.
+- Production-route Chromium: 1/1 passed through real local authentication, provider feature flag/registry, application components, server actions, RPC persistence, protected processor, refresh truth, and axe with no interception.
+- Chromium + Mobile Chrome fixture: 4/4 passed, including 375 px overflow, target sizing, retry truth, and axe accessibility.
+- `npm audit --omit=dev`: 0 vulnerabilities.
+- Generated database types were reproduced twice with identical SHA-256 `79f98cfff672ae5c4a2b97ead25ef5d6a51f957ea76891109043b1022d2a2ec6`.
+- Live-catalog audit confirmed empty search paths and exact grants for the new/private/legacy RPC set.
+- `git diff --check`, broad-`any`/suppression scan, live-Squad-endpoint/credential scan, and old-migration diff check passed.
+
+### Round 2 self-review
+
+- Authorization and races: the provider marker is the documented linearization point. The implementation no longer promises cancellation after it. Tests cover membership, connection, and source invalidation in both orderings, plus revocation during the provider await.
+- Lock order: handoff locks are outbox → sync → membership → connection → roster → source. Completion locks outbox/sync/source before sorted mapping advisory keys. Confirmation and retry retain distinct advisory namespaces and acquire them before their authoritative lookup/mutation.
+- Replay: ready preview replay, confirmation, retry, and terminal completion bind exact durable evidence. Token consumption/redaction does not destroy exact completion replay authority.
+- Fencing and uncertainty: claim, authorize, complete, and fail retain token/generation fencing. Expired or errored handed-off work becomes attention; late exact completion cannot overwrite a newer terminal truth.
+- Mapping/tenant safety: athlete/team/roster mappings remain organization/connection/entity scoped with both internal and external uniqueness. Provider proofs are exact and no mapping is fabricated. Opposite-order overlapping completion sessions terminate without deadlock and converge on one mapping set.
+- Privacy: raw source/token material is private, seven-day bounded, and redacted. Durable job reads expose only approved projection and privacy-safe counts/hashes/refs; normalized errors and processor responses contain codes rather than PII or secrets.
+- UI: state is never coerced to pending, retry depends on item-level durable eligibility, completed and skipped counts remain distinct, empty export is completed/no-transfer, and uncertainty has manual-attention copy with no retry.
+- Compatibility: selection, roster construction, finalization, preview, confirmation, synchronization, and retry remain distinct. Task 26 stays a disabled-by-default demo/mock with no live endpoint or credential.
+
+### Round 2 release concern
+
+No blocking concern. The provider remains intentionally synthetic, and the protected processor must remain scheduled so queued work, bounded terminalization, and seven-day retention cleanup progress. Delivery uncertainty intentionally requires operator reconciliation; it is not automatically retryable because duplicate external intent cannot be ruled out.
