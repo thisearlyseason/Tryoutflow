@@ -2,7 +2,15 @@
 
 ## Status
 
-Round-three follow-up: migration 085 closes the remaining canonical-lineage consumption, true tryout candidate bound, strict lifecycle-count overflow, and mixed verified/unavailable roster-discovery gaps.  It is additive and preserves all pre-existing finalized and published history.
+Round-four follow-up: migration 086 closes the remaining duplicate-registration-history work below the tryout athlete cap.  It is additive, preserves all pre-existing finalized, published, withdrawn, and cancelled history, and keeps latest registration status live after the naturally unique athlete population is bounded.
+
+## Round-four evidence
+
+- RED pgTAP 068 inserted 12,000 registrations for the lexically first athlete plus two later athletes. `EXPLAIN ANALYZE` proved the migration-085 `DISTINCT ON ... LIMIT 3` plan still read 12,002 registration leaf rows even though it used the intended index and performed no sort.
+- Migration 086 adds private `report_tryout_athlete_population`, naturally keyed by `(organization_id,tryout_id,athlete_id)`. The exact primary-key scan reads only `maxRows + 1` memberships; one lateral latest-registration probe per already bounded athlete uses `(organization_id,tryout_id,athlete_id,created_at DESC,id DESC)`. The post-migration plan read three population rows and three registration rows, with no `Sort` or `Seq Scan`.
+- A locked idempotent recount backfills existing history and repairs derived membership. An exact `registration_count` witness serializes insert/delete maintenance on each natural key, while `ENABLE ALWAYS` triggers cover insert, delete, and truncate paths. Two genuinely concurrent registration sessions converged on witness/history counts of `2 / 2`; two transactional migration replays retained the same count.
+- Registration organization, tryout, and athlete identity are now immutable, including under replica-role writes. Status and other supported corrections remain mutable; deleting a duplicate falls back to the previous latest registration, deleting the last registration removes membership, and tenant/tryout parent foreign keys cascade without orphans.
+- The population table has no client or service-role privileges, enables defense-in-depth RLS, uses tenant-safe cascading foreign keys, and is consumed only through fixed-search-path security-definer boundaries. pgTAP 068 covers backfill, replay, same-athlete multi-tryout history, cross-tenant isolation, replica behavior, latest-ID ties, nullable organization latest registration, withdrawn/cancelled population, max-row boundaries, and summary/export parity.
 
 ## Round-three evidence
 
@@ -52,16 +60,19 @@ Round-three follow-up: migration 085 closes the remaining canonical-lineage cons
 
 ```text
 supabase db reset --no-seed && npm run test:db
-  PASS — migrations 001–085; 67 files / 1,767 assertions
+  PASS — migrations 001–086; 68 files / 1,822 assertions
 
 supabase db reset
-  PASS — migrations 001–085 plus deterministic Badlands seed
+  PASS — migrations 001–086 plus deterministic Badlands seed
 
-npx supabase test db supabase/tests/067_report_canonical_lineage_and_overflow_contract.test.sql
-  PASS on the seeded database — 1 file / 8 assertions (the preceding clean suite covers 064–066)
+npx supabase test db supabase/tests/068_report_duplicate_history_bounds.test.sql
+  PASS on clean and seeded databases — 1 file / 55 assertions; old/new actual registration leaf reads 12,002/3
+
+two concurrent psql registration transactions + two `psql -1` migration 086 replays
+  PASS — membership witness and registration history both remained exactly 2
 
 npm run test:integration
-  PASS twice under the Task 20 supervisor — 27 files / 201 tests on each run (42.81s and 42.40s)
+  PASS twice under the Task 20 supervisor — 27 files / 201 tests on each run (43.42s and 42.97s)
 
 npx vitest run --config vitest.integration.config.ts tests/integration/demo-seed.test.ts
   PASS — 1 file / 9 tests, including replay digest, legacy immutable-byte preservation, active canonical evaluator assignments, mixed verified/unavailable snapshot discovery, exact canonical lineage cardinalities, convergence, immutable/revision snapshots, population parity, and canonical weighted totals
@@ -79,7 +90,7 @@ npm run format:check && npm run lint && npm run typecheck
   PASS
 
 npm run verify
-  PASS — formatting, lint, typecheck, 67 unit files / 949 tests, and the Task 28 production marketing build (unit duration 110.37s)
+  PASS — formatting, lint, typecheck, 67 unit files / 949 tests, and the Task 28 production marketing build (unit duration 109.15s)
 
 production environment variables + npm run build
   PASS — optimized production build and route collection
