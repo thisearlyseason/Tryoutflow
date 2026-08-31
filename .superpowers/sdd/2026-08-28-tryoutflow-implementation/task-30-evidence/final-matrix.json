@@ -2,8 +2,8 @@
   "schema": "tryoutflow.task30.playwright-evidence.v1",
   "command": "corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/role-denials.spec.ts tests/e2e/concurrency-and-replay.spec.ts tests/e2e/responsive-and-accessibility.spec.ts --retries=0 --reporter=line,json",
   "stats": {
-    "startTime": "2026-08-31T15:26:34.424Z",
-    "duration": 284968.535,
+    "startTime": "2026-08-31T16:40:25.094Z",
+    "duration": 292059.39200000005,
     "expected": 70,
     "skipped": 0,
     "unexpected": 0,
@@ -13,15 +13,15 @@
     {
       "project": "chromium",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 10,
+      "line": 11,
       "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3679,
+          "duration": 3133,
           "retry": 0,
-          "startTime": "2026-08-31T15:26:40.274Z",
+          "startTime": "2026-08-31T16:40:31.206Z",
           "errors": []
         }
       ],
@@ -30,15 +30,15 @@
     {
       "project": "chromium",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 44,
+      "line": 51,
       "title": "two director tabs reject a stale roster mutation after the first committed write",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3105,
+          "duration": 3010,
           "retry": 0,
-          "startTime": "2026-08-31T15:26:44.206Z",
+          "startTime": "2026-08-31T16:40:34.551Z",
           "errors": []
         }
       ],
@@ -47,15 +47,15 @@
     {
       "project": "chromium",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 91,
+      "line": 97,
       "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3767,
+          "duration": 3698,
           "retry": 0,
-          "startTime": "2026-08-31T15:26:47.315Z",
+          "startTime": "2026-08-31T16:40:37.566Z",
           "errors": []
         }
       ],
@@ -64,15 +64,15 @@
     {
       "project": "firefox",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 10,
+      "line": 11,
       "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3844,
+          "duration": 3882,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:34.911Z",
+          "startTime": "2026-08-31T16:41:26.410Z",
           "errors": []
         }
       ],
@@ -81,15 +81,15 @@
     {
       "project": "firefox",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 44,
+      "line": 51,
       "title": "two director tabs reject a stale roster mutation after the first committed write",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3172,
+          "duration": 3360,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:39.245Z",
+          "startTime": "2026-08-31T16:41:30.781Z",
           "errors": []
         }
       ],
@@ -98,15 +98,15 @@
     {
       "project": "firefox",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 91,
+      "line": 97,
       "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4734,
+          "duration": 4610,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:42.421Z",
+          "startTime": "2026-08-31T16:41:34.146Z",
           "errors": []
         }
       ],
@@ -115,15 +115,15 @@
     {
       "project": "webkit",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 10,
+      "line": 11,
       "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3496,
+          "duration": 3568,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:35.551Z",
+          "startTime": "2026-08-31T16:42:28.019Z",
           "errors": []
         }
       ],
@@ -132,15 +132,15 @@
     {
       "project": "webkit",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 44,
+      "line": 51,
       "title": "two director tabs reject a stale roster mutation after the first committed write",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3345,
+          "duration": 3261,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:39.247Z",
+          "startTime": "2026-08-31T16:42:31.786Z",
           "errors": []
         }
       ],
@@ -149,15 +149,15 @@
     {
       "project": "webkit",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 91,
+      "line": 97,
       "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4135,
+          "duration": 4146,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:42.598Z",
+          "startTime": "2026-08-31T16:42:35.053Z",
           "errors": []
         }
       ],
@@ -166,15 +166,15 @@
     {
       "project": "Mobile Chrome",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 10,
+      "line": 11,
       "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3330,
+          "duration": 3515,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:30.630Z",
+          "startTime": "2026-08-31T16:43:24.749Z",
           "errors": []
         }
       ],
@@ -183,15 +183,15 @@
     {
       "project": "Mobile Chrome",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 44,
+      "line": 51,
       "title": "two director tabs reject a stale roster mutation after the first committed write",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3000,
+          "duration": 3075,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:34.153Z",
+          "startTime": "2026-08-31T16:43:28.493Z",
           "errors": []
         }
       ],
@@ -200,15 +200,15 @@
     {
       "project": "Mobile Chrome",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 91,
+      "line": 97,
       "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3925,
+          "duration": 3887,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:37.158Z",
+          "startTime": "2026-08-31T16:43:31.573Z",
           "errors": []
         }
       ],
@@ -217,15 +217,15 @@
     {
       "project": "Mobile Safari",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 10,
+      "line": 11,
       "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 2795,
+          "duration": 3670,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:25.469Z",
+          "startTime": "2026-08-31T16:44:20.672Z",
           "errors": []
         }
       ],
@@ -234,15 +234,15 @@
     {
       "project": "Mobile Safari",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 44,
+      "line": 51,
       "title": "two director tabs reject a stale roster mutation after the first committed write",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3073,
+          "duration": 3360,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:28.448Z",
+          "startTime": "2026-08-31T16:44:24.549Z",
           "errors": []
         }
       ],
@@ -251,15 +251,15 @@
     {
       "project": "Mobile Safari",
       "file": "concurrency-and-replay.spec.ts",
-      "line": 91,
+      "line": 97,
       "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4051,
+          "duration": 4235,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:31.526Z",
+          "startTime": "2026-08-31T16:44:27.915Z",
           "errors": []
         }
       ],
@@ -274,9 +274,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4469,
+          "duration": 4633,
           "retry": 0,
-          "startTime": "2026-08-31T15:26:51.143Z",
+          "startTime": "2026-08-31T16:40:41.301Z",
           "errors": []
         }
       ],
@@ -285,15 +285,15 @@
     {
       "project": "chromium",
       "file": "critical-lifecycle.spec.ts",
-      "line": 145,
+      "line": 144,
       "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3436,
+          "duration": 3487,
           "retry": 0,
-          "startTime": "2026-08-31T15:26:55.617Z",
+          "startTime": "2026-08-31T16:40:45.939Z",
           "errors": []
         }
       ],
@@ -302,15 +302,15 @@
     {
       "project": "chromium",
       "file": "critical-lifecycle.spec.ts",
-      "line": 235,
+      "line": 237,
       "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 7265,
+          "duration": 7697,
           "retry": 0,
-          "startTime": "2026-08-31T15:26:59.057Z",
+          "startTime": "2026-08-31T16:40:49.430Z",
           "errors": []
         }
       ],
@@ -319,15 +319,15 @@
     {
       "project": "chromium",
       "file": "critical-lifecycle.spec.ts",
-      "line": 309,
+      "line": 311,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 6558,
+          "duration": 6675,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:06.326Z",
+          "startTime": "2026-08-31T16:40:57.131Z",
           "errors": []
         }
       ],
@@ -336,15 +336,15 @@
     {
       "project": "chromium",
       "file": "critical-lifecycle.spec.ts",
-      "line": 401,
+      "line": 402,
       "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4786,
+          "duration": 4846,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:12.889Z",
+          "startTime": "2026-08-31T16:41:03.810Z",
           "errors": []
         }
       ],
@@ -359,9 +359,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2639,
+          "duration": 2818,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:17.679Z",
+          "startTime": "2026-08-31T16:41:08.660Z",
           "errors": []
         }
       ],
@@ -376,9 +376,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4769,
+          "duration": 5071,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:47.216Z",
+          "startTime": "2026-08-31T16:41:38.817Z",
           "errors": []
         }
       ],
@@ -387,15 +387,15 @@
     {
       "project": "firefox",
       "file": "critical-lifecycle.spec.ts",
-      "line": 145,
+      "line": 144,
       "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4050,
+          "duration": 3878,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:51.989Z",
+          "startTime": "2026-08-31T16:41:43.892Z",
           "errors": []
         }
       ],
@@ -404,15 +404,15 @@
     {
       "project": "firefox",
       "file": "critical-lifecycle.spec.ts",
-      "line": 235,
+      "line": 237,
       "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 8241,
+          "duration": 8169,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:56.043Z",
+          "startTime": "2026-08-31T16:41:47.774Z",
           "errors": []
         }
       ],
@@ -421,15 +421,15 @@
     {
       "project": "firefox",
       "file": "critical-lifecycle.spec.ts",
-      "line": 309,
+      "line": 311,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 6128,
+          "duration": 6157,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:04.288Z",
+          "startTime": "2026-08-31T16:41:55.947Z",
           "errors": []
         }
       ],
@@ -438,15 +438,15 @@
     {
       "project": "firefox",
       "file": "critical-lifecycle.spec.ts",
-      "line": 401,
+      "line": 402,
       "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5407,
+          "duration": 5543,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:10.420Z",
+          "startTime": "2026-08-31T16:42:02.108Z",
           "errors": []
         }
       ],
@@ -461,9 +461,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2896,
+          "duration": 2951,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:15.831Z",
+          "startTime": "2026-08-31T16:42:07.656Z",
           "errors": []
         }
       ],
@@ -478,9 +478,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4814,
+          "duration": 4898,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:46.815Z",
+          "startTime": "2026-08-31T16:42:39.266Z",
           "errors": []
         }
       ],
@@ -489,15 +489,15 @@
     {
       "project": "webkit",
       "file": "critical-lifecycle.spec.ts",
-      "line": 145,
+      "line": 144,
       "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3750,
+          "duration": 4028,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:51.633Z",
+          "startTime": "2026-08-31T16:42:44.169Z",
           "errors": []
         }
       ],
@@ -506,15 +506,15 @@
     {
       "project": "webkit",
       "file": "critical-lifecycle.spec.ts",
-      "line": 235,
+      "line": 237,
       "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 6295,
+          "duration": 6459,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:55.387Z",
+          "startTime": "2026-08-31T16:42:48.202Z",
           "errors": []
         }
       ],
@@ -523,15 +523,15 @@
     {
       "project": "webkit",
       "file": "critical-lifecycle.spec.ts",
-      "line": 309,
+      "line": 311,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4642,
+          "duration": 4753,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:01.685Z",
+          "startTime": "2026-08-31T16:42:54.664Z",
           "errors": []
         }
       ],
@@ -540,15 +540,15 @@
     {
       "project": "webkit",
       "file": "critical-lifecycle.spec.ts",
-      "line": 401,
+      "line": 402,
       "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5602,
+          "duration": 5910,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:06.332Z",
+          "startTime": "2026-08-31T16:42:59.422Z",
           "errors": []
         }
       ],
@@ -563,9 +563,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3290,
+          "duration": 3345,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:11.938Z",
+          "startTime": "2026-08-31T16:43:05.336Z",
           "errors": []
         }
       ],
@@ -580,9 +580,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4404,
+          "duration": 4628,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:41.139Z",
+          "startTime": "2026-08-31T16:43:35.541Z",
           "errors": []
         }
       ],
@@ -591,15 +591,15 @@
     {
       "project": "Mobile Chrome",
       "file": "critical-lifecycle.spec.ts",
-      "line": 145,
+      "line": 144,
       "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3541,
+          "duration": 3474,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:45.547Z",
+          "startTime": "2026-08-31T16:43:40.174Z",
           "errors": []
         }
       ],
@@ -608,15 +608,15 @@
     {
       "project": "Mobile Chrome",
       "file": "critical-lifecycle.spec.ts",
-      "line": 235,
+      "line": 237,
       "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 7537,
+          "duration": 7052,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:49.092Z",
+          "startTime": "2026-08-31T16:43:43.652Z",
           "errors": []
         }
       ],
@@ -625,15 +625,15 @@
     {
       "project": "Mobile Chrome",
       "file": "critical-lifecycle.spec.ts",
-      "line": 309,
+      "line": 311,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 6736,
+          "duration": 6680,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:56.632Z",
+          "startTime": "2026-08-31T16:43:50.709Z",
           "errors": []
         }
       ],
@@ -642,15 +642,15 @@
     {
       "project": "Mobile Chrome",
       "file": "critical-lifecycle.spec.ts",
-      "line": 401,
+      "line": 402,
       "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4662,
+          "duration": 5026,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:03.372Z",
+          "startTime": "2026-08-31T16:43:57.393Z",
           "errors": []
         }
       ],
@@ -665,9 +665,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2688,
+          "duration": 2929,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:08.038Z",
+          "startTime": "2026-08-31T16:44:02.423Z",
           "errors": []
         }
       ],
@@ -682,9 +682,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4863,
+          "duration": 4855,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:35.640Z",
+          "startTime": "2026-08-31T16:44:32.228Z",
           "errors": []
         }
       ],
@@ -693,15 +693,15 @@
     {
       "project": "Mobile Safari",
       "file": "critical-lifecycle.spec.ts",
-      "line": 145,
+      "line": 144,
       "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 3730,
+          "duration": 3897,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:40.507Z",
+          "startTime": "2026-08-31T16:44:37.088Z",
           "errors": []
         }
       ],
@@ -710,15 +710,15 @@
     {
       "project": "Mobile Safari",
       "file": "critical-lifecycle.spec.ts",
-      "line": 235,
+      "line": 237,
       "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 6603,
+          "duration": 6690,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:44.240Z",
+          "startTime": "2026-08-31T16:44:40.990Z",
           "errors": []
         }
       ],
@@ -727,15 +727,15 @@
     {
       "project": "Mobile Safari",
       "file": "critical-lifecycle.spec.ts",
-      "line": 309,
+      "line": 311,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4729,
+          "duration": 4733,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:50.847Z",
+          "startTime": "2026-08-31T16:44:47.684Z",
           "errors": []
         }
       ],
@@ -744,15 +744,15 @@
     {
       "project": "Mobile Safari",
       "file": "critical-lifecycle.spec.ts",
-      "line": 401,
+      "line": 402,
       "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5555,
+          "duration": 5737,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:55.580Z",
+          "startTime": "2026-08-31T16:44:52.421Z",
           "errors": []
         }
       ],
@@ -767,9 +767,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3140,
+          "duration": 3250,
           "retry": 0,
-          "startTime": "2026-08-31T15:31:01.139Z",
+          "startTime": "2026-08-31T16:44:58.166Z",
           "errors": []
         }
       ],
@@ -784,9 +784,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3115,
+          "duration": 3324,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:20.366Z",
+          "startTime": "2026-08-31T16:41:11.531Z",
           "errors": []
         }
       ],
@@ -795,15 +795,15 @@
     {
       "project": "chromium",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 86,
+      "line": 85,
       "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 2312,
+          "duration": 2501,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:23.484Z",
+          "startTime": "2026-08-31T16:41:14.859Z",
           "errors": []
         }
       ],
@@ -812,15 +812,15 @@
     {
       "project": "chromium",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 124,
+      "line": 122,
       "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 667,
+          "duration": 700,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:25.800Z",
+          "startTime": "2026-08-31T16:41:17.364Z",
           "errors": []
         }
       ],
@@ -835,9 +835,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3360,
+          "duration": 3619,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:18.775Z",
+          "startTime": "2026-08-31T16:42:10.658Z",
           "errors": []
         }
       ],
@@ -846,15 +846,15 @@
     {
       "project": "firefox",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 86,
+      "line": 85,
       "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 2519,
+          "duration": 2676,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:22.140Z",
+          "startTime": "2026-08-31T16:42:14.282Z",
           "errors": []
         }
       ],
@@ -863,15 +863,15 @@
     {
       "project": "firefox",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 124,
+      "line": 122,
       "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 967,
+          "duration": 1037,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:24.662Z",
+          "startTime": "2026-08-31T16:42:16.963Z",
           "errors": []
         }
       ],
@@ -886,9 +886,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2599,
+          "duration": 2713,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:15.279Z",
+          "startTime": "2026-08-31T16:43:08.734Z",
           "errors": []
         }
       ],
@@ -897,15 +897,15 @@
     {
       "project": "webkit",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 86,
+      "line": 85,
       "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 2626,
+          "duration": 2953,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:17.883Z",
+          "startTime": "2026-08-31T16:43:11.453Z",
           "errors": []
         }
       ],
@@ -914,15 +914,15 @@
     {
       "project": "webkit",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 124,
+      "line": 122,
       "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 1041,
+          "duration": 1037,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:20.513Z",
+          "startTime": "2026-08-31T16:43:14.410Z",
           "errors": []
         }
       ],
@@ -937,9 +937,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3195,
+          "duration": 3312,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:10.775Z",
+          "startTime": "2026-08-31T16:44:05.404Z",
           "errors": []
         }
       ],
@@ -948,15 +948,15 @@
     {
       "project": "Mobile Chrome",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 86,
+      "line": 85,
       "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 2358,
+          "duration": 2555,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:13.974Z",
+          "startTime": "2026-08-31T16:44:08.722Z",
           "errors": []
         }
       ],
@@ -965,15 +965,15 @@
     {
       "project": "Mobile Chrome",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 124,
+      "line": 122,
       "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 710,
+          "duration": 740,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:16.336Z",
+          "startTime": "2026-08-31T16:44:11.281Z",
           "errors": []
         }
       ],
@@ -988,9 +988,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2606,
+          "duration": 2712,
           "retry": 0,
-          "startTime": "2026-08-31T15:31:04.329Z",
+          "startTime": "2026-08-31T16:45:01.471Z",
           "errors": []
         }
       ],
@@ -999,15 +999,15 @@
     {
       "project": "Mobile Safari",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 86,
+      "line": 85,
       "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 2627,
+          "duration": 2745,
           "retry": 0,
-          "startTime": "2026-08-31T15:31:06.940Z",
+          "startTime": "2026-08-31T16:45:04.189Z",
           "errors": []
         }
       ],
@@ -1016,15 +1016,15 @@
     {
       "project": "Mobile Safari",
       "file": "responsive-and-accessibility.spec.ts",
-      "line": 124,
+      "line": 122,
       "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 932,
+          "duration": 1037,
           "retry": 0,
-          "startTime": "2026-08-31T15:31:09.571Z",
+          "startTime": "2026-08-31T16:45:06.939Z",
           "errors": []
         }
       ],
@@ -1039,9 +1039,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2171,
+          "duration": 2073,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:26.476Z",
+          "startTime": "2026-08-31T16:41:18.072Z",
           "errors": []
         }
       ],
@@ -1050,15 +1050,15 @@
     {
       "project": "chromium",
       "file": "role-denials.spec.ts",
-      "line": 42,
+      "line": 41,
       "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5231,
+          "duration": 5137,
           "retry": 0,
-          "startTime": "2026-08-31T15:27:28.651Z",
+          "startTime": "2026-08-31T16:41:20.149Z",
           "errors": []
         }
       ],
@@ -1073,9 +1073,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2315,
+          "duration": 2325,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:25.636Z",
+          "startTime": "2026-08-31T16:42:18.008Z",
           "errors": []
         }
       ],
@@ -1084,15 +1084,15 @@
     {
       "project": "firefox",
       "file": "role-denials.spec.ts",
-      "line": 42,
+      "line": 41,
       "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 6339,
+          "duration": 6474,
           "retry": 0,
-          "startTime": "2026-08-31T15:28:27.955Z",
+          "startTime": "2026-08-31T16:42:20.338Z",
           "errors": []
         }
       ],
@@ -1107,9 +1107,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2197,
+          "duration": 2187,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:21.562Z",
+          "startTime": "2026-08-31T16:43:15.456Z",
           "errors": []
         }
       ],
@@ -1118,15 +1118,15 @@
     {
       "project": "webkit",
       "file": "role-denials.spec.ts",
-      "line": 42,
+      "line": 41,
       "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5854,
+          "duration": 6025,
           "retry": 0,
-          "startTime": "2026-08-31T15:29:23.763Z",
+          "startTime": "2026-08-31T16:43:17.648Z",
           "errors": []
         }
       ],
@@ -1141,9 +1141,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2096,
+          "duration": 2092,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:17.053Z",
+          "startTime": "2026-08-31T16:44:12.028Z",
           "errors": []
         }
       ],
@@ -1152,15 +1152,15 @@
     {
       "project": "Mobile Chrome",
       "file": "role-denials.spec.ts",
-      "line": 42,
+      "line": 41,
       "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5306,
+          "duration": 5336,
           "retry": 0,
-          "startTime": "2026-08-31T15:30:19.153Z",
+          "startTime": "2026-08-31T16:44:14.125Z",
           "errors": []
         }
       ],
@@ -1175,9 +1175,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 2148,
+          "duration": 2135,
           "retry": 0,
-          "startTime": "2026-08-31T15:31:10.512Z",
+          "startTime": "2026-08-31T16:45:07.984Z",
           "errors": []
         }
       ],
@@ -1186,15 +1186,15 @@
     {
       "project": "Mobile Safari",
       "file": "role-denials.spec.ts",
-      "line": 42,
+      "line": 41,
       "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5683,
+          "duration": 5994,
           "retry": 0,
-          "startTime": "2026-08-31T15:31:12.664Z",
+          "startTime": "2026-08-31T16:45:10.123Z",
           "errors": []
         }
       ],

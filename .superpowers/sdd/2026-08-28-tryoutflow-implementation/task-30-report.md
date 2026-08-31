@@ -1,5 +1,32 @@
 # Task 30 cross-browser critical-flow report
 
+## Independent review fix round 2 (2026-08-31)
+
+Baseline `fb6bcf7432f11d25bd7af2c6d824900458b5162a`; implementation commit `11fdd54`. Both remaining monitor findings were reproduced against the reviewed code before editing.
+
+| Finding | Genuine RED | GREEN boundary |
+| --- | --- | --- |
+| Authentication lifecycle | `signInAs` completed its first navigation, credential action, redirect, and network-idle wait before `openAuthenticatedContext` attached a monitor. Two owning tests proved that a first-navigation console error was therefore hidden. | `signInAs` now attaches the monitor before `/sign-in`, declares the exact sign-in Server Action before clicking, returns that same monitor, and `openAuthenticatedContext` preserves it. Chromium's generated home RSC request is declared before the sign-in action with exact method, `rsc: 1` header, application URL, error contract, and count. |
+| RSC request failures | An unconditional URL-substring branch ignored every `GET` containing `_rsc=` with `net::ERR_ABORTED`. Owning tests proved an undeclared RSC failure and an extra identical failure both passed silently. | The blanket branch is gone. Required RSC cancellations are declared against one exact application URL, method, header, error, and count; the monitor captures the concrete generated full URL on `request` and binds the later failure to that same `Request`. Missing, extra, mismatched, non-RSC, and differently failed requests remain fatal. Cancellable sign-in RSC work is likewise counted at initiation and bound to its exact request. |
+
+Focused TDD began at 4 failures / 7 passes: two authentication lifecycle failures, the undeclared RSC cancellation, and the extra RSC cancellation. Generated-token binding and strict cancellable-request coverage were then added RED-first. The final owning gate is 2 files / 16 tests. A five-engine ranking probe initially produced only Chromium-family fixture RED because speculative Next.js link prefetches were being superseded. Volatile wizard, athlete, overview, roster, ranking, comparison, and marketing links now opt out of speculative prefetch; the actual comparison navigation declares its one exact Chromium-family cancellation. No product assertion, skip, retry, or generic allowance was introduced.
+
+Exact final round-two evidence:
+
+| Command | Result |
+| --- | --- |
+| `corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/role-denials.spec.ts tests/e2e/concurrency-and-replay.spec.ts tests/e2e/responsive-and-accessibility.spec.ts --retries=0 --reporter=line,json` | 70/70, 14 per project, 0 skips/retries/flakes, 4.9 min. |
+| `corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/concurrency-and-replay.spec.ts --project=firefox --project=webkit --project='Mobile Safari' --grep='scenario 5\|two director tabs\|scenarios 10–11' --repeat-each=3 --retries=0 --reporter=line,json` | 27/27, 9 per project, 0 skips/retries/flakes, 2.3 min. |
+| `corepack npm@11.12.1 run verify` | Format, ESLint, TypeScript, 71 unit files / 978 tests, and the Task 28 production artifact gate passed. |
+| `NEXT_PUBLIC_APP_URL=https://tryoutflow.example.test corepack npm@11.12.1 run build` | Standalone production build passed. |
+| `corepack npm@11.12.1 audit --audit-level=high` | 0 vulnerabilities. |
+
+Fresh sanitized evidence is `task-30-evidence/final-matrix.json` (70 entries, SHA-256 `519172b204bb2bc7270d1e3ef39625ccf4bfc41aa0030fb6997c561e09efe44c`) and `task-30-evidence/repeat-gate.json` (27 entries, SHA-256 `ca5a7184ae12445cb7edf031cbbde32ea67dac71c8d491cd5cea6beadce545ff`). Both retain project, file, line, title, result, duration, retry index, and start time while excluding configuration, environment, stdout/stderr, annotations, secrets, and synthetic fixture identifiers.
+
+No schema, migration, database contract, provider integration, or job supervisor changed in this narrow round. The round-one clean migration/pgTAP and twice-supervised integration evidence below remains the owning evidence for those unchanged boundaries; rerunning them would not exercise the browser-monitor or `Link` prefetch changes.
+
+The final round-two residue audit found zero Task 30 users/organizations, integration databases/roles/schemas/sessions, port 3112 listeners, or Task 30-owned runners. Thirty-nine generic registration limiter rows were created later by the full unit verification gate and were left intact because they are not browser-suite residue. A long-lived headed Playwright daemon was traced to a different worktree and likewise left untouched.
+
 ## Independent review fix round 1 (2026-08-31)
 
 Baseline `e7dfd6271719b1cc71612994c335fd6fe1d12187`; implementation commit `21b6ab2`. All five Important findings were reproduced before their owning fix.
@@ -9,7 +36,7 @@ Baseline `e7dfd6271719b1cc71612994c335fd6fe1d12187`; implementation commit `21b6
 | Wizard timestamps | Three owning unit cases failed because `datetime-local` strings reached the RPC unchanged; pgTAP 071 failed 3/5 because PostgreSQL cast them in the server zone. | The application now validates the selected IANA zone and converts registration/session wall times to UTC. Additive migration 089 repeats the conversion and DST round-trip validation at the database boundary. Unit 3/3, pgTAP 070+071 8/8, and scenario 1 prove Edmonton instants `2026-09-01T14:00:00Z`, `2026-10-01T02:00:00Z`, `2026-10-01T22:00:00Z`, and `2026-10-02T00:00:00Z`. |
 | Roster lifecycle | The reviewed scenario opened a SQL-seeded roster and therefore could not prove creation or frozen-state behavior through the application. | Scenario 8 creates `UI Blue`/`UI Gold` through the real UI, moves the exact athlete, records a decision, finalizes, verifies immutable audit evidence, then attempts a stale mutation. A digest of the roster/assignment/decision rows and the audit count remain byte-for-byte unchanged before revision. The focused lifecycle passed all five projects. |
 | Export replay | After the deliberately lost response, the test reloaded and observed the job but issued only one confirmation request. | The same still-mounted confirmation form replays the identical command before reload. The second response is successful, the durable `id`, business idempotency key, and preview identity are unchanged, and job/outbox/items remain exactly `1:1:2`; scenario 11's failed-item retry remains separate. |
-| Strict monitor | Three of four new owning unit cases failed against URL-only allowances; monitoring also began after some product navigation. | The monitor now requires exact count, method, full URL, error, and optional header predicates. Server Actions are counted on the exact `Request`, only their explicit browser cancellation codes are accepted, missing/extra requests fail, and all unrelated console/request/page errors remain fatal. Public monitoring starts before first navigation; authenticated helpers document the single narrow sign-in setup exception and attach immediately afterward. Final monitor unit gate: 7/7. |
+| Strict monitor | Three of four new owning unit cases failed against URL-only allowances; monitoring also began after some product navigation. | The monitor now requires exact count, method, full URL, error, and optional header predicates. Server Actions are counted on the exact `Request`, only their explicit browser cancellation codes are accepted, missing/extra requests fail, and all unrelated console/request/page errors remain fatal. Round two subsequently removed the remaining sign-in setup exception and the blanket RSC branch. |
 | Evidence | The report referenced a stale 30-run HTML report rather than the final matrix. | Sanitized machine-readable Playwright evidence now preserves every final result, duration, retry index, project, title, file, and start time: `task-30-evidence/final-matrix.json` (70 entries, SHA-256 `4fe45ec8b6875ac751f6a9dac6435e6123c17f9842635529a9910f7028e06b4b`) and `task-30-evidence/repeat-gate.json` (27 entries, SHA-256 `118be15187bcfa37dff00684ba982b339129da9f48875ffc1cc1008acdfdc3ba`). Reporter configuration/environment and stdout were stripped so no local keys, secrets, or PII are retained. |
 
 Additional genuine browser RED found during closure: redundant roster `revalidatePath` calls superseded successful Server Action streams under saturation. The owning page already receives authoritative action state, so those revalidations were removed; draft creation now allows two animation frames for the action response to settle before its deliberate full reload. Exact Server Action declarations—not broad ignores—cover the engine-level completed-navigation cancellation. Chromium scenario 8 repeated 3/3, then all five projects passed.
@@ -32,7 +59,7 @@ Exact final commands and results:
 | `NEXT_PUBLIC_APP_URL=https://tryoutflow.example.test corepack npm@11.12.1 run build` | Standalone production build passed. |
 | `corepack npm@11.12.1 audit --audit-level=high` | 0 vulnerabilities. |
 
-Self-review found no skipped assertions, retry masking, generic error allowance, live provider claim, secret/PII artifact, or historical migration edit. The exact automatic ignore remains limited to a cancelled `GET` whose URL contains `_rsc=` and whose error is `net::ERR_ABORTED`; every non-RSC or differently failed request is fatal. Because all projects share one deliberately local Next/Postgres lifecycle, the canonical suite uses one worker; every test still owns isolated users, organizations, rate keys, and rows.
+Self-review found no skipped assertions, retry masking, generic error allowance, live provider claim, secret/PII artifact, or historical migration edit. There is no automatic RSC ignore: every permitted RSC request or cancellation is exact, structured, counted, and bound to its initiating request; every undeclared or differently failed request is fatal. Because all projects share one deliberately local Next/Postgres lifecycle, the canonical suite uses one worker; every test still owns isolated users, organizations, rate keys, and rows.
 
 ## Outcome and configuration
 
@@ -59,7 +86,7 @@ The host `npm` is 11.6.2 while `packageManager` pins `npm@11.12.1`. Verification
 | 13 | Evaluator at 375 px, roster at 320 px, and marketing/auth at 430 px prove keyboard/focus behavior, 44 px targets, no horizontal overflow, axe, computed reduced motion, icon 200/SVG, and hydration-clean rendering. |
 | Supporting ranking/concurrency | Exact ranking tie/compare completion evidence and two already-mounted director tabs rejecting the stale second roster write. |
 
-The responsive monitor has no broad error allowance: it fails every page error, unexpected console error, non-RSC abort, and RSC failure other than exact browser-cancelled `_rsc` `net::ERR_ABORTED`. Other lifecycle tests allow only their exact intentional offline/lost-response failures and exact Next server-action navigation cancellations, matched by method, `next-action` header, target URL, and browser cancellation code.
+The responsive monitor has no broad error allowance: it fails every page error, unexpected console error, undeclared request failure, and mismatched RSC cancellation. Other lifecycle tests allow only their exact intentional offline/lost-response failures and exact Next server-action/RSC navigation cancellations, matched by count, method, required header, target URL, and browser cancellation code.
 
 ## RED classification and fixes
 
@@ -101,13 +128,13 @@ Fixture/environment failures were kept separate from product RED:
 | Responsive/accessibility focused projects | 12/12 across Chromium, WebKit, Mobile Chrome, and Mobile Safari; retries 0. |
 | Public registration/confirmation cleanup gate | 5/5 across all configured projects; retries 0 (13.2 s), with zero browser-owned limiter rows afterward. |
 | Chromium exact four-spec gate | 14/14; retries/skips 0 (24.6 s). |
-| Five-project exact matrix | Final-source run 70/70, exactly 14 per project; retries/skips/flakes 0 (4.7 min). Sanitized exact JSON evidence is committed. |
-| Firefox/WebKit/Mobile Safari high-risk repeats | 27/27: offline, stale two-tab concurrency, and integration partial retry/replay, each repeated three times; retries 0 (2.2 min). Sanitized exact JSON evidence is committed. |
+| Five-project exact matrix | Round-two final-source run 70/70, exactly 14 per project; retries/skips/flakes 0 (4.9 min). Fresh sanitized exact JSON evidence is committed. |
+| Firefox/WebKit/Mobile Safari high-risk repeats | Round-two 27/27: offline, stale two-tab concurrency, and integration partial retry/replay, each repeated three times; retries 0 (2.3 min). Fresh sanitized exact JSON evidence is committed. |
 | Clean migration replay | Migrations 001–089 plus deterministic seed passed. |
 | Focused pgTAP 070+071 | 2 files / 8 assertions passed in the owning gate; both are also present in the full result. |
 | Full pgTAP after unseeded reset | 71 files / 1,880 assertions passed (12 s). |
 | Supervised integration, twice | 27 files / 203 tests both runs; 38.49 s and 38.36 s; zero current-round supervisor/database/process residue. |
-| `corepack npm@11.12.1 run verify` | Formatting, ESLint, TypeScript, 70 unit files / 968 tests (103.40 s), and the Task 28 production artifact gate passed. |
+| `corepack npm@11.12.1 run verify` | Formatting, ESLint, TypeScript, 71 unit files / 978 tests (106.88 s), and the Task 28 production artifact gate passed. |
 | Standalone production build | All routes compiled, typed, collected, and optimized with an explicit HTTPS public origin. |
 | Dependency/security/diff audit | `npm audit --audit-level=high`: 0 vulnerabilities; secret scan and `git diff --check`: clean. |
 | Final state | Task 30 users/orgs/rate counters 0; integration DBs/roles/schemas/sessions 0; port 3112 listener and owned test processes 0. |
