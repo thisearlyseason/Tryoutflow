@@ -35,10 +35,10 @@ describe('deterministic Badlands demo seed', () => {
     const facts = JSON.parse(
       psql(`select jsonb_build_object(
         'organization',(select name from public.organizations where id='29000000-0000-4000-8000-000000000001'),
-        'positions',(select count(*) from public.tryout_positions where organization_id='29000000-0000-4000-8000-000000000001'),
-        'sessions',(select count(*) from public.tryout_sessions where organization_id='29000000-0000-4000-8000-000000000001'),
+        'positions',(select count(*) from public.tryout_positions where tryout_id='29000000-0000-4000-8000-000000000032'),
+        'sessions',(select count(*) from public.tryout_sessions where tryout_id='29000000-0000-4000-8000-000000000032'),
         'evaluators',(select count(*) from public.tryout_staff_assignments where organization_id='29000000-0000-4000-8000-000000000001' and role='evaluator' and revoked_at is null),
-        'incompleteEvaluations',(select count(*) from public.evaluations where organization_id='29000000-0000-4000-8000-000000000001' and state in ('draft','reopened')),
+        'incompleteEvaluations',(select count(*) from public.evaluations where tryout_id='29000000-0000-4000-8000-000000000032' and state in ('draft','reopened')),
         'decisionKinds',(select count(distinct status) from public.roster_decisions where organization_id='29000000-0000-4000-8000-000000000001'),
         'draftRoster',(select exists(select 1 from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001' and state='draft')),
         'finalRoster',(select exists(select 1 from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001' and state='finalized')),
@@ -81,6 +81,9 @@ describe('deterministic Badlands demo seed', () => {
         select id::text||':'||given_name||':'||family_name row_data from public.athletes where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||state||':'||version from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||state from public.integration_sync_jobs where organization_id='29000000-0000-4000-8000-000000000001'
+        union all select id::text||':'||status from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'
+        union all select id::text||':'||state||':'||version from public.evaluations where id in ('29000000-0000-4000-8000-000000000261','29000000-0000-4000-8000-000000000262')
+        union all select roster_version_id::text||':'||item_count from private.roster_report_snapshots where roster_version_id='29000000-0000-4000-8000-000000000283'
       ) stable`);
     execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', databaseUrl, '-f', 'supabase/seed.sql'], {
       encoding: 'utf8',
@@ -91,8 +94,33 @@ describe('deterministic Badlands demo seed', () => {
         select id::text||':'||given_name||':'||family_name row_data from public.athletes where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||state||':'||version from public.roster_versions where organization_id='29000000-0000-4000-8000-000000000001'
         union all select id::text||':'||state from public.integration_sync_jobs where organization_id='29000000-0000-4000-8000-000000000001'
+        union all select id::text||':'||status from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'
+        union all select id::text||':'||state||':'||version from public.evaluations where id in ('29000000-0000-4000-8000-000000000261','29000000-0000-4000-8000-000000000262')
+        union all select roster_version_id::text||':'||item_count from private.roster_report_snapshots where roster_version_id='29000000-0000-4000-8000-000000000283'
       ) stable`);
     expect(after).toBe(before);
+  });
+
+  it('adds one immutable-safe current lineage beside pre-fix history', () => {
+    expect(
+      JSON.parse(
+        psql(`select jsonb_build_object(
+          'rubric',(select count(*) from public.rubric_categories where rubric_version_id='29000000-0000-4000-8000-000000000213'),
+          'weights',(select string_agg(weight::text,',' order by sort_order) from public.rubric_categories where rubric_version_id='29000000-0000-4000-8000-000000000213'),
+          'complete',(select state from public.evaluations where id='29000000-0000-4000-8000-000000000261'),
+          'incomplete',(select state from public.evaluations where id='29000000-0000-4000-8000-000000000262'),
+          'snapshot',(select count(*) from private.roster_report_snapshots where roster_version_id='29000000-0000-4000-8000-000000000283'),
+          'versions',(select count(*) from public.roster_versions where tryout_id='29000000-0000-4000-8000-000000000201')
+        )`),
+      ),
+    ).toEqual({
+      rubric: 2,
+      weights: '90.00,10.00',
+      complete: 'completed',
+      incomplete: 'draft',
+      snapshot: 1,
+      versions: 1,
+    });
   });
 
   it('converges deleted and corrupted mutable demo subsets while terminal sync payloads stay redacted', () => {
@@ -196,7 +224,7 @@ describe('deterministic Badlands demo seed', () => {
           'unregistered',(select item->'registrationStatus' from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Unregistered')
         );`),
     );
-    expect(result).toEqual({ summary: 6, rows: 6, unregistered: null });
+    expect(result).toEqual({ summary: 8, rows: 8, unregistered: null });
   });
 
   it('matches Task 18 weighted totals and preserves incomplete lifecycle counts', () => {
