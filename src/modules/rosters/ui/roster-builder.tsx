@@ -353,7 +353,6 @@ export function RosterBuilder({
   useEffect(() => {
     setSnapshot(initial);
     setStaleVersion(null);
-    setMessage('');
     setSelected(new Set());
   }, [initial]);
 

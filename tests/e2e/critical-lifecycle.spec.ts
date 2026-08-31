@@ -64,10 +64,15 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
     type: 'scope',
     description: `role=owner; organization=${organizationSlug}; tryout=${tryoutName}`,
   });
-  const monitor = monitorBrowserErrors(page);
-
   await signInAs(page, newOwner);
-  await page.goto('/start');
+  const monitor = monitorBrowserErrors(page);
+  monitor.allowActionNavigationAbort(/\/start(?:\?|$)/u);
+  monitor.allowActionNavigationAbort(
+    new RegExp(
+      `/app/${organizationSlug}/tryouts/(?:new|[^/]+/setup/(?:basics|divisions|sessions|registration|rubric|rubrics|review|publish))(?:\\?|$)`,
+      'u',
+    ),
+  );
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
   await page.getByLabel('Organization URL').fill(organizationSlug);
@@ -76,6 +81,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await expect(
     page.getByRole('heading', { name: 'Your tryout operations checklist' }),
   ).toBeVisible();
+  await page.waitForLoadState('networkidle');
 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
   await page.getByLabel('Tryout name').fill(tryoutName);
@@ -126,11 +132,12 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   scenario,
 }, testInfo) => {
   scope(testInfo, 'guardian/public → administrator → checkin', scenario);
-  const monitor = monitorBrowserErrors(page);
+  const publicMonitor = monitorBrowserErrors(page);
   const publicSlug = `${scenario.organizationSlug}-critical-flow`;
   const familyName = `Registered-${scenario.key}`;
   const guardianEmail = `guardian-${scenario.key}@example.test`;
 
+  await page.setExtraHTTPHeaders({ 'x-vercel-forwarded-for': scenario.publicClientAddress });
   await page.goto(`/register/${publicSlug}`);
   await page.getByLabel('Athlete first name').fill('Browser');
   await page.getByLabel('Athlete last name').fill(familyName);
@@ -139,7 +146,14 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   await page.getByLabel('Guardian name').fill('Task 30 Guardian');
   await page.getByLabel('Guardian email').fill(guardianEmail);
   await page.getByLabel('I consent').check();
+  const submitted = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/api/public/registrations'),
+  );
   await page.getByRole('button', { name: 'Submit registration' }).click();
+  const submission = await submitted;
+  expect(submission.status()).toBe(200);
   await expect(page).toHaveURL(new RegExp(`/register/${publicSlug}/confirmation`, 'u'));
   await expect(page.getByRole('status')).toContainText(/confirmation link has been queued/i);
   const queuedText = scenario.database.scalar(
@@ -147,11 +161,14 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   );
   const confirmationToken = /[?&]token=([0-9a-f]{64})(?:&|$)/iu.exec(queuedText)?.[1];
   expect(confirmationToken).toMatch(/^[0-9a-f]{64}$/u);
+  scenario.database.trackPublicRateTarget('confirmation', confirmationToken!);
   await page.goto(`/register/${publicSlug}/confirmation?token=${confirmationToken}`);
   await page.getByRole('button', { name: 'Confirm registration' }).click();
   await expect(page.getByText('Your registration is confirmed.')).toBeVisible();
+  publicMonitor.assertClean();
 
   await signInAs(page, scenario.users.administrator, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
   await page.goto(`/app/${scenario.organizationSlug}/athletes`);
   await expect(page.getByRole('link', { name: `Browser ${familyName}` })).toBeVisible();
 
@@ -173,6 +190,12 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
     organizationSlug: scenario.organizationSlug,
   });
   const checkinMonitor = monitorBrowserErrors(checkin.page);
+  checkinMonitor.allowActionNavigationAbort(
+    new RegExp(
+      `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/check-in(?:\\?|$)`,
+      'u',
+    ),
+  );
   try {
     await checkin.page.goto(
       `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/check-in`,
@@ -223,6 +246,12 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
     await Promise.all(
       sessions.map(async ({ page, control, expected }) => {
         const monitor = monitorBrowserErrors(page);
+        monitor.allowActionNavigationAbort(
+          new RegExp(
+            `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationA}(?:\\?|$)`,
+            'u',
+          ),
+        );
         await page.goto(
           `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationA}`,
         );
@@ -234,6 +263,7 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
         await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
         await page.getByRole('button', { name: 'Complete evaluation' }).click();
         await expect(page.getByRole('button', { name: 'Evaluation completed' })).toBeDisabled();
+        await page.waitForLoadState('networkidle');
         for (const peer of ['82', '84', '86'].filter((score) => score !== expected)) {
           await expect(page.locator('body')).not.toContainText(`private ${peer}`);
         }
@@ -275,10 +305,12 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   scenario,
 }, testInfo) => {
   scope(testInfo, 'evaluator-three', scenario);
+  await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
   const monitor = monitorBrowserErrors(page);
   monitor.allowConsoleError(/^Failed to load resource: net::ERR_FAILED$/u);
+  monitor.allowConsoleError(/^Failed to load resource: net::ERR_INTERNET_DISCONNECTED$/u);
   monitor.allowRequestFailure(/\/api\/evaluations\//u);
-  await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
+  monitor.allowRequestFailure(/\/evaluate\/session\/[^/]+\/athletes\/[^/?]+\?[^#]*_rsc=/u);
   await page.goto(
     `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationD}`,
   );
@@ -296,7 +328,11 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   await expect(page.getByRole('status')).toContainText('Saved on device');
   expect(mutations).toBe(0);
   await page.route('**/api/evaluations/**', (route) => route.abort('failed'));
-  await page.context().setOffline(false);
+  const failedSynchronizationRequest = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().includes('/api/evaluations/'),
+  );
+  await reconnect(page.context(), page);
+  await failedSynchronizationRequest;
   await page.reload();
   await expect(page.getByLabel('Private evaluator note')).toHaveValue(
     'Exact durable offline draft',
@@ -351,13 +387,25 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
   scenario,
 }, testInfo) => {
   scope(testInfo, 'director', scenario);
-  const monitor = monitorBrowserErrors(page);
   const initialRosterAuditCount = Number(
     scenario.database.scalar(
       `select count(*) from public.audit_logs where organization_id='${scenario.ids.organization}' and action in('roster.finalized','roster.revised')`,
     ),
   );
   await signInAs(page, scenario.users.director, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
+  monitor.allowActionNavigationAbort(
+    new RegExp(
+      `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters(?:\\?|$)`,
+      'u',
+    ),
+  );
+  monitor.allowActionNavigationAbort(
+    new RegExp(
+      `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/messages(?:\\?|$)`,
+      'u',
+    ),
+  );
   await page.goto(
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`,
   );
@@ -366,6 +414,7 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
   await page.getByLabel('Destination team').selectOption(scenario.ids.draftTeamGold);
   await page.getByRole('button', { name: 'Confirm move' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'placement saved' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
   await page.reload();
   await expect(page.getByText('Draft roster · version 2')).toBeVisible();
   await page.getByLabel('Select Roster Mover').check();
@@ -384,6 +433,7 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
     .fill('Task 30 verified correction after independent director review.');
   await page.getByRole('button', { name: 'Confirm revision' }).click();
   await expect(page.getByText('Roster revision 2')).toBeVisible();
+  await page.waitForLoadState('networkidle');
   expect(
     Number(
       scenario.database.scalar(
@@ -402,6 +452,7 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
   await expect(page.getByRole('status')).toContainText(
     '1 message queued. Decisions were not changed.',
   );
+  await page.waitForLoadState('networkidle');
   await page.reload();
   const deliveryStatus = page.getByRole('region', { name: 'Delivery status' });
   await expect(deliveryStatus.getByText('Final', { exact: true })).toBeVisible();
@@ -420,8 +471,14 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   scenario,
 }, testInfo) => {
   scope(testInfo, 'owner', scenario);
-  const monitor = monitorBrowserErrors(page);
   await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
+  monitor.allowRequestFailure(
+    new RegExp(
+      `/api/organizations/${scenario.ids.organization}/exports/roster\\?[^#]*rosterVersionId=${scenario.ids.finalRoster}`,
+      'u',
+    ),
+  );
   await page.route('https://checkout.stripe.com/**', (route) =>
     route.fulfill({ contentType: 'text/html', body: '<h1>Stripe test checkout boundary</h1>' }),
   );
@@ -440,16 +497,18 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
 
   const webhookSecret = 'whsec_task30_local_contract_secret';
   const stripe = new Stripe(`sk_test_${'x'.repeat(32)}`);
+  const providerCreatedAt = Math.floor(Date.now() / 1_000);
+  const providerKey = scenario.key.replaceAll('-', '');
   const eventBody = JSON.stringify({
-    id: `evt_${scenario.key.replaceAll('-', '_')}_active`,
+    id: `evt_${providerKey}active`,
     object: 'event',
-    created: Math.floor(Date.now() / 1_000),
+    created: providerCreatedAt,
     type: 'customer.subscription.updated',
     data: {
       object: {
-        id: `sub_${scenario.key.replaceAll('-', '_')}`,
+        id: `sub_${providerKey}`,
         object: 'subscription',
-        customer: `cus_${scenario.key.replaceAll('-', '_')}`,
+        customer: `cus_${providerKey}`,
         status: 'active',
         metadata: { organization_id: scenario.ids.organization },
         items: {
@@ -457,8 +516,8 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
           data: [
             {
               price: { id: 'price_Task30Team' },
-              current_period_start: Math.floor(Date.now() / 1_000) - 60,
-              current_period_end: Math.floor(Date.now() / 1_000) + 3_600,
+              current_period_start: providerCreatedAt - 60,
+              current_period_end: providerCreatedAt + 3_600,
             },
           ],
         },
@@ -494,10 +553,10 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   await expect(page.getByRole('heading', { name: 'Stripe test portal boundary' })).toBeVisible();
 
   const canceledBody = eventBody
-    .replace('_active"', '_canceled"')
+    .replace('active"', 'canceled"')
     .replace('"customer.subscription.updated"', '"customer.subscription.deleted"')
     .replace('"status":"active"', '"status":"canceled"')
-    .replace('"canceled_at":null', `"canceled_at":${Math.floor(Date.now() / 1_000)}`);
+    .replace('"canceled_at":null', `"canceled_at":${providerCreatedAt}`);
   const canceledSignature = stripe.webhooks.generateTestHeaderString({
     payload: canceledBody,
     secret: webhookSecret,
@@ -509,6 +568,21 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   expect(canceled.ok(), await canceled.text()).toBe(true);
   await page.goto(`/app/${scenario.organizationSlug}/organization/billing`);
   await expect(page.getByRole('status')).toContainText('Subscription canceled');
+  expect(
+    scenario.database.scalar(
+      `select state||':'||provider_customer_id||':'||provider_subscription_id from public.subscription_accounts where organization_id='${scenario.ids.organization}'`,
+    ),
+  ).toBe(`canceled:cus_${providerKey}:sub_${providerKey}`);
+  expect(
+    scenario.database.scalar(
+      `select count(*) from public.subscription_events where organization_id='${scenario.ids.organization}'`,
+    ),
+  ).toBe('2');
+  expect(
+    scenario.database.scalar(
+      `select count(*) from public.subscription_checkout_intents where organization_id='${scenario.ids.organization}' and state='expired' and provider_session_id is null and result_url is null`,
+    ),
+  ).toBe('1');
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/reports`);
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
@@ -519,7 +593,8 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   const path = await download.path();
   expect(path).not.toBeNull();
   const csv = await readFile(path!, 'utf8');
-  expect(csv).toContain('Final,Selected');
+  expect(csv).toContain('Athlete number,Preferred name,Decision,Team');
+  expect(csv).toContain('Final,selected,Final Blue');
   expect(csv).not.toMatch(/guardian|email|phone|private note|evaluator/iu);
   monitor.assertClean();
 });

@@ -4,6 +4,13 @@ import { createHash } from 'node:crypto';
 import { test as base, expect, type APIRequestContext, type TestInfo } from '@playwright/test';
 import { z } from 'zod';
 
+import {
+  task30BrowserAddress,
+  task30PublicRequestRateKeys,
+  task30RegistrationRateKeys,
+  type Task30PublicRateBucket,
+} from './environment';
+
 const localSupabaseSchema = z.strictObject({
   API_URL: z.url(),
   DB_URL: z.string().startsWith('postgresql://'),
@@ -58,6 +65,7 @@ export type ScenarioIds = Readonly<{
 
 export type Task30Scenario = Readonly<{
   key: string;
+  publicClientAddress: string;
   organizationName: string;
   organizationSlug: string;
   otherOrganizationSlug: string;
@@ -78,6 +86,7 @@ export type Task30Scenario = Readonly<{
   database: Readonly<{
     execute(sql: string): void;
     scalar(sql: string): string;
+    trackPublicRateTarget(bucket: Task30PublicRateBucket, target: string): void;
   }>;
 }>;
 
@@ -129,6 +138,14 @@ function executeSql(databaseUrl: string, sql: string) {
     input: sql,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+}
+
+function cleanupPublicRegistrationRateKeys(databaseUrl: string, rateKeys: ReadonlySet<string>) {
+  const keys = [...rateKeys].map((value) => `'${value}'`).join(',');
+  executeSql(
+    databaseUrl,
+    `delete from public.registration_rate_counters where key_hash in(${keys});`,
+  );
 }
 
 function scalarSql(databaseUrl: string, sql: string) {
@@ -215,24 +232,22 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
     commit;`;
 }
 
-function cleanupStaleScope(databaseUrl: string, key: string, knownOrganizationIds: string[] = []) {
+export function cleanupTask30Residue() {
+  const local = localSupabase();
   const userIds = commaSeparated(
     scalarSql(
-      databaseUrl,
-      `select coalesce(string_agg(id::text,','),'') from auth.users where email like '${key}-%@example.test'`,
+      local.DB_URL,
+      `select coalesce(string_agg(id::text,','),'') from auth.users where email like 't30-%@example.test'`,
     ),
   );
-  const organizationIds = [
-    ...knownOrganizationIds,
-    ...commaSeparated(
-      scalarSql(
-        databaseUrl,
-        `select coalesce(string_agg(distinct organization_id::text,','),'') from public.organization_members where user_id=any(array[${userIds.map((id) => `'${id}'::uuid`).join(',')}]::uuid[])`,
-      ),
+  const organizationIds = commaSeparated(
+    scalarSql(
+      local.DB_URL,
+      `select coalesce(string_agg(id::text,','),'') from public.organizations where slug like 't30-%' or slug like 'task30-onboarding-%'`,
     ),
-  ].filter((value, index, all) => all.indexOf(value) === index);
+  );
   if (organizationIds.length > 0 || userIds.length > 0)
-    executeSql(databaseUrl, cleanupSql(organizationIds, userIds));
+    executeSql(local.DB_URL, cleanupSql(organizationIds, userIds));
 }
 
 function idsFor(key: string): ScenarioIds {
@@ -445,27 +460,13 @@ export const test = base.extend<Task30Fixtures>({
   newOwner: async ({ request }, use, testInfo) => {
     const local = localSupabase();
     const key = `${stableKey(testInfo)}-new-owner`;
-    cleanupStaleScope(local.DB_URL, key);
     const user = await createBrowserUser(request, local, key, 'owner');
-    try {
-      await use(user);
-    } finally {
-      const organizationIds = scalarSql(
-        local.DB_URL,
-        `select coalesce(string_agg(organization_id::text,','),'') from public.organization_members where user_id='${user.id}'`,
-      )
-        .split(',')
-        .filter(Boolean);
-      if (organizationIds.length > 0)
-        executeSql(local.DB_URL, cleanupSql(organizationIds, [user.id]));
-      else executeSql(local.DB_URL, `delete from auth.users where id='${user.id}';`);
-    }
+    await use(user);
   },
   scenario: async ({ request }, use, testInfo) => {
     const local = localSupabase();
     const key = stableKey(testInfo);
     const ids = idsFor(key);
-    cleanupStaleScope(local.DB_URL, key, [ids.organization, ids.otherOrganization]);
     const roles = [
       'owner',
       'administrator',
@@ -497,6 +498,9 @@ export const test = base.extend<Task30Fixtures>({
     const organizationSlug = `${key}-hockey`;
     const otherOrganizationSlug = `${key}-other`;
     const tryoutName = `Task 30 ${key} Critical Tryout`;
+    const publicTryoutSlug = `${organizationSlug}-critical-flow`;
+    const publicRateKeys = new Set(task30RegistrationRateKeys(key, publicTryoutSlug));
+    cleanupPublicRegistrationRateKeys(local.DB_URL, publicRateKeys);
     try {
       executeSql(
         local.DB_URL,
@@ -512,6 +516,7 @@ export const test = base.extend<Task30Fixtures>({
       );
       await use({
         key,
+        publicClientAddress: task30BrowserAddress(key),
         organizationName,
         organizationSlug,
         otherOrganizationSlug,
@@ -521,16 +526,15 @@ export const test = base.extend<Task30Fixtures>({
         database: {
           execute: (sql) => executeSql(local.DB_URL, sql),
           scalar: (sql) => scalarSql(local.DB_URL, sql),
+          trackPublicRateTarget(bucket, target) {
+            for (const rateKey of task30PublicRequestRateKeys(key, bucket, target)) {
+              publicRateKeys.add(rateKey);
+            }
+          },
         },
       });
     } finally {
-      executeSql(
-        local.DB_URL,
-        cleanupSql(
-          [ids.organization, ids.otherOrganization],
-          created.map((user) => user.id),
-        ),
-      );
+      cleanupPublicRegistrationRateKeys(local.DB_URL, publicRateKeys);
     }
   },
 });

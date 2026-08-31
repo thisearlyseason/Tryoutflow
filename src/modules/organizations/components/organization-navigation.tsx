@@ -86,6 +86,7 @@ export function OrganizationNavigation({
           className="inline-flex min-h-11 items-center"
           href={href!}
           key={href}
+          prefetch={false}
         >
           {label}
         </Link>

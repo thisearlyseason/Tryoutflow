@@ -51,6 +51,7 @@ export function ReportsPage({
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`${base}/roster?tryoutId=${encodeURIComponent(tryoutId)}&rosterVersionId=${encodeURIComponent(reviewer.rosterVersionId)}`}
+            prefetch={false}
           >
             Download finalized roster CSV
           </Link>
@@ -107,6 +108,7 @@ export function ReportsPage({
         <Link
           className="button-secondary inline-flex min-h-11 items-center"
           href={`${base}/athletes${query}`}
+          prefetch={false}
         >
           Download athletes CSV
         </Link>
@@ -114,6 +116,7 @@ export function ReportsPage({
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`${base}/evaluations${query}`}
+            prefetch={false}
           >
             Download evaluations CSV
           </Link>
@@ -122,6 +125,7 @@ export function ReportsPage({
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`${base}/roster?tryoutId=${encodeURIComponent(tryoutId)}&rosterVersionId=${encodeURIComponent(manager.latestFinalizedRosterId)}`}
+            prefetch={false}
           >
             Download finalized roster CSV
           </Link>

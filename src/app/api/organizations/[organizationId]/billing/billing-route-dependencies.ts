@@ -9,21 +9,20 @@ import { loadOwnedSubscriptionAccount } from '../../../../../modules/subscriptio
 import { createSubscriptionCheckoutIntentStore } from '../../../../../modules/subscriptions/infrastructure/subscription-checkout-intent-store';
 import { StripeBillingProvider } from '../../../../../infrastructure/billing/stripe-provider';
 import { FakeBillingProvider } from '../../../../../infrastructure/billing/fake-billing-provider';
+import { task30FakeBillingProviderOrigin } from '../../../../../infrastructure/billing/task30-fake-provider-environment';
 
 export async function createBillingRouteDependencies(): Promise<BillingRouteDependencies> {
   const client = await createServerSupabaseClient();
   const environment = getBillingEnvironment();
   const publicOrigin = getPublicAppOrigin();
-  const fakeProvider = process.env.TRYOUTFLOW_FAKE_BILLING_PROVIDER === 'true';
+  const fakeProviderOrigin = task30FakeBillingProviderOrigin(process.env);
+  const fakeProvider = fakeProviderOrigin !== null;
   const checkoutIntents = createSubscriptionCheckoutIntentStore(
     client,
     createAdminSupabaseClient(),
   );
   return {
-    canonicalOrigin:
-      fakeProvider && process.env.TASK30_LOCAL_REQUEST_ORIGIN
-        ? process.env.TASK30_LOCAL_REQUEST_ORIGIN
-        : publicOrigin,
+    canonicalOrigin: fakeProviderOrigin ?? publicOrigin,
     ...(fakeProvider ? { providerReturnOrigin: publicOrigin } : {}),
     provider: fakeProvider
       ? new FakeBillingProvider()

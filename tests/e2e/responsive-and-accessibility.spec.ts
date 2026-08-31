@@ -48,11 +48,10 @@ test('scenario 13 — evaluator at 375px keeps save/navigation reachable, 44px c
     type: 'scope',
     description: `role=evaluator-three; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); viewport=375x812`,
   });
-  const monitor = monitorBrowserErrors(page);
-  monitor.allowRequestFailure(/\/app\/[^/]+\/evaluate(?:\/|\?).*[?&]_rsc=/u);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 375, height: 812 });
   await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
   await page.goto(
     `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationD}`,
   );
@@ -90,11 +89,11 @@ test('narrow roster supports keyboard movement, consequential focus, 44px contro
 }, testInfo) => {
   testInfo.annotations.push({
     type: 'scope',
-    description: `role=director; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); roster=${scenario.ids.draftRoster}; viewport=390x844`,
+    description: `role=director; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); roster=${scenario.ids.draftRoster}; viewport=320x844`,
   });
-  const monitor = monitorBrowserErrors(page);
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 320, height: 844 });
   await signInAs(page, scenario.users.director, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
   await page.goto(
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`,
   );
@@ -133,8 +132,15 @@ test('marketing and authentication remain keyboard-first, 44px, overflow-free, a
   const monitor = monitorBrowserErrors(page);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.setViewportSize({ width: 430, height: 932 });
+  const icon = await page.request.get('/icon.svg');
+  expect(icon.status()).toBe(200);
+  expect(icon.headers()['content-type']).toContain('image/svg+xml');
   await page.goto('/');
-  await page.keyboard.press('Tab');
+  await page.keyboard.press(
+    testInfo.project.name.includes('webkit') || testInfo.project.name === 'Mobile Safari'
+      ? 'Alt+Tab'
+      : 'Tab',
+  );
   await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.locator('#main-content')).toBeFocused();

@@ -24,7 +24,7 @@ export function AthletePager({
       className="grid min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-2"
     >
       {previousHref ? (
-        <Link className={linkClass} href={previousHref} prefetch>
+        <Link className={linkClass} href={previousHref} prefetch={false}>
           Previous athlete
         </Link>
       ) : (
@@ -36,7 +36,7 @@ export function AthletePager({
         {currentIndex + 1} of {total}
       </span>
       {nextHref ? (
-        <Link className={linkClass} href={nextHref} prefetch>
+        <Link className={linkClass} href={nextHref} prefetch={false}>
           Next athlete
         </Link>
       ) : (

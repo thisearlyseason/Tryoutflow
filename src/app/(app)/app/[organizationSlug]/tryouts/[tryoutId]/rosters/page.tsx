@@ -340,6 +340,7 @@ export default async function RostersPage({
         <RosterBuilder
           canEdit={canEdit}
           initial={snapshot}
+          key={snapshot.rosterVersionId}
           onChangeDecisions={changeAction}
           onFinalize={finalizeAction}
           onMove={moveAction}

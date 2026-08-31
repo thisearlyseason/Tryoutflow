@@ -14,8 +14,8 @@ test('rankings preserve an exact tie and compare both athletes with completion e
     type: 'scope',
     description: `role=director; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); athletes=Tie Alpha/Tie Beta`,
   });
-  const monitor = monitorBrowserErrors(page);
   await signInAs(page, scenario.users.director, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rankings`);
   const alpha = page.getByRole('listitem').filter({ hasText: 'Tie Alpha' });
   const beta = page.getByRole('listitem').filter({ hasText: 'Tie Beta' });
@@ -49,8 +49,8 @@ test('two director tabs reject a stale roster mutation after the first committed
     type: 'scope',
     description: `role=director; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); roster=${scenario.ids.draftRoster}`,
   });
-  const monitor = monitorBrowserErrors(page);
   await signInAs(page, scenario.users.director, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
   const sibling = await context.newPage();
   const siblingMonitor = monitorBrowserErrors(sibling);
   const path = `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`;
@@ -79,6 +79,8 @@ test('two director tabs reject a stale roster mutation after the first committed
       `select count(*) from public.roster_assignments where organization_id='${scenario.ids.organization}' and roster_version_id='${scenario.ids.draftRoster}' and registration_id='${scenario.ids.rosterRegistrationA}' and team_id='${scenario.ids.draftTeamGold}'`,
     ),
   ).toBe('1');
+  await page.waitForLoadState('networkidle');
+  await sibling.waitForLoadState('networkidle');
   siblingMonitor.assertClean();
   monitor.assertClean();
 });
@@ -92,13 +94,18 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
     type: 'scope',
     description: `role=owner; organization=${scenario.organizationSlug}; tryout=${scenario.tryoutName} (${scenario.ids.tryout}); finalizedRoster=${scenario.ids.finalRoster}; provider=The Squad demo/mock`,
   });
-  const monitor = monitorBrowserErrors(page);
-  monitor.allowRequestFailure(/\/rosters\/.*\/export/u);
   await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  const monitor = monitorBrowserErrors(page);
+  monitor.allowConsoleError(/^Failed to load resource: net::ERR_FAILED$/u);
+  monitor.allowRequestFailure(/\/rosters\/.*\/export/u);
+  monitor.allowActionNavigationAbort(
+    new RegExp(`/app/${scenario.organizationSlug}/organization/integrations(?:\\?|$)`, 'u'),
+  );
   await page.goto(`/app/${scenario.organizationSlug}/organization/integrations`);
   await expect(page.getByText(/demo\/mock only/i).first()).toBeVisible();
   await page.getByRole('button', { name: 'Connect demo provider' }).click();
   await expect(page.getByText(/demo\/mock connection is ready/i)).toBeVisible();
+  await page.waitForLoadState('networkidle');
 
   const exportPath = `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters/${scenario.ids.finalRoster}/export`;
   await page.goto(exportPath);

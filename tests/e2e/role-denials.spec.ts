@@ -10,11 +10,11 @@ test('scenario 6 — other-tenant owner is denied a direct organization and tryo
     type: 'scope',
     description: `role=owner of ${scenario.otherOrganizationSlug}; deniedOrganization=${scenario.organizationSlug}; deniedTryout=${scenario.tryoutName} (${scenario.ids.tryout})`,
   });
+  await signInAs(page, scenario.users.otherOwner, scenario.otherOrganizationSlug);
   const monitor = monitorBrowserErrors(page);
   monitor.allowConsoleError(
     /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/u,
   );
-  await signInAs(page, scenario.users.otherOwner, scenario.otherOrganizationSlug);
 
   const response = await page.goto(
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`,

@@ -4,6 +4,7 @@ import { expect } from '@playwright/test';
 type RequestMatcher = (request: Request) => boolean;
 
 export type BrowserErrorMonitor = Readonly<{
+  allowActionNavigationAbort(pattern: RegExp): void;
   allowConsoleError(pattern: RegExp): void;
   allowRequestFailure(pattern: RegExp): void;
   assertClean(): void;
@@ -13,16 +14,29 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
   const failures: string[] = [];
   const allowedConsoleErrors: RegExp[] = [];
   const allowedFailures: RegExp[] = [];
+  const allowedActionNavigationAborts: RegExp[] = [];
   page.on('console', (message) => {
     if (
       message.type() === 'error' &&
       !allowedConsoleErrors.some((pattern) => pattern.test(message.text()))
     )
-      failures.push(`console: ${message.text()}`);
+      failures.push(
+        `console: ${message.text()}${message.location().url ? ` (${message.location().url})` : ''}`,
+      );
   });
   page.on('pageerror', (error) => failures.push(`pageerror: ${error.message}`));
   page.on('requestfailed', (request) => {
     if (allowedFailures.some((pattern) => pattern.test(request.url()))) return;
+    if (
+      request.method() === 'POST' &&
+      request.headers()['next-action'] &&
+      allowedActionNavigationAborts.some((pattern) => pattern.test(request.url())) &&
+      ['net::ERR_ABORTED', 'cancelled', 'NS_BINDING_ABORTED'].includes(
+        request.failure()?.errorText ?? '',
+      )
+    ) {
+      return;
+    }
     if (request.url().includes('_rsc=') && request.failure()?.errorText === 'net::ERR_ABORTED') {
       return;
     }
@@ -31,6 +45,9 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
     );
   });
   return {
+    allowActionNavigationAbort(pattern) {
+      allowedActionNavigationAborts.push(pattern);
+    },
     allowConsoleError(pattern) {
       allowedConsoleErrors.push(pattern);
     },

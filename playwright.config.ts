@@ -3,6 +3,8 @@ import { execFileSync } from 'node:child_process';
 import { defineConfig, devices } from '@playwright/test';
 import { z } from 'zod';
 
+import { task30RateLimitSecret } from './tests/e2e/helpers/environment';
+
 const localSupabaseSchema = z.strictObject({
   API_URL: z.url(),
   PUBLISHABLE_KEY: z.string().min(1),
@@ -36,6 +38,8 @@ export default defineConfig({
     'concurrency-and-replay.spec.ts',
     'responsive-and-accessibility.spec.ts',
   ],
+  globalSetup: './tests/e2e/global-database-lifecycle.ts',
+  globalTeardown: './tests/e2e/global-database-lifecycle.ts',
   fullyParallel: true,
   forbidOnly: true,
   retries: 1,
@@ -54,13 +58,14 @@ export default defineConfig({
       SUPABASE_SERVICE_ROLE_KEY: local.SERVICE_ROLE_KEY,
       NEXT_PUBLIC_APP_URL: 'https://task30.e2e.example.test',
       TASK30_LOCAL_REQUEST_ORIGIN: origin,
-      PUBLIC_REGISTRATION_RATE_LIMIT_SECRET: 'task30-local-rate-limit-secret'.padEnd(64, 'r'),
+      PUBLIC_REGISTRATION_RATE_LIMIT_SECRET: task30RateLimitSecret,
       NEXT_PUBLIC_EVALUATION_SNAPSHOT_PROOF_PUBLIC_JWK: publicSnapshotKey,
       EVALUATION_SNAPSHOT_PROOF_PRIVATE_JWK: privateSnapshotKey,
       ENABLE_MOCK_THE_SQUAD_PROVIDER: 'true',
       MOCK_THE_SQUAD_FIXTURE: 'partial-failure',
       MOCK_THE_SQUAD_DYNAMIC_ROSTER: 'true',
       TRYOUTFLOW_FAKE_BILLING_PROVIDER: 'true',
+      TRYOUTFLOW_SERVER_TEST_ENV: 'task30-playwright',
       STRIPE_SECRET_KEY: `sk_test_${'x'.repeat(32)}`,
       STRIPE_WEBHOOK_SECRET: 'whsec_task30_local_contract_secret',
       STRIPE_PRICE_TEAM: 'price_Task30Team',

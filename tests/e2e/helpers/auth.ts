@@ -8,11 +8,13 @@ export async function signInAs(page: Page, user: BrowserUser, expectedOrganizati
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page).toHaveURL(/\/app(?:\/|$)|\/start$/u);
   if (expectedOrganizationSlug) {
-    await page.goto(`/app/${expectedOrganizationSlug}/home`);
     await expect(page).toHaveURL(new RegExp(`/app/${expectedOrganizationSlug}/home$`, 'u'));
+    await page.waitForLoadState('networkidle');
+    return;
   }
+  await expect(page).toHaveURL(/\/app(?:\/|$)|\/start$/u);
+  await page.waitForLoadState('networkidle');
 }
 
 export async function openAuthenticatedContext(input: {
