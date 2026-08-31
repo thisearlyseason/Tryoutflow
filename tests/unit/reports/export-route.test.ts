@@ -48,7 +48,40 @@ describe('CSV export route', () => {
     expect(execute).toHaveBeenCalledWith(
       { organizationId, tryoutId, rosterVersionId: undefined, exportType: 'athletes' },
       actor,
+      expect.any(AbortSignal),
     );
+  });
+
+  it('propagates an in-flight abort to projection work and returns 499 promptly', async () => {
+    const controller = new AbortController();
+    let projectionStopped = false;
+    const execute = vi.fn((...args: unknown[]) => {
+      const signal = args[2] as AbortSignal;
+      return new Promise<never>((_resolve, reject) => {
+        const stop = () => {
+          projectionStopped = true;
+          reject(signal.reason ?? new DOMException('Request aborted', 'AbortError'));
+        };
+        signal.addEventListener('abort', stop, { once: true });
+      });
+    });
+    const pending = handleExportRequest(
+      new Request(`http://localhost/api/x?tryoutId=${tryoutId}`, { signal: controller.signal }),
+      { organizationId, exportType: 'athletes' },
+      { authorize: async () => actor, execute },
+    );
+    await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+    controller.abort('client disconnected');
+
+    const response = await Promise.race([
+      pending,
+      new Promise<never>((_resolve, reject) =>
+        setTimeout(() => reject(new Error('abort did not stop projection promptly')), 250),
+      ),
+    ]);
+    expect(response.status).toBe(499);
+    expect(projectionStopped).toBe(true);
+    expect(response.headers.get('content-type')).not.toBe('text/csv; charset=utf-8');
   });
 
   it('pulls one encoded chunk at a time and stops after consumer cancellation', async () => {

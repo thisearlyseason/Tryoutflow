@@ -24,8 +24,9 @@ export async function createExportRouteDependencies() {
     execute(
       input: Parameters<typeof createReportExport>[0],
       actor: Parameters<typeof createReportExport>[1],
+      signal: AbortSignal,
     ) {
-      return createReportExport(input, actor, new SupabaseReportGateway(client));
+      return createReportExport(input, actor, new SupabaseReportGateway(client), signal);
     },
   };
 }

@@ -8,6 +8,8 @@ import type {
 } from '../application/create-report-export';
 
 const rowLimit = 5_000;
+export const REPORT_COUNT_CAP = 10_000;
+export const REPORT_COUNT_OVERFLOW_SENTINEL = REPORT_COUNT_CAP + 1;
 const athleteRow = z.strictObject({
   athleteNumber: z.number().int().min(1).max(9999).nullable(),
   preferredName: z.string().min(1).max(120),
@@ -19,12 +21,12 @@ const evaluationRow = z.strictObject({
   athleteNumber: z.number().int().min(1).max(9999).nullable(),
   preferredName: z.string().min(1).max(120),
   session: z.string().min(1).max(160),
-  completedCount: z.number().int().min(0).max(1000),
-  lockedCount: z.number().int().min(0).max(1000),
-  reopenedCount: z.number().int().min(0).max(1000),
-  draftCount: z.number().int().min(0).max(1000),
-  invalidCount: z.number().int().min(0).max(1000),
-  scoredEvaluatorCount: z.number().int().min(0).max(1000),
+  completedCount: z.number().int().min(0).max(REPORT_COUNT_OVERFLOW_SENTINEL),
+  lockedCount: z.number().int().min(0).max(REPORT_COUNT_OVERFLOW_SENTINEL),
+  reopenedCount: z.number().int().min(0).max(REPORT_COUNT_OVERFLOW_SENTINEL),
+  draftCount: z.number().int().min(0).max(REPORT_COUNT_OVERFLOW_SENTINEL),
+  invalidCount: z.number().int().min(0).max(REPORT_COUNT_OVERFLOW_SENTINEL),
+  scoredEvaluatorCount: z.number().int().min(0).max(REPORT_COUNT_OVERFLOW_SENTINEL),
   overallScore: z
     .string()
     .regex(/^(?:100|[0-9]{1,2})\.\d{4}$/u)
@@ -80,10 +82,12 @@ export type ManagerReportSummary = Readonly<{
   incompleteEvaluationCount: number;
   finalizedRosterCount: number;
   latestFinalizedRosterId: string | null;
+  unavailableFinalizedRosterCount?: number;
 }>;
 export type ReportPageAccess =
   | Readonly<{ kind: 'manager'; summary: ManagerReportSummary }>
-  | Readonly<{ kind: 'reviewer_roster'; rosterVersionId: string }>;
+  | Readonly<{ kind: 'reviewer_roster'; rosterVersionId: string }>
+  | Readonly<{ kind: 'reviewer_roster_unavailable' }>;
 const summaryResponse = z.union([
   z.strictObject({ outcome: z.literal('forbidden') }),
   z.strictObject({
@@ -95,6 +99,7 @@ const summaryResponse = z.union([
       incompleteEvaluationCount: z.number().int().min(0).max(10_000_000),
       finalizedRosterCount: z.number().int().min(0).max(1_000_000),
       latestFinalizedRosterId: z.uuid().nullable(),
+      unavailableFinalizedRosterCount: z.number().int().min(0).max(1_000_000).optional(),
     }),
   }),
   z.strictObject({
@@ -102,19 +107,29 @@ const summaryResponse = z.union([
     access: z.literal('reviewer_roster'),
     rosterVersionId: z.uuid(),
   }),
+  z.strictObject({
+    outcome: z.literal('ok'),
+    access: z.literal('reviewer_roster_unavailable'),
+  }),
 ]);
 
 export class SupabaseReportGateway implements ReportExportGateway {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
-  async load(input: Parameters<ReportExportGateway['load']>[0]): Promise<ReportExportProjection> {
-    const { data, error } = await this.client.rpc('load_report_export', {
+  async load(
+    input: Parameters<ReportExportGateway['load']>[0],
+    signal?: AbortSignal,
+  ): Promise<ReportExportProjection> {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Request aborted', 'AbortError');
+    let request = this.client.rpc('load_report_export', {
       p_organization_id: input.organizationId,
       p_export_type: input.exportType,
       p_tryout_id: input.tryoutId,
       p_roster_version_id: input.rosterVersionId,
       p_max_rows: input.maxRows,
     });
+    if (signal) request = request.abortSignal(signal);
+    const { data, error } = await request;
     if (error || !Array.isArray(data) || data.length !== 1)
       throw error ?? new Error('Invalid report projection');
     return parseReportExportProjection(data[0]?.result);
@@ -130,8 +145,10 @@ export class SupabaseReportGateway implements ReportExportGateway {
     const parsed = summaryResponse.safeParse(data[0]?.result);
     if (!parsed.success) throw new Error('Invalid report summary');
     if (parsed.data.outcome !== 'ok') return null;
-    return parsed.data.access === 'manager'
-      ? { kind: 'manager', summary: parsed.data.summary }
-      : { kind: 'reviewer_roster', rosterVersionId: parsed.data.rosterVersionId };
+    if (parsed.data.access === 'manager') return { kind: 'manager', summary: parsed.data.summary };
+    if (parsed.data.access === 'reviewer_roster') {
+      return { kind: 'reviewer_roster', rosterVersionId: parsed.data.rosterVersionId };
+    }
+    return { kind: 'reviewer_roster_unavailable' };
   }
 }

@@ -4,6 +4,10 @@ import Papa from 'papaparse';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
 import { createReportExport } from '../../../src/modules/reports/application/create-report-export';
 import {
+  parseReportExportProjection,
+  SupabaseReportGateway,
+} from '../../../src/modules/reports/infrastructure/supabase-report-gateway';
+import {
   exportAthletesCsv,
   type AthleteExportRow,
 } from '../../../src/modules/reports/application/export-athletes-csv';
@@ -125,6 +129,111 @@ describe('RFC 4180 report exports', () => {
 });
 
 describe('authorized server export snapshots', () => {
+  it.each([1_000, 1_001, 10_000])(
+    'accepts truthful evaluation lifecycle counts through the report cap: %i',
+    (count) => {
+      const projection = parseReportExportProjection({
+        outcome: 'ok',
+        exportType: 'evaluations',
+        scopeLabel: 'Badlands / U15',
+        rows: [
+          {
+            athleteNumber: 12,
+            preferredName: 'Synthetic Athlete',
+            session: 'Skills',
+            completedCount: count,
+            lockedCount: 0,
+            reopenedCount: 0,
+            draftCount: 0,
+            invalidCount: 0,
+            scoredEvaluatorCount: count,
+            overallScore: '92.0000',
+          },
+        ],
+        truncated: false,
+      });
+      expect(projection.outcome).toBe('ok');
+    },
+  );
+
+  it('accepts the SQL overflow sentinel so application code can return 413 rather than parser 503', async () => {
+    const overflow = parseReportExportProjection({
+      outcome: 'ok',
+      exportType: 'evaluations',
+      scopeLabel: 'Badlands / U15',
+      rows: [
+        {
+          athleteNumber: 12,
+          preferredName: 'Synthetic Athlete',
+          session: 'Skills',
+          completedCount: 10_001,
+          lockedCount: 0,
+          reopenedCount: 0,
+          draftCount: 0,
+          invalidCount: 0,
+          scoredEvaluatorCount: 10_001,
+          overallScore: '92.0000',
+        },
+      ],
+      truncated: true,
+    });
+    expect(overflow.outcome).toBe('ok');
+    const result = await createReportExport(
+      { organizationId: ids.organization, tryoutId: ids.tryout, exportType: 'evaluations' },
+      {
+        ...actor('member'),
+        assignments: [{ role: 'director', scope: { kind: 'tryout', tryoutId: ids.tryout } }],
+      },
+      { load: vi.fn().mockResolvedValue(overflow) },
+    );
+    expect(result).toEqual({ ok: false, error: { code: 'too_large' } });
+  });
+
+  it('passes abort signals to the Supabase query builder', async () => {
+    const controller = new AbortController();
+    let receivedSignal: AbortSignal | undefined;
+    const builder = {
+      abortSignal(signal: AbortSignal) {
+        receivedSignal = signal;
+        return this;
+      },
+      then(resolve: (value: unknown) => unknown) {
+        return Promise.resolve({ data: [{ result: { outcome: 'forbidden' } }], error: null }).then(
+          resolve,
+        );
+      },
+    };
+    const client = { rpc: vi.fn(() => builder) };
+    const gateway = new SupabaseReportGateway(client as never);
+    await gateway.load(
+      {
+        organizationId: ids.organization,
+        exportType: 'athletes',
+        maxRows: 5_000,
+      },
+      controller.signal,
+    );
+    expect(receivedSignal).toBe(controller.signal);
+  });
+
+  it('does not initiate an RPC for a pre-aborted export request', async () => {
+    const controller = new AbortController();
+    controller.abort('client disconnected');
+    const client = { rpc: vi.fn() };
+    const gateway = new SupabaseReportGateway(client as never);
+    await expect(
+      gateway.load(
+        {
+          organizationId: ids.organization,
+          exportType: 'athletes',
+          maxRows: 5_000,
+        },
+        controller.signal,
+      ),
+    ).rejects.toBe('client disconnected');
+    expect(client.rpc).not.toHaveBeenCalled();
+  });
+
   it('denies general members and evaluators before loading any export rows', async () => {
     const load = vi.fn();
     for (const denied of [
@@ -181,12 +290,15 @@ describe('authorized server export snapshots', () => {
     expect(
       result.ok && result.value.chunks.map((chunk) => new TextDecoder().decode(chunk)).join(''),
     ).toContain('Synthetic Athlete');
-    expect(load).toHaveBeenCalledWith({
-      organizationId: ids.organization,
-      tryoutId: ids.tryout,
-      exportType: 'evaluations',
-      maxRows: 5000,
-    });
+    expect(load).toHaveBeenCalledWith(
+      {
+        organizationId: ids.organization,
+        tryoutId: ids.tryout,
+        exportType: 'evaluations',
+        maxRows: 5000,
+      },
+      undefined,
+    );
 
     load.mockResolvedValueOnce({ outcome: 'forbidden' });
     await expect(

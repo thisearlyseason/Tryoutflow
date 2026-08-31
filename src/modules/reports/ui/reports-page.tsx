@@ -20,7 +20,20 @@ export function ReportsPage({
   const query = tryoutId ? `?tryoutId=${encodeURIComponent(tryoutId)}` : '';
   const base = `/api/organizations/${organizationId}/exports`;
   const reviewer = access?.kind === 'reviewer_roster' ? access : null;
+  const unavailableReviewer = access?.kind === 'reviewer_roster_unavailable';
   const manager = summary ?? (access?.kind === 'manager' ? access.summary : null);
+  if (unavailableReviewer) {
+    return (
+      <section aria-labelledby="reports-heading" className="min-w-0">
+        <p className="eyebrow">Approved final report</p>
+        <h2 id="reports-heading">Reports</h2>
+        <p className="mt-2 max-w-3xl text-[var(--color-text-muted)]" role="status">
+          This finalized roster’s verified export snapshot is unavailable. Ask an authorized manager
+          to create and finalize a new roster revision.
+        </p>
+      </section>
+    );
+  }
   if (reviewer && tryoutId) {
     return (
       <section aria-labelledby="reports-heading" className="min-w-0">
@@ -109,9 +122,11 @@ export function ReportsPage({
           </Link>
         ) : null}
       </div>
-      {tryoutId && !manager.latestFinalizedRosterId ? (
+      {(tryoutId || manager.unavailableFinalizedRosterCount) && !manager.latestFinalizedRosterId ? (
         <p className="mt-4 text-sm text-[var(--color-text-muted)]">
-          Finalize a roster before downloading its immutable snapshot.
+          {manager.unavailableFinalizedRosterCount
+            ? 'A finalized roster exists, but its verified export snapshot is unavailable. Create and finalize a new roster revision.'
+            : 'Finalize a roster before downloading its immutable snapshot.'}
         </p>
       ) : null}
     </section>

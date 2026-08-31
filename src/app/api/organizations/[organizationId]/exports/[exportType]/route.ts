@@ -15,6 +15,7 @@ type Dependencies = Readonly<{
       exportType: ReportExportType;
     },
     actor: AuthorizationContext,
+    signal: AbortSignal,
   ): Promise<ExportResult>;
 }>;
 
@@ -87,8 +88,10 @@ export async function handleExportRequest(
         exportType: params.exportType as ReportExportType,
       },
       actor,
+      request.signal,
     );
   } catch {
+    if (request.signal.aborted) return text('The export request was cancelled.', 499);
     return text('The export is temporarily unavailable.', 503);
   }
   if (request.signal.aborted) return text('The export request was cancelled.', 499);

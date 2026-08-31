@@ -66,4 +66,36 @@ describe('reports page', () => {
     expect(screen.queryByRole('link', { name: /evaluations CSV/i })).not.toBeInTheDocument();
     expect(screen.queryByText(/completed evaluations/i)).not.toBeInTheDocument();
   });
+
+  it('shows managers an explicit unavailable state for legacy finalized rosters without snapshots', () => {
+    render(
+      <ReportsPage
+        organizationId="29000000-0000-4000-8000-000000000001"
+        summary={
+          {
+            athleteCount: 8,
+            completedEvaluationCount: 12,
+            incompleteEvaluationCount: 3,
+            finalizedRosterCount: 1,
+            latestFinalizedRosterId: null,
+            unavailableFinalizedRosterCount: 1,
+          } as never
+        }
+      />,
+    );
+    expect(screen.getByText(/verified export snapshot is unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /finalized roster CSV/i })).not.toBeInTheDocument();
+  });
+
+  it('shows reviewers an explicit unavailable state without any broken download link', () => {
+    render(
+      <ReportsPage
+        access={{ kind: 'reviewer_roster_unavailable' } as never}
+        organizationId="29000000-0000-4000-8000-000000000001"
+        tryoutId="29000000-0000-4000-8000-000000000002"
+      />,
+    );
+    expect(screen.getByText(/verified export snapshot is unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+  });
 });

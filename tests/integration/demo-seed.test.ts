@@ -95,7 +95,7 @@ describe('deterministic Badlands demo seed', () => {
     expect(after).toBe(before);
   });
 
-  it('converges deleted and corrupted mutable demo subsets with consistent mock sync evidence', () => {
+  it('converges deleted and corrupted mutable demo subsets while terminal sync payloads stay redacted', () => {
     psql(`update public.athletes set given_name='Corrupted' where id='29000000-0000-4000-8000-000000000061';
       delete from public.tryout_setup_progress where id='29000000-0000-4000-8000-000000000171';
       update public.integration_sync_jobs set approved_projection='[]' where id='29000000-0000-4000-8000-000000000162';
@@ -109,12 +109,13 @@ describe('deterministic Badlands demo seed', () => {
         psql(`select jsonb_build_object(
           'name',(select given_name from public.athletes where id='29000000-0000-4000-8000-000000000061'),
           'setup',(select count(*) from public.tryout_setup_progress where id='29000000-0000-4000-8000-000000000171'),
-          'projections',(select count(*) from public.integration_sync_jobs where id in ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000163') and jsonb_array_length(approved_projection)>0),
+          'redacted',(select count(*) from public.integration_sync_jobs where id in ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000163')
+            and approved_projection='[]'::jsonb and provider_preview_id is null and provider_confirmation_token is null and roster_snapshot is null),
           'items',(select count(*) from public.integration_sync_items where sync_job_id in ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000163')),
           'mappings',(select count(*) from public.external_entity_mappings where connection_id='29000000-0000-4000-8000-000000000161')
         )`),
       ),
-    ).toEqual({ name: 'Avery', setup: 1, projections: 2, items: 2, mappings: 1 });
+    ).toEqual({ name: 'Avery', setup: 1, redacted: 2, items: 2, mappings: 1 });
   });
 
   it('keeps a finalized roster projection unchanged when live identity and number records change', () => {

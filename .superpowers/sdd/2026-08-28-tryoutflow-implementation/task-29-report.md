@@ -2,7 +2,15 @@
 
 ## Status
 
-Round-one review findings implemented and verified locally.
+Round-two follow-up: report count/abort/legacy-snapshot changes were audited, and migration 084 closes the report candidate-index, submitted-lifecycle summary, and terminal fixture-redaction gaps.
+
+## Round-two evidence
+
+- Count decoding accepts the database's `10,001` overflow sentinel only when `truncated=true`; the application maps it to `too_large`/HTTP 413 instead of treating a truthful projection as a parser failure/503. Focused unit coverage exercises 1,000, 1,001, 10,000, and the 10,001 overflow boundary.
+- Route → application → gateway now carries the request abort signal. A pre-aborted request avoids projection RPC work, an in-flight abort stops the mocked projection and returns 499 before a CSV body, and the gateway attaches the same signal to Supabase's query builder.
+- Migration 084 adds exact index-backed candidate keys, preserves stable tenant ordering, and keeps `maxRows + 1` candidate materialization ahead of report joins/grouping. pgTAP 066 records the composite indexes, bounded cardinality, and EXPLAIN acceptance.
+- Summary evaluation counts now join the submitted registration population used by evaluation CSV candidates. Final roster discovery selects only verified immutable snapshots, exposes unavailable legacy finals explicitly, and never emits a broken roster-download link.
+- Completed and failed Badlands mock jobs retain completed/failed state, durable item outcome, external mapping, and result evidence while approved projection, provider preview, confirmation token, and raw roster fields are redacted. Migration 084 upgrades the pre-existing fixture to the same redacted fixed point; replay preserves it.
 
 ## Review closure
 
@@ -89,6 +97,8 @@ git diff --check
 - The earlier full-verify pause was not a deadlock or a failing test. The unit suite's integration-supervisor recovery tests intentionally exercise bounded process timeouts and are quiet while running. With no competing process in this worktree, the fresh suite completed normally in 107 seconds before the production gate ran.
 
 ## Concerns
+
+- The original seed's initial organization bootstrap remains an older broad creation branch. The targeted convergence path repairs the existing mutable actor/setup/integration subset, but it does not yet reconstruct every deleted 90/10 rubric, score, and immutable-snapshot fact from an arbitrary partially seeded organization. That needs a dedicated safe versioned-fixture convergence pass before claiming the full round-two seed requirement.
 
 - Oversized snapshots are intentionally rejected rather than partially downloaded. Organization owners can narrow athlete exports to a tryout; additional filter-specific exports remain future product work.
 - The seeded identities deliberately have no passwords. Authenticated browser coverage creates and removes ephemeral local users instead of adding reusable credentials to the repository.

@@ -157,8 +157,8 @@ begin
   insert into public.integration_connections(id,organization_id,provider_key,display_name,state,mock_data,created_by_user_id,connected_at,last_verified_at,created_at,updated_at)
   values('29000000-0000-4000-8000-000000000161','29000000-0000-4000-8000-000000000001','the-squad','The Squad demo/mock','connected',true,'29000000-0000-4000-8000-000000000011',fixed_time,fixed_time,fixed_time,fixed_time);
   insert into public.integration_sync_jobs(id,organization_id,connection_id,provider_key,business_idempotency_key,request_digest,roster_version_id,roster_version,destination_snapshot,approved_fields,provider_preview_id,state,external_job_id,mock_data,created_by_user_id,completed_at,last_error,created_at,updated_at,approved_projection) values
-    ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:success:0001',repeat('6',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],'preview:badlands:success:0001','completed','mock-job-success',true,'29000000-0000-4000-8000-000000000011','2026-08-28 18:40:00+00',null,fixed_time,'2026-08-28 18:40:00+00','[{"itemKey":"athlete:29000000-0000-4000-8000-000000000071","firstName":"Avery","lastName":"Synthetic","teamName":"Badlands Blue"}]'),
-    ('29000000-0000-4000-8000-000000000163','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:failure:0001',repeat('7',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],'preview:badlands:failure:0001','failed',null,true,'29000000-0000-4000-8000-000000000011',null,'{"code":"synthetic_failure","retryable":false}',fixed_time,'2026-08-28 18:41:00+00','[{"itemKey":"athlete:29000000-0000-4000-8000-000000000072","firstName":"Blake","lastName":"Synthetic"}]');
+    ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:success:0001',repeat('6',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],null,'completed','mock-job-success',true,'29000000-0000-4000-8000-000000000011','2026-08-28 18:40:00+00',null,fixed_time,'2026-08-28 18:40:00+00','[]'),
+    ('29000000-0000-4000-8000-000000000163','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000161','the-squad','badlands:failure:0001',repeat('7',64),'29000000-0000-4000-8000-000000000153',2,'{"displayLabel":"Synthetic destination","mockData":true}',array['first_name','last_name','team_name'],null,'failed',null,true,'29000000-0000-4000-8000-000000000011',null,'{"code":"synthetic_failure","retryable":false}',fixed_time,'2026-08-28 18:41:00+00','[]');
   insert into public.tryout_setup_progress(id,organization_id,tryout_id,completed_steps,last_step,updated_at)
   values('29000000-0000-4000-8000-000000000171','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032',array['basics','divisions','sessions','registration','rubrics','review','publish'],'publish',fixed_time);
   end if;
@@ -185,14 +185,9 @@ begin
   values('29000000-0000-4000-8000-000000000171','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000032',array['basics','divisions','sessions','registration','rubrics','review','publish'],'publish',fixed_time)
   on conflict(id) do update set completed_steps=excluded.completed_steps,last_step=excluded.last_step
   where tryout_setup_progress.completed_steps is distinct from excluded.completed_steps or tryout_setup_progress.last_step is distinct from excluded.last_step;
-  update public.integration_sync_jobs set approved_projection=
-    '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000071","firstName":"Avery","lastName":"Synthetic","teamName":"Badlands Blue"}]'
-    where id='29000000-0000-4000-8000-000000000162' and approved_projection is distinct from
-      '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000071","firstName":"Avery","lastName":"Synthetic","teamName":"Badlands Blue"}]'::jsonb;
-  update public.integration_sync_jobs set approved_projection=
-    '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000072","firstName":"Blake","lastName":"Synthetic"}]'
-    where id='29000000-0000-4000-8000-000000000163' and approved_projection is distinct from
-      '[{"itemKey":"athlete:29000000-0000-4000-8000-000000000072","firstName":"Blake","lastName":"Synthetic"}]'::jsonb;
+  update public.integration_sync_jobs set approved_projection='[]'::jsonb,provider_preview_id=null
+    where id in ('29000000-0000-4000-8000-000000000162','29000000-0000-4000-8000-000000000163')
+      and (approved_projection<>'[]'::jsonb or provider_preview_id is not null);
   insert into public.integration_sync_items(id,organization_id,sync_job_id,item_key,entity_type,internal_entity_id,operation,state,attempts,external_ref,completed_at,created_at,updated_at) values
     ('29000000-0000-4000-8000-000000000181','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000162','athlete:29000000-0000-4000-8000-000000000071','athlete','29000000-0000-4000-8000-000000000071','create','completed',1,'{"externalId":"synthetic-athlete-071","entityType":"athlete"}','2026-08-28 18:40:00+00',fixed_time,'2026-08-28 18:40:00+00')
   on conflict(id) do nothing;

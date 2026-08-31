@@ -36,13 +36,16 @@ export type ReportExportProjection =
     }>;
 
 export interface ReportExportGateway {
-  load(input: {
-    organizationId: string;
-    tryoutId?: string;
-    rosterVersionId?: string;
-    exportType: ReportExportType;
-    maxRows: number;
-  }): Promise<ReportExportProjection>;
+  load(
+    input: {
+      organizationId: string;
+      tryoutId?: string;
+      rosterVersionId?: string;
+      exportType: ReportExportType;
+      maxRows: number;
+    },
+    signal?: AbortSignal,
+  ): Promise<ReportExportProjection>;
 }
 
 const inputSchema = z.strictObject({
@@ -90,6 +93,7 @@ export async function createReportExport(
   input: unknown,
   actor: AuthorizationContext,
   gateway: ReportExportGateway,
+  signal?: AbortSignal,
 ): Promise<
   AppResult<
     Readonly<{
@@ -114,7 +118,7 @@ export async function createReportExport(
   if (!parsed.success) return failure({ code: 'not_found' });
   if (!preauthorized(parsed.data, actor)) return failure({ code: 'forbidden' });
   try {
-    const projection = await gateway.load({ ...parsed.data, maxRows: MAX_EXPORT_ROWS });
+    const projection = await gateway.load({ ...parsed.data, maxRows: MAX_EXPORT_ROWS }, signal);
     if (projection.outcome !== 'ok') {
       if (projection.outcome === 'not_finalized') return failure({ code: 'not_finalized' });
       if (projection.outcome === 'snapshot_unavailable')
