@@ -1,0 +1,473 @@
+{
+  "schema": "tryoutflow.task30.playwright-evidence.v1",
+  "command": "corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/concurrency-and-replay.spec.ts --project=firefox --project=webkit --project='Mobile Safari' --grep='scenario 5|two director tabs|scenarios 10–11' --repeat-each=3 --retries=0 --reporter=line,json",
+  "stats": {
+    "startTime": "2026-08-31T15:22:35.515Z",
+    "duration": 132301.09100000001,
+    "expected": 27,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "tests": [
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3565,
+          "retry": 0,
+          "startTime": "2026-08-31T15:22:41.630Z",
+          "errors": []
+        }
+      ],
+      "sequence": 1
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4150,
+          "retry": 0,
+          "startTime": "2026-08-31T15:22:45.625Z",
+          "errors": []
+        }
+      ],
+      "sequence": 2
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3471,
+          "retry": 0,
+          "startTime": "2026-08-31T15:22:57.200Z",
+          "errors": []
+        }
+      ],
+      "sequence": 3
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4144,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:01.055Z",
+          "errors": []
+        }
+      ],
+      "sequence": 4
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3425,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:12.588Z",
+          "errors": []
+        }
+      ],
+      "sequence": 5
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4016,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:16.397Z",
+          "errors": []
+        }
+      ],
+      "sequence": 6
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3535,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:27.948Z",
+          "errors": []
+        }
+      ],
+      "sequence": 7
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3979,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:31.666Z",
+          "errors": []
+        }
+      ],
+      "sequence": 8
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3324,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:41.400Z",
+          "errors": []
+        }
+      ],
+      "sequence": 9
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3881,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:44.868Z",
+          "errors": []
+        }
+      ],
+      "sequence": 10
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3416,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:54.510Z",
+          "errors": []
+        }
+      ],
+      "sequence": 11
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3901,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:58.075Z",
+          "errors": []
+        }
+      ],
+      "sequence": 12
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3288,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:08.667Z",
+          "errors": []
+        }
+      ],
+      "sequence": 13
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3828,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:12.107Z",
+          "errors": []
+        }
+      ],
+      "sequence": 14
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3272,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:21.779Z",
+          "errors": []
+        }
+      ],
+      "sequence": 15
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3812,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:25.198Z",
+          "errors": []
+        }
+      ],
+      "sequence": 16
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3375,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:34.668Z",
+          "errors": []
+        }
+      ],
+      "sequence": 17
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3891,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:38.195Z",
+          "errors": []
+        }
+      ],
+      "sequence": 18
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6185,
+          "retry": 0,
+          "startTime": "2026-08-31T15:22:49.808Z",
+          "errors": []
+        }
+      ],
+      "sequence": 19
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6224,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:05.258Z",
+          "errors": []
+        }
+      ],
+      "sequence": 20
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6292,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:20.468Z",
+          "errors": []
+        }
+      ],
+      "sequence": 21
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4655,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:35.704Z",
+          "errors": []
+        }
+      ],
+      "sequence": 22
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4583,
+          "retry": 0,
+          "startTime": "2026-08-31T15:23:48.809Z",
+          "errors": []
+        }
+      ],
+      "sequence": 23
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5567,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:02.036Z",
+          "errors": []
+        }
+      ],
+      "sequence": 24
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4774,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:15.995Z",
+          "errors": []
+        }
+      ],
+      "sequence": 25
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4595,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:29.069Z",
+          "errors": []
+        }
+      ],
+      "sequence": 26
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4724,
+          "retry": 0,
+          "startTime": "2026-08-31T15:24:42.144Z",
+          "errors": []
+        }
+      ],
+      "sequence": 27
+    }
+  ]
+}

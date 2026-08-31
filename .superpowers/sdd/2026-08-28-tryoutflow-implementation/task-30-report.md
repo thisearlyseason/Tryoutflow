@@ -1,5 +1,39 @@
 # Task 30 cross-browser critical-flow report
 
+## Independent review fix round 1 (2026-08-31)
+
+Baseline `e7dfd6271719b1cc71612994c335fd6fe1d12187`; implementation commit `21b6ab2`. All five Important findings were reproduced before their owning fix.
+
+| Finding | Genuine RED | GREEN boundary |
+| --- | --- | --- |
+| Wizard timestamps | Three owning unit cases failed because `datetime-local` strings reached the RPC unchanged; pgTAP 071 failed 3/5 because PostgreSQL cast them in the server zone. | The application now validates the selected IANA zone and converts registration/session wall times to UTC. Additive migration 089 repeats the conversion and DST round-trip validation at the database boundary. Unit 3/3, pgTAP 070+071 8/8, and scenario 1 prove Edmonton instants `2026-09-01T14:00:00Z`, `2026-10-01T02:00:00Z`, `2026-10-01T22:00:00Z`, and `2026-10-02T00:00:00Z`. |
+| Roster lifecycle | The reviewed scenario opened a SQL-seeded roster and therefore could not prove creation or frozen-state behavior through the application. | Scenario 8 creates `UI Blue`/`UI Gold` through the real UI, moves the exact athlete, records a decision, finalizes, verifies immutable audit evidence, then attempts a stale mutation. A digest of the roster/assignment/decision rows and the audit count remain byte-for-byte unchanged before revision. The focused lifecycle passed all five projects. |
+| Export replay | After the deliberately lost response, the test reloaded and observed the job but issued only one confirmation request. | The same still-mounted confirmation form replays the identical command before reload. The second response is successful, the durable `id`, business idempotency key, and preview identity are unchanged, and job/outbox/items remain exactly `1:1:2`; scenario 11's failed-item retry remains separate. |
+| Strict monitor | Three of four new owning unit cases failed against URL-only allowances; monitoring also began after some product navigation. | The monitor now requires exact count, method, full URL, error, and optional header predicates. Server Actions are counted on the exact `Request`, only their explicit browser cancellation codes are accepted, missing/extra requests fail, and all unrelated console/request/page errors remain fatal. Public monitoring starts before first navigation; authenticated helpers document the single narrow sign-in setup exception and attach immediately afterward. Final monitor unit gate: 7/7. |
+| Evidence | The report referenced a stale 30-run HTML report rather than the final matrix. | Sanitized machine-readable Playwright evidence now preserves every final result, duration, retry index, project, title, file, and start time: `task-30-evidence/final-matrix.json` (70 entries, SHA-256 `4fe45ec8b6875ac751f6a9dac6435e6123c17f9842635529a9910f7028e06b4b`) and `task-30-evidence/repeat-gate.json` (27 entries, SHA-256 `118be15187bcfa37dff00684ba982b339129da9f48875ffc1cc1008acdfdc3ba`). Reporter configuration/environment and stdout were stripped so no local keys, secrets, or PII are retained. |
+
+Additional genuine browser RED found during closure: redundant roster `revalidatePath` calls superseded successful Server Action streams under saturation. The owning page already receives authoritative action state, so those revalidations were removed; draft creation now allows two animation frames for the action response to settle before its deliberate full reload. Exact Server Action declarations—not broad ignores—cover the engine-level completed-navigation cancellation. Chromium scenario 8 repeated 3/3, then all five projects passed.
+
+Fixture/environment RED remained distinct:
+
+- Firefox completes attachment downloads and renders main-document 404s without the Chromium/WebKit failure/console events. WebKit reports deliberate route aborts as exact `Blocked by Web Inspector` and completed downloads as exact `Frame load interrupted`. Engine-specific predicates model those observed contracts while the download and 404 response assertions remain unchanged.
+- Explicit pgTAP path arguments were truncated by the Supabase CLI inside the hidden worktree and produced `NOTESTS`; the supported full runner exercised 070 and 071 successfully. Running full pgTAP against the deterministic demo seed correctly exposed seed/test isolation conflicts; `db reset --no-seed` followed by the same full runner passed 71/71 files and 1,880 assertions.
+- The first supervised integration attempt inherited the deliberately unseeded pgTAP database, so the demo-seed contract was absent (201/203) and cleanup met immutable test rows. A clean deterministic seeded reset restored the documented precondition; both required supervised runs then passed 27 files / 203 tests. The exact failed-run state files were moved recoverably to Trash after the reset proved their database role/schema/session objects absent; no current-round manifest remains. Nine older manifests from prior work remain untouched.
+
+Exact final commands and results:
+
+| Command | Result |
+| --- | --- |
+| `corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/role-denials.spec.ts tests/e2e/concurrency-and-replay.spec.ts tests/e2e/responsive-and-accessibility.spec.ts --retries=0 --reporter=line,json` | 70/70, 14 per project, 0 skips/retries/flakes, 4.7 min. |
+| `corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/concurrency-and-replay.spec.ts --project=firefox --project=webkit --project='Mobile Safari' --grep='scenario 5\|two director tabs\|scenarios 10–11' --repeat-each=3 --retries=0 --reporter=line,json` | 27/27, 0 skips/retries/flakes, 2.2 min. |
+| `corepack npm@11.12.1 exec -- supabase db reset --local --no-seed && corepack npm@11.12.1 run test:db` | Migrations 001–089 replayed; 71 files / 1,880 assertions passed. |
+| `corepack npm@11.12.1 exec -- supabase db reset --local && corepack npm@11.12.1 run test:integration && corepack npm@11.12.1 run test:integration` | Both supervised runs: 27 files / 203 tests; 38.49 s and 38.36 s. |
+| `corepack npm@11.12.1 run verify` | Format, ESLint, TypeScript, 70 unit files / 968 tests, and Task 28 production gate passed; 103.40 s unit duration. |
+| `NEXT_PUBLIC_APP_URL=https://tryoutflow.example.test corepack npm@11.12.1 run build` | Standalone production build passed. |
+| `corepack npm@11.12.1 audit --audit-level=high` | 0 vulnerabilities. |
+
+Self-review found no skipped assertions, retry masking, generic error allowance, live provider claim, secret/PII artifact, or historical migration edit. The exact automatic ignore remains limited to a cancelled `GET` whose URL contains `_rsc=` and whose error is `net::ERR_ABORTED`; every non-RSC or differently failed request is fatal. Because all projects share one deliberately local Next/Postgres lifecycle, the canonical suite uses one worker; every test still owns isolated users, organizations, rate keys, and rows.
+
 ## Outcome and configuration
 
 The release-gate suite contains 14 independently seeded browser tests mapping all 13 requested scenarios plus the supporting ranking/concurrency gate. It uses real local GoTrue, PostgREST, application, and PostgreSQL boundaries. Every seeded test annotates the exact role, organization slug, tryout name/ID, roster, and provider where relevant. Scenario keys include project, title, repetition, and retry identity, so cross-project parallelism never shares users or product records.
@@ -14,13 +48,13 @@ The host `npm` is 11.6.2 while `packageManager` pins `npm@11.12.1`. Verification
 
 | Scenarios | Exact browser evidence |
 | --- | --- |
-| 1 | A new owner signs in through local GoTrue, creates an organization, enters organization-local tryout dates, completes every setup step, and publishes. |
+| 1 | A new owner signs in through local GoTrue, creates an organization, enters organization-local tryout dates, completes every setup step, and publishes; browser and PostgreSQL assertions prove their exact Edmonton-to-UTC instants. |
 | 2–3 | A public guardian registers from a deterministic reserved TEST-NET address, receives/uses the real confirmation token, the administrator sees the athlete, and check-in double-clicking assigns exactly one number. |
 | 4 | Three independent evaluator browser contexts save private notes and scores; no peer note leaks; the director sees the aggregate and PostgreSQL proves exact `84.0000`. |
 | 5 | The evaluator saves while offline, IndexedDB survives reload and a deliberately lost first response, the real online event drains the outbox, exactly one successful mutation reaches the server, and exactly one evaluation exists. |
 | 6–7 | Other-tenant owner, check-in staff, evaluator, reviewer, member, and anonymous users are denied direct organization/tryout URLs without an existence oracle. |
-| 8–9 | A director moves a draft athlete, changes decisions without sending, finalizes, revises with an audit reason, previews one exact recipient, and creates one separate durable message batch/status. |
-| 10–11 | The explicit demo/mock integration connects, previews a finalized roster, loses a response after the real app commit, retains one job, records a 1/1 partial result, retries only the failed item to 2/2, and never duplicates jobs or mappings on replay. |
+| 8–9 | A director creates two draft teams through the real UI, moves an athlete, changes decisions without sending, finalizes, proves a post-finalization mutation leaves the row digest and audit count unchanged, then revises with an audit reason and creates one separate durable message batch/status. |
+| 10–11 | The explicit demo/mock integration connects, previews a finalized roster, loses a response after the real app commit, replays the identical confirmation intent before reload, proves the same job/idempotency/preview identity and one mapping set, records a 1/1 partial result, retries only the failed item to 2/2, and never duplicates. |
 | 12 | The exact server-test-only fake checkout/portal contract returns Stripe-owned test URLs. A signed raw `Buffer` reaches the real webhook route, active/replay/cancel events cross the real DB boundary, checkout intent truth is expired/redacted, account/provider IDs and two events are exact, and the downloaded roster CSV is sanitized. |
 | 13 | Evaluator at 375 px, roster at 320 px, and marketing/auth at 430 px prove keyboard/focus behavior, 44 px targets, no horizontal overflow, axe, computed reduced motion, icon 200/SVG, and hydration-clean rendering. |
 | Supporting ranking/concurrency | Exact ranking tie/compare completion evidence and two already-mounted director tabs rejecting the stale second roster write. |
@@ -67,13 +101,13 @@ Fixture/environment failures were kept separate from product RED:
 | Responsive/accessibility focused projects | 12/12 across Chromium, WebKit, Mobile Chrome, and Mobile Safari; retries 0. |
 | Public registration/confirmation cleanup gate | 5/5 across all configured projects; retries 0 (13.2 s), with zero browser-owned limiter rows afterward. |
 | Chromium exact four-spec gate | 14/14; retries/skips 0 (24.6 s). |
-| Five-project exact matrix | Final-source run 70/70, exactly 14 per project; retries/skips/flakes 0 (1.3 min). |
-| Firefox/WebKit/Mobile Safari high-risk repeats | 27/27: offline, stale two-tab concurrency, and integration partial retry/replay, each repeated three times; retries 0 (45.2 s). |
-| Clean migration replay | Migrations 001–088 plus deterministic seed passed. |
-| Focused pgTAP 070 | 1 file / 3 assertions passed. |
-| Full pgTAP after unseeded reset | 70 files / 1,875 assertions passed (13 s). |
-| Supervised integration, twice | 27 files / 203 tests both runs; 41.11 s and 40.99 s; zero supervisor/database/process residue. |
-| `corepack npm@11.12.1 run verify` | Formatting, ESLint, TypeScript, 68 unit files / 958 tests (109.33 s), and the Task 28 production artifact gate passed. |
+| Five-project exact matrix | Final-source run 70/70, exactly 14 per project; retries/skips/flakes 0 (4.7 min). Sanitized exact JSON evidence is committed. |
+| Firefox/WebKit/Mobile Safari high-risk repeats | 27/27: offline, stale two-tab concurrency, and integration partial retry/replay, each repeated three times; retries 0 (2.2 min). Sanitized exact JSON evidence is committed. |
+| Clean migration replay | Migrations 001–089 plus deterministic seed passed. |
+| Focused pgTAP 070+071 | 2 files / 8 assertions passed in the owning gate; both are also present in the full result. |
+| Full pgTAP after unseeded reset | 71 files / 1,880 assertions passed (12 s). |
+| Supervised integration, twice | 27 files / 203 tests both runs; 38.49 s and 38.36 s; zero current-round supervisor/database/process residue. |
+| `corepack npm@11.12.1 run verify` | Formatting, ESLint, TypeScript, 70 unit files / 968 tests (103.40 s), and the Task 28 production artifact gate passed. |
 | Standalone production build | All routes compiled, typed, collected, and optimized with an explicit HTTPS public origin. |
 | Dependency/security/diff audit | `npm audit --audit-level=high`: 0 vulnerabilities; secret scan and `git diff --check`: clean. |
 | Final state | Task 30 users/orgs/rate counters 0; integration DBs/roles/schemas/sessions 0; port 3112 listener and owned test processes 0. |
@@ -82,4 +116,4 @@ Fixture/environment failures were kept separate from product RED:
 
 No local result claims real Stripe checkout, live Resend delivery, or certification against a live team-management provider. Billing uses Stripe's maintained signing implementation and Stripe-owned fake URL contract; communications and integration use explicit fake/demo provider contracts while exercising the real application, authorization, idempotency, and database boundaries. Production credentials, provider sandbox certification, webhook reachability, and actual external delivery remain release gates.
 
-The final HTML report is under `playwright-report`; Playwright result metadata is under `output/playwright/test-results`. Clean runs leave no failure-only screenshot/video artifact, and a no-retry matrix correctly leaves no first-retry trace.
+The review evidence of record is `task-30-evidence/final-matrix.json` and `task-30-evidence/repeat-gate.json`, not the mutable HTML report. Clean runs leave no failure-only screenshot/video artifact, and a no-retry matrix correctly leaves no first-retry trace; configuration still retains a trace on the first retry when a non-final diagnostic run permits retries.

@@ -1,0 +1,1204 @@
+{
+  "schema": "tryoutflow.task30.playwright-evidence.v1",
+  "command": "corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/role-denials.spec.ts tests/e2e/concurrency-and-replay.spec.ts tests/e2e/responsive-and-accessibility.spec.ts --retries=0 --reporter=line,json",
+  "stats": {
+    "startTime": "2026-08-31T15:26:34.424Z",
+    "duration": 284968.535,
+    "expected": 70,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "tests": [
+    {
+      "project": "chromium",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 10,
+      "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3679,
+          "retry": 0,
+          "startTime": "2026-08-31T15:26:40.274Z",
+          "errors": []
+        }
+      ],
+      "sequence": 1
+    },
+    {
+      "project": "chromium",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3105,
+          "retry": 0,
+          "startTime": "2026-08-31T15:26:44.206Z",
+          "errors": []
+        }
+      ],
+      "sequence": 2
+    },
+    {
+      "project": "chromium",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3767,
+          "retry": 0,
+          "startTime": "2026-08-31T15:26:47.315Z",
+          "errors": []
+        }
+      ],
+      "sequence": 3
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 10,
+      "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3844,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:34.911Z",
+          "errors": []
+        }
+      ],
+      "sequence": 4
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3172,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:39.245Z",
+          "errors": []
+        }
+      ],
+      "sequence": 5
+    },
+    {
+      "project": "firefox",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4734,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:42.421Z",
+          "errors": []
+        }
+      ],
+      "sequence": 6
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 10,
+      "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3496,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:35.551Z",
+          "errors": []
+        }
+      ],
+      "sequence": 7
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3345,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:39.247Z",
+          "errors": []
+        }
+      ],
+      "sequence": 8
+    },
+    {
+      "project": "webkit",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4135,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:42.598Z",
+          "errors": []
+        }
+      ],
+      "sequence": 9
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 10,
+      "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3330,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:30.630Z",
+          "errors": []
+        }
+      ],
+      "sequence": 10
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3000,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:34.153Z",
+          "errors": []
+        }
+      ],
+      "sequence": 11
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3925,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:37.158Z",
+          "errors": []
+        }
+      ],
+      "sequence": 12
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 10,
+      "title": "rankings preserve an exact tie and compare both athletes with completion evidence",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2795,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:25.469Z",
+          "errors": []
+        }
+      ],
+      "sequence": 13
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 44,
+      "title": "two director tabs reject a stale roster mutation after the first committed write",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3073,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:28.448Z",
+          "errors": []
+        }
+      ],
+      "sequence": 14
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "concurrency-and-replay.spec.ts",
+      "line": 91,
+      "title": "scenarios 10–11 — mock connection preview survives lost response, partial execution retries only failed items, and replay never duplicates",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4051,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:31.526Z",
+          "errors": []
+        }
+      ],
+      "sequence": 15
+    },
+    {
+      "project": "chromium",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 61,
+      "title": "scenario 1 — new owner completes organization onboarding and publishes a configured tryout",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4469,
+          "retry": 0,
+          "startTime": "2026-08-31T15:26:51.143Z",
+          "errors": []
+        }
+      ],
+      "sequence": 16
+    },
+    {
+      "project": "chromium",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 145,
+      "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3436,
+          "retry": 0,
+          "startTime": "2026-08-31T15:26:55.617Z",
+          "errors": []
+        }
+      ],
+      "sequence": 17
+    },
+    {
+      "project": "chromium",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 235,
+      "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 7265,
+          "retry": 0,
+          "startTime": "2026-08-31T15:26:59.057Z",
+          "errors": []
+        }
+      ],
+      "sequence": 18
+    },
+    {
+      "project": "chromium",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6558,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:06.326Z",
+          "errors": []
+        }
+      ],
+      "sequence": 19
+    },
+    {
+      "project": "chromium",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 401,
+      "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4786,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:12.889Z",
+          "errors": []
+        }
+      ],
+      "sequence": 20
+    },
+    {
+      "project": "chromium",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 545,
+      "title": "scenario 12 plus reporting — fake Stripe handoff, verified webhook state, portal, cancellation, and sanitized downloads cross real app/DB boundaries",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2639,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:17.679Z",
+          "errors": []
+        }
+      ],
+      "sequence": 21
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 61,
+      "title": "scenario 1 — new owner completes organization onboarding and publishes a configured tryout",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4769,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:47.216Z",
+          "errors": []
+        }
+      ],
+      "sequence": 22
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 145,
+      "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4050,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:51.989Z",
+          "errors": []
+        }
+      ],
+      "sequence": 23
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 235,
+      "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 8241,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:56.043Z",
+          "errors": []
+        }
+      ],
+      "sequence": 24
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6128,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:04.288Z",
+          "errors": []
+        }
+      ],
+      "sequence": 25
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 401,
+      "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5407,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:10.420Z",
+          "errors": []
+        }
+      ],
+      "sequence": 26
+    },
+    {
+      "project": "firefox",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 545,
+      "title": "scenario 12 plus reporting — fake Stripe handoff, verified webhook state, portal, cancellation, and sanitized downloads cross real app/DB boundaries",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2896,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:15.831Z",
+          "errors": []
+        }
+      ],
+      "sequence": 27
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 61,
+      "title": "scenario 1 — new owner completes organization onboarding and publishes a configured tryout",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4814,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:46.815Z",
+          "errors": []
+        }
+      ],
+      "sequence": 28
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 145,
+      "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3750,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:51.633Z",
+          "errors": []
+        }
+      ],
+      "sequence": 29
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 235,
+      "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6295,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:55.387Z",
+          "errors": []
+        }
+      ],
+      "sequence": 30
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4642,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:01.685Z",
+          "errors": []
+        }
+      ],
+      "sequence": 31
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 401,
+      "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5602,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:06.332Z",
+          "errors": []
+        }
+      ],
+      "sequence": 32
+    },
+    {
+      "project": "webkit",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 545,
+      "title": "scenario 12 plus reporting — fake Stripe handoff, verified webhook state, portal, cancellation, and sanitized downloads cross real app/DB boundaries",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3290,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:11.938Z",
+          "errors": []
+        }
+      ],
+      "sequence": 33
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 61,
+      "title": "scenario 1 — new owner completes organization onboarding and publishes a configured tryout",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4404,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:41.139Z",
+          "errors": []
+        }
+      ],
+      "sequence": 34
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 145,
+      "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3541,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:45.547Z",
+          "errors": []
+        }
+      ],
+      "sequence": 35
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 235,
+      "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 7537,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:49.092Z",
+          "errors": []
+        }
+      ],
+      "sequence": 36
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6736,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:56.632Z",
+          "errors": []
+        }
+      ],
+      "sequence": 37
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 401,
+      "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4662,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:03.372Z",
+          "errors": []
+        }
+      ],
+      "sequence": 38
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 545,
+      "title": "scenario 12 plus reporting — fake Stripe handoff, verified webhook state, portal, cancellation, and sanitized downloads cross real app/DB boundaries",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2688,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:08.038Z",
+          "errors": []
+        }
+      ],
+      "sequence": 39
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 61,
+      "title": "scenario 1 — new owner completes organization onboarding and publishes a configured tryout",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4863,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:35.640Z",
+          "errors": []
+        }
+      ],
+      "sequence": 40
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 145,
+      "title": "scenarios 2–3 — guardian confirmation is visible to the administrator and check-in assigns exactly one number",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3730,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:40.507Z",
+          "errors": []
+        }
+      ],
+      "sequence": 41
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 235,
+      "title": "scenario 4 — three independent evaluators produce exact 84.0000 aggregate without peer leakage",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6603,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:44.240Z",
+          "errors": []
+        }
+      ],
+      "sequence": 42
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 309,
+      "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 4729,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:50.847Z",
+          "errors": []
+        }
+      ],
+      "sequence": 43
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 401,
+      "title": "scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5555,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:55.580Z",
+          "errors": []
+        }
+      ],
+      "sequence": 44
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "critical-lifecycle.spec.ts",
+      "line": 545,
+      "title": "scenario 12 plus reporting — fake Stripe handoff, verified webhook state, portal, cancellation, and sanitized downloads cross real app/DB boundaries",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3140,
+          "retry": 0,
+          "startTime": "2026-08-31T15:31:01.139Z",
+          "errors": []
+        }
+      ],
+      "sequence": 45
+    },
+    {
+      "project": "chromium",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 43,
+      "title": "scenario 13 — evaluator at 375px keeps save/navigation reachable, 44px controls, focus, axe, and reduced motion",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3115,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:20.366Z",
+          "errors": []
+        }
+      ],
+      "sequence": 46
+    },
+    {
+      "project": "chromium",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 86,
+      "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2312,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:23.484Z",
+          "errors": []
+        }
+      ],
+      "sequence": 47
+    },
+    {
+      "project": "chromium",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 124,
+      "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 667,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:25.800Z",
+          "errors": []
+        }
+      ],
+      "sequence": 48
+    },
+    {
+      "project": "firefox",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 43,
+      "title": "scenario 13 — evaluator at 375px keeps save/navigation reachable, 44px controls, focus, axe, and reduced motion",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3360,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:18.775Z",
+          "errors": []
+        }
+      ],
+      "sequence": 49
+    },
+    {
+      "project": "firefox",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 86,
+      "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2519,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:22.140Z",
+          "errors": []
+        }
+      ],
+      "sequence": 50
+    },
+    {
+      "project": "firefox",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 124,
+      "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 967,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:24.662Z",
+          "errors": []
+        }
+      ],
+      "sequence": 51
+    },
+    {
+      "project": "webkit",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 43,
+      "title": "scenario 13 — evaluator at 375px keeps save/navigation reachable, 44px controls, focus, axe, and reduced motion",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2599,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:15.279Z",
+          "errors": []
+        }
+      ],
+      "sequence": 52
+    },
+    {
+      "project": "webkit",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 86,
+      "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2626,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:17.883Z",
+          "errors": []
+        }
+      ],
+      "sequence": 53
+    },
+    {
+      "project": "webkit",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 124,
+      "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 1041,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:20.513Z",
+          "errors": []
+        }
+      ],
+      "sequence": 54
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 43,
+      "title": "scenario 13 — evaluator at 375px keeps save/navigation reachable, 44px controls, focus, axe, and reduced motion",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 3195,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:10.775Z",
+          "errors": []
+        }
+      ],
+      "sequence": 55
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 86,
+      "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2358,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:13.974Z",
+          "errors": []
+        }
+      ],
+      "sequence": 56
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 124,
+      "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 710,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:16.336Z",
+          "errors": []
+        }
+      ],
+      "sequence": 57
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 43,
+      "title": "scenario 13 — evaluator at 375px keeps save/navigation reachable, 44px controls, focus, axe, and reduced motion",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2606,
+          "retry": 0,
+          "startTime": "2026-08-31T15:31:04.329Z",
+          "errors": []
+        }
+      ],
+      "sequence": 58
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 86,
+      "title": "narrow roster supports keyboard movement, consequential focus, 44px controls, no overflow, and axe",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2627,
+          "retry": 0,
+          "startTime": "2026-08-31T15:31:06.940Z",
+          "errors": []
+        }
+      ],
+      "sequence": 59
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "responsive-and-accessibility.spec.ts",
+      "line": 124,
+      "title": "marketing and authentication remain keyboard-first, 44px, overflow-free, axe-clean, and hydration-clean at 430px",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 932,
+          "retry": 0,
+          "startTime": "2026-08-31T15:31:09.571Z",
+          "errors": []
+        }
+      ],
+      "sequence": 60
+    },
+    {
+      "project": "chromium",
+      "file": "role-denials.spec.ts",
+      "line": 5,
+      "title": "scenario 6 — other-tenant owner is denied a direct organization and tryout URL without an existence oracle",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2171,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:26.476Z",
+          "errors": []
+        }
+      ],
+      "sequence": 61
+    },
+    {
+      "project": "chromium",
+      "file": "role-denials.spec.ts",
+      "line": 42,
+      "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5231,
+          "retry": 0,
+          "startTime": "2026-08-31T15:27:28.651Z",
+          "errors": []
+        }
+      ],
+      "sequence": 62
+    },
+    {
+      "project": "firefox",
+      "file": "role-denials.spec.ts",
+      "line": 5,
+      "title": "scenario 6 — other-tenant owner is denied a direct organization and tryout URL without an existence oracle",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2315,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:25.636Z",
+          "errors": []
+        }
+      ],
+      "sequence": 63
+    },
+    {
+      "project": "firefox",
+      "file": "role-denials.spec.ts",
+      "line": 42,
+      "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 6339,
+          "retry": 0,
+          "startTime": "2026-08-31T15:28:27.955Z",
+          "errors": []
+        }
+      ],
+      "sequence": 64
+    },
+    {
+      "project": "webkit",
+      "file": "role-denials.spec.ts",
+      "line": 5,
+      "title": "scenario 6 — other-tenant owner is denied a direct organization and tryout URL without an existence oracle",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2197,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:21.562Z",
+          "errors": []
+        }
+      ],
+      "sequence": 65
+    },
+    {
+      "project": "webkit",
+      "file": "role-denials.spec.ts",
+      "line": 42,
+      "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5854,
+          "retry": 0,
+          "startTime": "2026-08-31T15:29:23.763Z",
+          "errors": []
+        }
+      ],
+      "sequence": 66
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "role-denials.spec.ts",
+      "line": 5,
+      "title": "scenario 6 — other-tenant owner is denied a direct organization and tryout URL without an existence oracle",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2096,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:17.053Z",
+          "errors": []
+        }
+      ],
+      "sequence": 67
+    },
+    {
+      "project": "Mobile Chrome",
+      "file": "role-denials.spec.ts",
+      "line": 42,
+      "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5306,
+          "retry": 0,
+          "startTime": "2026-08-31T15:30:19.153Z",
+          "errors": []
+        }
+      ],
+      "sequence": 68
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "role-denials.spec.ts",
+      "line": 5,
+      "title": "scenario 6 — other-tenant owner is denied a direct organization and tryout URL without an existence oracle",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 2148,
+          "retry": 0,
+          "startTime": "2026-08-31T15:31:10.512Z",
+          "errors": []
+        }
+      ],
+      "sequence": 69
+    },
+    {
+      "project": "Mobile Safari",
+      "file": "role-denials.spec.ts",
+      "line": 42,
+      "title": "scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials",
+      "expectedStatus": "passed",
+      "results": [
+        {
+          "status": "passed",
+          "duration": 5683,
+          "retry": 0,
+          "startTime": "2026-08-31T15:31:12.664Z",
+          "errors": []
+        }
+      ],
+      "sequence": 70
+    }
+  ]
+}
