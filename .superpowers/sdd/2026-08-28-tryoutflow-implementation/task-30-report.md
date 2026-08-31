@@ -15,13 +15,13 @@ Exact final round-two evidence:
 
 | Command | Result |
 | --- | --- |
-| `corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/role-denials.spec.ts tests/e2e/concurrency-and-replay.spec.ts tests/e2e/responsive-and-accessibility.spec.ts --retries=0 --reporter=line,json` | 70/70, 14 per project, 0 skips/retries/flakes, 4.9 min. |
+| `corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/role-denials.spec.ts tests/e2e/concurrency-and-replay.spec.ts tests/e2e/responsive-and-accessibility.spec.ts --retries=0 --reporter=line,json` | 70/70, 14 per project, 0 skips/retries/flakes, 5.0 min. |
 | `corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/concurrency-and-replay.spec.ts --project=firefox --project=webkit --project='Mobile Safari' --grep='scenario 5\|two director tabs\|scenarios 10–11' --repeat-each=3 --retries=0 --reporter=line,json` | 27/27, 9 per project, 0 skips/retries/flakes, 2.3 min. |
-| `corepack npm@11.12.1 run verify` | Format, ESLint, TypeScript, 71 unit files / 978 tests, and the Task 28 production artifact gate passed. |
+| `corepack npm@11.12.1 run verify` | Format, ESLint, TypeScript, 71 unit files / 977 tests, and the Task 28 production artifact gate passed. |
 | `NEXT_PUBLIC_APP_URL=https://tryoutflow.example.test corepack npm@11.12.1 run build` | Standalone production build passed. |
 | `corepack npm@11.12.1 audit --audit-level=high` | 0 vulnerabilities. |
 
-Fresh sanitized evidence is `task-30-evidence/final-matrix.json` (70 entries, SHA-256 `519172b204bb2bc7270d1e3ef39625ccf4bfc41aa0030fb6997c561e09efe44c`) and `task-30-evidence/repeat-gate.json` (27 entries, SHA-256 `ca5a7184ae12445cb7edf031cbbde32ea67dac71c8d491cd5cea6beadce545ff`). Both retain project, file, line, title, result, duration, retry index, and start time while excluding configuration, environment, stdout/stderr, annotations, secrets, and synthetic fixture identifiers.
+Fresh sanitized evidence is `task-30-evidence/final-matrix.json` (70 entries, SHA-256 `de4603b24092712c349d7951fbe348698a2ebcf6e29a3cf70b2b4fd8b237b938`) and `task-30-evidence/repeat-gate.json` (27 entries, SHA-256 `1a0901f54751bea3ec703edd707e7de24a139ba8a160c441bd17f683258c21c3`). Both retain project, file, line, title, result, duration, retry index, and start time while excluding configuration, environment, stdout/stderr, annotations, secrets, and synthetic fixture identifiers.
 
 No schema, migration, database contract, provider integration, or job supervisor changed in this narrow round. The round-one clean migration/pgTAP and twice-supervised integration evidence below remains the owning evidence for those unchanged boundaries; rerunning them would not exercise the browser-monitor or `Link` prefetch changes.
 
@@ -128,16 +128,16 @@ Fixture/environment failures were kept separate from product RED:
 | Responsive/accessibility focused projects | 12/12 across Chromium, WebKit, Mobile Chrome, and Mobile Safari; retries 0. |
 | Public registration/confirmation cleanup gate | 5/5 across all configured projects; retries 0 (13.2 s), with zero browser-owned limiter rows afterward. |
 | Chromium exact four-spec gate | 14/14; retries/skips 0 (24.6 s). |
-| Five-project exact matrix | Round-two final-source run 70/70, exactly 14 per project; retries/skips/flakes 0 (4.9 min). Fresh sanitized exact JSON evidence is committed. |
+| Five-project exact matrix | Round-two final-source run 70/70, exactly 14 per project; retries/skips/flakes 0 (5.0 min). Fresh sanitized exact JSON evidence is committed. |
 | Firefox/WebKit/Mobile Safari high-risk repeats | Round-two 27/27: offline, stale two-tab concurrency, and integration partial retry/replay, each repeated three times; retries 0 (2.3 min). Fresh sanitized exact JSON evidence is committed. |
 | Clean migration replay | Migrations 001–089 plus deterministic seed passed. |
 | Focused pgTAP 070+071 | 2 files / 8 assertions passed in the owning gate; both are also present in the full result. |
 | Full pgTAP after unseeded reset | 71 files / 1,880 assertions passed (12 s). |
 | Supervised integration, twice | 27 files / 203 tests both runs; 38.49 s and 38.36 s; zero current-round supervisor/database/process residue. |
-| `corepack npm@11.12.1 run verify` | Formatting, ESLint, TypeScript, 71 unit files / 978 tests (106.88 s), and the Task 28 production artifact gate passed. |
+| `corepack npm@11.12.1 run verify` | Formatting, ESLint, TypeScript, 71 unit files / 977 tests (107.98 s), and the Task 28 production artifact gate passed. |
 | Standalone production build | All routes compiled, typed, collected, and optimized with an explicit HTTPS public origin. |
 | Dependency/security/diff audit | `npm audit --audit-level=high`: 0 vulnerabilities; secret scan and `git diff --check`: clean. |
-| Final state | Task 30 users/orgs/rate counters 0; integration DBs/roles/schemas/sessions 0; port 3112 listener and owned test processes 0. |
+| Final state | Task 30 users/orgs/browser-owned rate counters 0; 39 unrelated unit-harness rate rows remain; integration DBs/roles/schemas/sessions 0; port 3112 listener and owned test processes 0. |
 
 ## Honest release gaps
 

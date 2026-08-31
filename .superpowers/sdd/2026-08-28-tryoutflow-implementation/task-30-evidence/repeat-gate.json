@@ -2,8 +2,8 @@
   "schema": "tryoutflow.task30.playwright-evidence.v1",
   "command": "corepack npm@11.12.1 exec -- playwright test tests/e2e/critical-lifecycle.spec.ts tests/e2e/concurrency-and-replay.spec.ts --project=firefox --project=webkit --project='Mobile Safari' --grep='scenario 5|two director tabs|scenarios 10–11' --repeat-each=3 --retries=0 --reporter=line,json",
   "stats": {
-    "startTime": "2026-08-31T16:45:34.398Z",
-    "duration": 138197.408,
+    "startTime": "2026-08-31T17:05:01.727Z",
+    "duration": 137452.77099999998,
     "expected": 27,
     "skipped": 0,
     "unexpected": 0,
@@ -19,9 +19,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3930,
+          "duration": 4081,
           "retry": 0,
-          "startTime": "2026-08-31T16:45:40.403Z",
+          "startTime": "2026-08-31T17:05:07.649Z",
           "errors": []
         }
       ],
@@ -36,9 +36,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4575,
+          "duration": 4547,
           "retry": 0,
-          "startTime": "2026-08-31T16:45:44.809Z",
+          "startTime": "2026-08-31T17:05:12.326Z",
           "errors": []
         }
       ],
@@ -53,9 +53,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3655,
+          "duration": 3547,
           "retry": 0,
-          "startTime": "2026-08-31T16:45:57.677Z",
+          "startTime": "2026-08-31T17:05:25.272Z",
           "errors": []
         }
       ],
@@ -70,9 +70,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4230,
+          "duration": 4314,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:01.749Z",
+          "startTime": "2026-08-31T17:05:29.200Z",
           "errors": []
         }
       ],
@@ -87,9 +87,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3678,
+          "duration": 3549,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:14.297Z",
+          "startTime": "2026-08-31T17:05:41.022Z",
           "errors": []
         }
       ],
@@ -104,9 +104,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4270,
+          "duration": 4191,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:18.398Z",
+          "startTime": "2026-08-31T17:05:44.977Z",
           "errors": []
         }
       ],
@@ -121,9 +121,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3704,
+          "duration": 3630,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:29.731Z",
+          "startTime": "2026-08-31T17:05:57.584Z",
           "errors": []
         }
       ],
@@ -138,9 +138,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4101,
+          "duration": 4143,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:33.659Z",
+          "startTime": "2026-08-31T17:06:01.426Z",
           "errors": []
         }
       ],
@@ -155,9 +155,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3431,
+          "duration": 3497,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:43.605Z",
+          "startTime": "2026-08-31T17:06:11.584Z",
           "errors": []
         }
       ],
@@ -172,9 +172,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4035,
+          "duration": 4029,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:47.208Z",
+          "startTime": "2026-08-31T17:06:15.240Z",
           "errors": []
         }
       ],
@@ -189,9 +189,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3430,
+          "duration": 3556,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:56.992Z",
+          "startTime": "2026-08-31T17:06:25.088Z",
           "errors": []
         }
       ],
@@ -206,9 +206,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4150,
+          "duration": 3972,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:00.592Z",
+          "startTime": "2026-08-31T17:06:28.824Z",
           "errors": []
         }
       ],
@@ -223,9 +223,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3455,
+          "duration": 3346,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:12.109Z",
+          "startTime": "2026-08-31T17:06:38.674Z",
           "errors": []
         }
       ],
@@ -240,9 +240,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4130,
+          "duration": 4031,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:15.725Z",
+          "startTime": "2026-08-31T17:06:42.190Z",
           "errors": []
         }
       ],
@@ -257,9 +257,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3346,
+          "duration": 3354,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:25.744Z",
+          "startTime": "2026-08-31T17:06:52.106Z",
           "errors": []
         }
       ],
@@ -274,9 +274,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3964,
+          "duration": 3960,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:29.249Z",
+          "startTime": "2026-08-31T17:06:55.624Z",
           "errors": []
         }
       ],
@@ -291,9 +291,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 3351,
+          "duration": 3380,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:39.033Z",
+          "startTime": "2026-08-31T17:07:05.583Z",
           "errors": []
         }
       ],
@@ -308,9 +308,9 @@
       "results": [
         {
           "status": "passed",
-          "duration": 4098,
+          "duration": 4161,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:42.546Z",
+          "startTime": "2026-08-31T17:07:09.132Z",
           "errors": []
         }
       ],
@@ -319,15 +319,15 @@
     {
       "project": "firefox",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 7039,
+          "duration": 7106,
           "retry": 0,
-          "startTime": "2026-08-31T16:45:49.443Z",
+          "startTime": "2026-08-31T17:05:16.909Z",
           "errors": []
         }
       ],
@@ -336,15 +336,15 @@
     {
       "project": "firefox",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 7052,
+          "duration": 6242,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:06.040Z",
+          "startTime": "2026-08-31T17:05:33.573Z",
           "errors": []
         }
       ],
@@ -353,15 +353,15 @@
     {
       "project": "firefox",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 5769,
+          "duration": 7093,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:22.727Z",
+          "startTime": "2026-08-31T17:05:49.228Z",
           "errors": []
         }
       ],
@@ -370,15 +370,15 @@
     {
       "project": "webkit",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4672,
+          "duration": 4835,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:37.821Z",
+          "startTime": "2026-08-31T17:06:05.632Z",
           "errors": []
         }
       ],
@@ -387,15 +387,15 @@
     {
       "project": "webkit",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4648,
+          "duration": 4691,
           "retry": 0,
-          "startTime": "2026-08-31T16:46:51.311Z",
+          "startTime": "2026-08-31T17:06:19.334Z",
           "errors": []
         }
       ],
@@ -404,15 +404,15 @@
     {
       "project": "webkit",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4730,
+          "duration": 4666,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:04.804Z",
+          "startTime": "2026-08-31T17:06:32.859Z",
           "errors": []
         }
       ],
@@ -421,15 +421,15 @@
     {
       "project": "Mobile Safari",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4669,
+          "duration": 4760,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:19.917Z",
+          "startTime": "2026-08-31T17:06:46.282Z",
           "errors": []
         }
       ],
@@ -438,15 +438,15 @@
     {
       "project": "Mobile Safari",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4721,
+          "duration": 4805,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:33.279Z",
+          "startTime": "2026-08-31T17:06:59.646Z",
           "errors": []
         }
       ],
@@ -455,15 +455,15 @@
     {
       "project": "Mobile Safari",
       "file": "critical-lifecycle.spec.ts",
-      "line": 311,
+      "line": 307,
       "title": "scenario 5 — offline evaluator draft survives reload and reconnect synchronizes exactly once",
       "expectedStatus": "passed",
       "results": [
         {
           "status": "passed",
-          "duration": 4864,
+          "duration": 4718,
           "retry": 0,
-          "startTime": "2026-08-31T16:47:46.708Z",
+          "startTime": "2026-08-31T17:07:13.358Z",
           "errors": []
         }
       ],
