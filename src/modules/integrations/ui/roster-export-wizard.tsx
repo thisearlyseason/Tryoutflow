@@ -191,6 +191,16 @@ export function RosterExportWizard({
         result.outcome === 'manual_attention_required'
       ) {
         if (
+          typeof result.jobId === 'string' &&
+          result.jobId.length > 0 &&
+          result.jobId !== job.id
+        ) {
+          setMessage(
+            'The durable retry returned an invalid projection. Refresh before taking action.',
+          );
+          return;
+        }
+        if (
           typeof result.jobId !== 'string' ||
           result.jobId.length === 0 ||
           !isJobState(result.state) ||

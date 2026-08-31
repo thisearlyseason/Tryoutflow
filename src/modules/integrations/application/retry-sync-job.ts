@@ -59,7 +59,11 @@ export async function retrySyncJob(
     return { outcome: 'forbidden' };
   }
   try {
-    return await dependencies.gateway.retry({ ...parsed.data, actorId: actor.userId });
+    const result = await dependencies.gateway.retry({ ...parsed.data, actorId: actor.userId });
+    if ('jobId' in result && result.jobId !== parsed.data.jobId) {
+      return { outcome: 'unavailable' };
+    }
+    return result;
   } catch {
     return { outcome: 'unavailable' };
   }

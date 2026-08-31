@@ -107,6 +107,10 @@ const retrySchema = z.discriminatedUnion('outcome', [
     retry_eligible_count: z.literal(0),
   }),
 ]);
+const retrySchemaForJob = (jobId: string) =>
+  retrySchema.refine((result) => result.job_id === null || result.job_id === jobId, {
+    path: ['job_id'],
+  });
 
 const previewPersistenceOutcome = z.enum([
   'created',
@@ -222,7 +226,7 @@ export class SupabaseIntegrationGateway
       p_idempotency_key: input.idempotencyKey,
     });
     if (error) throw error;
-    const parsed = retrySchema.safeParse(data);
+    const parsed = retrySchemaForJob(input.jobId).safeParse(data);
     if (!parsed.success) throw new Error('Invalid integration retry result');
     if (
       parsed.data.outcome === 'queued' ||

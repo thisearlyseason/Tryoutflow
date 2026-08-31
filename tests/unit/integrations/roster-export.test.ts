@@ -329,4 +329,31 @@ describe('durable roster export commands', () => {
       ).resolves.toEqual(durable);
     },
   );
+
+  it('fails closed when a retry adapter returns a projection for a different job', async () => {
+    const retry = vi.fn().mockResolvedValue({
+      outcome: 'queued',
+      jobId: '10000000-0000-4000-8000-000000000009',
+      state: 'pending',
+      retriedItemCount: 1,
+      preservedCompletedItemCount: 1,
+      preservedSkippedItemCount: 0,
+      completedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      retryEligibleCount: 0,
+    });
+
+    await expect(
+      retrySyncJob(
+        {
+          organizationId: ids.organization,
+          jobId: ids.job,
+          idempotencyKey: 'retry:task27:mismatched-job:01',
+        },
+        owner(),
+        { gateway: { retry } },
+      ),
+    ).resolves.toEqual({ outcome: 'unavailable' });
+  });
 });

@@ -2,7 +2,7 @@
 
 ## Status
 
-Complete after review fix round 2/5.
+Complete after review fix round 5/5.
 
 - Original implementation: `07e396c` (`feat: add idempotent mock roster export`)
 - Review hardening: `7054702` (`fix(integrations): harden durable export execution`)
@@ -361,3 +361,45 @@ Migration `202608280081_close_integration_confirmation_retention_and_locking.sql
 ### Round 4 release concern
 
 No blocking concern. The provider is still intentionally synthetic and disabled by default. Production must keep the protected processor scheduled so queued work, deferred active-lease repair, poison cleanup, and bounded privacy retention progress. Delivery uncertainty still requires explicit reconciliation and is never automatically retried.
+
+## Review fix round 5/5
+
+### Finding reproduced before production edits
+
+The retry response boundary validated UUID shape but did not bind a job-bound projection to the job requested by the caller. Three focused RED tests failed as intended: the Supabase gateway exposed a valid-shaped projection whose `job_id` belonged to another job, the application returned a mismatched adapter result unchanged instead of marshaling typed `unavailable`, and the wizard replaced the current job/counts/retry target with the mismatched projection.
+
+### Round 5 boundary design
+
+- The gateway refines the strict retry response schema with the requested job ID for every job-bound SQL outcome. A different valid UUID is therefore rejected before any other job's projection crosses the gateway boundary.
+- The application independently checks every gateway result carrying `jobId`. A mismatch is marshaled to `{ outcome: 'unavailable' }`, so an alternate adapter cannot expose another job's durable data.
+- The wizard independently compares a job-bound retry result to the job whose Retry control initiated the request. A mismatch displays the invalid-projection error without replacing the current durable state or changing the Retry button target. Existing exact matches for `queued`, `replayed`, `nothing_to_retry`, and `manual_attention_required` remain authoritative.
+- No migration or SQL function change was needed; the defect was response correlation at the gateway, application, and UI boundaries.
+
+### Round 5 files
+
+- `src/modules/integrations/application/retry-sync-job.ts`
+- `src/modules/integrations/infrastructure/supabase-integration-gateway.ts`
+- `src/modules/integrations/ui/roster-export-wizard.tsx`
+- `tests/unit/integrations/roster-export.test.ts`
+- `tests/unit/integrations/supabase-integration-gateway.test.ts`
+- `tests/unit/integrations/roster-export-ui.test.tsx`
+
+### Final GREEN evidence
+
+- Focused gateway/application/UI regression coverage passed 3 files / 36 tests after starting RED with exactly 3 failures.
+- Full `npm run verify` passed formatting, ESLint, strict TypeScript, 58 unit files / 782 tests, and the production Next.js build. An independent `npm run build` also passed.
+- Task 26 provider contracts passed 3 files / 143 tests.
+- The relevant isolated real-database roster-export integration scenario passed 1/1.
+- Chromium + Mobile Chrome fixture coverage passed 4/4, including retry truth, accessibility, narrow-screen overflow, and target sizing. Production-route Chromium passed 1/1 through local authentication, registry, RPC persistence, the protected worker, refresh truth, and axe.
+- `npm audit --omit=dev` found 0 vulnerabilities. Formatting, final diff checks, suppression/broad-`any` scans, credential/live-endpoint scans, and the no-migration/type-change audit passed.
+
+### Round 5 self-review
+
+- Identity binding: every job-bound gateway schema branch requires the exact requested job ID; application and UI checks remain independent defense-in-depth boundaries.
+- Non-disclosure and mutation: mismatched gateway/application results return no other-job projection. The UI does not render mismatched counts/state and retains the original durable job and Retry target.
+- Exact authority: matching `queued`, `replayed`, `nothing_to_retry`, and `manual_attention_required` projections retain their existing exact-state/count behavior.
+- Scope: no migration, generated type, database function, provider contract, or unrelated module changed.
+
+### Round 5 release concern
+
+No new blocking concern. Existing Task 27 operational concerns remain unchanged: the provider is synthetic and disabled by default, the protected processor must remain scheduled, and delivery uncertainty requires explicit operator reconciliation rather than automatic retry.

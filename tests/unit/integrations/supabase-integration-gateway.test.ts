@@ -256,6 +256,34 @@ describe('SupabaseIntegrationGateway', () => {
     },
   );
 
+  it('rejects a job-bound retry projection for a different job', async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: {
+        outcome: 'queued',
+        job_id: '10000000-0000-4000-8000-000000000009',
+        state: 'pending',
+        retried_item_count: 1,
+        preserved_completed_item_count: 2,
+        preserved_skipped_item_count: 1,
+        completed_count: 2,
+        skipped_count: 1,
+        failed_count: 1,
+        retry_eligible_count: 0,
+      },
+      error: null,
+    });
+    const gateway = new SupabaseIntegrationGateway({ rpc } as never);
+
+    await expect(
+      gateway.retry({
+        organizationId: ids.organization,
+        actorId: ids.actor,
+        jobId: ids.job,
+        idempotencyKey: 'retry:task27:mismatched-job:01',
+      }),
+    ).rejects.toThrow('Invalid integration retry result');
+  });
+
   it.each([
     'forbidden',
     'not_found',

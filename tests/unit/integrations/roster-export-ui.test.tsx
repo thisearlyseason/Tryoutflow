@@ -317,6 +317,48 @@ describe('integration export UI', () => {
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
+  it('rejects a mismatched retry job without replacing the durable state or button target', async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn().mockResolvedValue({
+      outcome: 'queued',
+      jobId: '10000000-0000-4000-8000-000000000009',
+      state: 'pending',
+      retriedItemCount: 1,
+      preservedCompletedItemCount: 9,
+      preservedSkippedItemCount: 8,
+      completedCount: 9,
+      skippedCount: 8,
+      failedCount: 0,
+      retryEligibleCount: 0,
+    });
+    render(
+      <RosterExportWizard
+        rosterVersionId="10000000-0000-4000-8000-000000000002"
+        destinations={[destination]}
+        onPreview={async () => ({ outcome: 'unavailable' })}
+        onConfirm={async () => ({ outcome: 'conflict' })}
+        onRetry={onRetry}
+        initialJob={{
+          id: '10000000-0000-4000-8000-000000000001',
+          state: 'partially_completed',
+          completedCount: 1,
+          skippedCount: 0,
+          failedCount: 4,
+          retryEligibleCount: 1,
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
+    expect(screen.getByText(/durable retry returned an invalid projection/i)).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '1 completed · 0 skipped · 4 failed/reviewable · partially completed',
+    );
+    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
+    expect(onRetry).toHaveBeenNthCalledWith(1, '10000000-0000-4000-8000-000000000001');
+    expect(onRetry).toHaveBeenNthCalledWith(2, '10000000-0000-4000-8000-000000000001');
+  });
+
   it('renders an explicit preview error when the server action is unavailable', async () => {
     const user = userEvent.setup();
     render(
