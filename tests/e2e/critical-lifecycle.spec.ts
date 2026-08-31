@@ -4,7 +4,12 @@ import Stripe from 'stripe';
 
 import { openAuthenticatedContext, signInAs } from './helpers/auth';
 import { expect, test, type Task30Scenario } from './helpers/fixtures';
-import { monitorBrowserErrors, reconnect, setOffline } from './helpers/network';
+import {
+  expectCancellableServerAction,
+  monitorBrowserErrors,
+  reconnect,
+  setOffline,
+} from './helpers/network';
 
 function scope(
   testInfo: import('@playwright/test').TestInfo,
@@ -56,6 +61,7 @@ async function queuedEvaluationMutation(page: import('@playwright/test').Page) {
 test('scenario 1 — new owner completes organization onboarding and publishes a configured tryout', async ({
   newOwner,
   page,
+  task30Database,
 }, testInfo) => {
   const organizationSlug = `task30-onboarding-${newOwner.id.slice(0, 8)}`;
   const organizationName = `Task 30 Onboarding ${newOwner.id.slice(0, 8)}`;
@@ -66,16 +72,10 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   });
   await signInAs(page, newOwner);
   const monitor = monitorBrowserErrors(page);
-  monitor.allowActionNavigationAbort(/\/start(?:\?|$)/u);
-  monitor.allowActionNavigationAbort(
-    new RegExp(
-      `/app/${organizationSlug}/tryouts/(?:new|[^/]+/setup/(?:basics|divisions|sessions|registration|rubric|rubrics|review|publish))(?:\\?|$)`,
-      'u',
-    ),
-  );
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
   await page.getByLabel('Organization URL').fill(organizationSlug);
+  expectCancellableServerAction(monitor, page, 'organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/home$`, 'u'));
   await expect(
@@ -89,6 +89,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
   await page.getByLabel('Registration closes').fill('2026-09-30T20:00');
+  expectCancellableServerAction(monitor, page, 'draft tryout creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(/\/setup\/basics$/u);
 
@@ -97,23 +98,34 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
   await page.getByLabel('Registration closes').fill('2026-09-30T20:00');
+  expectCancellableServerAction(monitor, page, 'wizard basics redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByLabel('Division name')).toBeVisible();
   await page.getByLabel('Division name').fill('U15');
+  expectCancellableServerAction(monitor, page, 'wizard divisions redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByLabel('Session name')).toBeVisible();
   await page.getByLabel('Session name').fill('Skills session');
   await page.getByLabel('Starts').fill('2026-10-01T16:00');
   await page.getByLabel('Ends').fill('2026-10-01T18:00');
   await page.getByLabel('Position (optional)').fill('Forward');
+  expectCancellableServerAction(monitor, page, 'wizard sessions redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByLabel('Form name')).toBeVisible();
   await page.getByLabel('Form name').fill('Guardian registration');
+  expectCancellableServerAction(monitor, page, 'wizard registration redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByLabel('Rubric name')).toBeVisible();
   await page.getByLabel('Rubric name').fill('Skating rubric');
   await page.getByLabel('Category name').fill('Skating');
+  expectCancellableServerAction(monitor, page, 'wizard rubric redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await expect(page.getByRole('heading', { name: 'Review setup' })).toBeVisible();
   await expect(page.getByText('Publishing is blocked')).toHaveCount(0);
+  expectCancellableServerAction(monitor, page, 'wizard review redirect');
   await page.getByRole('button', { name: 'Ready to publish' }).click();
   await page.getByLabel(`Type “${tryoutName}” to publish`).fill(tryoutName);
+  expectCancellableServerAction(monitor, page, 'tryout publication redirect');
   await page.getByRole('button', { name: 'Publish tryout' }).click();
   await expect(page.getByRole('heading', { name: tryoutName })).toBeVisible();
   await expect(page.getByText('published', { exact: true })).toBeVisible();
@@ -122,6 +134,11 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
     'href',
     /\/register\/task-30-published-/u,
   );
+  expect(
+    task30Database.scalar(
+      `select to_char(tryout.registration_starts_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')||'|'||to_char(tryout.registration_ends_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')||'|'||to_char(session.starts_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')||'|'||to_char(session.ends_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') from public.tryouts tryout join public.tryout_sessions session on session.organization_id=tryout.organization_id and session.tryout_id=tryout.id join public.organizations organization on organization.id=tryout.organization_id where organization.slug='${organizationSlug}' and tryout.name='${tryoutName}' and session.name='Skills session'`,
+    ),
+  ).toBe('2026-09-01T14:00:00Z|2026-10-01T02:00:00Z|2026-10-01T22:00:00Z|2026-10-02T00:00:00Z');
   monitor.assertClean();
 });
 
@@ -166,7 +183,7 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   await page.getByRole('button', { name: 'Confirm registration' }).click();
   await expect(page.getByText('Your registration is confirmed.')).toBeVisible();
   publicMonitor.assertClean();
-
+  publicMonitor.stop();
   await signInAs(page, scenario.users.administrator, scenario.organizationSlug);
   const monitor = monitorBrowserErrors(page);
   await page.goto(`/app/${scenario.organizationSlug}/athletes`);
@@ -189,13 +206,6 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
     user: scenario.users.checkin,
     organizationSlug: scenario.organizationSlug,
   });
-  const checkinMonitor = monitorBrowserErrors(checkin.page);
-  checkinMonitor.allowActionNavigationAbort(
-    new RegExp(
-      `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/check-in(?:\\?|$)`,
-      'u',
-    ),
-  );
   try {
     await checkin.page.goto(
       `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/check-in`,
@@ -206,10 +216,11 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
       checkin.page.getByRole('heading', { name: `Browser ${familyName}` }),
     ).toBeVisible();
     await checkin.page.getByLabel('Requested number (optional)').fill('77');
+    expectCancellableServerAction(checkin.monitor, checkin.page, 'idempotent check-in action');
     await checkin.page.getByRole('button', { name: `Check in Browser ${familyName}` }).dblclick();
     await expect(checkin.page.getByRole('status')).toContainText(/checked in|already checked in/i);
     await expect(checkin.page.getByText('#77 · checked in')).toBeVisible();
-    checkinMonitor.assertClean();
+    checkin.monitor.assertClean();
   } finally {
     await checkin.context.close();
   }
@@ -243,34 +254,30 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
     }),
   );
   try {
-    await Promise.all(
-      sessions.map(async ({ page, control, expected }) => {
-        const monitor = monitorBrowserErrors(page);
-        monitor.allowActionNavigationAbort(
-          new RegExp(
-            `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationA}(?:\\?|$)`,
-            'u',
-          ),
-        );
-        await page.goto(
-          `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationA}`,
-        );
-        await expect(page.getByRole('heading', { name: 'Exact Aggregate' })).toBeVisible();
-        await page.getByRole('radio', { name: `Control score ${control} of 10` }).click();
-        await page.getByRole('radio', { name: 'Finish score 10 of 10' }).click();
-        await page.getByLabel('Private evaluator note').fill(`private ${expected}`);
-        await page.getByRole('button', { name: 'Save now' }).click();
-        await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
-        await page.getByRole('button', { name: 'Complete evaluation' }).click();
-        await expect(page.getByRole('button', { name: 'Evaluation completed' })).toBeDisabled();
-        await page.waitForLoadState('networkidle');
-        for (const peer of ['82', '84', '86'].filter((score) => score !== expected)) {
-          await expect(page.locator('body')).not.toContainText(`private ${peer}`);
-        }
-        await expect(page.locator('body')).not.toContainText(/84\.0000|peer score/iu);
-        monitor.assertClean();
-      }),
-    );
+    for (const { page, monitor, control, expected } of sessions) {
+      await page.goto(
+        `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationA}`,
+      );
+      await expect(page.getByRole('heading', { name: 'Exact Aggregate' })).toBeVisible();
+      await page.getByRole('radio', { name: `Control score ${control} of 10` }).click();
+      await page.getByRole('radio', { name: 'Finish score 10 of 10' }).click();
+      await page.getByLabel('Private evaluator note').fill(`private ${expected}`);
+      await page.getByRole('button', { name: 'Save now' }).click();
+      await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+      expectCancellableServerAction(
+        monitor,
+        page,
+        `evaluation completion for independent score ${expected}`,
+      );
+      await page.getByRole('button', { name: 'Complete evaluation' }).click();
+      await expect(page.getByRole('button', { name: 'Evaluation completed' })).toBeDisabled();
+      await page.waitForLoadState('networkidle');
+      for (const peer of ['82', '84', '86'].filter((score) => score !== expected)) {
+        await expect(page.locator('body')).not.toContainText(`private ${peer}`);
+      }
+      await expect(page.locator('body')).not.toContainText(/84\.0000|peer score/iu);
+      monitor.assertClean();
+    }
     const director = await openAuthenticatedContext({
       browser,
       baseURL: String(baseURL),
@@ -278,7 +285,6 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
       organizationSlug: scenario.organizationSlug,
     });
     try {
-      const directorMonitor = monitorBrowserErrors(director.page);
       await director.page.goto(
         `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rankings`,
       );
@@ -286,7 +292,7 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
       await expect(row).toContainText('84.0');
       await expect(row).toContainText('3 of 3 evaluations complete');
       await expect(row).toContainText('82.0–86.0');
-      directorMonitor.assertClean();
+      director.monitor.assertClean();
     } finally {
       await director.context.close();
     }
@@ -307,10 +313,20 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   scope(testInfo, 'evaluator-three', scenario);
   await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
   const monitor = monitorBrowserErrors(page);
-  monitor.allowConsoleError(/^Failed to load resource: net::ERR_FAILED$/u);
-  monitor.allowConsoleError(/^Failed to load resource: net::ERR_INTERNET_DISCONNECTED$/u);
-  monitor.allowRequestFailure(/\/api\/evaluations\//u);
-  monitor.allowRequestFailure(/\/evaluate\/session\/[^/]+\/athletes\/[^/?]+\?[^#]*_rsc=/u);
+  monitor.expectRequestFailure({
+    count: 1,
+    errorText: ['net::ERR_FAILED', 'NS_ERROR_FAILURE', 'Load failed', 'Blocked by Web Inspector'],
+    label: 'one deliberately failed offline evaluation synchronization request',
+    method: 'POST',
+    url: new RegExp(`^http://127\\.0\\.0\\.1:3112/api/evaluations/[^/]+/mutations$`, 'u'),
+  });
+  if (testInfo.project.name === 'chromium' || testInfo.project.name === 'Mobile Chrome') {
+    monitor.expectConsoleError({
+      count: 1,
+      label: 'Chromium diagnostic for the deliberately failed offline synchronization',
+      text: 'Failed to load resource: net::ERR_FAILED',
+    });
+  }
   await page.goto(
     `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationD}`,
   );
@@ -383,89 +399,151 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
 });
 
 test('scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch', async ({
+  context,
   page,
   scenario,
 }, testInfo) => {
   scope(testInfo, 'director', scenario);
-  const initialRosterAuditCount = Number(
-    scenario.database.scalar(
-      `select count(*) from public.audit_logs where organization_id='${scenario.ids.organization}' and action in('roster.finalized','roster.revised')`,
-    ),
-  );
   await signInAs(page, scenario.users.director, scenario.organizationSlug);
   const monitor = monitorBrowserErrors(page);
-  monitor.allowActionNavigationAbort(
-    new RegExp(
-      `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters(?:\\?|$)`,
-      'u',
-    ),
-  );
-  monitor.allowActionNavigationAbort(
-    new RegExp(
-      `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/messages(?:\\?|$)`,
-      'u',
-    ),
-  );
-  await page.goto(
-    `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`,
-  );
+  const rosterPath = `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.division}`;
+  await page.goto(rosterPath);
+  await expect(page.getByRole('heading', { name: 'Create a draft roster' })).toBeVisible();
+  await page.getByLabel('Team 1 name').fill('UI Blue');
+  await page.getByLabel('Team 1 roster target').fill('3');
+  await page.getByLabel('Team 2 name').fill('UI Gold');
+  await page.getByLabel('Team 2 roster target').fill('3');
+  expectCancellableServerAction(monitor, page, 'UI roster creation action');
+  await page.getByRole('button', { name: 'Create draft roster' }).click();
   await expect(page.getByText('Draft roster · version 1')).toBeVisible();
-  await page.getByRole('button', { name: 'Move Roster Mover' }).click();
-  await page.getByLabel('Destination team').selectOption(scenario.ids.draftTeamGold);
+  const createdRosterId = scenario.database.scalar(
+    `select id from public.roster_versions where organization_id='${scenario.ids.organization}' and tryout_id='${scenario.ids.tryout}' and division_id='${scenario.ids.division}' and revision_number=1`,
+  );
+  expect(createdRosterId).toMatch(/^[0-9a-f-]{36}$/u);
+  const uiBlue = scenario.database.scalar(
+    `select id from public.tryout_teams where organization_id='${scenario.ids.organization}' and division_id='${scenario.ids.division}' and name='UI Blue'`,
+  );
+  const uiGold = scenario.database.scalar(
+    `select id from public.tryout_teams where organization_id='${scenario.ids.organization}' and division_id='${scenario.ids.division}' and name='UI Gold'`,
+  );
+  await page.getByRole('button', { name: 'Move Exact Aggregate' }).click();
+  await page.getByLabel('Destination team').selectOption(uiGold);
+  expectCancellableServerAction(monitor, page, 'UI roster placement action');
   await page.getByRole('button', { name: 'Confirm move' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'placement saved' })).toBeVisible();
   await page.waitForLoadState('networkidle');
-  await page.reload();
   await expect(page.getByText('Draft roster · version 2')).toBeVisible();
-  await page.getByLabel('Select Roster Mover').check();
+  await page.getByLabel('Select Exact Aggregate').check();
   await page.getByLabel('Bulk decision').selectOption('selected');
   await page.getByRole('button', { name: 'Review decision for 1 athlete' }).click();
+  expectCancellableServerAction(monitor, page, 'UI roster decision action');
   await page.getByRole('button', { name: 'Confirm decisions' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'No messages were sent' })).toBeVisible();
+
+  const stalePage = await context.newPage();
+  const staleMonitor = monitorBrowserErrors(stalePage);
+  await stalePage.goto(rosterPath);
+  await expect(stalePage.getByText('Draft roster · version 3')).toBeVisible();
+
   await page.getByRole('button', { name: 'Finalize roster' }).click();
   await page.getByLabel('I understand this roster becomes immutable').check();
+  expectCancellableServerAction(monitor, page, 'UI roster finalization action');
   await page.getByRole('button', { name: 'Confirm finalization' }).click();
   await expect(page.getByText('Finalized roster · immutable')).toBeVisible();
   await expect(page.getByText('Recorded in the roster audit trail.')).toBeVisible();
+  expect(
+    scenario.database.scalar(
+      `select action||':'||entity_type||':'||entity_id::text from public.audit_logs where organization_id='${scenario.ids.organization}' and action='roster.finalized' and entity_id='${createdRosterId}'`,
+    ),
+  ).toBe(`roster.finalized:roster_version:${createdRosterId}`);
+  const finalizedStateDigest = scenario.database.scalar(
+    `select md5((select to_jsonb(roster)::text from public.roster_versions roster where roster.id='${createdRosterId}')||(select coalesce(jsonb_agg(to_jsonb(assignment) order by assignment.registration_id)::text,'[]') from public.roster_assignments assignment where assignment.roster_version_id='${createdRosterId}')||(select coalesce(jsonb_agg(to_jsonb(decision) order by decision.registration_id)::text,'[]') from public.roster_decisions decision where decision.roster_version_id='${createdRosterId}'))`,
+  );
+  const finalizedAuditCount = scenario.database.scalar(
+    `select count(*) from public.audit_logs where organization_id='${scenario.ids.organization}' and entity_id='${createdRosterId}'`,
+  );
+
+  await stalePage.getByRole('button', { name: 'Move Exact Aggregate' }).click();
+  await stalePage.getByLabel('Destination team').selectOption(uiBlue);
+  expectCancellableServerAction(staleMonitor, stalePage, 'denied stale roster placement action');
+  await stalePage.getByRole('button', { name: 'Confirm move' }).click();
+  await expect(
+    stalePage.getByRole('alert').filter({ hasText: /Roster changed elsewhere/i }),
+  ).toBeFocused();
+  expect(
+    scenario.database.scalar(
+      `select md5((select to_jsonb(roster)::text from public.roster_versions roster where roster.id='${createdRosterId}')||(select coalesce(jsonb_agg(to_jsonb(assignment) order by assignment.registration_id)::text,'[]') from public.roster_assignments assignment where assignment.roster_version_id='${createdRosterId}')||(select coalesce(jsonb_agg(to_jsonb(decision) order by decision.registration_id)::text,'[]') from public.roster_decisions decision where decision.roster_version_id='${createdRosterId}'))`,
+    ),
+  ).toBe(finalizedStateDigest);
+  expect(
+    scenario.database.scalar(
+      `select count(*) from public.audit_logs where organization_id='${scenario.ids.organization}' and entity_id='${createdRosterId}'`,
+    ),
+  ).toBe(finalizedAuditCount);
+  staleMonitor.assertClean();
+  await stalePage.close();
+
   await page.getByRole('button', { name: 'Create revision' }).click();
   await page
     .getByLabel('Revision reason')
     .fill('Task 30 verified correction after independent director review.');
+  expectCancellableServerAction(monitor, page, 'UI roster revision action');
   await page.getByRole('button', { name: 'Confirm revision' }).click();
   await expect(page.getByText('Roster revision 2')).toBeVisible();
   await page.waitForLoadState('networkidle');
   expect(
-    Number(
-      scenario.database.scalar(
-        `select count(*) from public.audit_logs where organization_id='${scenario.ids.organization}' and action in('roster.finalized','roster.revised')`,
-      ),
+    scenario.database.scalar(
+      `select count(*) from public.audit_logs where organization_id='${scenario.ids.organization}' and action='roster.revised' and entity_id=(select id from public.roster_versions where organization_id='${scenario.ids.organization}' and based_on_roster_version_id='${createdRosterId}')`,
     ),
-  ).toBe(initialRosterAuditCount + 2);
+  ).toBe('1');
+  monitor.assertClean();
+  monitor.stop();
 
-  await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/messages`);
-  await page.getByLabel('Finalized roster').selectOption(scenario.ids.finalRoster);
-  await page.getByRole('button', { name: 'Preview exact recipients' }).click();
-  await expect(page.getByRole('heading', { name: 'Exact recipient preview · 1' })).toBeVisible();
-  await expect(page.getByText(`Final · selected-${scenario.key}@example.test`)).toBeVisible();
-  await page.getByLabel('Type SEND EXACT BATCH to confirm').fill('SEND EXACT BATCH');
-  await page.getByRole('button', { name: 'Confirm and queue exactly 1' }).click();
-  await expect(page.getByRole('status')).toContainText(
+  const messagesPage = await context.newPage();
+  const messagesMonitor = monitorBrowserErrors(messagesPage);
+  await messagesPage.goto(
+    `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/messages`,
+  );
+  await messagesPage.getByLabel('Finalized roster').selectOption(scenario.ids.finalRoster);
+  await messagesPage.getByRole('button', { name: 'Preview exact recipients' }).click();
+  await expect(
+    messagesPage.getByRole('heading', { name: 'Exact recipient preview · 1' }),
+  ).toBeVisible();
+  await expect(
+    messagesPage.getByText(`Final · selected-${scenario.key}@example.test`),
+  ).toBeVisible();
+  await messagesPage.getByLabel('Type SEND EXACT BATCH to confirm').fill('SEND EXACT BATCH');
+  expectCancellableServerAction(
+    messagesMonitor,
+    messagesPage,
+    'exact recipient batch queue action',
+  );
+  await messagesPage.getByRole('button', { name: 'Confirm and queue exactly 1' }).click();
+  await expect(messagesPage.getByRole('status')).toContainText(
     '1 message queued. Decisions were not changed.',
   );
-  await page.waitForLoadState('networkidle');
-  await page.reload();
-  const deliveryStatus = page.getByRole('region', { name: 'Delivery status' });
+  await messagesPage.waitForLoadState('networkidle');
+  messagesMonitor.assertClean();
+
+  const deliveryPage = await context.newPage();
+  const deliveryMonitor = monitorBrowserErrors(deliveryPage);
+  await deliveryPage.goto(
+    `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/messages`,
+  );
+  const deliveryStatus = deliveryPage.getByRole('region', { name: 'Delivery status' });
   await expect(deliveryStatus.getByText('Final', { exact: true })).toBeVisible();
   await expect(deliveryStatus.getByText('Queued', { exact: true })).toBeVisible();
+  deliveryMonitor.assertClean();
+  await Promise.all([messagesPage.close(), deliveryPage.close()]);
   expect(
     scenario.database.scalar(
       `select status from public.roster_decisions where organization_id='${scenario.ids.organization}' and roster_version_id='${scenario.ids.finalRoster}' and registration_id='${scenario.ids.finalRegistrationA}'`,
     ),
   ).toBe('selected');
-  monitor.assertClean();
 });
 
 test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state, portal, cancellation, and sanitized downloads cross real app/DB boundaries', async ({
+  browserName,
   page,
   request,
   scenario,
@@ -473,12 +551,31 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   scope(testInfo, 'owner', scenario);
   await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   const monitor = monitorBrowserErrors(page);
-  monitor.allowRequestFailure(
-    new RegExp(
-      `/api/organizations/${scenario.ids.organization}/exports/roster\\?[^#]*rosterVersionId=${scenario.ids.finalRoster}`,
-      'u',
-    ),
-  );
+  // Chromium and WebKit report a completed attachment handoff as a failed
+  // document navigation. Firefox completes it without requestfailed.
+  if (browserName === 'chromium') {
+    monitor.expectRequestFailure({
+      count: 1,
+      errorText: 'net::ERR_ABORTED',
+      label: 'one Chromium download handoff cancellation after the roster CSV response',
+      method: 'GET',
+      url: new RegExp(
+        `^http://127\\.0\\.0\\.1:3112/api/organizations/${scenario.ids.organization}/exports/roster\\?[^#]*rosterVersionId=${scenario.ids.finalRoster}(?:&[^#]*)?$`,
+        'u',
+      ),
+    });
+  } else if (browserName === 'webkit') {
+    monitor.expectRequestFailure({
+      count: 1,
+      errorText: 'Frame load interrupted',
+      label: 'one WebKit download handoff interruption after the roster CSV response',
+      method: 'GET',
+      url: new RegExp(
+        `^http://127\\.0\\.0\\.1:3112/api/organizations/${scenario.ids.organization}/exports/roster\\?[^#]*rosterVersionId=${scenario.ids.finalRoster}(?:&[^#]*)?$`,
+        'u',
+      ),
+    });
+  }
   await page.route('https://checkout.stripe.com/**', (route) =>
     route.fulfill({ contentType: 'text/html', body: '<h1>Stripe test checkout boundary</h1>' }),
   );

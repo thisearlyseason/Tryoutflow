@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { ErrorState } from '@/components/feedback/error-state';
@@ -120,8 +119,6 @@ export default async function RostersPage({
   }).ok;
   if (!canRead && !canEdit) notFound();
 
-  const path = `/app/${organizationSlug}/tryouts/${tryoutId}/rosters`;
-
   async function createAction(input: unknown) {
     'use server';
     const scoped = await requireOrganizationRouteContext(organizationSlug);
@@ -133,7 +130,6 @@ export default async function RostersPage({
     if (!bound.ok) return { ok: false as const, code: 'invalid_input' };
     const result = await createRosterDraft(bound.data, scoped.authorization);
     if (!result.ok) return { ok: false as const, code: result.error.code };
-    revalidatePath(path);
     return { ok: true as const, ...result.value };
   }
 
@@ -164,7 +160,6 @@ export default async function RostersPage({
         code: result.error.code,
         currentVersion: result.error.currentVersion,
       };
-    revalidatePath(path);
     return { ok: true as const, version: result.value.version };
   }
 
@@ -195,7 +190,6 @@ export default async function RostersPage({
         code: result.error.code,
         currentVersion: result.error.currentVersion,
       };
-    revalidatePath(path);
     return { ok: true as const, version: result.value.version };
   }
 
@@ -225,7 +219,6 @@ export default async function RostersPage({
         code: result.error.code,
         currentVersion: result.error.currentVersion,
       };
-    revalidatePath(path);
     return { ok: true as const, version: result.value.version };
   }
 
@@ -256,7 +249,6 @@ export default async function RostersPage({
         code: result.error.code,
         currentVersion: result.error.currentVersion,
       };
-    revalidatePath(path);
     return {
       ok: true as const,
       rosterVersionId: result.value.rosterVersionId,

@@ -3,6 +3,7 @@ import { expect, test } from './helpers/fixtures';
 import { monitorBrowserErrors } from './helpers/network';
 
 test('scenario 6 — other-tenant owner is denied a direct organization and tryout URL without an existence oracle', async ({
+  browserName,
   page,
   scenario,
 }, testInfo) => {
@@ -12,9 +13,15 @@ test('scenario 6 — other-tenant owner is denied a direct organization and tryo
   });
   await signInAs(page, scenario.users.otherOwner, scenario.otherOrganizationSlug);
   const monitor = monitorBrowserErrors(page);
-  monitor.allowConsoleError(
-    /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/u,
-  );
+  // Chromium and WebKit log a main-document 404 as a console resource
+  // diagnostic; Firefox renders the verified 404 without a console event.
+  if (browserName !== 'firefox') {
+    monitor.expectConsoleError({
+      count: 1,
+      label: 'the deliberately denied other-tenant overview navigation',
+      text: /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/u,
+    });
+  }
 
   const response = await page.goto(
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`,
@@ -24,17 +31,18 @@ test('scenario 6 — other-tenant owner is denied a direct organization and tryo
   await expect(page.locator('body')).not.toContainText(scenario.tryoutName);
   await expect(page.locator('body')).not.toContainText(/Exact Aggregate|Final Selected/u);
 
-  const report = await page.goto(
+  const report = await page.request.get(
     `/api/organizations/${scenario.ids.organization}/exports/athletes?tryoutId=${scenario.ids.tryout}`,
   );
-  expect(report?.status()).toBe(404);
-  await expect(page.locator('body')).toHaveText('Export not found.');
+  expect(report.status()).toBe(404);
+  expect(await report.text()).toBe('Export not found.');
   monitor.assertClean();
 });
 
 test('scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous direct URLs retain exact role denials', async ({
   baseURL,
   browser,
+  browserName,
   page,
   scenario,
 }, testInfo) => {
@@ -54,8 +62,13 @@ test('scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous 
 
   const checkin = await openActor(scenario.users.checkin);
   try {
-    const monitor = monitorBrowserErrors(checkin.page);
-    monitor.allowConsoleError(expected404);
+    if (browserName !== 'firefox') {
+      checkin.monitor.expectConsoleError({
+        count: 1,
+        label: 'the deliberately denied check-in roster navigation',
+        text: expected404,
+      });
+    }
     await checkin.page.goto(
       `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rankings`,
     );
@@ -70,15 +83,13 @@ test('scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous 
         )
       )?.status(),
     ).toBe(404);
-    monitor.assertClean();
+    checkin.monitor.assertClean();
   } finally {
     await checkin.context.close();
   }
 
   const evaluator = await openActor(scenario.users.evaluatorOne);
   try {
-    const monitor = monitorBrowserErrors(evaluator.page);
-    monitor.allowConsoleError(expected404);
     await evaluator.page.goto(
       `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rankings`,
     );
@@ -88,18 +99,18 @@ test('scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous 
     await expect(evaluator.page.locator('body')).not.toContainText(
       /Tie Alpha|Tie Beta|peer|private/iu,
     );
-    const evaluatorReport = await evaluator.page.goto(
+    const evaluatorReport = await evaluator.page.request.get(
       `/api/organizations/${scenario.ids.organization}/exports/evaluations?tryoutId=${scenario.ids.tryout}`,
     );
-    expect(evaluatorReport?.status()).toBe(404);
-    monitor.assertClean();
+    expect(evaluatorReport.status()).toBe(404);
+    expect(await evaluatorReport.text()).toBe('Export not found.');
+    evaluator.monitor.assertClean();
   } finally {
     await evaluator.context.close();
   }
 
   const reviewer = await openActor(scenario.users.reviewer);
   try {
-    const monitor = monitorBrowserErrors(reviewer.page);
     expect(
       (
         await reviewer.page.goto(
@@ -120,15 +131,20 @@ test('scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous 
     await expect(reviewer.page.getByRole('link', { name: 'Download evaluations CSV' })).toHaveCount(
       0,
     );
-    monitor.assertClean();
+    reviewer.monitor.assertClean();
   } finally {
     await reviewer.context.close();
   }
 
   const member = await openActor(scenario.users.member);
   try {
-    const monitor = monitorBrowserErrors(member.page);
-    monitor.allowConsoleError(expected404);
+    if (browserName !== 'firefox') {
+      member.monitor.expectConsoleError({
+        count: 1,
+        label: 'the deliberately denied member check-in navigation',
+        text: expected404,
+      });
+    }
     expect(
       (
         await member.page.goto(
@@ -136,7 +152,7 @@ test('scenario 7 — check-in staff, evaluator, reviewer, member, and anonymous 
         )
       )?.status(),
     ).toBe(404);
-    monitor.assertClean();
+    member.monitor.assertClean();
   } finally {
     await member.context.close();
   }

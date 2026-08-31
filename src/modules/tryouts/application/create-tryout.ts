@@ -9,6 +9,7 @@ import { requireCapability } from '../../organizations/application/require-capab
 import { isIanaTimeZone, normalizeOrganizationSlug } from '../../organizations/domain/organization';
 import { hasValidInstantRange } from '../domain/lifecycle';
 import type { TryoutDraft, TryoutGateway } from '../domain/tryout';
+import { parseTryoutDateTime } from '../domain/tryout-date-time';
 import { defaultTryoutGateway } from './tryout-dependencies';
 
 const schema = z.object({
@@ -21,88 +22,6 @@ const schema = z.object({
   registrationStartsAt: z.string().trim().min(1).max(50).optional(),
   registrationEndsAt: z.string().trim().min(1).max(50).optional(),
 });
-
-const browserLocalDateTime =
-  /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})T(?<hour>\d{2}):(?<minute>\d{2})(?::(?<second>\d{2}))?$/u;
-
-function zonedParts(timestamp: number, timeZone: string) {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(timestamp);
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value);
-  return {
-    year: value('year'),
-    month: value('month'),
-    day: value('day'),
-    hour: value('hour'),
-    minute: value('minute'),
-    second: value('second'),
-  };
-}
-
-function parseTryoutDateTime(value: string | undefined, timeZone: string): Date | null {
-  if (!value) return null;
-  if (z.iso.datetime({ offset: true }).safeParse(value).success) return new Date(value);
-  const match = browserLocalDateTime.exec(value);
-  if (!match?.groups) return null;
-  const desired = {
-    year: Number(match.groups.year),
-    month: Number(match.groups.month),
-    day: Number(match.groups.day),
-    hour: Number(match.groups.hour),
-    minute: Number(match.groups.minute),
-    second: Number(match.groups.second ?? '0'),
-  };
-  const localAsUtc = Date.UTC(
-    desired.year,
-    desired.month - 1,
-    desired.day,
-    desired.hour,
-    desired.minute,
-    desired.second,
-  );
-  if (
-    !Object.entries(desired).every(
-      ([part, expected]) =>
-        ({
-          year: new Date(localAsUtc).getUTCFullYear(),
-          month: new Date(localAsUtc).getUTCMonth() + 1,
-          day: new Date(localAsUtc).getUTCDate(),
-          hour: new Date(localAsUtc).getUTCHours(),
-          minute: new Date(localAsUtc).getUTCMinutes(),
-          second: new Date(localAsUtc).getUTCSeconds(),
-        })[part as keyof typeof desired] === expected,
-    )
-  )
-    return null;
-  let candidate = localAsUtc;
-  for (let pass = 0; pass < 2; pass += 1) {
-    const parts = zonedParts(candidate, timeZone);
-    const representedAsUtc = Date.UTC(
-      parts.year,
-      parts.month - 1,
-      parts.day,
-      parts.hour,
-      parts.minute,
-      parts.second,
-    );
-    candidate = localAsUtc - (representedAsUtc - candidate);
-  }
-  const roundTrip = zonedParts(candidate, timeZone);
-  return Object.entries(desired).every(
-    ([part, expected]) => roundTrip[part as keyof typeof roundTrip] === expected,
-  )
-    ? new Date(candidate)
-    : null;
-}
 
 export type CreateTryoutError = {
   code: 'invalid_input' | 'invalid_time_range' | 'forbidden' | 'slug_conflict' | 'unexpected';

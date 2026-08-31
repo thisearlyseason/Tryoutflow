@@ -2,6 +2,7 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import type { BrowserUser } from './fixtures';
+import { monitorBrowserErrors } from './network';
 
 export async function signInAs(page: Page, user: BrowserUser, expectedOrganizationSlug?: string) {
   await page.goto('/sign-in');
@@ -24,7 +25,7 @@ export async function openAuthenticatedContext(input: {
   organizationSlug: string;
   locale?: string;
   timezoneId?: string;
-}): Promise<{ context: BrowserContext; page: Page }> {
+}) {
   const context = await input.browser.newContext({
     baseURL: input.baseURL,
     locale: input.locale ?? 'en-CA',
@@ -32,8 +33,12 @@ export async function openAuthenticatedContext(input: {
   });
   const page = await context.newPage();
   try {
+    // Fixture-only setup exception: a successful Next.js sign-in redirect emits an optional
+    // browser-cancelled POST /sign-in requestfailure depending on engine/timing. The URL and
+    // authenticated destination are asserted above; product monitoring starts immediately after.
     await signInAs(page, input.user, input.organizationSlug);
-    return { context, page };
+    const monitor = monitorBrowserErrors(page);
+    return { context, monitor, page };
   } catch (error) {
     await context.close();
     throw error;

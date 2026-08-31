@@ -1,6 +1,7 @@
 import { signInAs } from './helpers/auth';
 import { expect, test } from './helpers/fixtures';
 import {
+  expectCancellableServerAction,
   holdResponseAfterApplicationCommit,
   loseResponseAfterApplicationCommit,
   monitorBrowserErrors,
@@ -62,11 +63,13 @@ test('two director tabs reject a stale roster mutation after the first committed
   );
   await page.getByRole('button', { name: 'Move Roster Mover' }).click();
   await page.getByLabel('Destination team').selectOption(scenario.ids.draftTeamGold);
+  expectCancellableServerAction(monitor, page, 'delayed first-tab roster mutation');
   await page.getByRole('button', { name: 'Confirm move' }).click();
   await delayed.requested;
 
   await sibling.getByRole('button', { name: 'Move Roster Mover' }).click();
   await sibling.getByLabel('Destination team').selectOption(scenario.ids.draftTeamBlue);
+  expectCancellableServerAction(siblingMonitor, sibling, 'stale sibling roster mutation');
   await sibling.getByRole('button', { name: 'Confirm move' }).dblclick();
   await expect(
     sibling.getByRole('alert').filter({ hasText: /Roster changed elsewhere/i }),
@@ -96,13 +99,27 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   });
   await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   const monitor = monitorBrowserErrors(page);
-  monitor.allowConsoleError(/^Failed to load resource: net::ERR_FAILED$/u);
-  monitor.allowRequestFailure(/\/rosters\/.*\/export/u);
-  monitor.allowActionNavigationAbort(
-    new RegExp(`/app/${scenario.organizationSlug}/organization/integrations(?:\\?|$)`, 'u'),
-  );
+  monitor.expectRequestFailure({
+    count: 1,
+    errorText: ['net::ERR_FAILED', 'NS_ERROR_FAILURE', 'Load failed', 'Blocked by Web Inspector'],
+    headers: { 'next-action': /.+/u },
+    label: 'one deliberately lost roster export confirmation response',
+    method: 'POST',
+    url: new RegExp(
+      `^http://127\\.0\\.0\\.1:3112/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters/${scenario.ids.finalRoster}/export$`,
+      'u',
+    ),
+  });
+  if (testInfo.project.name === 'chromium' || testInfo.project.name === 'Mobile Chrome') {
+    monitor.expectConsoleError({
+      count: 1,
+      label: 'Chromium diagnostic for the deliberately lost export response',
+      text: 'Failed to load resource: net::ERR_FAILED',
+    });
+  }
   await page.goto(`/app/${scenario.organizationSlug}/organization/integrations`);
   await expect(page.getByText(/demo\/mock only/i).first()).toBeVisible();
+  expectCancellableServerAction(monitor, page, 'demo provider connection redirect');
   await page.getByRole('button', { name: 'Connect demo provider' }).click();
   await expect(page.getByText(/demo\/mock connection is ready/i)).toBeVisible();
   await page.waitForLoadState('networkidle');
@@ -118,6 +135,12 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   await expect(page.getByText('Final', { exact: true }).first()).toBeVisible();
   await page.getByLabel('I reviewed the exact destination and fields').check();
 
+  let confirmationAttempts = 0;
+  page.on('request', (candidate) => {
+    if (candidate.method() === 'POST' && candidate.url().endsWith('/export')) {
+      confirmationAttempts += 1;
+    }
+  });
   const cleanupLoss = await loseResponseAfterApplicationCommit(
     page,
     (candidate) => candidate.method() === 'POST' && candidate.url().includes('/export'),
@@ -125,6 +148,26 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   await page.getByRole('button', { name: 'Confirm and queue export' }).click();
   await expect(page.getByText(/Confirmation could not be completed/u)).toBeVisible();
   await cleanupLoss();
+  const firstIntent = scenario.database.scalar(
+    `select id::text||'|'||business_idempotency_key||'|'||source_preview_id::text from public.integration_sync_jobs where organization_id='${scenario.ids.organization}' and roster_version_id='${scenario.ids.finalRoster}'`,
+  );
+  const replayResponse = page.waitForResponse(
+    (candidate) => candidate.request().method() === 'POST' && candidate.url().endsWith('/export'),
+  );
+  await page.getByRole('button', { name: 'Confirm and queue export' }).click();
+  expect((await replayResponse).ok()).toBe(true);
+  await expect(page.getByText(/Export queued/u)).toBeVisible();
+  expect(confirmationAttempts).toBe(2);
+  expect(
+    scenario.database.scalar(
+      `select id::text||'|'||business_idempotency_key||'|'||source_preview_id::text from public.integration_sync_jobs where organization_id='${scenario.ids.organization}' and roster_version_id='${scenario.ids.finalRoster}'`,
+    ),
+  ).toBe(firstIntent);
+  expect(
+    scenario.database.scalar(
+      `select (select count(*) from public.integration_sync_jobs where organization_id='${scenario.ids.organization}' and roster_version_id='${scenario.ids.finalRoster}')::text||':'||(select count(*) from public.integration_outbox_jobs where organization_id='${scenario.ids.organization}')::text||':'||(select count(*) from public.integration_sync_items where organization_id='${scenario.ids.organization}')::text`,
+    ),
+  ).toBe('1:1:2');
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Latest durable job' })).toBeVisible();
   await expect(page.getByRole('status')).toContainText(/pending|sent|failed/i);
@@ -159,8 +202,8 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   ).toBe('1');
   expect(
     scenario.database.scalar(
-      `select count(*) from public.external_entity_mappings where organization_id='${scenario.ids.organization}' and entity_type='athlete'`,
+      `select count(*)::text||':'||count(distinct internal_entity_id)::text||':'||count(distinct external_id)::text||':'||count(distinct first_sync_job_id)::text from public.external_entity_mappings where organization_id='${scenario.ids.organization}' and entity_type='athlete'`,
     ),
-  ).toBe('2');
+  ).toBe('2:2:2:1');
   monitor.assertClean();
 });

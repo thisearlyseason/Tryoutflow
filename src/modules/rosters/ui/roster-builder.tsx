@@ -187,8 +187,12 @@ export function RosterDraftSetup({
       return;
     }
     setMessage('Draft roster created. Loading the workspace…');
-    if (typeof window !== 'undefined' && !navigator.userAgent.includes('jsdom'))
+    if (typeof window !== 'undefined' && !navigator.userAgent.includes('jsdom')) {
+      await new Promise<void>((resolve) =>
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())),
+      );
       window.location.reload();
+    }
   }
 
   return (

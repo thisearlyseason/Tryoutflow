@@ -93,6 +93,9 @@ export type Task30Scenario = Readonly<{
 type Task30Fixtures = {
   newOwner: BrowserUser;
   scenario: Task30Scenario;
+  task30Database: Readonly<{
+    scalar(sql: string): string;
+  }>;
 };
 
 function stableUuid(seed: string) {
@@ -457,6 +460,10 @@ function seedScenarioSql(
 }
 
 export const test = base.extend<Task30Fixtures>({
+  task30Database: async ({}, use) => {
+    const local = localSupabase();
+    await use({ scalar: (sql) => scalarSql(local.DB_URL, sql) });
+  },
   newOwner: async ({ request }, use, testInfo) => {
     const local = localSupabase();
     const key = `${stableKey(testInfo)}-new-owner`;

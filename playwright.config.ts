@@ -40,7 +40,10 @@ export default defineConfig({
   ],
   globalSetup: './tests/e2e/global-database-lifecycle.ts',
   globalTeardown: './tests/e2e/global-database-lifecycle.ts',
-  fullyParallel: true,
+  // Task 30 shares one deliberately local Next/Postgres lifecycle. One worker keeps Server Action
+  // stream supersession deterministic; every test still owns isolated org/auth/database records.
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: true,
   retries: 1,
   timeout: 90_000,
