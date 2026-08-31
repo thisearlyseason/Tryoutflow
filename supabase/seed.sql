@@ -246,6 +246,21 @@ begin
     ('29000000-0000-4000-8000-000000000217','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000201','29000000-0000-4000-8000-000000000207','29000000-0000-4000-8000-000000000213',fixed_time,fixed_time)
   on conflict(id) do nothing;
   end if;
+  -- Canonical evaluations must satisfy the same active evaluator-scope check
+  -- as production reporting.  These are independent replay-safe facts, not
+  -- rewrites of the preserved legacy tryout assignments.
+  insert into public.tryout_staff_assignments(id,organization_id,user_id,role,scope_kind,tryout_id,granted_by_user_id,created_at,updated_at)
+  select '29000000-0000-4000-8000-000000000218','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000013','evaluator','tryout','29000000-0000-4000-8000-000000000201','29000000-0000-4000-8000-000000000011',fixed_time,fixed_time
+  where not exists(select 1 from public.tryout_staff_assignments staff where staff.organization_id='29000000-0000-4000-8000-000000000001'
+    and staff.user_id='29000000-0000-4000-8000-000000000013' and staff.role='evaluator' and staff.scope_kind='tryout'
+    and staff.tryout_id='29000000-0000-4000-8000-000000000201' and staff.revoked_at is null)
+  on conflict(id) do nothing;
+  insert into public.tryout_staff_assignments(id,organization_id,user_id,role,scope_kind,tryout_id,granted_by_user_id,created_at,updated_at)
+  select '29000000-0000-4000-8000-000000000219','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000014','evaluator','tryout','29000000-0000-4000-8000-000000000201','29000000-0000-4000-8000-000000000011',fixed_time,fixed_time
+  where not exists(select 1 from public.tryout_staff_assignments staff where staff.organization_id='29000000-0000-4000-8000-000000000001'
+    and staff.user_id='29000000-0000-4000-8000-000000000014' and staff.role='evaluator' and staff.scope_kind='tryout'
+    and staff.tryout_id='29000000-0000-4000-8000-000000000201' and staff.revoked_at is null)
+  on conflict(id) do nothing;
   insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date,created_at,updated_at) values
     ('29000000-0000-4000-8000-000000000221','29000000-0000-4000-8000-000000000001','Avery','Converged','avery','converged','2012-01-01',fixed_time,fixed_time),
     ('29000000-0000-4000-8000-000000000222','29000000-0000-4000-8000-000000000001','Blake','Converged','blake','converged','2012-02-02',fixed_time,fixed_time)
@@ -298,6 +313,18 @@ begin
     update public.roster_versions set state='finalized',version=2,finalized_by_user_id='29000000-0000-4000-8000-000000000012',finalized_at='2026-08-28 18:30:00+00',updated_at='2026-08-28 18:30:00+00' where id='29000000-0000-4000-8000-000000000283';
     insert into public.audit_logs(id,organization_id,actor_user_id,action,entity_type,entity_id,occurred_at)
     values('29000000-0000-4000-8000-000000000284','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000012','roster.finalized','roster_version','29000000-0000-4000-8000-000000000283','2026-08-28 18:30:00+00');
+  end if;
+  -- Preserved pre-fix history without a report snapshot must coexist with the
+  -- verified canonical final.  It is deliberately append-only and is never a
+  -- download target; reports expose it as an explicit migration warning.
+  if not exists(select 1 from public.roster_versions where id='29000000-0000-4000-8000-000000000285') then
+    insert into public.roster_versions(
+      id,organization_id,tryout_id,division_id,revision_number,based_on_roster_version_id,revision_reason,state,version,
+      created_by_user_id,finalized_by_user_id,finalized_at,created_at,updated_at)
+    values('29000000-0000-4000-8000-000000000285','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000201',
+      '29000000-0000-4000-8000-000000000202',2,'29000000-0000-4000-8000-000000000283',
+      'Legacy final has no report snapshot.','finalized',2,'29000000-0000-4000-8000-000000000012',
+      '29000000-0000-4000-8000-000000000012','2026-08-28 18:29:00+00','2026-08-28 18:29:00+00','2026-08-28 18:29:00+00');
   end if;
 end
 $seed$;

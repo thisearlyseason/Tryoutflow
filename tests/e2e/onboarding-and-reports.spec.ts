@@ -5,7 +5,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 const organizationId = '29000000-0000-4000-8000-000000000001';
-const tryoutId = '29000000-0000-4000-8000-000000000032';
+const tryoutId = '29000000-0000-4000-8000-000000000201';
+const rosterVersionId = '29000000-0000-4000-8000-000000000283';
 const email = `task29-${randomUUID()}@example.test`;
 const password = `Task29-${randomUUID()}!`;
 let databaseUrl = '';
@@ -146,8 +147,9 @@ test('loads durable onboarding and downloads sanitized authorized report snapsho
 
   await page.goto(`/app/badlands-hockey-academy/tryouts/${tryoutId}/reports`);
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
-  await expect(page.getByText('5 athletes')).toBeVisible();
-  await expect(page.getByText('3 completed evaluations')).toBeVisible();
+  await expect(page.getByText(/another finalized roster.*unavailable/i)).toBeVisible();
+  await expect(page.getByText('2 athletes')).toBeVisible();
+  await expect(page.getByText('1 completed evaluations')).toBeVisible();
   await expect(page.getByText('1 incomplete evaluations')).toBeVisible();
 
   const [athletesDownload] = await Promise.all([
@@ -157,7 +159,7 @@ test('loads durable onboarding and downloads sanitized authorized report snapsho
   const athletesPath = await athletesDownload.path();
   expect(athletesPath).not.toBeNull();
   const athletesCsv = execFileSync('sed', ['-n', '1,20p', athletesPath!], { encoding: 'utf8' });
-  expect(athletesCsv).toContain("'=Edge");
+  expect(athletesCsv).toContain('Avery,Converged');
   expect(athletesCsv).not.toMatch(
     /guardian|email|phone|birth|emergency|eligibility|private note/iu,
   );
@@ -179,7 +181,7 @@ test('loads durable onboarding and downloads sanitized authorized report snapsho
   ]);
   expect(
     execFileSync('sed', ['-n', '1,20p', (await rosterDownload.path())!], { encoding: 'utf8' }),
-  ).toContain('Badlands Blue');
+  ).toContain('Converged Blue');
   expect(await new AxeBuilder({ page }).analyze()).toMatchObject({ violations: [] });
 
   await page.setViewportSize({ width: 320, height: 720 });
@@ -206,6 +208,7 @@ test('exposes only the exact final-roster report to reviewers and denies other s
     await expect(page.getByRole('link', { name: `Reports for tryout ${tryoutId}` })).toBeVisible();
     await page.getByRole('link', { name: `Reports for tryout ${tryoutId}` }).click();
     await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
+    await expect(page.getByText(/another finalized roster.*unavailable/i)).toBeVisible();
     await expect(page.getByRole('link', { name: 'Download finalized roster CSV' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Download athletes CSV' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Download evaluations CSV' })).toHaveCount(0);
@@ -217,7 +220,7 @@ test('exposes only the exact final-roster report to reviewers and denies other s
       execFileSync('sed', ['-n', '1,10p', (await reviewerDownload.path())!], {
         encoding: 'utf8',
       }),
-    ).toContain('Badlands Blue');
+    ).toContain('Converged Blue');
     for (const exportType of ['athletes', 'evaluations']) {
       await page.goto(
         `/api/organizations/${organizationId}/exports/${exportType}?tryoutId=${tryoutId}`,
@@ -236,7 +239,7 @@ test('exposes only the exact final-roster report to reviewers and denies other s
       await expect(page.locator('body')).toHaveText('Export not found.');
     }
     await page.goto(
-      `/api/organizations/39000000-0000-4000-8000-000000000001/exports/roster?tryoutId=${tryoutId}&rosterVersionId=29000000-0000-4000-8000-000000000153`,
+      `/api/organizations/39000000-0000-4000-8000-000000000001/exports/roster?tryoutId=${tryoutId}&rosterVersionId=${rosterVersionId}`,
     );
     await expect(page.locator('body')).toHaveText('Export not found.');
   } finally {

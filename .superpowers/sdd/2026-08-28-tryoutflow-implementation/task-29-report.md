@@ -2,7 +2,15 @@
 
 ## Status
 
-Round-two follow-up: report count/abort/legacy-snapshot changes were audited, and migration 084 closes the report candidate-index, submitted-lifecycle summary, terminal fixture-redaction, and append-only pre-fix fixture convergence gaps.
+Round-three follow-up: migration 085 closes the remaining canonical-lineage consumption, true tryout candidate bound, strict lifecycle-count overflow, and mixed verified/unavailable roster-discovery gaps.  It is additive and preserves all pre-existing finalized and published history.
+
+## Round-three evidence
+
+- The U15 Converged Demo current lineage uses tryout `...201`, active exact evaluator assignments `...218`/`...219`, and verified final roster `...283`. Its independent published 90/10 rubric and two complete evaluator vectors now report Avery as `92.0000`, completed once, and never invalid. The preserved older lineage remains preservation evidence only.
+- Seed convergence also retains deterministic legacy finalized roster `...285` without a snapshot. Manager and authorized reviewer summary responses therefore return the newest verified downloadable roster alongside `unavailableFinalizedRosterCount=1`; the UI presents both the download link and an accessible migration-unavailable warning. No-snapshot-only behavior remains unchanged.
+- Migration 085 adds the exact `(organization_id, tryout_id, athlete_id, created_at DESC, id DESC)` registration index. Tryout candidates are selected directly from that relation with deterministic latest-per-athlete `DISTINCT ON` and `maxRows + 1` before joins, grouping, or final athlete sorting. pgTAP 067 injects 1,200 additional registrations, forces the exact-index plan, and rejects sort/seq-scan candidate work.
+- A shared count contract treats any lifecycle/scored count over 10,000 as an overflow sentinel that requires `truncated=true`. The gateway rejects false sentinels before data is exposed, the application maps every truthful or explicit truncation case to `too_large`/413, and 1,000/1,001/10,000 remain valid.
+- The seed and browser fixtures consume the canonical tryout/roster identifiers deliberately. Replay proves active exact assignments, stable canonical weighted scores, no duplicate canonical current lineage, and preservation of the legacy immutable facts.
 
 ## Round-two evidence
 
@@ -44,19 +52,19 @@ Round-two follow-up: report count/abort/legacy-snapshot changes were audited, an
 
 ```text
 supabase db reset --no-seed && npm run test:db
-  PASS — migrations 001–084; 66 files / 1,759 assertions
+  PASS — migrations 001–085; 67 files / 1,767 assertions
 
 supabase db reset
-  PASS — migrations 001–084 plus deterministic Badlands seed
+  PASS — migrations 001–085 plus deterministic Badlands seed
 
-npx supabase test db supabase/tests/064_reports_and_onboarding.test.sql supabase/tests/065_report_snapshot_math_and_bounds.test.sql supabase/tests/066_report_candidate_index_bounds.test.sql
-  PASS on the seeded database — 3 files / 44 assertions
+npx supabase test db supabase/tests/067_report_canonical_lineage_and_overflow_contract.test.sql
+  PASS on the seeded database — 1 file / 8 assertions (the preceding clean suite covers 064–066)
 
 npm run test:integration
-  PASS twice under the Task 20 supervisor — 27 files / 200 tests on each run (42.75s and 44.33s)
+  PASS twice under the Task 20 supervisor — 27 files / 201 tests on each run (42.81s and 42.40s)
 
 npx vitest run --config vitest.integration.config.ts tests/integration/demo-seed.test.ts
-  PASS — 1 file / 8 tests, including replay digest, legacy immutable-byte preservation, exact canonical lineage cardinalities, convergence, immutable/revision snapshots, population parity, and canonical weighted totals
+  PASS — 1 file / 9 tests, including replay digest, legacy immutable-byte preservation, active canonical evaluator assignments, mixed verified/unavailable snapshot discovery, exact canonical lineage cardinalities, convergence, immutable/revision snapshots, population parity, and canonical weighted totals
 
 npm run db:types (twice)
   PASS — identical SHA-256 cbcb54c829d573df0e991e6d426f8044ae57fc8f6289cc96b2358d8ccf352824 on both runs; generated nullable provider_preview_id types updated for migration 084
@@ -71,13 +79,13 @@ npm run format:check && npm run lint && npm run typecheck
   PASS
 
 npm run verify
-  PASS — formatting, lint, typecheck, 67 unit files / 940 tests, and the Task 28 production marketing build (unit duration 106.32s)
+  PASS — formatting, lint, typecheck, 67 unit files / 949 tests, and the Task 28 production marketing build (unit duration 110.37s)
 
 production environment variables + npm run build
   PASS — optimized production build and route collection
 
 local Supabase environment + npx playwright test tests/e2e/onboarding-and-reports.spec.ts --project=chromium --project='Mobile Safari'
-  PASS — 6 authenticated/anonymous tests, including reviewer/evaluator/member/disabled/cross-tenant role matrix, axe, downloads, and 320 px layout
+  PASS — 6 authenticated/anonymous tests, including canonical Avery 92.0000 reports, manager/reviewer mixed-snapshot warning and download, reviewer/evaluator/member/disabled/cross-tenant role matrix, axe, downloads, and 320 px layout
 
 npm audit --audit-level=high
   PASS — 0 vulnerabilities
@@ -96,7 +104,7 @@ git diff --check
 
 ## Concerns
 
-- The original initial-organization branch remains for pristine setup. Existing pre-084 Badlands data is preserved as history; report/demo assertions should use the U15 Converged Demo lineage when a former immutable fixture is unverifiable.
+- The original initial-organization branch remains for pristine setup. Existing pre-085 Badlands data is preserved as history; report/demo assertions deliberately use the U15 Converged Demo lineage when a former immutable fixture is unverifiable. Legacy no-snapshot finals remain explicitly unavailable rather than being retroactively fabricated.
 
 - Oversized snapshots are intentionally rejected rather than partially downloaded. Organization owners can narrow athlete exports to a tryout; additional filter-specific exports remain future product work.
 - The seeded identities deliberately have no passwords. Authenticated browser coverage creates and removes ephemeral local users instead of adding reusable credentials to the repository.

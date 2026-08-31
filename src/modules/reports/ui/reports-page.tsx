@@ -42,6 +42,11 @@ export function ReportsPage({
         <p className="mt-2 max-w-3xl text-[var(--color-text-muted)]">
           Your reviewer grant permits only this immutable finalized-roster snapshot.
         </p>
+        {reviewer.unavailableFinalizedRosterCount ? (
+          <p className="mt-4 text-sm text-[var(--color-text-muted)]" role="status">
+            Another finalized roster exists, but its verified export snapshot is unavailable.
+          </p>
+        ) : null}
         <div className="mt-6">
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
@@ -122,11 +127,15 @@ export function ReportsPage({
           </Link>
         ) : null}
       </div>
-      {(tryoutId || manager.unavailableFinalizedRosterCount) && !manager.latestFinalizedRosterId ? (
+      {manager.unavailableFinalizedRosterCount ? (
+        <p className="mt-4 text-sm text-[var(--color-text-muted)]" role="status">
+          {manager.latestFinalizedRosterId
+            ? 'Another finalized roster exists, but its verified export snapshot is unavailable.'
+            : 'A finalized roster exists, but its verified export snapshot is unavailable. Create and finalize a new roster revision.'}
+        </p>
+      ) : tryoutId && !manager.latestFinalizedRosterId ? (
         <p className="mt-4 text-sm text-[var(--color-text-muted)]">
-          {manager.unavailableFinalizedRosterCount
-            ? 'A finalized roster exists, but its verified export snapshot is unavailable. Create and finalize a new roster revision.'
-            : 'Finalize a roster before downloading its immutable snapshot.'}
+          Finalize a roster before downloading its immutable snapshot.
         </p>
       ) : null}
     </section>

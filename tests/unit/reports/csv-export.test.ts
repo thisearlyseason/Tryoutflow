@@ -129,6 +129,41 @@ describe('RFC 4180 report exports', () => {
 });
 
 describe('authorized server export snapshots', () => {
+  const evaluationProjection = (
+    overrides: Partial<{
+      completedCount: number;
+      lockedCount: number;
+      reopenedCount: number;
+      draftCount: number;
+      invalidCount: number;
+      scoredEvaluatorCount: number;
+      truncated: boolean;
+    }> = {},
+  ) => {
+    const { truncated = false, ...counts } = overrides;
+    return {
+      outcome: 'ok',
+      exportType: 'evaluations',
+      scopeLabel: 'Badlands / U15',
+      rows: [
+        {
+          athleteNumber: 12,
+          preferredName: 'Synthetic Athlete',
+          session: 'Skills',
+          completedCount: 0,
+          lockedCount: 0,
+          reopenedCount: 0,
+          draftCount: 0,
+          invalidCount: 0,
+          scoredEvaluatorCount: 0,
+          overallScore: null,
+          ...counts,
+        },
+      ],
+      truncated,
+    };
+  };
+
   it.each([1_000, 1_001, 10_000])(
     'accepts truthful evaluation lifecycle counts through the report cap: %i',
     (count) => {
@@ -185,6 +220,39 @@ describe('authorized server export snapshots', () => {
         assignments: [{ role: 'director', scope: { kind: 'tryout', tryoutId: ids.tryout } }],
       },
       { load: vi.fn().mockResolvedValue(overflow) },
+    );
+    expect(result).toEqual({ ok: false, error: { code: 'too_large' } });
+  });
+
+  it.each([
+    'completedCount',
+    'lockedCount',
+    'reopenedCount',
+    'draftCount',
+    'invalidCount',
+    'scoredEvaluatorCount',
+  ] as const)('rejects an untruncated overflow sentinel in %s', async (field) => {
+    const malformed = evaluationProjection({ [field]: 10_001, truncated: false });
+    expect(() => parseReportExportProjection(malformed)).toThrow(/truncated/i);
+    const result = await createReportExport(
+      { organizationId: ids.organization, tryoutId: ids.tryout, exportType: 'evaluations' },
+      {
+        ...actor('member'),
+        assignments: [{ role: 'director', scope: { kind: 'tryout', tryoutId: ids.tryout } }],
+      },
+      { load: vi.fn().mockResolvedValue(malformed) },
+    );
+    expect(result).toEqual({ ok: false, error: { code: 'too_large' } });
+  });
+
+  it('treats a truncated projection as too large even when every lifecycle count is in range', async () => {
+    const result = await createReportExport(
+      { organizationId: ids.organization, tryoutId: ids.tryout, exportType: 'evaluations' },
+      {
+        ...actor('member'),
+        assignments: [{ role: 'director', scope: { kind: 'tryout', tryoutId: ids.tryout } }],
+      },
+      { load: vi.fn().mockResolvedValue(evaluationProjection({ truncated: true })) },
     );
     expect(result).toEqual({ ok: false, error: { code: 'too_large' } });
   });

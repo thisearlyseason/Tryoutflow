@@ -67,6 +67,44 @@ describe('reports page', () => {
     expect(screen.queryByText(/completed evaluations/i)).not.toBeInTheDocument();
   });
 
+  it('keeps a verified download while warning about an additional legacy unavailable roster', () => {
+    render(
+      <ReportsPage
+        access={
+          {
+            kind: 'reviewer_roster',
+            rosterVersionId: '29000000-0000-4000-8000-000000000003',
+            unavailableFinalizedRosterCount: 1,
+          } as never
+        }
+        organizationId="29000000-0000-4000-8000-000000000001"
+        tryoutId="29000000-0000-4000-8000-000000000002"
+      />,
+    );
+    expect(screen.getByRole('link', { name: /finalized roster CSV/i })).toBeInTheDocument();
+    expect(screen.getByText(/another finalized roster.*unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /athletes CSV/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps a manager download while warning about legacy unavailable roster history', () => {
+    render(
+      <ReportsPage
+        organizationId="29000000-0000-4000-8000-000000000001"
+        tryoutId="29000000-0000-4000-8000-000000000002"
+        summary={{
+          athleteCount: 8,
+          completedEvaluationCount: 12,
+          incompleteEvaluationCount: 3,
+          finalizedRosterCount: 2,
+          latestFinalizedRosterId: '29000000-0000-4000-8000-000000000003',
+          unavailableFinalizedRosterCount: 1,
+        }}
+      />,
+    );
+    expect(screen.getByRole('link', { name: /finalized roster CSV/i })).toBeInTheDocument();
+    expect(screen.getByText(/another finalized roster.*unavailable/i)).toBeInTheDocument();
+  });
+
   it('shows managers an explicit unavailable state for legacy finalized rosters without snapshots', () => {
     render(
       <ReportsPage

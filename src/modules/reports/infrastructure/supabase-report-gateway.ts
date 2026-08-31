@@ -6,10 +6,13 @@ import type {
   ReportExportGateway,
   ReportExportProjection,
 } from '../application/create-report-export';
+import {
+  exceedsReportCountCap,
+  REPORT_COUNT_CAP,
+  REPORT_COUNT_OVERFLOW_SENTINEL,
+} from '../application/report-count-contract';
 
 const rowLimit = 5_000;
-export const REPORT_COUNT_CAP = 10_000;
-export const REPORT_COUNT_OVERFLOW_SENTINEL = REPORT_COUNT_CAP + 1;
 const athleteRow = z.strictObject({
   athleteNumber: z.number().int().min(1).max(9999).nullable(),
   preferredName: z.string().min(1).max(120),
@@ -73,6 +76,14 @@ const projectionSchema = z.union([
 export function parseReportExportProjection(input: unknown): ReportExportProjection {
   const parsed = projectionSchema.safeParse(input);
   if (!parsed.success) throw new Error('Invalid report projection');
+  if (
+    parsed.data.outcome === 'ok' &&
+    parsed.data.exportType === 'evaluations' &&
+    !parsed.data.truncated &&
+    parsed.data.rows.some(exceedsReportCountCap)
+  ) {
+    throw new Error('Report lifecycle count overflow requires truncated=true');
+  }
   return parsed.data as ReportExportProjection;
 }
 
@@ -86,7 +97,11 @@ export type ManagerReportSummary = Readonly<{
 }>;
 export type ReportPageAccess =
   | Readonly<{ kind: 'manager'; summary: ManagerReportSummary }>
-  | Readonly<{ kind: 'reviewer_roster'; rosterVersionId: string }>
+  | Readonly<{
+      kind: 'reviewer_roster';
+      rosterVersionId: string;
+      unavailableFinalizedRosterCount?: number;
+    }>
   | Readonly<{ kind: 'reviewer_roster_unavailable' }>;
 const summaryResponse = z.union([
   z.strictObject({ outcome: z.literal('forbidden') }),
@@ -106,6 +121,7 @@ const summaryResponse = z.union([
     outcome: z.literal('ok'),
     access: z.literal('reviewer_roster'),
     rosterVersionId: z.uuid(),
+    unavailableFinalizedRosterCount: z.number().int().min(0).max(1_000_000).optional(),
   }),
   z.strictObject({
     outcome: z.literal('ok'),
@@ -147,7 +163,11 @@ export class SupabaseReportGateway implements ReportExportGateway {
     if (parsed.data.outcome !== 'ok') return null;
     if (parsed.data.access === 'manager') return { kind: 'manager', summary: parsed.data.summary };
     if (parsed.data.access === 'reviewer_roster') {
-      return { kind: 'reviewer_roster', rosterVersionId: parsed.data.rosterVersionId };
+      return {
+        kind: 'reviewer_roster',
+        rosterVersionId: parsed.data.rosterVersionId,
+        unavailableFinalizedRosterCount: parsed.data.unavailableFinalizedRosterCount,
+      };
     }
     return { kind: 'reviewer_roster_unavailable' };
   }

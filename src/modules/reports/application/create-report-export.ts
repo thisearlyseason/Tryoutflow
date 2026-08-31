@@ -7,6 +7,7 @@ import { encodeAthletesCsv, type AthleteExportRow } from './export-athletes-csv'
 import { encodeEvaluationsCsv, type EvaluationExportRow } from './export-evaluations-csv';
 import { encodeRosterCsv, type RosterExportSnapshot } from './export-roster-csv';
 import { CsvExportLimitError, MAX_EXPORT_ROWS } from './csv';
+import { exceedsReportCountCap } from './report-count-contract';
 
 export type ReportExportType = 'athletes' | 'evaluations' | 'roster';
 export type ReportExportProjection =
@@ -127,6 +128,9 @@ export async function createReportExport(
     }
     if (projection.exportType !== parsed.data.exportType) return failure({ code: 'unexpected' });
     if (projection.truncated) return failure({ code: 'too_large' });
+    if (projection.exportType === 'evaluations' && projection.rows.some(exceedsReportCountCap)) {
+      return failure({ code: 'too_large' });
+    }
     const encoded =
       projection.exportType === 'athletes'
         ? encodeAthletesCsv(projection.rows)

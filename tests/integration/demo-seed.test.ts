@@ -57,7 +57,7 @@ describe('deterministic Badlands demo seed', () => {
       organization: 'Badlands Hockey Academy',
       positions: 3,
       sessions: 2,
-      evaluators: 2,
+      evaluators: 4,
       incompleteEvaluations: 1,
       decisionKinds: 4,
       draftRoster: true,
@@ -123,7 +123,8 @@ describe('deterministic Badlands demo seed', () => {
           'versions',(select count(*) from public.roster_versions where tryout_id='29000000-0000-4000-8000-000000000201'),
           'rubricVersions',(select count(*) from public.rubric_versions where id='29000000-0000-4000-8000-000000000213'),
           'evaluations',(select count(*) from public.evaluations where tryout_id='29000000-0000-4000-8000-000000000201'),
-          'teams',(select count(*) from public.tryout_teams where id='29000000-0000-4000-8000-000000000281')
+          'teams',(select count(*) from public.tryout_teams where id='29000000-0000-4000-8000-000000000281'),
+          'activeEvaluators',(select count(*) from public.tryout_staff_assignments where tryout_id='29000000-0000-4000-8000-000000000201' and role='evaluator' and revoked_at is null)
         )`),
       ),
     ).toEqual({
@@ -132,10 +133,11 @@ describe('deterministic Badlands demo seed', () => {
       complete: 'completed',
       incomplete: 'draft',
       snapshot: 1,
-      versions: 1,
+      versions: 2,
       rubricVersions: 1,
       evaluations: 2,
       teams: 1,
+      activeEvaluators: 2,
     });
   });
 
@@ -243,18 +245,59 @@ describe('deterministic Badlands demo seed', () => {
     expect(result).toEqual({ summary: 8, rows: 8, unregistered: null });
   });
 
-  it('matches Task 18 weighted totals and preserves incomplete lifecycle counts', () => {
+  it('uses the canonical current lineage for valid weighted totals and immutable roster snapshots', () => {
     const result = jsonResult(
       psqlTransaction(`set local role authenticated;
         select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000011',true);
         with exported as (select result from public.load_report_export(
-          '29000000-0000-4000-8000-000000000001','evaluations','29000000-0000-4000-8000-000000000032',null,5000))
+          '29000000-0000-4000-8000-000000000001','evaluations','29000000-0000-4000-8000-000000000201',null,5000)),
+        roster as (select result from public.load_report_export(
+          '29000000-0000-4000-8000-000000000001','roster','29000000-0000-4000-8000-000000000201','29000000-0000-4000-8000-000000000283',5000))
         select jsonb_build_object(
-          'weighted',(select item->>'overallScore' from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Avery' and item->>'session'='Skills and skating'),
-          'completed',(select (item->>'completedCount')::int from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Avery' and item->>'session'='Skills and skating'),
-          'draft',(select (item->>'draftCount')::int from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Casey' and item->>'session'='Scrimmage')
+          'weighted',(select item->>'overallScore' from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Avery' and item->>'session'='Converged Skills'),
+          'completed',(select (item->>'completedCount')::int from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Avery' and item->>'session'='Converged Skills'),
+          'invalid',(select (item->>'invalidCount')::int from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Avery' and item->>'session'='Converged Skills'),
+          'draft',(select (item->>'draftCount')::int from exported,jsonb_array_elements(result->'rows') item where item->>'preferredName'='Blake' and item->>'session'='Converged Scrimmage'),
+          'snapshotRows',(select jsonb_array_length(result#>'{snapshot,rows}') from roster)
         );`),
     );
-    expect(result).toEqual({ weighted: '92.0000', completed: 2, draft: 1 });
+    expect(result).toEqual({
+      weighted: '92.0000',
+      completed: 1,
+      invalid: 0,
+      draft: 1,
+      snapshotRows: 2,
+    });
+  });
+
+  it('keeps the canonical verified roster downloadable beside a legacy unavailable final for managers and reviewers', () => {
+    const result = jsonResult(
+      psqlTransaction(`insert into public.tryout_staff_assignments(
+          id,organization_id,user_id,role,scope_kind,tryout_id,granted_by_user_id,created_at,updated_at)
+        values('29000000-0000-4000-8000-000000000286','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000012',
+          'reviewer','tryout','29000000-0000-4000-8000-000000000201','29000000-0000-4000-8000-000000000011',
+          '2026-08-28 18:00:00+00','2026-08-28 18:00:00+00');
+        set local role authenticated;
+        select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000011',true);
+        create temporary table manager_summary as select result from public.load_report_summary(
+          '29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000201');
+        reset role;
+        set local role authenticated;
+        select set_config('request.jwt.claim.sub','29000000-0000-4000-8000-000000000012',true);
+        create temporary table reviewer_summary as select result from public.load_report_summary(
+          '29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000201');
+        select jsonb_build_object(
+          'managerRoster',(select result->'summary'->>'latestFinalizedRosterId' from manager_summary),
+          'managerUnavailable',(select (result#>>'{summary,unavailableFinalizedRosterCount}')::int from manager_summary),
+          'reviewerRoster',(select result->>'rosterVersionId' from reviewer_summary),
+          'reviewerUnavailable',(select (result->>'unavailableFinalizedRosterCount')::int from reviewer_summary)
+        );`),
+    );
+    expect(result).toEqual({
+      managerRoster: '29000000-0000-4000-8000-000000000283',
+      managerUnavailable: 1,
+      reviewerRoster: '29000000-0000-4000-8000-000000000283',
+      reviewerUnavailable: 1,
+    });
   });
 });
