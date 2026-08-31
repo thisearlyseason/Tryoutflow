@@ -33,10 +33,13 @@ const privateSnapshotKey =
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: [
+    'accessibility.spec.ts',
     'critical-lifecycle.spec.ts',
+    'error-states.spec.ts',
     'role-denials.spec.ts',
     'concurrency-and-replay.spec.ts',
     'responsive-and-accessibility.spec.ts',
+    'viewports.spec.ts',
   ],
   globalSetup: './tests/e2e/global-database-lifecycle.ts',
   globalTeardown: './tests/e2e/global-database-lifecycle.ts',

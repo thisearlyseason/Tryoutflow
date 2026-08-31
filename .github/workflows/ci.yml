@@ -7,6 +7,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,5 +15,17 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
       - run: corepack enable
-      - run: corepack npm ci
-      - run: corepack npm run verify
+      - run: corepack npm@11.12.1 ci
+      - run: corepack npm@11.12.1 run verify
+      - run: corepack npm@11.12.1 exec -- playwright install --with-deps chromium webkit
+      - run: corepack npm@11.12.1 exec -- supabase start
+      - name: Accessibility, responsive, and error-state gates
+        run: >-
+          corepack npm@11.12.1 exec -- playwright test
+          tests/e2e/accessibility.spec.ts
+          tests/e2e/viewports.spec.ts
+          tests/e2e/error-states.spec.ts
+          --project=chromium
+          --project=webkit
+          --project='Mobile Safari'
+          --retries=0

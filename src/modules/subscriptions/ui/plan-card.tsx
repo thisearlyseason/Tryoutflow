@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '../../../components/ui/button';
 import { isValidBillingSessionUrl } from '../../../infrastructure/billing/provider-session-url';
@@ -57,6 +57,11 @@ export function PlanCard({
   onBusyChange?: (busy: boolean) => void;
 }) {
   const [state, setState] = useState<'idle' | 'loading' | 'error' | 'conflict'>('idle');
+  const actionRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (state === 'error' || state === 'conflict') actionRef.current?.focus();
+  }, [state]);
 
   async function choosePlan() {
     if (state === 'loading' || disabled || globallyBusy) return;
@@ -85,6 +90,7 @@ export function PlanCard({
         Provider confirmation updates access after the verified webhook is processed.
       </p>
       <Button
+        ref={actionRef}
         busy={state === 'loading'}
         className="mt-5 w-full"
         disabled={disabled || globallyBusy}
