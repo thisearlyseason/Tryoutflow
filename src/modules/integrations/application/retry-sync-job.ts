@@ -10,27 +10,33 @@ const retrySyncJobInputSchema = z.strictObject({
 });
 
 export type RetrySyncJobInput = z.input<typeof retrySyncJobInputSchema>;
-type DurableSyncJobState =
-  | 'pending'
-  | 'processing'
-  | 'completed'
-  | 'partially_completed'
-  | 'failed'
-  | 'needs_attention'
-  | 'cancelled';
+const durableSyncJobStateSchema = z.enum([
+  'pending',
+  'processing',
+  'completed',
+  'partially_completed',
+  'failed',
+  'needs_attention',
+  'cancelled',
+]);
+const jobBoundRetryResultSchema = z.strictObject({
+  outcome: z.enum(['queued', 'replayed', 'nothing_to_retry', 'manual_attention_required']),
+  jobId: z.uuid(),
+  state: durableSyncJobStateSchema,
+  retriedItemCount: z.number().int().nonnegative(),
+  preservedCompletedItemCount: z.number().int().nonnegative(),
+  preservedSkippedItemCount: z.number().int().nonnegative(),
+  completedCount: z.number().int().nonnegative(),
+  skippedCount: z.number().int().nonnegative(),
+  failedCount: z.number().int().nonnegative(),
+  retryEligibleCount: z.number().int().nonnegative(),
+});
+const jobBoundRetryOutcomes: ReadonlySet<string> = new Set(
+  jobBoundRetryResultSchema.shape.outcome.options,
+);
+
 export type RetrySyncJobResult =
-  | {
-      outcome: 'queued' | 'replayed' | 'nothing_to_retry' | 'manual_attention_required';
-      jobId: string;
-      state: DurableSyncJobState;
-      retriedItemCount: number;
-      preservedCompletedItemCount: number;
-      preservedSkippedItemCount: number;
-      completedCount: number;
-      skippedCount: number;
-      failedCount: number;
-      retryEligibleCount: number;
-    }
+  | z.infer<typeof jobBoundRetryResultSchema>
   | {
       outcome: 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'unavailable';
     };
@@ -60,8 +66,12 @@ export async function retrySyncJob(
   }
   try {
     const result = await dependencies.gateway.retry({ ...parsed.data, actorId: actor.userId });
-    if ('jobId' in result && result.jobId !== parsed.data.jobId) {
-      return { outcome: 'unavailable' };
+    if (jobBoundRetryOutcomes.has(result.outcome)) {
+      const jobBoundResult = jobBoundRetryResultSchema.safeParse(result);
+      if (!jobBoundResult.success || jobBoundResult.data.jobId !== parsed.data.jobId) {
+        return { outcome: 'unavailable' };
+      }
+      return jobBoundResult.data;
     }
     return result;
   } catch {

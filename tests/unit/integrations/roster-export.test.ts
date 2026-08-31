@@ -21,6 +21,75 @@ const ids = {
   job: '10000000-0000-4000-8000-000000000008',
 };
 
+const jobBoundRetryProjections = [
+  {
+    outcome: 'queued',
+    jobId: ids.job,
+    state: 'pending',
+    retriedItemCount: 1,
+    preservedCompletedItemCount: 2,
+    preservedSkippedItemCount: 1,
+    completedCount: 2,
+    skippedCount: 1,
+    failedCount: 0,
+    retryEligibleCount: 0,
+  },
+  {
+    outcome: 'replayed',
+    jobId: ids.job,
+    state: 'processing',
+    retriedItemCount: 1,
+    preservedCompletedItemCount: 2,
+    preservedSkippedItemCount: 1,
+    completedCount: 2,
+    skippedCount: 1,
+    failedCount: 0,
+    retryEligibleCount: 0,
+  },
+  {
+    outcome: 'nothing_to_retry',
+    jobId: ids.job,
+    state: 'completed',
+    retriedItemCount: 0,
+    preservedCompletedItemCount: 2,
+    preservedSkippedItemCount: 1,
+    completedCount: 2,
+    skippedCount: 1,
+    failedCount: 0,
+    retryEligibleCount: 0,
+  },
+  {
+    outcome: 'manual_attention_required',
+    jobId: ids.job,
+    state: 'needs_attention',
+    retriedItemCount: 0,
+    preservedCompletedItemCount: 2,
+    preservedSkippedItemCount: 1,
+    completedCount: 2,
+    skippedCount: 1,
+    failedCount: 1,
+    retryEligibleCount: 0,
+  },
+] as const;
+
+const malformedRetryProjectionCases = jobBoundRetryProjections.flatMap((projection) => {
+  const { jobId: omittedJobId, ...missingJobId } = projection;
+  void omittedJobId;
+  return [
+    { outcome: projection.outcome, malformation: 'missing jobId', value: missingJobId },
+    {
+      outcome: projection.outcome,
+      malformation: 'wrong jobId',
+      value: { ...projection, jobId: '10000000-0000-4000-8000-000000000009' },
+    },
+    {
+      outcome: projection.outcome,
+      malformation: 'foreign field',
+      value: { ...projection, foreignJobId: '20000000-0000-4000-8000-000000000009' },
+    },
+  ];
+});
+
 const owner = (): AuthorizationContext => ({
   userId: ids.actor as AuthorizationContext['userId'],
   organizationId: ids.organization as AuthorizationContext['organizationId'],
@@ -330,30 +399,22 @@ describe('durable roster export commands', () => {
     },
   );
 
-  it('fails closed when a retry adapter returns a projection for a different job', async () => {
-    const retry = vi.fn().mockResolvedValue({
-      outcome: 'queued',
-      jobId: '10000000-0000-4000-8000-000000000009',
-      state: 'pending',
-      retriedItemCount: 1,
-      preservedCompletedItemCount: 1,
-      preservedSkippedItemCount: 0,
-      completedCount: 1,
-      skippedCount: 0,
-      failedCount: 0,
-      retryEligibleCount: 0,
-    });
+  it.each(malformedRetryProjectionCases)(
+    'marshals $outcome with $malformation to a field-clean unavailable result',
+    async ({ outcome, malformation, value }) => {
+      const retry = vi.fn().mockResolvedValue(value);
 
-    await expect(
-      retrySyncJob(
+      const result = await retrySyncJob(
         {
           organizationId: ids.organization,
           jobId: ids.job,
-          idempotencyKey: 'retry:task27:mismatched-job:01',
+          idempotencyKey: `retry:task27:${outcome}:${malformation.replaceAll(' ', '-')}`,
         },
         owner(),
-        { gateway: { retry } },
-      ),
-    ).resolves.toEqual({ outcome: 'unavailable' });
-  });
+        { gateway: { retry: retry as never } },
+      );
+
+      expect(result).toStrictEqual({ outcome: 'unavailable' });
+    },
+  );
 });

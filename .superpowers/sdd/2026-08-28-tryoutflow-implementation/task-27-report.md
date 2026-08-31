@@ -403,3 +403,33 @@ The retry response boundary validated UUID shape but did not bind a job-bound pr
 ### Round 5 release concern
 
 No new blocking concern. Existing Task 27 operational concerns remain unchanged: the provider is synthetic and disabled by default, the protected processor must remain scheduled, and delivery uncertainty requires explicit operator reconciliation rather than automatic retry.
+
+## Exceptional P2 remediation
+
+### Finding reproduced before production edits
+
+The application correlation guard ran only when an adapter result already contained `jobId`. A malformed adapter could therefore return any of the four job-bound discriminators without `jobId`, or attach an extra foreign field, and the application would forward the object unchanged. The wizard separately cleared its current job for an incomplete projection and accepted foreign fields, so its defensive boundary did not consistently preserve the known durable state and retry target.
+
+The focused RED matrix covered `queued`, `replayed`, `nothing_to_retry`, and `manual_attention_required`, each with a missing `jobId`, wrong `jobId`, and extra foreign field at both application and UI boundaries. The initial focused run executed 57 tests and failed exactly 16: every missing-ID and foreign-field case failed, while the existing wrong-ID defenses and strict gateway checks remained green.
+
+### Boundary remediation
+
+- The application now strictly parses every job-bound adapter projection. `jobId` must be a present valid UUID equal to the requested job, the durable projection must have its complete typed shape, and unknown fields are rejected. Every rejection is marshaled to the field-clean literal `{ outcome: 'unavailable' }`.
+- The wizard independently applies the same strict job-bound shape and UUID correlation checks. A missing, wrong, or foreign-field-bearing projection displays the existing invalid-projection message while preserving the current durable counts, state, Retry control, and retry target.
+- Exact matching `queued`, `replayed`, `nothing_to_retry`, and `manual_attention_required` projections retain their existing authoritative replacement and messaging behavior.
+- The Supabase gateway was already strict for missing fields, unknown fields, UUID shape, and requested-job correlation, so it required no change. No migration, generated database type, RPC, or unrelated module changed.
+
+### Verification evidence
+
+- Focused gateway/application/UI coverage passed 3 files / 57 tests after the 16-failure RED run.
+- Full `npm run verify` passed formatting, ESLint, strict TypeScript, 58 unit files / 803 tests, and the production Next.js build. A separate `npm run build` also passed.
+- The relevant isolated real-database roster-export scenario passed 1/1.
+- Chromium + Mobile Chrome fixture coverage passed 4/4, including retry truth, accessibility, narrow-screen overflow, and target sizing. Production-route Chromium passed 1/1 through local authentication, registry, RPC persistence, protected worker processing, refreshed durable truth, and axe.
+- Task 26 provider contracts passed 3 files / 143 tests. `npm audit --omit=dev` found 0 vulnerabilities.
+- `git diff --check`, formatting, touched-file lint, broad-`any`/suppression scan, no-migration/generated-type audit, and final status review passed.
+
+### Remediation self-review and release concern
+
+- Mutation coverage: removing strictness, making `jobId` optional, omitting UUID/equality correlation, accepting a foreign key, clearing the current UI job, or changing the retry target breaks at least one focused case for each job-bound discriminator.
+- Non-disclosure: malformed adapter data is never returned by the application and malformed UI data never replaces the displayed durable projection.
+- Scope remained response-boundary-only. Existing Task 27 operational concerns are unchanged: the provider remains synthetic and disabled by default, the protected processor must remain scheduled, and uncertain delivery requires explicit operator reconciliation rather than automatic retry.

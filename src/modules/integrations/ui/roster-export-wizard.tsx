@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { z } from 'zod';
 
 import type { ExternalRosterDestination, RosterExportPreview } from '../domain/contracts';
 
@@ -41,19 +42,42 @@ type ConfirmResult = {
   failedCount?: number;
   retryEligibleCount?: number;
 };
-type RetryResult =
-  | {
-      outcome: 'queued' | 'replayed' | 'nothing_to_retry' | 'manual_attention_required';
-      jobId: string;
-      state: string;
-      retriedItemCount: number;
-      preservedCompletedItemCount: number;
-      preservedSkippedItemCount: number;
-      completedCount: number;
-      skippedCount: number;
-      failedCount: number;
-      retryEligibleCount: number;
+const jobBoundRetryResultSchema = z
+  .strictObject({
+    outcome: z.enum(['queued', 'replayed', 'nothing_to_retry', 'manual_attention_required']),
+    jobId: z.uuid(),
+    state: z.enum([
+      'pending',
+      'processing',
+      'completed',
+      'partially_completed',
+      'failed',
+      'needs_attention',
+      'cancelled',
+    ]),
+    retriedItemCount: z.number().int().nonnegative(),
+    preservedCompletedItemCount: z.number().int().nonnegative(),
+    preservedSkippedItemCount: z.number().int().nonnegative(),
+    completedCount: z.number().int().nonnegative(),
+    skippedCount: z.number().int().nonnegative(),
+    failedCount: z.number().int().nonnegative(),
+    retryEligibleCount: z.number().int().nonnegative(),
+  })
+  .superRefine((result, context) => {
+    const retriedItemCountIsValid =
+      result.outcome === 'queued' || result.outcome === 'replayed'
+        ? result.retriedItemCount > 0
+        : result.retriedItemCount === 0;
+    if (!retriedItemCountIsValid) {
+      context.addIssue({
+        code: 'custom',
+        path: ['retriedItemCount'],
+        message: 'Invalid retry count',
+      });
     }
+  });
+type RetryResult =
+  | z.infer<typeof jobBoundRetryResultSchema>
   | {
       outcome: 'invalid_input' | 'forbidden' | 'not_found' | 'conflict' | 'unavailable';
     };
@@ -70,10 +94,6 @@ const jobStates = new Set<JobView['state']>([
 
 function isJobState(value: string | undefined): value is JobView['state'] {
   return value !== undefined && jobStates.has(value as JobView['state']);
-}
-
-function isNonnegativeInteger(value: number | undefined): value is number {
-  return value !== undefined && Number.isInteger(value) && value >= 0;
 }
 
 type RosterExportWizardProps = Readonly<{
@@ -190,46 +210,20 @@ export function RosterExportWizard({
         result.outcome === 'nothing_to_retry' ||
         result.outcome === 'manual_attention_required'
       ) {
-        if (
-          typeof result.jobId === 'string' &&
-          result.jobId.length > 0 &&
-          result.jobId !== job.id
-        ) {
-          setMessage(
-            'The durable retry returned an invalid projection. Refresh before taking action.',
-          );
-          return;
-        }
-        if (
-          typeof result.jobId !== 'string' ||
-          result.jobId.length === 0 ||
-          !isJobState(result.state) ||
-          !isNonnegativeInteger(result.retriedItemCount) ||
-          !isNonnegativeInteger(result.preservedCompletedItemCount) ||
-          !isNonnegativeInteger(result.preservedSkippedItemCount) ||
-          !isNonnegativeInteger(result.completedCount) ||
-          !isNonnegativeInteger(result.skippedCount) ||
-          !isNonnegativeInteger(result.failedCount) ||
-          !isNonnegativeInteger(result.retryEligibleCount) ||
-          ((result.outcome === 'queued' || result.outcome === 'replayed') &&
-            result.retriedItemCount === 0) ||
-          ((result.outcome === 'nothing_to_retry' ||
-            result.outcome === 'manual_attention_required') &&
-            result.retriedItemCount !== 0)
-        ) {
-          setJob(null);
+        const jobBoundResult = jobBoundRetryResultSchema.safeParse(result);
+        if (!jobBoundResult.success || jobBoundResult.data.jobId !== job.id) {
           setMessage(
             'The durable retry returned an invalid projection. Refresh before taking action.',
           );
           return;
         }
         setJob({
-          id: result.jobId,
-          state: result.state,
-          completedCount: result.completedCount,
-          skippedCount: result.skippedCount,
-          failedCount: result.failedCount,
-          retryEligibleCount: result.retryEligibleCount,
+          id: jobBoundResult.data.jobId,
+          state: jobBoundResult.data.state,
+          completedCount: jobBoundResult.data.completedCount,
+          skippedCount: jobBoundResult.data.skippedCount,
+          failedCount: jobBoundResult.data.failedCount,
+          retryEligibleCount: jobBoundResult.data.retryEligibleCount,
         });
       }
       setMessage(

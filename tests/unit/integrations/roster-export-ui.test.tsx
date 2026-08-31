@@ -39,6 +39,76 @@ const destination = {
   mockData: true,
 };
 
+const currentJobId = '10000000-0000-4000-8000-000000000001';
+const jobBoundRetryProjections = [
+  {
+    outcome: 'queued',
+    jobId: currentJobId,
+    state: 'pending',
+    retriedItemCount: 1,
+    preservedCompletedItemCount: 9,
+    preservedSkippedItemCount: 8,
+    completedCount: 9,
+    skippedCount: 8,
+    failedCount: 0,
+    retryEligibleCount: 0,
+  },
+  {
+    outcome: 'replayed',
+    jobId: currentJobId,
+    state: 'processing',
+    retriedItemCount: 1,
+    preservedCompletedItemCount: 9,
+    preservedSkippedItemCount: 8,
+    completedCount: 9,
+    skippedCount: 8,
+    failedCount: 0,
+    retryEligibleCount: 0,
+  },
+  {
+    outcome: 'nothing_to_retry',
+    jobId: currentJobId,
+    state: 'completed',
+    retriedItemCount: 0,
+    preservedCompletedItemCount: 9,
+    preservedSkippedItemCount: 8,
+    completedCount: 9,
+    skippedCount: 8,
+    failedCount: 0,
+    retryEligibleCount: 0,
+  },
+  {
+    outcome: 'manual_attention_required',
+    jobId: currentJobId,
+    state: 'needs_attention',
+    retriedItemCount: 0,
+    preservedCompletedItemCount: 9,
+    preservedSkippedItemCount: 8,
+    completedCount: 9,
+    skippedCount: 8,
+    failedCount: 1,
+    retryEligibleCount: 0,
+  },
+] as const;
+
+const malformedRetryProjectionCases = jobBoundRetryProjections.flatMap((projection) => {
+  const { jobId: omittedJobId, ...missingJobId } = projection;
+  void omittedJobId;
+  return [
+    { outcome: projection.outcome, malformation: 'missing jobId', value: missingJobId },
+    {
+      outcome: projection.outcome,
+      malformation: 'wrong jobId',
+      value: { ...projection, jobId: '10000000-0000-4000-8000-000000000009' },
+    },
+    {
+      outcome: projection.outcome,
+      malformation: 'foreign field',
+      value: { ...projection, foreignJobId: '20000000-0000-4000-8000-000000000009' },
+    },
+  ];
+});
+
 describe('integration export UI', () => {
   it('provides a discoverable export link for an authorized finalized roster', () => {
     render(
@@ -265,13 +335,17 @@ describe('integration export UI', () => {
         destinations={[destination]}
         onPreview={async () => ({ outcome: 'unavailable' })}
         onConfirm={async () => ({ outcome: 'conflict' })}
-        onRetry={async () => ({
-          ...durable,
-          jobId: '10000000-0000-4000-8000-000000000001',
-          retriedItemCount: durable.outcome === 'replayed' ? 1 : 0,
-          preservedCompletedItemCount: durable.completedCount,
-          preservedSkippedItemCount: durable.skippedCount,
-        })}
+        onRetry={async () => {
+          const { message: testExpectation, ...projection } = durable;
+          void testExpectation;
+          return {
+            ...projection,
+            jobId: '10000000-0000-4000-8000-000000000001',
+            retriedItemCount: durable.outcome === 'replayed' ? 1 : 0,
+            preservedCompletedItemCount: durable.completedCount,
+            preservedSkippedItemCount: durable.skippedCount,
+          };
+        }}
         initialJob={{
           id: '10000000-0000-4000-8000-000000000001',
           state: 'partially_completed',
@@ -292,72 +366,39 @@ describe('integration export UI', () => {
     expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
   });
 
-  it('fails closed instead of retaining a stale retry action for a malformed job-bound result', async () => {
-    const user = userEvent.setup();
-    render(
-      <RosterExportWizard
-        rosterVersionId="10000000-0000-4000-8000-000000000002"
-        destinations={[destination]}
-        onPreview={async () => ({ outcome: 'unavailable' })}
-        onConfirm={async () => ({ outcome: 'conflict' })}
-        onRetry={async () => ({ outcome: 'nothing_to_retry' }) as never}
-        initialJob={{
-          id: '10000000-0000-4000-8000-000000000001',
-          state: 'partially_completed',
-          completedCount: 1,
-          skippedCount: 0,
-          failedCount: 4,
-          retryEligibleCount: 1,
-        }}
-      />,
-    );
+  it.each(malformedRetryProjectionCases)(
+    'preserves state and retry target when $outcome has $malformation',
+    async ({ value }) => {
+      const user = userEvent.setup();
+      const onRetry = vi.fn().mockResolvedValue(value);
+      render(
+        <RosterExportWizard
+          rosterVersionId="10000000-0000-4000-8000-000000000002"
+          destinations={[destination]}
+          onPreview={async () => ({ outcome: 'unavailable' })}
+          onConfirm={async () => ({ outcome: 'conflict' })}
+          onRetry={onRetry as never}
+          initialJob={{
+            id: currentJobId,
+            state: 'partially_completed',
+            completedCount: 1,
+            skippedCount: 0,
+            failedCount: 4,
+            retryEligibleCount: 1,
+          }}
+        />,
+      );
 
-    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
-    expect(screen.getByText(/durable retry returned an invalid projection/i)).toBeVisible();
-    expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
-  });
-
-  it('rejects a mismatched retry job without replacing the durable state or button target', async () => {
-    const user = userEvent.setup();
-    const onRetry = vi.fn().mockResolvedValue({
-      outcome: 'queued',
-      jobId: '10000000-0000-4000-8000-000000000009',
-      state: 'pending',
-      retriedItemCount: 1,
-      preservedCompletedItemCount: 9,
-      preservedSkippedItemCount: 8,
-      completedCount: 9,
-      skippedCount: 8,
-      failedCount: 0,
-      retryEligibleCount: 0,
-    });
-    render(
-      <RosterExportWizard
-        rosterVersionId="10000000-0000-4000-8000-000000000002"
-        destinations={[destination]}
-        onPreview={async () => ({ outcome: 'unavailable' })}
-        onConfirm={async () => ({ outcome: 'conflict' })}
-        onRetry={onRetry}
-        initialJob={{
-          id: '10000000-0000-4000-8000-000000000001',
-          state: 'partially_completed',
-          completedCount: 1,
-          skippedCount: 0,
-          failedCount: 4,
-          retryEligibleCount: 1,
-        }}
-      />,
-    );
-
-    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
-    expect(screen.getByText(/durable retry returned an invalid projection/i)).toBeVisible();
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '1 completed · 0 skipped · 4 failed/reviewable · partially completed',
-    );
-    await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
-    expect(onRetry).toHaveBeenNthCalledWith(1, '10000000-0000-4000-8000-000000000001');
-    expect(onRetry).toHaveBeenNthCalledWith(2, '10000000-0000-4000-8000-000000000001');
-  });
+      await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
+      expect(screen.getByText(/durable retry returned an invalid projection/i)).toBeVisible();
+      expect(screen.getByRole('status')).toHaveTextContent(
+        '1 completed · 0 skipped · 4 failed/reviewable · partially completed',
+      );
+      await user.click(screen.getByRole('button', { name: /retry 1 failed item/i }));
+      expect(onRetry).toHaveBeenNthCalledWith(1, currentJobId);
+      expect(onRetry).toHaveBeenNthCalledWith(2, currentJobId);
+    },
+  );
 
   it('renders an explicit preview error when the server action is unavailable', async () => {
     const user = userEvent.setup();
