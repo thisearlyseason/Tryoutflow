@@ -40,10 +40,17 @@ export type BillingEnvironment = z.infer<typeof billingEnvironmentSchema>;
 export function getPublicAppOrigin(
   environment: Record<string, string | undefined> = process.env,
 ): string {
-  const raw = z.string().url().parse(environment.NEXT_PUBLIC_APP_URL);
+  const raw = environment.NEXT_PUBLIC_APP_URL;
+  if (!raw) throw new Error('NEXT_PUBLIC_APP_URL is required for the public app origin');
+  if (!z.string().url().safeParse(raw).success) {
+    throw new Error('NEXT_PUBLIC_APP_URL must be a valid absolute URL');
+  }
   const url = new URL(raw);
   const localHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
   const production = environment.NODE_ENV === 'production';
+  if (url.username || url.password) {
+    throw new Error('NEXT_PUBLIC_APP_URL must not include credentials');
+  }
   if (url.pathname !== '/' || url.search || url.hash) {
     throw new Error('NEXT_PUBLIC_APP_URL must be an origin without a path, query, or fragment');
   }

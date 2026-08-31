@@ -2,6 +2,24 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { createProxySupabaseClient } from './infrastructure/supabase/server';
 
+const publicMarketingPaths = new Set([
+  '/',
+  '/features',
+  '/for/teams',
+  '/for/clubs',
+  '/for/associations',
+  '/pricing',
+  '/demo',
+  '/privacy',
+  '/terms',
+]);
+
+function isPublicMarketingPathname(pathname: string): boolean {
+  const normalized =
+    pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  return publicMarketingPaths.has(normalized);
+}
+
 function signInUrl(request: NextRequest): URL {
   const url = request.nextUrl.clone();
   url.pathname = '/sign-in';
@@ -11,6 +29,8 @@ function signInUrl(request: NextRequest): URL {
 }
 
 export async function proxy(request: NextRequest) {
+  if (isPublicMarketingPathname(request.nextUrl.pathname)) return NextResponse.next({ request });
+
   const proxyClient = createProxySupabaseClient(request);
   const {
     data: { user },

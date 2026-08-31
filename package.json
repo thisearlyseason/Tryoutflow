@@ -27,7 +27,7 @@
     "test:e2e:checkin": "playwright test --config=playwright.checkin.config.ts --project=chromium --project='Mobile Safari'",
     "test:e2e:evaluation": "playwright test --config=playwright.evaluation.config.ts --project='Mobile Chrome' --project='Mobile Safari'",
     "test:e2e:messages": "playwright test --config=playwright.messages.config.ts --project=chromium --project=webkit --project='Mobile Safari'",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run build"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && NEXT_PUBLIC_APP_URL=https://tryoutflow.test npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "6.3.1",

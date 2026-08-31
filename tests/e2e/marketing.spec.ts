@@ -39,7 +39,7 @@ test.describe('indexable public marketing experience', () => {
       await expect(page.getByRole('contentinfo')).toBeVisible();
       await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
         'href',
-        new RegExp(`${path === '/' ? '/?$' : `${path}$`}`),
+        `http://127.0.0.1:3000${path}`,
       );
       await expect(page.locator('img, picture, video, canvas')).toHaveCount(0);
       expect(

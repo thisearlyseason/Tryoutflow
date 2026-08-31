@@ -59,11 +59,11 @@ function renderRoute(Page: ComponentType) {
   );
 }
 
-function canonicalPath(metadata: Metadata): string | null {
+function canonicalUrl(metadata: Metadata): string | null {
   const canonical = metadata.alternates?.canonical;
   if (canonical === null || canonical === undefined) return null;
-  if (typeof canonical === 'string' || canonical instanceof URL) return new URL(canonical).pathname;
-  return new URL(canonical.url).pathname;
+  if (typeof canonical === 'string' || canonical instanceof URL) return canonical.toString();
+  return canonical.url.toString();
 }
 
 describe('public marketing routes', () => {
@@ -74,7 +74,7 @@ describe('public marketing routes', () => {
 
       expect(screen.getByRole('heading', { level: 1, name: heading })).toBeVisible();
       expect(container.querySelectorAll('h1')).toHaveLength(1);
-      expect(canonicalPath(metadata)).toBe(path);
+      expect(canonicalUrl(metadata)).toBe(`https://tryoutflow.test${path}`);
       expect(metadata.robots).toMatchObject({ index: true, follow: true });
     },
   );

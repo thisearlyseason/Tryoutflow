@@ -18,6 +18,7 @@ export default defineConfig({
       PUBLIC_REGISTRATION_RATE_LIMIT_SECRET:
         process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET ??
         'browser-test-rate-secret'.padEnd(64, 'r'),
+      NEXT_PUBLIC_APP_URL: 'http://127.0.0.1:3000',
     },
   },
   use: {

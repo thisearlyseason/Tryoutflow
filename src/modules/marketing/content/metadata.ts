@@ -1,16 +1,6 @@
 import type { Metadata } from 'next';
 
-const fallbackOrigin = 'https://tryoutflow.example';
-
-function publicOrigin(): string {
-  const configured = process.env.NEXT_PUBLIC_APP_URL;
-  if (!configured) return fallbackOrigin;
-  try {
-    return new URL(configured).origin;
-  } catch {
-    return fallbackOrigin;
-  }
-}
+import { getPublicAppOrigin } from '../../../lib/env';
 
 export function marketingMetadata({
   description,
@@ -21,7 +11,7 @@ export function marketingMetadata({
   path: string;
   title: string;
 }): Metadata {
-  const canonical = new URL(path, `${publicOrigin()}/`).toString();
+  const canonical = new URL(path, `${getPublicAppOrigin()}/`).toString();
   return {
     title,
     description,
