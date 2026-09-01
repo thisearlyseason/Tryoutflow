@@ -634,6 +634,10 @@ textarea {
   font-weight: 800;
 }
 
+.field-label[data-required='true']::after {
+  content: ' *';
+}
+
 .field-description {
   margin: 0;
   color: var(--color-text-muted);

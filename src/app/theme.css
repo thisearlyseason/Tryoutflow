@@ -72,6 +72,8 @@
   --color-performance: #c7f000;
   --color-performance-foreground: #07182b;
   --color-selection: #ff7b6f;
+  --color-destructive: #ff9b92;
+  --color-destructive-foreground: #07182b;
   --color-success-surface: #123d33;
   --color-warning-surface: #493617;
   --color-info-surface: #132f50;

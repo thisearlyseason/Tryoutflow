@@ -219,12 +219,17 @@ describe('production readiness release gate', () => {
       'npm@11.12.1 run test:contract',
       'npm@11.12.1 run build',
       'npm@11.12.1 run test:marketing:production',
+      'npm@11.12.1 run demo:local',
+      'npm@11.12.1 run test:visual',
       'npm@11.12.1 run test:e2e -- --retries=0',
       'npm@11.12.1 audit --audit-level=high',
       'npm@11.12.1 exec -- supabase db reset --local --no-seed',
       'npm@11.12.1 run release:state:residue',
     ]);
     expect(result.stdout).toContain('Production readiness automated gate passed');
+    const script = await readFile(releaseScript, 'utf8');
+    expect(script).toContain("run_stage 'canonical visual regression'");
+    expect(script).not.toContain('--update-snapshots');
   });
 
   it('rejects the wrong Node before checking npm or installing dependencies', async () => {

@@ -18,13 +18,6 @@ type RankingFilterValues = Readonly<{
   search?: string;
 }>;
 
-function formatSnapshotTimestamp(value: string) {
-  return new Date(value)
-    .toISOString()
-    .replace('T', ' ')
-    .replace(/\.\d{3}Z$/u, ' UTC');
-}
-
 export function RankingsWorkspace({
   initial,
   compareHref = './compare',
@@ -148,7 +141,8 @@ export function RankingsWorkspace({
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-[var(--color-text-muted)]" role="status">
-              {initial.total} athletes · snapshot {formatSnapshotTimestamp(initial.generatedAt)}
+              {initial.total} athletes ·{' '}
+              <span title={`Generated ${initial.generatedAt}`}>current authorized snapshot</span>
             </p>
             <Link
               aria-disabled={selected.length < 2}

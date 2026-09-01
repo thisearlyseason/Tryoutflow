@@ -28,7 +28,7 @@ export function AuthShell({
     <main className="auth-page">
       <div className="auth-layout">
         <section aria-label="TryoutFlow product summary" className="auth-proof">
-          <Link aria-label="TryoutFlow home" className="auth-brand" href="/">
+          <Link aria-label="TryoutFlow home" className="auth-brand" href="/" prefetch={false}>
             <span aria-hidden="true" className="auth-brand-mark">
               TF
             </span>

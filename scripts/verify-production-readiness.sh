@@ -40,6 +40,7 @@ readonly EXPECTED_SUPABASE_VERSION='2.116.0'
 readonly PUBLIC_BUILD_ORIGIN='https://release.tryoutflow.test'
 readonly DATABASE_TYPES='src/infrastructure/supabase/database.types.ts'
 readonly NPM=(corepack npm@11.12.1)
+readonly VISUAL_DEMO_PASSWORD="LocalVisual-${RANDOM}-${RANDOM}-${RANDOM}-Aa1!"
 
 stage_number=0
 
@@ -205,6 +206,8 @@ run_stage 'provider contract suite' "${NPM[@]}" run test:contract
 
 run_stage 'production build' env NEXT_PUBLIC_APP_URL="$PUBLIC_BUILD_ORIGIN" "${NPM[@]}" run build
 run_stage 'production marketing artifact gate' "${NPM[@]}" run test:marketing:production
+run_stage 'local visual demo identity' env TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$VISUAL_DEMO_PASSWORD" "${NPM[@]}" run demo:local
+run_stage 'canonical visual regression' env TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$VISUAL_DEMO_PASSWORD" "${NPM[@]}" run test:visual
 run_stage 'strict five-project browser gate' "${NPM[@]}" run test:e2e -- --retries=0
 
 run_stage 'high-severity dependency audit' "${NPM[@]}" audit --audit-level=high

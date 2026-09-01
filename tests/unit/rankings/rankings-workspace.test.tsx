@@ -50,7 +50,7 @@ describe('rankings workspace', () => {
     );
     expect(screen.getByText('Tied at rank 1')).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent(
-      '1 athletes · snapshot 2026-08-29 12:00:00 UTC',
+      '1 athletes · current authorized snapshot',
     );
     expect(screen.getByText(/evaluations complete/)).toHaveTextContent(
       '2 of 3 evaluations complete',

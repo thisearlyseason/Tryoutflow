@@ -57,6 +57,7 @@ export default defineConfig({
     colorScheme: 'light',
     locale: 'en-CA',
     screenshot: 'only-on-failure',
+    timezoneId: 'America/Edmonton',
     trace: 'retain-on-failure',
   },
   projects: [

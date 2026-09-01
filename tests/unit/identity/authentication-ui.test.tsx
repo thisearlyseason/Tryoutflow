@@ -67,6 +67,8 @@ describe('Performance Lab authentication shell', () => {
     const signUp = render(await SignUpPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole('heading', { name: 'Create your organization account' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'TryoutFlow product summary' })).toBeVisible();
+    expect(screen.getByLabelText('Password', { exact: true })).toBeVisible();
+    expect(screen.getByLabelText('Confirm password', { exact: true })).toBeVisible();
     signUp.unmount();
 
     render(<StartPage />);

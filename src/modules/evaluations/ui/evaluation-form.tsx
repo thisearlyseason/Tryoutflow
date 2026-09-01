@@ -1056,7 +1056,7 @@ export function EvaluationForm({
                   Cancel
                 </button>
                 <button
-                  className="min-h-[44px] rounded-lg bg-[var(--color-destructive)] px-4 font-bold text-white"
+                  className="min-h-[44px] rounded-lg bg-[var(--color-destructive)] px-4 font-bold text-[var(--color-destructive-foreground)]"
                   disabled={resolving || !online}
                   onClick={() => void useServerDraft()}
                   type="button"

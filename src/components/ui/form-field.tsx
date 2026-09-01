@@ -22,9 +22,8 @@ export function FormField({
   const describedBy = [descriptionId, errorId].filter(Boolean).join(' ') || undefined;
   return (
     <div className="field-group">
-      <label className="field-label" htmlFor={htmlFor}>
+      <label className="field-label" data-required={required || undefined} htmlFor={htmlFor}>
         {label}
-        {required ? <span aria-hidden="true"> *</span> : null}
       </label>
       {description ? (
         <p className="field-description" id={descriptionId}>

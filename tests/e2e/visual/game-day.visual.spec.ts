@@ -1,14 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-async function signInDemoOwner(page: import('@playwright/test').Page) {
-  const password = process.env.TRYOUTFLOW_LOCAL_DEMO_PASSWORD;
-  if (!password) throw new Error('TRYOUTFLOW_LOCAL_DEMO_PASSWORD is required for demo visuals.');
-  await page.goto('/sign-in');
-  await page.getByRole('textbox', { name: /^Email/ }).fill('demo.owner@badlands.example.test');
-  await page.getByLabel(/^Password/).fill(password);
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL(/\/app\/badlands-hockey-academy\/home$/u);
-}
+import { expectVisual, signInDemoOwner } from '../helpers/visual';
 
 test('owner sees bounded Game-Day check-in and live operations', async ({ page }) => {
   await signInDemoOwner(page);
@@ -23,13 +15,13 @@ test('owner sees bounded Game-Day check-in and live operations', async ({ page }
   await page.getByLabel('Search registrations').fill('Avery');
   await page.getByRole('button', { name: 'Search', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Avery Synthetic' })).toBeVisible();
-  await expect(page).toHaveScreenshot('game-day-check-in.png', { fullPage: true });
+  await expectVisual(page, 'game-day-check-in.png');
 
   await page.goto(overviewUrl.replace('/overview', '/live'));
   await expect(page.getByRole('heading', { name: 'Live dashboard' })).toBeVisible();
   await expect(page.locator('.theme-game-day')).toBeVisible();
-  await expect(page).toHaveScreenshot('game-day-live-dashboard.png', { fullPage: true });
+  await expectVisual(page, 'game-day-live-dashboard.png');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page).toHaveScreenshot('game-day-live-dashboard-mobile.png', { fullPage: true });
+  await expectVisual(page, 'game-day-live-dashboard-mobile.png');
 });

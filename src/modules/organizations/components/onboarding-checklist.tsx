@@ -25,7 +25,7 @@ export function OnboardingChecklist({
       <div className="onboarding-heading-row">
         <div>
           <p className="eyebrow">Season readiness</p>
-          <h2 id="onboarding-heading">Your operations checklist</h2>
+          <h2 id="onboarding-heading">Your tryout operations checklist</h2>
         </div>
         <strong>{progress.percent}%</strong>
       </div>
