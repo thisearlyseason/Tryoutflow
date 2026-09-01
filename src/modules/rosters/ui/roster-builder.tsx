@@ -658,6 +658,10 @@ export function RosterBuilder({
         </div>
 
         <section className="grid min-w-0 gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="sm:col-span-2">
+            <p className="eyebrow">Decision room</p>
+            <h3>Build teams without losing the evidence</h3>
+          </div>
           <label className="grid min-w-0 gap-1 font-medium">
             Filter by position
             <select
@@ -705,7 +709,7 @@ export function RosterBuilder({
           ) : null}
         </section>
 
-        <div className="grid min-w-0 gap-4 lg:grid-cols-3">
+        <div className="grid min-w-0 gap-4 lg:grid-cols-3" data-layout="decision-room">
           <AthletePool
             athletes={visibleAthletes.filter((athlete) => athlete.teamId === null)}
             disabled={!editable}

@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 import { EmptyState } from '../../../components/feedback/empty-state';
+import { BibBadge } from '../../../components/ui/bib-badge';
+import { StatusBadge } from '../../../components/ui/status-badge';
 import type { RankingPage } from '../application/list-rankings';
 
 type RankingFilterValues = Readonly<{
@@ -60,7 +62,7 @@ export function RankingsWorkspace({
   };
   return (
     <div className="min-w-0 space-y-5">
-      <form className="grid gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <form className="grid gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)] sm:grid-cols-2 lg:grid-cols-4">
         <input name="pageSize" type="hidden" value={initial.pageSize} />
         <label className="grid gap-1 text-sm font-medium">
           Search athletes
@@ -163,18 +165,16 @@ export function RankingsWorkspace({
               const checked = selected.includes(row.athleteId);
               return (
                 <li
-                  className="min-w-0 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)]"
+                  className="ranking-card min-w-0 overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-surface)]"
+                  data-testid={`ranking-card-${row.registrationId}`}
                   key={row.registrationId}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--color-border)] p-4">
                     <div className="flex min-w-0 gap-3">
-                      <span className="font-[var(--font-bib)] text-3xl tabular-nums">
-                        {row.rank ?? '—'}
-                      </span>
+                      <BibBadge number={row.tryoutNumber} />
                       <div className="min-w-0">
                         <h2 className="truncate text-lg font-bold">{row.displayName}</h2>
                         <p className="text-sm text-[var(--color-text-muted)]">
-                          {row.tryoutNumber ? `#${row.tryoutNumber} · ` : ''}
                           {row.divisionName}
                           {row.positionName ? ` · ${row.positionName}` : ''}
                         </p>
@@ -185,14 +185,28 @@ export function RankingsWorkspace({
                         ) : null}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-[var(--font-bib)] text-3xl tabular-nums">
-                        {row.overall ?? 'Unranked'}
-                      </p>
-                      <p className="text-xs text-[var(--color-text-muted)]">overall / 100</p>
+                    <div className="flex items-start gap-6 text-right">
+                      <div data-testid={`ranking-rank-${row.registrationId}`}>
+                        <p className="eyebrow mb-1">Rank</p>
+                        <p className="font-[var(--font-bib)] text-2xl tabular-nums">
+                          {row.rank === null ? 'Unranked' : `Rank ${row.rank}`}
+                        </p>
+                      </div>
+                      <div data-testid={`ranking-score-${row.registrationId}`}>
+                        <p className="eyebrow mb-1">Score</p>
+                        <p className="font-[var(--font-bib)] text-3xl tabular-nums">
+                          {row.overall ?? 'Unranked'}
+                        </p>
+                        <p className="text-xs text-[var(--color-text-muted)]">
+                          {row.overall === null ? 'No completed score' : 'overall / 100'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="mt-4 grid gap-2 border-t border-[var(--color-border)] pt-3 text-sm sm:grid-cols-3">
+                  <div className="grid gap-3 bg-[var(--color-surface-muted)] p-4 text-sm sm:grid-cols-[auto_1fr_1fr_1fr] sm:items-center">
+                    <StatusBadge status={row.completionPercent === 100 ? 'complete' : 'warning'}>
+                      Confidence evidence
+                    </StatusBadge>
                     <p>
                       <strong>
                         {row.completedEvaluators} of {row.expectedEvaluators}
@@ -207,7 +221,7 @@ export function RankingsWorkspace({
                       <strong>{row.scoreRange ? row.scoreRange.join('–') : 'Not available'}</strong>
                     </p>
                   </div>
-                  <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 font-medium">
+                  <label className="m-3 inline-flex min-h-11 cursor-pointer items-center gap-2 font-medium">
                     <input
                       checked={checked}
                       disabled={!checked && selected.length === 4}

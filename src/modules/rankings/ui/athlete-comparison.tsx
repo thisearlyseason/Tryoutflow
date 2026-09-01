@@ -15,21 +15,24 @@ export function AthleteComparison({ comparison }: { comparison: AthleteCompariso
     ),
   ];
   return (
-    <div className="max-w-full overflow-x-auto rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+    <div className="max-w-full overflow-x-auto rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-surface)]">
       <table className="w-full min-w-[40rem] border-collapse text-left">
-        <caption className="p-4 text-left text-sm text-[var(--color-text-muted)]">
+        <caption className="border-b border-[var(--color-border)] bg-[var(--color-surface-muted)] p-4 text-left text-sm text-[var(--color-text-muted)]">
           Aggregates from completed evaluations. Director operational flags are included; private
           evaluator notes and evaluator identities are excluded. Lower coverage means lower
           confidence.
         </caption>
-        <thead>
+        <thead className="bg-[var(--color-text)] text-[var(--color-text-inverted)]">
           <tr>
             <th className="p-4" scope="col">
               Evidence
             </th>
             {comparison.athletes.map((athlete) => (
               <th className="p-4" key={athlete.athleteId} scope="col">
-                {athlete.displayName}
+                <span className="block text-xs font-black uppercase tracking-[0.12em] opacity-70">
+                  Athlete
+                </span>
+                <span className="text-base">{athlete.displayName}</span>
               </th>
             ))}
           </tr>
@@ -40,7 +43,10 @@ export function AthleteComparison({ comparison }: { comparison: AthleteCompariso
               Overall
             </th>
             {comparison.athletes.map((athlete) => (
-              <td className="p-4 text-2xl font-bold tabular-nums" key={athlete.athleteId}>
+              <td
+                className="p-4 font-[var(--font-bib)] text-3xl font-bold tabular-nums"
+                key={athlete.athleteId}
+              >
                 {athlete.overall ?? 'Unranked'}
               </td>
             ))}

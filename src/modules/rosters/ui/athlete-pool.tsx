@@ -4,6 +4,7 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { GripVertical } from 'lucide-react';
 
 import { Button } from '../../../components/ui/button';
+import { BibBadge } from '../../../components/ui/bib-badge';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import type { RosterWorkspaceAthlete } from './roster-builder';
 
@@ -29,7 +30,7 @@ export function RosterAthleteCard({
   const draggable = useDraggable({ id: athlete.registrationId, disabled });
   return (
     <article
-      className="min-w-0 rounded-[var(--radius-control)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-[var(--shadow-surface)]"
+      className="roster-athlete-card min-w-0 overflow-hidden rounded-[var(--radius-control)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-surface)]"
       data-testid={`roster-athlete-${athlete.registrationId}`}
       ref={draggable.setNodeRef}
       style={
@@ -38,13 +39,15 @@ export function RosterAthleteCard({
           : undefined
       }
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h4 className="break-words font-bold">{athlete.displayName}</h4>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            {athlete.tryoutNumber === null ? 'No number' : `#${athlete.tryoutNumber}`} ·{' '}
-            {athlete.positionName ?? 'Position unassigned'}
-          </p>
+      <div className="flex min-w-0 items-start justify-between gap-2 p-3">
+        <div className="flex min-w-0 gap-3">
+          <BibBadge number={athlete.tryoutNumber} />
+          <div className="min-w-0">
+            <h4 className="break-words font-bold">{athlete.displayName}</h4>
+            <p className="text-sm text-[var(--color-text-muted)]">
+              {athlete.positionName ?? 'Position unassigned'}
+            </p>
+          </div>
         </div>
         {!disabled ? (
           <button
@@ -58,7 +61,7 @@ export function RosterAthleteCard({
           </button>
         ) : null}
       </div>
-      <div className="mt-3 grid gap-1 text-sm">
+      <div className="grid gap-1 border-y border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 text-sm">
         {athlete.rankingEvidence.status === 'available' ? (
           <>
             <p>
@@ -89,7 +92,7 @@ export function RosterAthleteCard({
       </div>
       {athlete.rankingEvidence.status === 'available' &&
       athlete.rankingEvidence.flags.length > 0 ? (
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 px-3 pt-3">
           {athlete.rankingEvidence.flags.map((flag) => (
             <StatusBadge key={flag} status="callback">
               {flagLabels[flag] ?? flag.replaceAll('_', ' ')}
@@ -98,7 +101,7 @@ export function RosterAthleteCard({
         </div>
       ) : null}
       {!disabled ? (
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--color-border)] pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3">
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium">
             <input
               checked={selected}

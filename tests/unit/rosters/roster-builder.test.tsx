@@ -180,6 +180,10 @@ describe('RosterBuilder', () => {
     expect(screen.getByText('3 of 3 evaluations')).toBeInTheDocument();
     expect(screen.getByText('Needs another look')).toBeInTheDocument();
     expect(screen.getByText('Forward target 1 of 1')).toBeInTheDocument();
+    expect(screen.getByText('Decision room')).toBeInTheDocument();
+    expect(screen.getByTestId(`roster-athlete-${ids.athlete42}`)).toHaveClass(
+      'roster-athlete-card',
+    );
 
     await user.selectOptions(screen.getByLabelText('Filter by position'), ids.goalie);
     expect(screen.queryByText('Athlete 42')).not.toBeInTheDocument();
