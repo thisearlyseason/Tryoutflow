@@ -1,8 +1,8 @@
 import { signInAs } from './helpers/auth';
 import { expect, test } from './helpers/fixtures';
 import {
+  expectCancellableNextRscRequest,
   expectCancellableServerAction,
-  expectNextRscCancellation,
   holdResponseAfterApplicationCommit,
   loseResponseAfterApplicationCommit,
   monitorBrowserErrors,
@@ -28,10 +28,10 @@ test('rankings preserve an exact tie and compare both athletes with completion e
   await page.getByLabel('Select Tie Alpha for comparison').check();
   await page.getByLabel('Select Tie Beta for comparison').check();
   if (testInfo.project.name === 'chromium' || testInfo.project.name === 'Mobile Chrome') {
-    expectNextRscCancellation(
+    expectCancellableNextRscRequest(
       monitor,
       `${new URL(page.url()).origin}/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/compare?athletes=${scenario.ids.athleteB},${scenario.ids.athleteC}`,
-      'Chromium selected-athlete comparison navigation cancellation',
+      'Chromium selected-athlete comparison navigation request',
     );
   }
   await page.getByRole('link', { name: 'Compare selected (2/4)' }).click();
@@ -135,9 +135,14 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   await page.getByLabel('First name').check();
   await page.getByLabel('Last name').check();
   await page.getByLabel('Team name').check();
+  const previewResponse = page.waitForResponse(
+    (candidate) => candidate.request().method() === 'POST' && candidate.url().endsWith('/export'),
+  );
   await page.getByRole('button', { name: 'Preview export' }).click();
+  expect((await previewResponse).ok()).toBe(true);
   await expect(page.getByRole('heading', { name: 'Review 2 athletes' })).toBeVisible();
   await expect(page.getByText('Final', { exact: true }).first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
   await page.getByLabel('I reviewed the exact destination and fields').check();
 
   let confirmationAttempts = 0;
@@ -159,8 +164,10 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   const replayResponse = page.waitForResponse(
     (candidate) => candidate.request().method() === 'POST' && candidate.url().endsWith('/export'),
   );
+  expectCancellableServerAction(monitor, page, 'idempotent export confirmation replay');
   await page.getByRole('button', { name: 'Confirm and queue export' }).click();
-  expect((await replayResponse).ok()).toBe(true);
+  const completedReplayResponse = await replayResponse;
+  expect(completedReplayResponse.ok()).toBe(true);
   await expect(page.getByText(/Export queued/u)).toBeVisible();
   expect(confirmationAttempts).toBe(2);
   expect(
@@ -190,8 +197,10 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   await page.reload();
   await expect(page.getByRole('status')).toContainText('1 completed');
   await expect(page.getByRole('status')).toContainText('1 failed/reviewable');
+  expectCancellableServerAction(monitor, page, 'failed-item retry action');
   await page.getByRole('button', { name: 'Retry 1 failed item' }).dblclick();
   await expect(page.getByText(/Completed items were preserved/u)).toBeVisible();
+  await page.waitForLoadState('networkidle');
   const retryRun = await request.post('/api/jobs/process', {
     headers: { authorization: `Bearer ${'task30-local-job-secret'.padEnd(40, 'j')}` },
     data: { batchSize: 10 },

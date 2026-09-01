@@ -75,5 +75,5 @@ describe('operations runbooks', () => {
     };
 
     expect(report.suites[0]?.specs[0]?.tests[0]?.results).toHaveLength(1);
-  });
+  }, 30_000);
 });

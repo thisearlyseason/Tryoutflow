@@ -172,6 +172,7 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   expect(submission.status()).toBe(200);
   await expect(page).toHaveURL(new RegExp(`/register/${publicSlug}/confirmation`, 'u'));
   await expect(page.getByRole('status')).toContainText(/confirmation link has been queued/i);
+  await page.waitForLoadState('networkidle');
   const queuedText = scenario.database.scalar(
     `select message.content_snapshot->>'text' from public.communication_messages message join public.tryout_registrations registration on registration.id=message.source_registration_id join public.athletes athlete on athlete.id=registration.athlete_id where message.organization_id='${scenario.ids.organization}' and athlete.family_name='${familyName}' and message.message_kind='registration_confirmation' order by message.created_at desc,message.id desc limit 1`,
   );
@@ -213,6 +214,7 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
     await expect(
       checkin.page.getByRole('heading', { name: `Browser ${familyName}` }),
     ).toBeVisible();
+    await checkin.page.waitForLoadState('networkidle');
     await checkin.page.getByLabel('Requested number (optional)').fill('77');
     expectCancellableServerAction(checkin.monitor, checkin.page, 'idempotent check-in action');
     await checkin.page.getByRole('button', { name: `Check in Browser ${familyName}` }).dblclick();

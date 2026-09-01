@@ -28,6 +28,9 @@
     "test:e2e:evaluation": "playwright test --config=playwright.evaluation.config.ts --project='Mobile Chrome' --project='Mobile Safari'",
     "test:e2e:messages": "playwright test --config=playwright.messages.config.ts --project=chromium --project=webkit --project='Mobile Safari'",
     "test:marketing:production": "node scripts/verify-marketing-production.mjs",
+    "release:state:preflight": "node scripts/verify-release-state.mjs preflight",
+    "release:state:residue": "node scripts/verify-release-state.mjs residue",
+    "release:verify": "bash scripts/verify-production-readiness.sh",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test:unit && npm run test:marketing:production"
   },
   "dependencies": {

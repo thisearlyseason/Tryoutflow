@@ -135,9 +135,9 @@ update public.platform_support_elevations set created_at=clock_timestamp()+inter
 select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'future-created legacy elevations never confer early authority');
 update public.platform_support_elevations set created_at=clock_timestamp()-interval '10 minutes',expires_at=clock_timestamp()-interval '5 minutes';
 select ok(not public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'expired legacy elevations remain inactive');
-update public.platform_support_elevations set created_at=clock_timestamp()-interval '1 minute',expires_at=clock_timestamp()+interval '4 minutes';
+update public.platform_support_elevations set created_at=statement_timestamp()-interval '1 minute',expires_at=statement_timestamp()+interval '4 minutes';
 select ok(public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'exactly five-minute current elevations remain authoritative');
-update public.platform_support_elevations set created_at=clock_timestamp()-interval '1 minute',expires_at=clock_timestamp()+interval '3 hours 59 minutes';
+update public.platform_support_elevations set created_at=statement_timestamp()-interval '1 minute',expires_at=statement_timestamp()+interval '3 hours 59 minutes';
 select ok(public.has_active_platform_support_elevation('82000000-0000-4000-8000-000000000001'),'exactly four-hour current elevations remain authoritative');
 update public.platform_support_elevations set created_at=clock_timestamp(),expires_at=clock_timestamp()+interval '30 minutes';
 update public.platform_administrators set status='disabled',disabled_at=clock_timestamp()

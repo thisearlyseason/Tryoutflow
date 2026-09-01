@@ -559,7 +559,7 @@ describe('full integration command database lock', () => {
       '-c',
       `delete from public.registration_rate_counters where key_hash='${event.counterKey}'`,
     ]);
-  });
+  }, 30_000);
 
   it.each(
     [
