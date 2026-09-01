@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const repositoryRoot = resolve(fileURLToPath(new URL('../../../', import.meta.url)));
 const releaseScript = resolve(repositoryRoot, 'scripts/verify-production-readiness.sh');
+const releaseStageRunner = resolve(repositoryRoot, 'scripts/lib/release-stage-runner.sh');
 const temporaryDirectories: string[] = [];
 
 type CommandResult = Readonly<{
@@ -73,7 +74,7 @@ async function createReleaseFixture() {
   const fakeBin = join(temporaryRoot, 'bin');
   const commandLog = join(temporaryRoot, 'commands.log');
   await Promise.all([
-    mkdir(resolve(root, 'scripts'), { recursive: true }),
+    mkdir(resolve(root, 'scripts/lib'), { recursive: true }),
     mkdir(resolve(root, 'src/infrastructure/supabase'), { recursive: true }),
     mkdir(fakeBin, { recursive: true }),
   ]);
@@ -86,6 +87,9 @@ async function createReleaseFixture() {
       '#!/usr/bin/env bash\nexit 127\n',
     );
   }
+  await copyFile(releaseStageRunner, resolve(root, 'scripts/lib/release-stage-runner.sh')).catch(
+    () => undefined,
+  );
   await chmod(resolve(root, 'scripts/verify-production-readiness.sh'), 0o755);
   await Promise.all([
     writeFile(resolve(root, '.env.example'), 'NEXT_PUBLIC_APP_URL=http://localhost:3000\n'),
@@ -100,21 +104,53 @@ async function createReleaseFixture() {
       'export type Database = never;\n',
     ),
     writeFile(
+      resolve(fakeBin, 'node'),
+      `#!/usr/bin/env bash
+set -euo pipefail
+printf 'node %s\\n' "$*" >> "$TRYOUTFLOW_COMMAND_LOG"
+if [[ "$*" == "--version" ]]; then printf '%s\\n' "\${TRYOUTFLOW_NODE_VERSION:-v24.12.0}"; exit 0; fi
+exit 64
+`,
+    ),
+    writeFile(
       resolve(fakeBin, 'corepack'),
       `#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\\n' "$*" >> "$TRYOUTFLOW_COMMAND_LOG"
-if [[ "$*" == "npm@11.12.1 --version" ]]; then printf '11.12.1\\n'; fi
-if [[ "$*" == "npm@11.12.1 exec -- supabase --version" ]]; then printf '2.116.0\\n'; fi
-if [[ -n "\${TRYOUTFLOW_FAIL_COMMAND:-}" && "$*" == "$TRYOUTFLOW_FAIL_COMMAND" ]]; then exit 37; fi
+if [[ -n "\${TRYOUTFLOW_FAIL_COMMAND:-}" && "$*" == "$TRYOUTFLOW_FAIL_COMMAND" ]]; then exit "\${TRYOUTFLOW_FAIL_CODE:-37}"; fi
+if [[ "$*" == "npm@11.12.1 --version" ]]; then
+  if [[ -f "\${TRYOUTFLOW_INSTALL_MARKER:-/dev/null}" ]]; then
+    printf '%s\\n' "\${TRYOUTFLOW_POSTINSTALL_NPM_VERSION:-11.12.1}"
+  else
+    printf '%s\\n' "\${TRYOUTFLOW_NPM_VERSION:-11.12.1}"
+  fi
+fi
+if [[ "$*" == "npm@11.12.1 exec -- supabase --version" ]]; then printf '%s\\n' "\${TRYOUTFLOW_SUPABASE_VERSION:-2.116.0}"; fi
+if [[ "$*" == "npm@11.12.1 ci" && -n "\${TRYOUTFLOW_INSTALL_MARKER:-}" ]]; then : > "$TRYOUTFLOW_INSTALL_MARKER"; fi
 if [[ -n "\${TRYOUTFLOW_BLOCK_MARKER:-}" && "$*" == "npm@11.12.1 ci" ]]; then
   : > "$TRYOUTFLOW_BLOCK_MARKER"
   while [[ ! -f "$TRYOUTFLOW_BLOCK_RELEASE" ]]; do sleep 0.025; done
 fi
 `,
     ),
+    writeFile(
+      resolve(fakeBin, 'git'),
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$*" == "diff --check" && -n "\${TRYOUTFLOW_FAIL_GIT_DIFF_CODE:-}" ]]; then
+  : > "$TRYOUTFLOW_GIT_DIFF_FAILED_MARKER"
+  exit "$TRYOUTFLOW_FAIL_GIT_DIFF_CODE"
+fi
+if [[ "$*" == "status --porcelain=v1 --untracked-files=all" && -n "\${TRYOUTFLOW_GIT_DIFF_FAILED_MARKER:-}" && -f "$TRYOUTFLOW_GIT_DIFF_FAILED_MARKER" ]]; then
+  : > "$TRYOUTFLOW_LATER_GIT_MARKER"
+fi
+exec "$TRYOUTFLOW_REAL_GIT" "$@"
+`,
+    ),
   ]);
-  await chmod(resolve(fakeBin, 'corepack'), 0o755);
+  await Promise.all(
+    ['corepack', 'git', 'node'].map((command) => chmod(resolve(fakeBin, command), 0o755)),
+  );
 
   for (const arguments_ of [
     ['init', '--quiet'],
@@ -133,6 +169,7 @@ fi
       ...process.env,
       PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
       TRYOUTFLOW_COMMAND_LOG: commandLog,
+      TRYOUTFLOW_REAL_GIT: '/usr/bin/git',
     },
     root,
     script: resolve(root, 'scripts/verify-production-readiness.sh'),
@@ -162,6 +199,7 @@ describe('production readiness release gate', () => {
 
     expect(result.code, `${result.stdout}\n${result.stderr}`).toBe(0);
     expect(await loggedCommands(fixture.commandLog)).toEqual([
+      'node --version',
       'npm@11.12.1 --version',
       'npm@11.12.1 ci',
       'npm@11.12.1 --version',
@@ -187,6 +225,95 @@ describe('production readiness release gate', () => {
       'npm@11.12.1 run release:state:residue',
     ]);
     expect(result.stdout).toContain('Production readiness automated gate passed');
+  });
+
+  it('rejects the wrong Node before checking npm or installing dependencies', async () => {
+    const fixture = await createReleaseFixture();
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: { ...fixture.environment, TRYOUTFLOW_NODE_VERSION: 'v23.0.0' },
+    });
+
+    expect(result.code).toBe(1);
+    expect(await loggedCommands(fixture.commandLog)).toEqual(['node --version']);
+    expect(result.stdout).toContain('CHECK: pinned Node identity');
+    expect(result.stderr).toContain('FAILED: pinned Node identity');
+    expect(result.stdout).not.toContain('clean dependency installation');
+  });
+
+  it('rejects the wrong pre-install npm before installing dependencies', async () => {
+    const fixture = await createReleaseFixture();
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: { ...fixture.environment, TRYOUTFLOW_NPM_VERSION: '10.9.0' },
+    });
+
+    expect(result.code).toBe(1);
+    expect(await loggedCommands(fixture.commandLog)).toEqual([
+      'node --version',
+      'npm@11.12.1 --version',
+    ]);
+    expect(result.stdout).toContain('CHECK: pinned npm pre-install identity');
+    expect(result.stderr).toContain('FAILED: pinned npm pre-install identity');
+    expect(result.stdout).not.toContain('clean dependency installation');
+  });
+
+  it('rejects the wrong post-install npm before checking Supabase', async () => {
+    const fixture = await createReleaseFixture();
+    const installMarker = join(fixture.temporaryRoot, 'installed');
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: {
+        ...fixture.environment,
+        TRYOUTFLOW_INSTALL_MARKER: installMarker,
+        TRYOUTFLOW_POSTINSTALL_NPM_VERSION: '10.9.0',
+      },
+    });
+
+    expect(result.code).toBe(1);
+    expect(await loggedCommands(fixture.commandLog)).toEqual([
+      'node --version',
+      'npm@11.12.1 --version',
+      'npm@11.12.1 ci',
+      'npm@11.12.1 --version',
+    ]);
+    expect(result.stdout).toContain('CHECK: pinned npm post-install identity');
+    expect(result.stderr).toContain('FAILED: pinned npm post-install identity');
+    expect(result.stdout).not.toContain('local Supabase identity proof');
+  });
+
+  it('rejects the wrong Supabase version before the local identity preflight', async () => {
+    const fixture = await createReleaseFixture();
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: { ...fixture.environment, TRYOUTFLOW_SUPABASE_VERSION: '2.115.0' },
+    });
+
+    expect(result.code).toBe(1);
+    const commands = await loggedCommands(fixture.commandLog);
+    expect(commands.at(-1)).toBe('npm@11.12.1 exec -- supabase --version');
+    expect(commands).not.toContain('npm@11.12.1 run release:state:preflight');
+    expect(result.stdout).toContain('CHECK: pinned Supabase CLI identity');
+    expect(result.stderr).toContain('FAILED: pinned Supabase CLI identity');
+  });
+
+  it('preserves a missing Supabase command status and prevents later stages', async () => {
+    const fixture = await createReleaseFixture();
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: {
+        ...fixture.environment,
+        TRYOUTFLOW_FAIL_CODE: '127',
+        TRYOUTFLOW_FAIL_COMMAND: 'npm@11.12.1 exec -- supabase --version',
+      },
+    });
+
+    expect(result.code).toBe(127);
+    const commands = await loggedCommands(fixture.commandLog);
+    expect(commands.at(-1)).toBe('npm@11.12.1 exec -- supabase --version');
+    expect(commands).not.toContain('npm@11.12.1 run release:state:preflight');
+    expect(result.stderr).toContain('pinned Supabase CLI identity command failed (exit 127)');
+    expect(result.stdout).not.toContain('Production readiness automated gate passed');
   });
 
   it('stops at the first failed owning command', async () => {
@@ -254,6 +381,28 @@ describe('production readiness release gate', () => {
     expect(result.stdout).toContain('failure cleanup: residue audit');
   });
 
+  it('preserves git diff --check failure and runs failure cleanup exactly once', async () => {
+    const fixture = await createReleaseFixture();
+    const diffFailedMarker = join(fixture.temporaryRoot, 'git-diff-failed');
+    const laterGitMarker = join(fixture.temporaryRoot, 'later-git-command');
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: {
+        ...fixture.environment,
+        TRYOUTFLOW_FAIL_GIT_DIFF_CODE: '43',
+        TRYOUTFLOW_GIT_DIFF_FAILED_MARKER: diffFailedMarker,
+        TRYOUTFLOW_LATER_GIT_MARKER: laterGitMarker,
+      },
+    });
+
+    expect(result.code).toBe(43);
+    await expect(readFile(diffFailedMarker, 'utf8')).resolves.toBe('');
+    await expect(readFile(laterGitMarker, 'utf8')).rejects.toThrow();
+    expect(result.stdout.match(/failure cleanup: clean unseeded database reset/gu)).toHaveLength(1);
+    expect(result.stdout.match(/failure cleanup: residue audit/gu)).toHaveLength(1);
+    expect(result.stdout).not.toContain('Production readiness automated gate passed');
+  });
+
   it('rejects any local process, database, auth, or fixture residue count', async () => {
     const moduleUrl = pathToFileURL(resolve(repositoryRoot, 'scripts/verify-release-state.mjs'));
     const imported = await import(moduleUrl.href);
@@ -279,6 +428,59 @@ describe('production readiness release gate', () => {
       'Release residue remains: application port 3112 is listening',
     );
   });
+});
+
+describe('release stage runner', () => {
+  it.each([
+    ['first', 31, ['first']],
+    ['middle', 32, ['first', 'middle']],
+    ['last', 33, ['first', 'middle', 'last']],
+  ] as const)(
+    'stops a function at its %s failing command, preserves status, and cleans once',
+    async (position, expectedCode, expectedTrace) => {
+      const temporaryRoot = await mkdtemp(join(tmpdir(), 'tryoutflow-stage-runner-'));
+      temporaryDirectories.push(temporaryRoot);
+      const harness = join(temporaryRoot, 'harness.sh');
+      const trace = join(temporaryRoot, 'trace');
+      const cleanup = join(temporaryRoot, 'cleanup');
+      const later = join(temporaryRoot, 'later');
+      await writeFile(
+        harness,
+        `#!/usr/bin/env bash
+set -euo pipefail
+source "$TRYOUTFLOW_STAGE_RUNNER"
+stage_number=0
+trap 'printf "cleanup\\n" >> "$TRYOUTFLOW_CLEANUP"' EXIT
+first_command() { printf 'first\\n' >> "$TRYOUTFLOW_TRACE"; [[ "$TRYOUTFLOW_FAIL_POSITION" != 'first' ]] || return 31; }
+middle_command() { printf 'middle\\n' >> "$TRYOUTFLOW_TRACE"; [[ "$TRYOUTFLOW_FAIL_POSITION" != 'middle' ]] || return 32; }
+last_command() { printf 'last\\n' >> "$TRYOUTFLOW_TRACE"; [[ "$TRYOUTFLOW_FAIL_POSITION" != 'last' ]] || return 33; }
+stage_function() { first_command; middle_command; last_command; }
+run_stage 'behavioral function failure' stage_function
+: > "$TRYOUTFLOW_LATER"
+`,
+      );
+
+      const result = await run('bash', [harness], {
+        cwd: temporaryRoot,
+        env: {
+          ...process.env,
+          TRYOUTFLOW_CLEANUP: cleanup,
+          TRYOUTFLOW_FAIL_POSITION: position,
+          TRYOUTFLOW_LATER: later,
+          TRYOUTFLOW_STAGE_RUNNER: releaseStageRunner,
+          TRYOUTFLOW_TRACE: trace,
+        },
+      });
+
+      expect(result.code).toBe(expectedCode);
+      expect((await readFile(trace, 'utf8')).trim().split('\n')).toEqual(expectedTrace);
+      expect((await readFile(cleanup, 'utf8')).trim().split('\n')).toEqual(['cleanup']);
+      await expect(readFile(later, 'utf8')).rejects.toThrow();
+      expect(result.stderr).toContain(
+        `FAILED: behavioral function failure (exit ${String(expectedCode)})`,
+      );
+    },
+  );
 });
 
 describe('release evidence documentation', () => {
@@ -316,6 +518,7 @@ describe('release evidence documentation', () => {
       'hosted backup and restore drill',
       'production monitoring and alert ownership',
       'deployed authenticated smoke test',
+      'production performance and load certification',
     ];
 
     for (const prerequisite of manualPrerequisites) {
@@ -323,6 +526,25 @@ describe('release evidence documentation', () => {
     }
     expect(checklist).not.toMatch(
       /- \[x\] (?:legal\/privacy|production domains|Stripe|Resend|The Squad|hosted backup|production monitoring|deployed authenticated)/iu,
+    );
+  });
+
+  it('maps each approved performance requirement without claiming hosted certification', async () => {
+    const checklist = await readFile(
+      resolve(repositoryRoot, 'docs/operations/release-checklist.md'),
+      'utf8',
+    );
+
+    for (let index = 1; index <= 6; index += 1) {
+      expect(
+        checklist.match(new RegExp(`\\| P${String(index).padStart(2, '0')} \\|`, 'gu')),
+      ).toHaveLength(1);
+    }
+    expect(checklist).toContain('- [ ] production performance and load certification');
+    expect(checklist).toContain('named engineering/operations owner');
+    expect(checklist).toContain('dated production-like evidence');
+    expect(checklist).not.toMatch(
+      /(?:load|performance) certification (?:is )?(?:complete|passed)/iu,
     );
   });
 
@@ -337,6 +559,9 @@ describe('release evidence documentation', () => {
     expect(readme).toContain('Supabase CLI 2.116.0');
     expect(readme.match(/bash scripts\/verify-production-readiness\.sh/gu)).toHaveLength(1);
     expect(readme).toContain('does not deploy');
+    expect(readme).toContain('Early read-only failures do not modify or clean');
+    expect(readme).toContain('After owned database work begins');
+    expect(readme).not.toContain('after success or failure');
     expect(readme.split('\n').length).toBeLessThanOrEqual(140);
     expect(workflow.match(/bash scripts\/verify-production-readiness\.sh/gu)).toHaveLength(1);
   });

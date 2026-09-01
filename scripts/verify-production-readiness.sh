@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
+readonly SCRIPT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly SCRIPT_PATH="$SCRIPT_DIRECTORY/$(basename "${BASH_SOURCE[0]}")"
 readonly REPOSITORY_ROOT="$(git -C "$(dirname "$SCRIPT_PATH")/.." rev-parse --show-toplevel)"
 cd "$REPOSITORY_ROOT"
+
+source "$SCRIPT_DIRECTORY/lib/release-stage-runner.sh"
 
 if (($# != 0)); then
   printf 'Usage: bash scripts/verify-production-readiness.sh\n' >&2
@@ -39,21 +42,6 @@ readonly DATABASE_TYPES='src/infrastructure/supabase/database.types.ts'
 readonly NPM=(corepack npm@11.12.1)
 
 stage_number=0
-run_stage() {
-  local name status
-  name="$1"
-  shift
-  stage_number=$((stage_number + 1))
-  printf '\n=== [%02d] %s ===\n' "$stage_number" "$name"
-  set +e
-  "$@"
-  status=$?
-  set -e
-  if ((status != 0)); then
-    printf 'FAILED: %s (exit %d)\n' "$name" "$status" >&2
-    return "$status"
-  fi
-}
 
 hash_file() {
   if command -v sha256sum >/dev/null 2>&1; then
@@ -99,13 +87,49 @@ verify_tracked_secret_boundaries() {
 
 verify_repository_state() {
   local final_status
-  git diff --check
-  final_status="$(git status --porcelain=v1 --untracked-files=all)"
+  git diff --check || return $?
+  final_status="$(git status --porcelain=v1 --untracked-files=all)" || return $?
   if [[ "$final_status" != "$initial_status" ]]; then
     printf 'Tracked or untracked repository state changed during the release gate.\n' >&2
     diff -u "$release_tmp/status-before" <(printf '%s\n' "$final_status") >&2 || true
     return 1
   fi
+}
+
+verify_exact_version() {
+  local actual expected label status
+  label="$1"
+  expected="$2"
+  shift 2
+
+  printf 'CHECK: %s\n' "$label"
+  if actual="$("$@")"; then
+    status=0
+  else
+    status=$?
+  fi
+  if ((status != 0)); then
+    printf 'FAILED: %s command failed (exit %d)\n' "$label" "$status" >&2
+    return "$status"
+  fi
+  if [[ "$actual" != "$expected" ]]; then
+    printf 'FAILED: %s (expected %s, received %s)\n' "$label" "$expected" "$actual" >&2
+    return 1
+  fi
+  printf 'PASS: %s = %s\n' "$label" "$actual"
+}
+
+verify_preinstall_toolchain() {
+  verify_exact_version 'pinned Node identity' "$EXPECTED_NODE_VERSION" node --version || return $?
+  verify_exact_version 'pinned npm pre-install identity' "$EXPECTED_NPM_VERSION" \
+    "${NPM[@]}" --version || return $?
+}
+
+verify_postinstall_toolchain() {
+  verify_exact_version 'pinned npm post-install identity' "$EXPECTED_NPM_VERSION" \
+    "${NPM[@]}" --version || return $?
+  verify_exact_version 'pinned Supabase CLI identity' "$EXPECTED_SUPABASE_VERSION" \
+    "${NPM[@]}" exec -- supabase --version || return $?
 }
 
 release_tmp="$(mktemp -d "${TMPDIR:-/tmp}/tryoutflow-release.XXXXXX")"
@@ -152,16 +176,10 @@ readonly initial_status
 readonly package_lock_hash="$(hash_file package-lock.json)"
 readonly database_types_hash="$(hash_file "$DATABASE_TYPES")"
 
-run_stage 'pinned Node and npm preflight' bash -c '
-  [[ "$(node --version)" == "$1" ]]
-  [[ "$(corepack npm@11.12.1 --version)" == "$2" ]]
-' _ "$EXPECTED_NODE_VERSION" "$EXPECTED_NPM_VERSION"
+run_stage 'pinned Node and npm preflight' verify_preinstall_toolchain
 
 run_stage 'clean dependency installation' "${NPM[@]}" ci
-run_stage 'post-install toolchain identity' bash -c '
-  [[ "$(corepack npm@11.12.1 --version)" == "$1" ]]
-  [[ "$(corepack npm@11.12.1 exec -- supabase --version)" == "$2" ]]
-' _ "$EXPECTED_NPM_VERSION" "$EXPECTED_SUPABASE_VERSION"
+run_stage 'post-install toolchain identity' verify_postinstall_toolchain
 run_stage 'npm ci lockfile preservation' assert_hash_unchanged package-lock.json "$package_lock_hash" 'package-lock.json'
 run_stage 'npm ci generated-type preservation' assert_hash_unchanged "$DATABASE_TYPES" "$database_types_hash" 'generated database types'
 run_stage 'local Supabase identity proof' "${NPM[@]}" run release:state:preflight
@@ -193,7 +211,7 @@ run_stage 'high-severity dependency audit' "${NPM[@]}" audit --audit-level=high
 run_stage 'tracked secret boundary scan' verify_tracked_secret_boundaries
 run_stage 'final clean unseeded database reset' "${NPM[@]}" exec -- supabase db reset --local --no-seed
 run_stage 'local process, database, auth, and fixture residue audit' "${NPM[@]}" run release:state:residue
-database_cleanup_required=false
 run_stage 'repository diff and generated-file audit' verify_repository_state
+database_cleanup_required=false
 
 printf '\nProduction readiness automated gate passed. Manual production prerequisites remain in docs/operations/release-checklist.md.\n'
