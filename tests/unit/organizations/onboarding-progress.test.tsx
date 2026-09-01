@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { deriveOnboardingProgress } from '../../../src/modules/organizations/application/onboarding-progress';
+import {
+  createOrganizationDashboardProjection,
+  deriveOnboardingProgress,
+} from '../../../src/modules/organizations/application/onboarding-progress';
 import { OnboardingChecklist } from '../../../src/modules/organizations/components/onboarding-checklist';
+import { OrganizationCommandCenter } from '../../../src/modules/organizations/components/organization-command-center';
 import { render, screen } from '@testing-library/react';
 
 describe('authoritative onboarding progress', () => {
@@ -64,5 +68,26 @@ describe('authoritative onboarding progress', () => {
     );
     expect(screen.getByText('Configure registration')).toBeInTheDocument();
     expect(screen.getAllByText(/complete/i).length).toBeGreaterThan(0);
+  });
+
+  it('keeps exact durable facts beside derived progress for dashboard metrics', () => {
+    const facts = {
+      organizationExists: true,
+      settingsConfigured: true,
+      registrationConfigured: true,
+      activeStaffCount: 12,
+      publishedRubricCount: 2,
+      sessionCount: 4,
+      completedEvaluationCount: 83,
+      finalizedRosterCount: 1,
+    } as const;
+    const projection = createOrganizationDashboardProjection(facts);
+
+    expect(projection.facts).toEqual(facts);
+    expect(projection.progress.completedCount).toBe(8);
+    render(<OrganizationCommandCenter projection={projection} />);
+    expect(screen.getByText('12')).toBeVisible();
+    expect(screen.getByText('83')).toBeVisible();
+    expect(screen.getByText('Finalized rosters')).toBeVisible();
   });
 });

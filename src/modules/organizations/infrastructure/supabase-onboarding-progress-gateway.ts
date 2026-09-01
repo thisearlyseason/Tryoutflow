@@ -3,9 +3,9 @@ import { z } from 'zod';
 
 import type { Database } from '../../../infrastructure/supabase/database.types';
 import {
-  deriveOnboardingProgress,
+  createOrganizationDashboardProjection,
   type OnboardingFacts,
-  type OnboardingProgress,
+  type OrganizationDashboardProjection,
 } from '../application/onboarding-progress';
 
 const response = z.strictObject({
@@ -33,13 +33,13 @@ export function parseOnboardingFacts(input: unknown): OnboardingFacts | null {
 export class SupabaseOnboardingProgressGateway {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
-  async load(organizationId: string): Promise<OnboardingProgress | null> {
+  async load(organizationId: string): Promise<OrganizationDashboardProjection | null> {
     const { data, error } = await this.client.rpc('load_onboarding_facts', {
       p_organization_id: organizationId,
     });
     if (error || !Array.isArray(data) || data.length !== 1)
       throw error ?? new Error('Invalid onboarding projection');
     const facts = parseOnboardingFacts(data[0]?.result);
-    return facts ? deriveOnboardingProgress(facts) : null;
+    return facts ? createOrganizationDashboardProjection(facts) : null;
   }
 }

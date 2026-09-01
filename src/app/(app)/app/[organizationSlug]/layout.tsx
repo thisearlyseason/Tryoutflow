@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
 import { AppShell } from '@/components/layout/app-shell';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
-import { OrganizationNavigation } from '@/modules/organizations/components/organization-navigation';
+import {
+  buildAppNavigation,
+  describeAppRole,
+} from '@/modules/organizations/components/app-navigation-model';
 
 export default async function OrganizationLayout({
   children,
@@ -14,17 +17,11 @@ export default async function OrganizationLayout({
   const { organization, authorization } = await requireOrganizationRouteContext(organizationSlug);
   return (
     <AppShell
-      navigation={
-        <OrganizationNavigation
-          authorization={authorization}
-          organizationSlug={organization.slug}
-        />
-      }
+      navigation={buildAppNavigation({ authorization, organizationSlug: organization.slug })}
+      organization={organization}
+      roleLabel={describeAppRole(authorization)}
     >
-      <header className="mb-6">
-        <p className="eyebrow">{organization.slug}</p>
-        <h1>{organization.name}</h1>
-      </header>
+      <h1 className="sr-only">{organization.name}</h1>
       {children}
     </AppShell>
   );

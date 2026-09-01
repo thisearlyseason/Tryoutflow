@@ -31,6 +31,11 @@ export type OnboardingProgress = Readonly<{
   next: Readonly<{ key: OnboardingMilestoneKey; label: string; complete: boolean }> | null;
 }>;
 
+export type OrganizationDashboardProjection = Readonly<{
+  facts: OnboardingFacts;
+  progress: OnboardingProgress;
+}>;
+
 export function deriveOnboardingProgress(facts: OnboardingFacts): OnboardingProgress {
   const items = [
     { key: 'organization', label: 'Create your organization', complete: facts.organizationExists },
@@ -62,4 +67,10 @@ export function deriveOnboardingProgress(facts: OnboardingFacts): OnboardingProg
     percent: Math.round((completedCount / items.length) * 100),
     next: items.find((item) => !item.complete) ?? null,
   };
+}
+
+export function createOrganizationDashboardProjection(
+  facts: OnboardingFacts,
+): OrganizationDashboardProjection {
+  return { facts, progress: deriveOnboardingProgress(facts) };
 }

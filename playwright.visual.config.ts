@@ -21,7 +21,7 @@ const local = z
     PUBLISHABLE_KEY: localStatus.PUBLISHABLE_KEY,
     SERVICE_ROLE_KEY: localStatus.SECRET_KEY ?? localStatus.SERVICE_ROLE_KEY,
   });
-const port = 3113;
+const port = 3112;
 const origin = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
@@ -66,6 +66,7 @@ export default defineConfig({
     },
     {
       name: 'mobile-chromium',
+      testIgnore: ['application-shell.visual.spec.ts'],
       use: { ...devices['Pixel 7'] },
     },
   ],

@@ -1,7 +1,7 @@
 import { ErrorState } from '@/components/feedback/error-state';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
-import { OnboardingChecklist } from '@/modules/organizations/components/onboarding-checklist';
+import { OrganizationCommandCenter } from '@/modules/organizations/components/organization-command-center';
 import { SupabaseOnboardingProgressGateway } from '@/modules/organizations/infrastructure/supabase-onboarding-progress-gateway';
 
 export default async function OrganizationHomePage({
@@ -12,11 +12,14 @@ export default async function OrganizationHomePage({
   const { organizationSlug } = await params;
   const current = await requireOrganizationRouteContext(organizationSlug);
   try {
-    const progress = await new SupabaseOnboardingProgressGateway(current.client).load(
+    const projection = await new SupabaseOnboardingProgressGateway(current.client).load(
       current.organization.id,
     );
-    return progress ? (
-      <OnboardingChecklist progress={progress} />
+    return projection ? (
+      <OrganizationCommandCenter
+        organizationSlug={current.organization.slug}
+        projection={projection}
+      />
     ) : (
       <ErrorState
         title="Onboarding unavailable"
