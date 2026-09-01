@@ -306,6 +306,10 @@ describe('EvaluationForm', () => {
       />,
     );
     expect(screen.getByText('#42')).toHaveClass('font-[var(--font-bib)]');
+    expect(screen.getByTestId('evaluation-game-day')).toHaveClass('theme-game-day');
+    expect(screen.getByTestId('evaluation-athlete-identity')).toHaveClass(
+      'game-day-athlete-identity',
+    );
     expect(screen.getByRole('heading', { name: 'Athlete A1B2C3' })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent('Ava Smith');
     expect(screen.getByText('Blind evaluation')).toBeInTheDocument();

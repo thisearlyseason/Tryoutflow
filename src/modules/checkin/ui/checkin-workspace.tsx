@@ -2,6 +2,9 @@
 
 import { useRef, useState, useTransition } from 'react';
 
+import { BibBadge } from '../../../components/ui/bib-badge';
+import { StatusBadge } from '../../../components/ui/status-badge';
+
 export type CheckinSearchResult = {
   registrationId: string;
   athleteName: string;
@@ -214,11 +217,11 @@ export function CheckinWorkspace({
   }
 
   return (
-    <div className="grid min-w-0 gap-5">
+    <div className="theme-game-day grid min-w-0 gap-5 rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6">
       <div
         aria-busy={operation === 'search'}
         aria-label="Registration search"
-        className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+        className="rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)]"
         role="search"
       >
         <label className="block font-bold" htmlFor="checkin-search">
@@ -296,18 +299,35 @@ export function CheckinWorkspace({
         <ul className="grid min-w-0 gap-3">
           {results.map((result) => (
             <li
-              className="grid min-w-0 gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:grid-cols-[1fr_auto] sm:items-center"
+              className="checkin-result grid min-w-0 gap-3 overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)] sm:grid-cols-[1fr_auto] sm:items-center"
+              data-testid={`checkin-result-${result.registrationId}`}
               key={result.registrationId}
             >
-              <div className="min-w-0">
-                <h3 className="break-words font-bold">{result.athleteName}</h3>
-                <p className="break-words text-sm text-[var(--color-text-muted)]">
-                  {result.guardianName} · {result.divisionName} · {result.registrationId}
-                </p>
-                <p className="mt-1 text-sm">
-                  {result.tryoutNumber ? `#${result.tryoutNumber}` : 'Number not assigned'} ·{' '}
-                  {result.status.replace('_', ' ')}
-                </p>
+              <div className="flex min-w-0 items-start gap-3">
+                <BibBadge number={result.tryoutNumber} />
+                <div className="min-w-0">
+                  <h3 className="break-words font-bold">{result.athleteName}</h3>
+                  <p className="break-words text-sm text-[var(--color-text-muted)]">
+                    {result.guardianName} · {result.divisionName} · {result.registrationId}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    {result.tryoutNumber ? `#${result.tryoutNumber}` : 'Number not assigned'} ·{' '}
+                    {result.status.replace('_', ' ')}
+                  </p>
+                  <div className="mt-2">
+                    <StatusBadge
+                      status={
+                        result.status === 'ready'
+                          ? 'ready'
+                          : result.status === 'checked_in'
+                            ? 'complete'
+                            : 'warning'
+                      }
+                    >
+                      {result.status.replace('_', ' ')}
+                    </StatusBadge>
+                  </div>
+                </div>
               </div>
               <button
                 className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-5 font-bold text-[var(--color-primary)] disabled:opacity-60"

@@ -69,6 +69,7 @@ export default defineConfig({
       testIgnore: [
         'application-shell.visual.spec.ts',
         'decisions.visual.spec.ts',
+        'game-day.visual.spec.ts',
         'tryout-administration.visual.spec.ts',
       ],
       use: { ...devices['Pixel 7'] },

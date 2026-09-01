@@ -89,9 +89,11 @@ describe('CheckinWorkspace', () => {
       },
     ]);
     render(<CheckinWorkspace search={search} onCheckIn={vi.fn()} />);
+    expect(screen.getByRole('search').closest('.theme-game-day')).toBeInTheDocument();
     await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
     await user.click(screen.getByRole('button', { name: /search/i }));
     expect(await screen.findByText('Ava Smith')).toBeInTheDocument();
+    expect(screen.getByTestId('checkin-result-REG-1042')).toHaveClass('checkin-result');
     expect(screen.getByText(/Taylor Smith/)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/score|ranking|rubric|notes/i);
     expect(screen.getByRole('button', { name: /check in Ava Smith/i })).toHaveClass('min-h-[44px]');

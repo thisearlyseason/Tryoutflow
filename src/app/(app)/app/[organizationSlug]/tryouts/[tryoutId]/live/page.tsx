@@ -37,7 +37,10 @@ export default async function LivePage({
     ['Recorded sync exceptions', result.value.recordedSyncExceptions],
   ] as const;
   return (
-    <section aria-labelledby="live-heading">
+    <section
+      aria-labelledby="live-heading"
+      className="theme-game-day rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6"
+    >
       <p className="eyebrow">Operational snapshot</p>
       <h2 id="live-heading">Live dashboard</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">
@@ -48,11 +51,13 @@ export default async function LivePage({
       <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map(([label, value]) => (
           <div
-            className="rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+            className="rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-surface)]"
             key={label}
           >
             <dt className="text-sm text-[var(--color-text-muted)]">{label}</dt>
-            <dd className="mt-1 font-[var(--font-bib)] text-3xl tabular-nums">{value}</dd>
+            <dd className="mt-2 font-[var(--font-bib)] text-5xl tabular-nums text-[var(--color-performance)]">
+              {value}
+            </dd>
           </div>
         ))}
       </dl>

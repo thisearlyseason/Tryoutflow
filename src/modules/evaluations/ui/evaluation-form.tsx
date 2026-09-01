@@ -895,18 +895,24 @@ export function EvaluationForm({
   }
 
   return (
-    <div className="grid min-w-0 gap-5 pb-36">
-      <header className="min-w-0 border-b-4 border-[var(--color-text)] pb-4">
+    <div
+      className="theme-game-day grid min-w-0 gap-5 rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 pb-36 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6 sm:pb-36"
+      data-testid="evaluation-game-day"
+    >
+      <header
+        className="game-day-athlete-identity min-w-0 rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)]"
+        data-testid="evaluation-athlete-identity"
+      >
         <div className="flex min-w-0 items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="eyebrow">
               {athlete.identityMode === 'blind' ? 'Blind evaluation' : 'Athlete evaluation'}
             </p>
-            <h2 className="break-words" id="athlete-heading">
+            <h2 className="break-words text-[clamp(2rem,5vw,4rem)]" id="athlete-heading">
               {athlete.displayName}
             </h2>
           </div>
-          <p className="shrink-0 font-[var(--font-bib)] text-4xl leading-none tabular-nums">
+          <p className="shrink-0 rounded-[var(--radius-control)] bg-[var(--color-performance)] px-3 py-2 font-[var(--font-bib)] text-4xl leading-none tabular-nums text-[var(--color-performance-foreground)]">
             {athlete.tryoutNumber === null ? '—' : `#${athlete.tryoutNumber}`}
           </p>
         </div>
@@ -1084,7 +1090,11 @@ export function EvaluationForm({
           const score =
             draft.scores.find((entry) => entry.categoryId === category.id)?.value ?? null;
           return (
-            <fieldset className="grid min-w-0 gap-2" disabled={!interactive} key={category.id}>
+            <fieldset
+              className="grid min-w-0 gap-2 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+              disabled={!interactive}
+              key={category.id}
+            >
               <legend className="font-bold">
                 {category.name}{' '}
                 {category.required ? (
@@ -1174,7 +1184,7 @@ export function EvaluationForm({
         </fieldset>
       </section>
 
-      <div className="sticky bottom-0 z-20 -mx-4 grid min-w-0 gap-3 border-t border-[var(--color-border)] bg-[var(--color-canvas)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_24px_rgb(24_33_47/0.12)] sm:grid-cols-[1fr_auto] sm:items-center">
+      <div className="sticky bottom-0 z-20 -mx-4 grid min-w-0 gap-3 border-t border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_24px_rgb(0_0_0/0.32)] sm:-mx-6 sm:grid-cols-[1fr_auto] sm:items-center sm:px-6">
         <EvaluationSaveState
           detail={
             !storageAvailableRef.current &&
