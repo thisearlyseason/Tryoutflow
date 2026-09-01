@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { createOrganization } from '../../../modules/organizations/application/create-organization';
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
 import { parseUserId } from '../../../lib/ids';
+import { trackSupabaseWorkflowSafely } from '../../../infrastructure/analytics/supabase-analytics-provider';
+import { createCorrelationId } from '../../../modules/observability/domain/correlation-id';
 
 export default function StartPage() {
   async function submit(formData: FormData) {
@@ -21,6 +23,12 @@ export default function StartPage() {
       { userId: parseUserId(user.id) },
     );
     if (!result.ok) redirect(`/start?error=${result.error.code}`);
+    await trackSupabaseWorkflowSafely(client, {
+      name: 'workflow.completed',
+      workflow: 'onboarding',
+      organizationId: result.value.organization.id,
+      correlationId: createCorrelationId(),
+    });
     redirect(`/app/${result.value.organization.slug}/home`);
   }
 

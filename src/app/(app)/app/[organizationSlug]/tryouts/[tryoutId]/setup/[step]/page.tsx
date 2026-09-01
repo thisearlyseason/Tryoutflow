@@ -1,5 +1,10 @@
 import { notFound, redirect } from 'next/navigation';
 
+import { ErrorState } from '@/components/feedback/error-state';
+import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
+import { captureOperationalError } from '@/infrastructure/observability/server-observability';
+import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
+import { AppError } from '@/modules/observability/domain/app-error';
 import {
   publishTryout,
   validateTryoutForPublish,
@@ -31,36 +36,78 @@ export default async function TryoutSetupStepPage({
   if (!tryoutSetupSteps.includes(rawStep as TryoutSetupStep)) notFound();
   const step = rawStep as TryoutSetupStep;
   const current = await requireCurrentOrganization(organizationSlug);
-  const { data: tryout } = await current.client
+  const tryoutResult = await current.client
     .from('tryouts')
     .select('id, name, status, version')
     .eq('organization_id', current.organization.id)
     .eq('id', tryoutId)
     .maybeSingle();
+  if (tryoutResult.error) {
+    captureOperationalError(tryoutResult.error, {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      tryoutId,
+      operation: 'tryout_setup.load',
+    });
+    return (
+      <ErrorState
+        description="Tryout setup could not be loaded. Refresh before making changes."
+        title="Setup temporarily unavailable"
+      />
+    );
+  }
+  const tryout = tryoutResult.data;
   if (!tryout || tryout.status !== 'draft') notFound();
-  const { data: progress } = await current.client
-    .from('tryout_setup_progress')
-    .select('completed_steps')
-    .eq('organization_id', current.organization.id)
-    .eq('tryout_id', tryoutId)
-    .maybeSingle();
-  const validation = await validateTryoutForPublish(
-    { organizationId: current.organization.id, tryoutId },
-    { authorization: current.authorization },
-  );
-  const blockers = validation.ok ? validation.value.blockers : ['authorization_required'];
-  const { data: divisions } = await current.client
-    .from('tryout_divisions')
-    .select('id, name')
-    .eq('organization_id', current.organization.id)
-    .eq('tryout_id', tryoutId)
-    .order('sort_order');
-  const { data: sessions } = await current.client
-    .from('tryout_sessions')
-    .select('id, name')
-    .eq('organization_id', current.organization.id)
-    .eq('tryout_id', tryoutId)
-    .order('sort_order');
+  const [progressResult, validation, divisionsResult, sessionsResult] = await Promise.all([
+    current.client
+      .from('tryout_setup_progress')
+      .select('completed_steps')
+      .eq('organization_id', current.organization.id)
+      .eq('tryout_id', tryoutId)
+      .maybeSingle(),
+    validateTryoutForPublish(
+      { organizationId: current.organization.id, tryoutId },
+      { authorization: current.authorization },
+    ),
+    current.client
+      .from('tryout_divisions')
+      .select('id, name')
+      .eq('organization_id', current.organization.id)
+      .eq('tryout_id', tryoutId)
+      .order('sort_order'),
+    current.client
+      .from('tryout_sessions')
+      .select('id, name')
+      .eq('organization_id', current.organization.id)
+      .eq('tryout_id', tryoutId)
+      .order('sort_order'),
+  ]);
+  const loadError = progressResult.error ?? divisionsResult.error ?? sessionsResult.error;
+  if (loadError || (!validation.ok && validation.error.code !== 'forbidden')) {
+    captureOperationalError(loadError ?? new AppError('unexpected_error'), {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      tryoutId,
+      operation: 'tryout_setup.load',
+    });
+    return (
+      <ErrorState
+        description="Setup details could not be loaded. Refresh before making changes."
+        title="Setup temporarily unavailable"
+      />
+    );
+  }
+  if (!validation.ok)
+    return (
+      <section aria-labelledby="setup-denied">
+        <h2 id="setup-denied">Setup unavailable</h2>
+        <p role="alert">You do not have access to change this tryout.</p>
+      </section>
+    );
+  const progress = progressResult.data;
+  const divisions = divisionsResult.data;
+  const sessions = sessionsResult.data;
+  const blockers = validation.value.blockers;
   async function save(formData: FormData) {
     'use server';
     const route = await requireCurrentOrganization(organizationSlug);
@@ -70,6 +117,15 @@ export default async function TryoutSetupStepPage({
       .eq('organization_id', route.organization.id)
       .eq('id', tryoutId)
       .maybeSingle();
+    if (fresh.error) {
+      captureOperationalError(fresh.error, {
+        actorId: route.userId,
+        organizationId: route.organization.id,
+        tryoutId,
+        operation: 'tryout_setup.save',
+      });
+      redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/${step}?error=unavailable`);
+    }
     if (!fresh.data || fresh.data.status !== 'draft') notFound();
     if (step === 'publish') {
       if (formData.get('confirmation') !== fresh.data.name)
@@ -84,6 +140,12 @@ export default async function TryoutSetupStepPage({
         redirect(
           `/app/${organizationSlug}/tryouts/${tryoutId}/setup/publish?error=${result.error.code}`,
         );
+      await trackSupabaseWorkflowSafely(route.client, {
+        name: 'workflow.completed',
+        workflow: 'tryout_setup',
+        organizationId: route.organization.id,
+        correlationId: createCorrelationId(),
+      });
       redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/overview`);
     }
     const result = await persistWizardStep(
@@ -103,6 +165,12 @@ export default async function TryoutSetupStepPage({
       redirect(
         `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${step}?error=${encodeURIComponent(result.code)}`,
       );
+    await trackSupabaseWorkflowSafely(route.client, {
+      name: 'workflow.completed',
+      workflow: 'tryout_setup',
+      organizationId: route.organization.id,
+      correlationId: createCorrelationId(),
+    });
     redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/${result.nextStep}`);
   }
   return (

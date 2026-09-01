@@ -2,21 +2,10 @@
 
 ## Pre-deployment evidence
 
-Use a clean checkout and the same Node version as `.nvmrc`:
+Use a clean checkout, the Node version in `.nvmrc`, and the single pinned gate:
 
 ```sh
-npm ci
-npx supabase start
-npx supabase db reset --local --no-seed
-npm run test:db
-npm run supabase:reset
-npm run test:integration
-npm run test:integration
-npm run verify
-npm run build
-npm run test:e2e -- --retries=0
-git diff --check
-git status --short
+bash scripts/verify-production-readiness.sh
 ```
 
 The full pgTAP suite owns empty global fixtures, so its reset is deliberately unseeded. Restore the
@@ -31,8 +20,9 @@ Two supervised integration runs are intentional: they exercise cleanup and lock 
 2. Take/confirm the provider backup or point-in-time recovery checkpoint.
 3. Review pending version-controlled migrations and generated `database.types.ts` together.
 4. Apply migrations before the compatible application release with the Supabase CLI/project workflow approved for that environment.
-5. Deploy the application, then check `/api/health` publicly and `/platform/health` as a current platform administrator.
-6. Exercise sign-in, an organization audit page, one non-mutating platform list, and the job endpoint scheduler. Verify logs contain only allow-listed identifiers.
+5. Before traffic, verify the production Supabase Auth Site URL/redirect allowlist, mandatory email confirmation and SMTP delivery; verify Turnstile keys/hostname/actions and the shared HMAC-secret owner. These are provider/manual gates and are not exercised by the local release command.
+6. Deploy the application, then check `/api/health` publicly and `/platform/health` as a current platform administrator.
+7. Exercise anonymous signup through delivered verification email, bot denial, sign-in, an organization audit page, one non-mutating platform list, and the job endpoint scheduler. Verify logs and the durable analytics outbox contain only allow-listed identifiers and that the external consumer/alerts are healthy.
 
 Migrations are append-only. Never edit or delete a migration already applied to a shared environment.
 

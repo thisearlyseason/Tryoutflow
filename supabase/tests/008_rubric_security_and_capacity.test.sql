@@ -59,19 +59,19 @@ select is((select outcome from public.create_registration_form_revision('9595959
 
 select set_config('request.jwt.claim.sub', '91919191-9191-4191-8191-919191919191', true);
 select is((select count(*) from public.rubric_categories), 1::bigint, 'an assigned evaluator can read rubric categories');
-select lives_ok($$update public.rubric_categories set name = 'forged evaluator write' where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$, 'an evaluator direct write cannot affect a category');
+select throws_ok($$update public.rubric_categories set name = 'forged evaluator write' where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$,'42501',null,'an evaluator has no direct category-write privilege');
 select set_config('request.jwt.claim.sub', '92929292-9292-4292-8292-929292929292', true);
 select is((select count(*) from public.rubric_categories), 0::bigint, 'a reviewer cannot browse draft or published operational rubric configuration');
-select lives_ok($$delete from public.rubric_categories where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$, 'a reviewer cannot delete a rubric category');
+select throws_ok($$delete from public.rubric_categories where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$,'42501',null,'a reviewer has no direct category-delete privilege');
 select set_config('request.jwt.claim.sub', '93939393-9393-4393-8393-939393939393', true);
 select is((select count(*) from public.rubrics), 0::bigint, 'a cross-tenant user cannot read rubric identities');
-select lives_ok($$update public.rubrics set name = 'forged cross tenant write' where id = 'a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1'$$, 'a cross-tenant user cannot mutate a rubric');
+select throws_ok($$update public.rubrics set name = 'forged cross tenant write' where id = 'a1a1a1a1-a1a1-41a1-81a1-a1a1a1a1a1a1'$$,'42501',null,'a cross-tenant user has no direct rubric-write privilege');
 select set_config('request.jwt.claim.sub', '94949494-9494-4494-8494-949494949494', true);
 select is((select count(*) from public.rubric_versions), 0::bigint, 'an inactive member cannot read rubric versions');
-select lives_ok($$update public.rubric_categories set name = 'forged inactive write' where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$, 'an inactive member cannot mutate a rubric category');
+select throws_ok($$update public.rubric_categories set name = 'forged inactive write' where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$,'42501',null,'an inactive member has no direct category-write privilege');
 select set_config('request.jwt.claim.sub', 'a6a6a6a6-a6a6-46a6-86a6-a6a6a6a6a6a6', true);
 select is((select count(*) from public.rubric_categories), 0::bigint, 'a revoked evaluator cannot read rubric categories');
-select lives_ok($$update public.rubric_categories set name = 'forged revoked write' where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$, 'a revoked evaluator cannot mutate a rubric category');
+select throws_ok($$update public.rubric_categories set name = 'forged revoked write' where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'$$,'42501',null,'a revoked evaluator has no direct category-write privilege');
 reset role;
 select is((select name from public.rubric_categories where id = 'a4a4a4a4-a4a4-44a4-84a4-a4a4a4a4a4a4'), 'Skating', 'unauthorized direct mutations leave categories unchanged');
 

@@ -21,6 +21,13 @@ export default async function EvaluatorLandingPage({
           Only active evaluator assignments are listed. Athlete details stay inside each assigned
           session.
         </p>
+        <Link
+          className="button-secondary mt-4 inline-flex min-h-11 items-center"
+          href={`/app/${organizationSlug}/evaluate/profile`}
+          prefetch={false}
+        >
+          View evaluator profile
+        </Link>
       </header>
       {destinations.length === 0 ? (
         <EvaluationRouteMessage outcome="empty_assignments" />

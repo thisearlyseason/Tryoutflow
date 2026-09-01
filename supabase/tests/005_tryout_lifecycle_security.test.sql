@@ -63,17 +63,20 @@ values
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', true);
-select lives_ok(
+select throws_ok(
   $$update public.tryouts set name = 'forged root change' where id = '25252525-2525-4252-8252-252525252525'$$,
-  'RLS hides the tryout root from a division-scoped director mutation'
+  '42501', null,
+  'division-scoped directors have no direct tryout-root mutation privilege'
 );
-select lives_ok(
+select throws_ok(
   $$update public.tryout_positions set name = 'forged global position' where id = '28282828-2828-4282-8282-282828282828'$$,
-  'RLS hides global positions from a division-scoped director mutation'
+  '42501', null,
+  'division-scoped directors have no direct global-position mutation privilege'
 );
-select lives_ok(
+select throws_ok(
   $$update public.tryout_divisions set name = 'U15 Updated' where id = '26262626-2626-4262-8262-262626262626'$$,
-  'a division-scoped director can mutate only their exact division'
+  '42501', null,
+  'division changes use guarded configuration commands instead of direct table DML'
 );
 
 reset role;

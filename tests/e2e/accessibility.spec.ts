@@ -3,7 +3,11 @@ import type { Page } from '@playwright/test';
 import { expectNoCriticalAccessibilityViolations } from './helpers/accessibility';
 import { signInAs } from './helpers/auth';
 import { expect, test } from './helpers/fixtures';
-import { expectCancellableServerAction, monitorBrowserErrors } from './helpers/network';
+import {
+  expectCancellableServerAction,
+  monitorBrowserErrors,
+  type BrowserErrorMonitor,
+} from './helpers/network';
 
 async function auditHeading(page: Page, name: string | RegExp) {
   await expect(page.getByRole('heading', { name }).first()).toBeVisible();
@@ -14,6 +18,7 @@ async function createDraftForWizard(page: Page, organizationSlug: string, name: 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
   await page.getByLabel('Tryout name').fill(name);
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('New cycle name').fill(`${name} cycle`);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
   await page.getByLabel('Registration closes').fill('2026-09-30T20:00');
@@ -24,6 +29,7 @@ async function openIntegrationReview(
   organizationSlug: string,
   tryoutId: string,
   rosterVersionId: string,
+  monitor: BrowserErrorMonitor,
 ) {
   await page.goto(`/app/${organizationSlug}/organization/integrations`);
   await page.getByRole('button', { name: 'Connect demo provider' }).click();
@@ -34,6 +40,7 @@ async function openIntegrationReview(
   await page.getByLabel('First name').check();
   await page.getByLabel('Last name').check();
   await page.getByLabel('Team name').check();
+  expectCancellableServerAction(monitor, page, 'Task 31 roster export preview action');
   await page.getByRole('button', { name: 'Preview export' }).click();
   await expect(page.getByRole('heading', { name: 'Review 2 athletes' })).toBeVisible();
 }
@@ -202,6 +209,7 @@ test('integration review exposes explicit field approval without critical axe vi
     scenario.organizationSlug,
     scenario.ids.tryout,
     scenario.ids.finalRoster,
+    monitor,
   );
   await auditHeading(page, 'Review 2 athletes');
   await expect(page.getByLabel('I reviewed the exact destination and fields')).not.toBeChecked();

@@ -44,6 +44,7 @@ export type ScenarioIds = Readonly<{
   athleteB: string;
   athleteC: string;
   athleteD: string;
+  returningAthlete: string;
   rosterAthleteA: string;
   rosterAthleteB: string;
   finalAthleteA: string;
@@ -133,7 +134,7 @@ function localSupabase() {
   return localSupabaseSchema.parse({
     API_URL: raw.API_URL,
     DB_URL: raw.DB_URL,
-    SERVICE_ROLE_KEY: raw.SERVICE_ROLE_KEY,
+    SERVICE_ROLE_KEY: raw.SECRET_KEY ?? raw.SERVICE_ROLE_KEY,
   });
 }
 
@@ -193,6 +194,7 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
     select pg_advisory_xact_lock(7461736,30);
     alter table private.roster_report_snapshot_items disable trigger prevent_roster_report_snapshot_item_update_delete;
     alter table private.roster_report_snapshots disable trigger prevent_roster_report_snapshot_update_delete;
+    alter table public.analytics_outbox_events disable trigger prevent_analytics_outbox_mutation;
     alter table public.decision_history disable trigger prevent_decision_history_delete;
     alter table public.communication_batches disable trigger prevent_communication_batches_mutation;
     alter table public.communication_delivery_events disable trigger prevent_communication_delivery_events_mutation;
@@ -225,6 +227,7 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
     alter table public.communication_delivery_events enable always trigger prevent_communication_delivery_events_mutation;
     alter table public.communication_pending_delivery_events enable always trigger prevent_pending_delivery_events_mutation;
     alter table public.communication_preview_tombstones enable always trigger prevent_communication_preview_tombstones_mutation;
+    alter table public.analytics_outbox_events enable always trigger prevent_analytics_outbox_mutation;
     alter table public.roster_assignments enable always trigger guard_roster_assignments_snapshot;
     alter table public.roster_decisions enable always trigger guard_roster_decisions_snapshot;
     alter table public.roster_versions enable always trigger prevent_finalized_roster_version_mutation;
@@ -232,6 +235,8 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
     delete from public.organizations where id=any(array[${organizations}]::uuid[]);
     delete from public.platform_administrators where user_id=any(array[${users}]::uuid[]);
     delete from public.profiles where id=any(array[${users}]::uuid[]);
+    delete from private.abuse_rate_limits;
+    delete from private.bot_token_receipts;
     set local session_replication_role=origin;
     delete from auth.users where id=any(array[${users}]::uuid[]);
     commit;`;
@@ -253,6 +258,10 @@ export function cleanupTask30Residue() {
   );
   if (organizationIds.length > 0 || userIds.length > 0)
     executeSql(local.DB_URL, cleanupSql(organizationIds, userIds));
+  executeSql(
+    local.DB_URL,
+    'delete from private.abuse_rate_limits; delete from private.bot_token_receipts;',
+  );
 }
 
 function idsFor(key: string): ScenarioIds {
@@ -276,6 +285,7 @@ function idsFor(key: string): ScenarioIds {
     athleteB: id('athlete-b'),
     athleteC: id('athlete-c'),
     athleteD: id('athlete-d'),
+    returningAthlete: id('returning-athlete'),
     rosterAthleteA: id('roster-athlete-a'),
     rosterAthleteB: id('roster-athlete-b'),
     finalAthleteA: id('final-athlete-a'),
@@ -314,6 +324,7 @@ function seedScenarioSql(
     [ids.athleteB, 'Tie', 'Alpha'],
     [ids.athleteC, 'Tie', 'Beta'],
     [ids.athleteD, 'Offline', 'Rinkside'],
+    [ids.returningAthlete, 'Returning', 'Prospect'],
     [ids.rosterAthleteA, 'Roster', 'Mover'],
     [ids.rosterAthleteB, 'Roster', 'Keeper'],
     [ids.finalAthleteA, 'Final', 'Selected'],

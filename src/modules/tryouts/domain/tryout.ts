@@ -21,6 +21,7 @@ export type TryoutDraft = {
 };
 
 export type CreateTryoutDraft = Omit<TryoutDraft, 'id'>;
+export type CreateTryoutDraftCommand = CreateTryoutDraft & { newSeasonName: string | null };
 
 export type LifecycleTransition =
   | { kind: 'updated'; tryout: TryoutDraft }
@@ -28,7 +29,7 @@ export type LifecycleTransition =
 
 /** Application port for durable tryout configuration storage. */
 export interface TryoutGateway {
-  createDraft(input: CreateTryoutDraft): Promise<TryoutDraft>;
+  createDraft(input: CreateTryoutDraftCommand): Promise<TryoutDraft>;
   transitionLifecycle(input: {
     organizationId: OrganizationId;
     tryoutId: string;

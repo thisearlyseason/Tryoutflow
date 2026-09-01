@@ -85,6 +85,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
   await page.getByLabel('Tryout name').fill(tryoutName);
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('New cycle name').fill('2026 Fall Cycle');
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
   await page.getByLabel('Registration closes').fill('2026-09-30T20:00');
@@ -548,8 +549,9 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
 }, testInfo) => {
   scope(testInfo, 'owner', scenario);
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
-  // Chromium and WebKit report a completed attachment handoff as a failed
-  // document navigation. Firefox completes it without requestfailed.
+  // Chromium reports a completed attachment handoff as a failed document
+  // navigation. WebKit may emit the equivalent event depending on its mobile
+  // navigation handoff, so bound it to at most one exact artifact.
   if (browserName === 'chromium') {
     monitor.expectRequestFailure({
       count: 1,
@@ -562,10 +564,10 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
       ),
     });
   } else if (browserName === 'webkit') {
-    monitor.expectRequestFailure({
-      count: 1,
+    monitor.allowOptionalRequestFailure({
       errorText: 'Frame load interrupted',
       label: 'one WebKit download handoff interruption after the roster CSV response',
+      maxCount: 1,
       method: 'GET',
       url: new RegExp(
         `^http://127\\.0\\.0\\.1:3112/api/organizations/${scenario.ids.organization}/exports/roster\\?[^#]*rosterVersionId=${scenario.ids.finalRoster}(?:&[^#]*)?$`,

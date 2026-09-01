@@ -54,20 +54,7 @@ class AuthPage extends EventEmitter {
   getByRole() {
     return {
       click: vi.fn(async () => {
-        this.emit('request', {
-          headers: () => ({ 'next-action': 'sign-in-action' }),
-          method: () => 'POST',
-          url: () => 'http://127.0.0.1:3112/sign-in',
-        });
         this.currentUrl = 'http://127.0.0.1:3112/app/club/home';
-        const homeRequest = {
-          failure: () => ({ errorText: 'net::ERR_ABORTED' }),
-          headers: () => ({ rsc: '1' }),
-          method: () => 'GET',
-          url: () => 'http://127.0.0.1:3112/app/club/home?_rsc=generated',
-        };
-        this.emit('request', homeRequest);
-        this.emit('requestfailed', homeRequest);
       }),
     };
   }
@@ -118,7 +105,7 @@ describe('Task 30 authenticated browser monitoring', () => {
     );
   });
 
-  it('declares the exact Chromium home RSC cancellation before the sign-in action', async () => {
+  it('does not declare cancellable requests for the ordinary sign-in POST route', async () => {
     const page = new AuthPage(false);
 
     const monitor = await signInAs(page as unknown as Page, user, 'club');

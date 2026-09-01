@@ -28,6 +28,47 @@ export type Database = {
   };
   public: {
     Tables: {
+      analytics_outbox_events: {
+        Row: {
+          correlation_id: string;
+          created_at: string;
+          event_name: string;
+          id: string;
+          occurred_at: string;
+          organization_id: string;
+          payload: Json;
+          workflow: string;
+        };
+        Insert: {
+          correlation_id: string;
+          created_at?: string;
+          event_name: string;
+          id?: string;
+          occurred_at?: string;
+          organization_id: string;
+          payload?: Json;
+          workflow: string;
+        };
+        Update: {
+          correlation_id?: string;
+          created_at?: string;
+          event_name?: string;
+          id?: string;
+          occurred_at?: string;
+          organization_id?: string;
+          payload?: Json;
+          workflow?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'analytics_outbox_events_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       athlete_flags: {
         Row: {
           created_at: string;
@@ -1927,6 +1968,7 @@ export type Database = {
           status: string;
           updated_at: string;
           user_id: string;
+          version: number;
         };
         Insert: {
           created_at?: string;
@@ -1936,6 +1978,7 @@ export type Database = {
           status?: string;
           updated_at?: string;
           user_id: string;
+          version?: number;
         };
         Update: {
           created_at?: string;
@@ -1945,6 +1988,7 @@ export type Database = {
           status?: string;
           updated_at?: string;
           user_id?: string;
+          version?: number;
         };
         Relationships: [
           {
@@ -4067,6 +4111,23 @@ export type Database = {
       };
       canonical_import_text: { Args: { value: string }; Returns: string };
       canonical_registration_text: { Args: { value: string }; Returns: string };
+      change_organization_member: {
+        Args: {
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_member_id: string;
+          p_organization_id: string;
+          p_role: string;
+          p_status: string;
+        };
+        Returns: {
+          member_id: string;
+          outcome: string;
+          role: string;
+          status: string;
+          version: number;
+        }[];
+      };
       change_roster_decisions: {
         Args: {
           p_changes: Json;
@@ -4346,6 +4407,30 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      consume_abuse_rate_limit: {
+        Args: {
+          p_address_digest: string;
+          p_limit: number;
+          p_scope: string;
+          p_subject_digest: string;
+          p_window_seconds: number;
+        };
+        Returns: {
+          allowed: boolean;
+          remaining: number;
+          retry_after_seconds: number;
+        }[];
+      };
+      consume_bot_token_once: {
+        Args: {
+          p_action: string;
+          p_token_digest: string;
+          p_ttl_seconds: number;
+        };
+        Returns: {
+          consumed: boolean;
+        }[];
+      };
       consume_public_registration_rate_limit: {
         Args: { p_limit: number; p_rate_key_hash: string };
         Returns: {
@@ -4409,6 +4494,20 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      create_organization_invitation: {
+        Args: {
+          p_email: string;
+          p_expires_at: string;
+          p_invitation_id: string;
+          p_organization_id: string;
+          p_role: string;
+          p_token_digest: string;
+        };
+        Returns: {
+          invitation_id: string;
+          outcome: string;
+        }[];
+      };
       create_organization_with_owner: {
         Args: {
           p_name: string;
@@ -4466,6 +4565,25 @@ export type Database = {
           version_number: number;
         }[];
       };
+      create_staff_registration: {
+        Args: {
+          p_birth_date: string;
+          p_division_id: string;
+          p_existing_athlete_id: string;
+          p_family_name: string;
+          p_given_name: string;
+          p_organization_id: string;
+          p_position_id: string;
+          p_responses: Json;
+          p_submission_key_digest: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          athlete_id: string;
+          outcome: string;
+          registration_id: string;
+        }[];
+      };
       create_tryout_draft: {
         Args: {
           p_name: string;
@@ -4486,6 +4604,37 @@ export type Database = {
           registration_ends_at: string;
           registration_starts_at: string;
           season_id: string;
+          slug: string;
+          sport: string;
+          status: string;
+          timezone: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        }[];
+      };
+      create_tryout_draft_with_cycle: {
+        Args: {
+          p_name: string;
+          p_new_season_name: string;
+          p_organization_id: string;
+          p_registration_ends_at: string;
+          p_registration_starts_at: string;
+          p_season_id: string;
+          p_slug: string;
+          p_sport: string;
+          p_timezone: string;
+        };
+        Returns: {
+          created_at: string;
+          finalized_at: string;
+          name: string;
+          organization_id: string;
+          published_at: string;
+          registration_ends_at: string;
+          registration_starts_at: string;
+          season_id: string;
+          season_name: string;
           slug: string;
           sport: string;
           status: string;
@@ -4517,6 +4666,18 @@ export type Database = {
           p_send_attempt_token: string;
         };
         Returns: string;
+      };
+      enqueue_analytics_event: {
+        Args: {
+          p_correlation_id: string;
+          p_event_name: string;
+          p_organization_id: string;
+          p_workflow: string;
+        };
+        Returns: {
+          event_id: string;
+          outcome: string;
+        }[];
       };
       evaluator_has_active_context: {
         Args: {
@@ -4735,6 +4896,21 @@ export type Database = {
           evaluator_user_id: string;
         }[];
       };
+      list_returning_athletes: {
+        Args: {
+          p_limit?: number;
+          p_organization_id: string;
+          p_query: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          athlete_id: string;
+          birth_date: string;
+          family_name: string;
+          given_name: string;
+          prior_registrations: number;
+        }[];
+      };
       list_tryout_evaluator_candidates: {
         Args: { p_organization_id: string; p_tryout_id: string };
         Returns: {
@@ -4815,6 +4991,16 @@ export type Database = {
         };
         Returns: {
           result: Json;
+        }[];
+      };
+      load_staff_registration_configuration: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          divisions: Json;
+          form_schema: Json;
+          positions: Json;
+          tryout_name: string;
+          tryout_status: string;
         }[];
       };
       lock_canonical_athlete_identity: {
@@ -5603,6 +5789,20 @@ export type Database = {
         };
         Returns: {
           receipt: Json;
+        }[];
+      };
+      transfer_organization_ownership: {
+        Args: {
+          p_expected_actor_version: number;
+          p_expected_target_version: number;
+          p_idempotency_key: string;
+          p_organization_id: string;
+          p_target_member_id: string;
+        };
+        Returns: {
+          former_owner_member_id: string;
+          new_owner_member_id: string;
+          outcome: string;
         }[];
       };
       transition_tryout_lifecycle: {

@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { ErrorState } from '@/components/feedback/error-state';
+import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
+import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import {
   batchConfirmationSchema,
   createMessageBatch,
@@ -11,6 +13,7 @@ import { DeliveryStatus } from '@/modules/communications/ui/delivery-status';
 import { MessageComposer } from '@/modules/communications/ui/message-composer';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
+import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
 
 const inputSchema = z
   .object({
@@ -42,7 +45,7 @@ export default async function MessagesPage({
   if (!z.uuid().safeParse(tryoutId).success) notFound();
   const current = await requireOrganizationRouteContext(organizationSlug);
   const organizationId = current.organization.id;
-  const [{ data: tryout }, { data: versions, error: versionsError }] = await Promise.all([
+  const [tryoutResult, versionsResult] = await Promise.all([
     current.client
       .from('tryouts')
       .select('id,name')
@@ -57,13 +60,43 @@ export default async function MessagesPage({
       .eq('state', 'finalized')
       .order('revision_number', { ascending: false }),
   ]);
+  if (tryoutResult.error) {
+    captureOperationalError(tryoutResult.error, {
+      actorId: current.userId,
+      organizationId,
+      tryoutId,
+      operation: 'messages.load',
+    });
+    return (
+      <ErrorState
+        description="Tryout details could not be loaded. Refresh and try again."
+        title="Messages temporarily unavailable"
+      />
+    );
+  }
+  const tryout = tryoutResult.data;
+  const versions = versionsResult.data;
   if (!tryout) notFound();
-  if (versionsError)
+  if (versionsResult.error) {
+    captureOperationalError(versionsResult.error, {
+      actorId: current.userId,
+      organizationId,
+      tryoutId,
+      operation: 'messages.load',
+    });
     return (
       <ErrorState
         title="Messages unavailable"
         description="Finalized roster snapshots could not be loaded."
       />
+    );
+  }
+  if (!versions?.length)
+    return (
+      <section aria-labelledby="messages-empty">
+        <h2 id="messages-empty">No finalized roster snapshots</h2>
+        <p>Finalize a roster before preparing decision messages.</p>
+      </section>
     );
   const authorizedVersions = (versions ?? []).filter(
     (version) =>
@@ -73,15 +106,37 @@ export default async function MessagesPage({
         divisionId: version.division_id,
       }).ok,
   );
-  if (authorizedVersions.length === 0) notFound();
-  const { data: rawTemplateRows } = await (current.client as unknown as RpcClient).rpc(
-    'list_communication_templates_for_notice',
-    { p_organization_id: organizationId, p_tryout_id: tryoutId },
-  );
+  if (authorizedVersions.length === 0)
+    return (
+      <section aria-labelledby="messages-denied">
+        <h2 id="messages-denied">Messages unavailable</h2>
+        <p role="alert">You do not have access to send messages for these roster scopes.</p>
+      </section>
+    );
+  const { data: rawTemplateRows, error: templateError } = await (
+    current.client as unknown as RpcClient
+  ).rpc('list_communication_templates_for_notice', {
+    p_organization_id: organizationId,
+    p_tryout_id: tryoutId,
+  });
+  if (templateError) {
+    captureOperationalError(templateError, {
+      actorId: current.userId,
+      organizationId,
+      tryoutId,
+      operation: 'messages.load',
+    });
+    return (
+      <ErrorState
+        description="Message templates could not be loaded. Refresh before composing."
+        title="Messages temporarily unavailable"
+      />
+    );
+  }
   const templateRows = Array.isArray(rawTemplateRows)
     ? (rawTemplateRows as Array<Record<string, unknown>>)
     : [];
-  const { data: messages } = await current.client
+  const messagesResult = await current.client
     .from('communication_messages')
     .select('id,state,created_at,protected_facts_snapshot,source_roster_version_id')
     .eq('organization_id', organizationId)
@@ -92,6 +147,21 @@ export default async function MessagesPage({
     )
     .order('created_at', { ascending: false })
     .limit(50);
+  if (messagesResult.error) {
+    captureOperationalError(messagesResult.error, {
+      actorId: current.userId,
+      organizationId,
+      tryoutId,
+      operation: 'messages.load',
+    });
+    return (
+      <ErrorState
+        description="Delivery status could not be loaded. Refresh before composing."
+        title="Messages temporarily unavailable"
+      />
+    );
+  }
+  const messages = messagesResult.data;
   async function previewAction(input: unknown) {
     'use server';
     const parsed = inputSchema.safeParse(input);
@@ -127,7 +197,15 @@ export default async function MessagesPage({
     if (confirmation.organizationId !== organizationId || confirmation.tryoutId !== tryoutId)
       return { outcome: 'forbidden' as const };
     const scoped = await requireOrganizationRouteContext(organizationSlug);
-    return createMessageBatch(confirmation, scoped.client as unknown as RpcClient);
+    const result = await createMessageBatch(confirmation, scoped.client as unknown as RpcClient);
+    if (result.outcome === 'queued' || result.outcome === 'replayed')
+      await trackSupabaseWorkflowSafely(scoped.client, {
+        name: 'workflow.completed',
+        workflow: 'communication',
+        organizationId: scoped.organization.id,
+        correlationId: createCorrelationId(),
+      });
+    return result;
   }
   async function saveTemplateAction(input: unknown) {
     'use server';

@@ -1,10 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { createServerSupabaseClient } from '../../../../infrastructure/supabase/server';
+import { trustedRequestUrl } from '../../../../lib/request-origin';
 import { safeInternalPath } from '../../../../modules/identity/application/sign-in';
 
 function redirectToSignIn(request: NextRequest, error: string) {
-  const url = new URL('/sign-in', request.url);
+  const url = trustedRequestUrl(request, '/sign-in');
   url.searchParams.set('error', error);
   return NextResponse.redirect(url);
 }
@@ -24,6 +25,6 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(
-    new URL(safeInternalPath(request.nextUrl.searchParams.get('next')), request.url),
+    trustedRequestUrl(request, safeInternalPath(request.nextUrl.searchParams.get('next'))),
   );
 }

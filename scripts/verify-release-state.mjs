@@ -6,13 +6,17 @@ import { resolveAndValidateLocalDatabase } from './lib/local-supabase-database.m
 
 const applicationPort = 3112;
 const residueKeys = [
+  'abuseRateLimits',
+  'analyticsOutboxEvents',
   'authUsers',
+  'botTokenReceipts',
   'fixtureDatabases',
   'fixtureOrganizations',
   'fixtureRoles',
   'fixtureSchemas',
   'fixtureSessions',
   'fixtureTriggers',
+  'membershipCommandReceipts',
   'organizations',
   'rateCounters',
 ];
@@ -43,13 +47,17 @@ function validatedDatabase() {
 
 function queryResidue(databaseUrl) {
   const sql = `select json_build_object(
+    'abuseRateLimits',(select count(*) from private.abuse_rate_limits),
+    'analyticsOutboxEvents',(select count(*) from public.analytics_outbox_events),
     'authUsers',(select count(*) from auth.users),
+    'botTokenReceipts',(select count(*) from private.bot_token_receipts),
     'fixtureDatabases',(select count(*) from pg_database where datname ~ '^tryoutflow_(csv|roster|fixture)_[0-9a-f]{16}_'),
     'fixtureOrganizations',(select count(*) from public.organizations where slug like 't30-%' or slug like 'task30-onboarding-%'),
     'fixtureRoles',(select count(*) from pg_roles where rolname ~ '^tryoutflow_run_[0-9a-f]{16}$'),
     'fixtureSchemas',(select count(*) from pg_namespace where nspname ~ '^tryoutflow_harness_[0-9a-f]{16}$'),
     'fixtureSessions',(select count(*) from pg_stat_activity where usename ~ '^tryoutflow_run_[0-9a-f]{16}$'),
     'fixtureTriggers',(select count(*) from pg_trigger where tgname ~ '^tryoutflow_capture_(org|user)_[0-9a-f]{16}$'),
+    'membershipCommandReceipts',(select count(*) from private.membership_command_receipts),
     'organizations',(select count(*) from public.organizations),
     'rateCounters',(select count(*) from public.registration_rate_counters)
   )`;

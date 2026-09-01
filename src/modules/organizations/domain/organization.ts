@@ -39,7 +39,7 @@ export type InvitationRecord = {
 
 export type InvitationAcceptance =
   | { kind: 'accepted'; organizationId: OrganizationId; organizationSlug: string }
-  | { kind: 'expired' | 'wrong_email' | 'duplicate_membership' | 'invalid' };
+  | { kind: 'expired' | 'wrong_email' | 'duplicate_membership' | 'unverified' | 'invalid' };
 
 /** This port stays in-memory/test-backed until Task 22 adds the durable email outbox adapter. */
 export interface InvitationNotifier {

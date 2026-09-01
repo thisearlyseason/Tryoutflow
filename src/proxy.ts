@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { createProxySupabaseClient } from './infrastructure/supabase/server';
+import { trustedRequestUrl } from './lib/request-origin';
 
 const publicMarketingPaths = new Set([
   '/',
@@ -21,9 +22,7 @@ function isPublicMarketingPathname(pathname: string): boolean {
 }
 
 function signInUrl(request: NextRequest): URL {
-  const url = request.nextUrl.clone();
-  url.pathname = '/sign-in';
-  url.search = '';
+  const url = trustedRequestUrl(request, '/sign-in');
   url.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
   return url;
 }

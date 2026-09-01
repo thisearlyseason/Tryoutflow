@@ -407,13 +407,17 @@ describe('production readiness release gate', () => {
     const moduleUrl = pathToFileURL(resolve(repositoryRoot, 'scripts/verify-release-state.mjs'));
     const imported = await import(moduleUrl.href);
     const clean = {
+      abuseRateLimits: 0,
+      analyticsOutboxEvents: 0,
       authUsers: 0,
+      botTokenReceipts: 0,
       fixtureDatabases: 0,
       fixtureOrganizations: 0,
       fixtureRoles: 0,
       fixtureSchemas: 0,
       fixtureSessions: 0,
       fixtureTriggers: 0,
+      membershipCommandReceipts: 0,
       organizations: 0,
       rateCounters: 0,
     };
@@ -512,12 +516,14 @@ describe('release evidence documentation', () => {
     const manualPrerequisites = [
       'legal/privacy approval',
       'production domains, DNS, and TLS',
+      'production Supabase Auth configuration',
+      'Cloudflare Turnstile production site key',
       'Stripe live credentials, delivery, and certification',
       'Resend credentials, domain delivery, and certification',
       'The Squad credentials, delivery, and certification',
       'hosted backup and restore drill',
       'production monitoring and alert ownership',
-      'deployed authenticated smoke test',
+      'deployed anonymous and authenticated smoke test',
       'production performance and load certification',
     ];
 
@@ -525,7 +531,7 @@ describe('release evidence documentation', () => {
       expect(checklist).toContain(`- [ ] ${prerequisite}`);
     }
     expect(checklist).not.toMatch(
-      /- \[x\] (?:legal\/privacy|production domains|Stripe|Resend|The Squad|hosted backup|production monitoring|deployed authenticated)/iu,
+      /- \[x\] (?:legal\/privacy|production domains|production Supabase Auth|Cloudflare Turnstile|Stripe|Resend|The Squad|hosted backup|production monitoring|deployed anonymous)/iu,
     );
   });
 

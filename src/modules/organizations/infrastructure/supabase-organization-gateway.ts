@@ -60,21 +60,20 @@ export class SupabaseOrganizationGateway implements OrganizationGateway {
   }
 
   async createInvitation(input: InvitationRecord): Promise<{ id: string }> {
-    const result = await this.client
-      .from('organization_invitations')
-      .insert({
-        id: input.id,
-        organization_id: input.organizationId,
-        email: input.email,
-        role: input.role,
-        token_digest: input.tokenDigest,
-        expires_at: input.expiresAt.toISOString(),
-        created_by_user_id: input.createdByUserId,
-      })
-      .select('id')
-      .single();
+    const result = await this.client.rpc('create_organization_invitation', {
+      p_organization_id: input.organizationId,
+      p_email: input.email,
+      p_role: input.role,
+      p_token_digest: input.tokenDigest,
+      p_expires_at: input.expiresAt.toISOString(),
+      p_invitation_id: input.id,
+    });
+    const row = result.data?.[0];
     if (result.error) throw result.error;
-    return { id: result.data.id };
+    if (row?.outcome === 'conflict') throw { code: '23505' };
+    if (row?.outcome !== 'created' || !row.invitation_id)
+      throw new Error('Invitation creation failed');
+    return { id: row.invitation_id };
   }
 
   async acceptInvitation(tokenDigest: string): Promise<InvitationAcceptance> {
@@ -85,7 +84,9 @@ export class SupabaseOrganizationGateway implements OrganizationGateway {
     const row = result.data[0];
     if (
       row.outcome !== 'accepted' &&
-      ['expired', 'wrong_email', 'duplicate_membership', 'invalid'].includes(row.outcome)
+      ['expired', 'wrong_email', 'duplicate_membership', 'unverified', 'invalid'].includes(
+        row.outcome,
+      )
     ) {
       return { kind: row.outcome as Exclude<InvitationAcceptance, { kind: 'accepted' }>['kind'] };
     }

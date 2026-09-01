@@ -12,16 +12,21 @@ import type { TryoutDraft, TryoutGateway } from '../domain/tryout';
 import { parseTryoutDateTime } from '../domain/tryout-date-time';
 import { defaultTryoutGateway } from './tryout-dependencies';
 
-const schema = z.object({
-  organizationId: z.uuid(),
-  seasonId: z.uuid().optional(),
-  name: z.string().trim().min(1).max(160),
-  slug: z.string().trim().min(1).max(160).optional(),
-  sport: z.string().trim().min(1).max(80),
-  timezone: z.string().trim().min(1).max(100),
-  registrationStartsAt: z.string().trim().min(1).max(50).optional(),
-  registrationEndsAt: z.string().trim().min(1).max(50).optional(),
-});
+const schema = z
+  .object({
+    organizationId: z.uuid(),
+    seasonId: z.uuid().optional(),
+    newSeasonName: z.string().trim().min(1).max(120).optional(),
+    name: z.string().trim().min(1).max(160),
+    slug: z.string().trim().min(1).max(160).optional(),
+    sport: z.string().trim().min(1).max(80),
+    timezone: z.string().trim().min(1).max(100),
+    registrationStartsAt: z.string().trim().min(1).max(50).optional(),
+    registrationEndsAt: z.string().trim().min(1).max(50).optional(),
+  })
+  .refine((value) => Boolean(value.seasonId) !== Boolean(value.newSeasonName), {
+    message: 'Select exactly one cycle',
+  });
 
 export type CreateTryoutError = {
   code: 'invalid_input' | 'invalid_time_range' | 'forbidden' | 'slug_conflict' | 'unexpected';
@@ -67,6 +72,7 @@ export async function createTryout(
       await (dependencies.gateway ?? (await defaultTryoutGateway())).createDraft({
         organizationId,
         seasonId: parsed.data.seasonId ?? null,
+        newSeasonName: parsed.data.newSeasonName ?? null,
         name: parsed.data.name,
         slug,
         sport: parsed.data.sport,

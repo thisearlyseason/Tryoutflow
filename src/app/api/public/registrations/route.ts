@@ -6,6 +6,7 @@ import { createAdminSupabaseClient } from '../../../../infrastructure/supabase/a
 import type { Json } from '../../../../infrastructure/supabase/database.types';
 import { getPublicAppOrigin } from '../../../../lib/env';
 import { DurableRegistrationConfirmationNotifier } from '../../../../modules/communications/application/queue-communication';
+import { getDefaultAuthAbuseProtection } from '../../../../modules/identity/application/database-auth-abuse-protection';
 import { registerAthlete } from '../../../../modules/registration/application/register-athlete';
 import { RegistrationFormSchema } from '../../../../modules/registration/domain/form-schema';
 import { guardPublicJsonRequest } from './public-request-security';
@@ -49,15 +50,20 @@ export async function POST(request: NextRequest) {
         tryoutSlug?: unknown;
         submission?: unknown;
         idempotencyKey?: unknown;
+        botVerificationToken?: unknown;
       };
       if (
         Object.keys(body).some(
-          (key) => !['tryoutSlug', 'submission', 'idempotencyKey'].includes(key),
+          (key) =>
+            !['tryoutSlug', 'submission', 'idempotencyKey', 'botVerificationToken'].includes(key),
         ) ||
         typeof body.tryoutSlug !== 'string' ||
         !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(body.tryoutSlug) ||
         typeof body.idempotencyKey !== 'string' ||
         !/^[A-Za-z0-9_-]{24,200}$/u.test(body.idempotencyKey) ||
+        typeof body.botVerificationToken !== 'string' ||
+        body.botVerificationToken.length < 1 ||
+        body.botVerificationToken.length > 2_048 ||
         !body.submission ||
         typeof body.submission !== 'object'
       )
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
         body: {
           tryoutSlug: body.tryoutSlug,
           idempotencyKey: body.idempotencyKey,
+          botVerificationToken: body.botVerificationToken,
           submission: body.submission,
         },
         target: body.tryoutSlug,
@@ -77,6 +84,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const client = createAdminSupabaseClient();
+    const abuseDecision = await getDefaultAuthAbuseProtection().check({
+      scope: 'public_registration',
+      action: 'public_registration',
+      subject: body.tryoutSlug,
+      token: body.botVerificationToken,
+      requestContext: guarded.requestContext,
+    });
+    if (!abuseDecision.allowed)
+      return genericError(abuseDecision.reason === 'rate_limited' ? 429 : 400);
     const confirmationNotifier = new DurableRegistrationConfirmationNotifier(
       client,
       ({ confirmationToken }) => {

@@ -60,24 +60,24 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '41414141-4141-4414-8414-414141414141', true);
 select ok(not public.can_manage_tryout_root('46464646-4646-4464-8464-464646464646', '47474747-4747-4474-8474-474747474747'), 'offboarded tryout director loses root management');
 select is((select count(*) from public.tryouts), 0::bigint, 'offboarded director cannot read tryout configuration');
-select lives_ok($$update public.tryouts set name = 'forged root update' where id = '47474747-4747-4474-8474-474747474747'$$, 'offboarded root update affects no row');
-select lives_ok($$update public.tryout_positions set name = 'forged root position update' where id = '56565656-5656-4656-8656-565656565656'$$, 'offboarded root position update affects no row');
+select throws_ok($$update public.tryouts set name = 'forged root update' where id = '47474747-4747-4474-8474-474747474747'$$,'42501',null,'offboarded directors have no direct root mutation privilege');
+select throws_ok($$update public.tryout_positions set name = 'forged root position update' where id = '56565656-5656-4656-8656-565656565656'$$,'42501',null,'offboarded directors have no direct position mutation privilege');
 select throws_ok($$select * from public.transition_tryout_lifecycle('46464646-4646-4464-8464-464646464646', '47474747-4747-4474-8474-474747474747', 0, 'publish')$$, '42501', null, 'offboarded director cannot invoke lifecycle RPC');
 
 select set_config('request.jwt.claim.sub', '42424242-4242-4424-8424-424242424242', true);
 select ok(not public.can_manage_tryout_division('46464646-4646-4464-8464-464646464646', '47474747-4747-4474-8474-474747474747', '51515151-5151-4515-8515-515151515151'), 'offboarded division director loses division management');
 select is((select count(*) from public.tryout_divisions), 0::bigint, 'offboarded division director cannot read assigned division');
-select lives_ok($$update public.tryout_divisions set name = 'forged division update' where id = '51515151-5151-4515-8515-515151515151'$$, 'offboarded division update affects no row');
+select throws_ok($$update public.tryout_divisions set name = 'forged division update' where id = '51515151-5151-4515-8515-515151515151'$$,'42501',null,'offboarded directors have no direct division mutation privilege');
 
 select set_config('request.jwt.claim.sub', '43434343-4343-4434-8434-434343434343', true);
 select ok(not public.can_manage_tryout_session('46464646-4646-4464-8464-464646464646', '47474747-4747-4474-8474-474747474747', '51515151-5151-4515-8515-515151515151', '52525252-5252-4525-8525-525252525252'), 'offboarded session director loses session management');
 select is((select count(*) from public.tryout_sessions), 0::bigint, 'offboarded session director cannot read assigned session');
-select lives_ok($$update public.tryout_sessions set name = 'forged session update' where id = '52525252-5252-4525-8525-525252525252'$$, 'offboarded session update affects no row');
+select throws_ok($$update public.tryout_sessions set name = 'forged session update' where id = '52525252-5252-4525-8525-525252525252'$$,'42501',null,'offboarded directors have no direct session mutation privilege');
 
 select set_config('request.jwt.claim.sub', '44444444-4444-4444-8444-444444444444', true);
 select ok(not public.can_manage_session_group('46464646-4646-4464-8464-464646464646', '47474747-4747-4474-8474-474747474747', '52525252-5252-4525-8525-525252525252', '53535353-5353-4535-8535-535353535353'), 'offboarded group director loses group management');
 select is((select count(*) from public.session_groups), 0::bigint, 'offboarded group director cannot read assigned group');
-select lives_ok($$update public.session_groups set name = 'forged group update' where id = '53535353-5353-4535-8535-535353535353'$$, 'offboarded group update affects no row');
+select throws_ok($$update public.session_groups set name = 'forged group update' where id = '53535353-5353-4535-8535-535353535353'$$,'42501',null,'offboarded directors have no direct group mutation privilege');
 reset role;
 
 select is((select name from public.tryouts where id = '47474747-4747-4474-8474-474747474747'), 'Scoped Camp', 'offboarded root mutation was not persisted');
@@ -90,28 +90,28 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '40404040-4040-4404-8404-404040404040', true);
 select throws_ok(
   $$update public.tryouts set name = 'capacity write' where id = '54545454-5454-4454-8454-545454545454'$$,
-  '23514',
-  'tryout version capacity reached',
-  'draft writes fail before the version counter can overflow'
+  '42501',
+  null,
+  'direct draft writes are unavailable before any version counter is reached'
 );
 select is(
   (select outcome from public.transition_tryout_lifecycle('46464646-4646-4464-8464-464646464646', '54545454-5454-4454-8454-545454545454', 1000000000, 'publish')),
   'conflict',
   'lifecycle transition reports a deterministic conflict before version capacity is exceeded'
 );
-select lives_ok($$delete from public.tryouts where id = '48484848-4848-4484-8484-484848484848'$$, 'an owner can delete a draft tryout');
+select throws_ok($$delete from public.tryouts where id = '48484848-4848-4484-8484-484848484848'$$,'42501',null,'owners have no direct destructive tryout path');
 reset role;
-select is((select count(*) from public.tryouts where id = '48484848-4848-4484-8484-484848484848'), 0::bigint, 'draft tryout deletion persists');
+select is((select count(*) from public.tryouts where id = '48484848-4848-4484-8484-484848484848'), 1::bigint, 'draft tryout remains after direct deletion is denied');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '45454545-4545-4454-8454-454545454545', true);
-select lives_ok($$delete from public.tryouts where id = '49494949-4949-4494-8494-494949494949'$$, 'published tryout deletion is denied by RLS without deleting a row');
+select throws_ok($$delete from public.tryouts where id = '49494949-4949-4494-8494-494949494949'$$,'42501',null,'published tryout deletion has no direct table path');
 reset role;
 select is((select count(*) from public.tryouts where id = '49494949-4949-4494-8494-494949494949'), 1::bigint, 'published tryout and its configuration are preserved');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '45454545-4545-4454-8454-454545454545', true);
-select lives_ok($$delete from public.tryouts where id = '50505050-5050-4505-8505-505050505050'$$, 'finalized tryout deletion is denied by RLS without deleting a row');
+select throws_ok($$delete from public.tryouts where id = '50505050-5050-4505-8505-505050505050'$$,'42501',null,'finalized tryout deletion has no direct table path');
 reset role;
 select is((select count(*) from public.tryouts where id = '50505050-5050-4505-8505-505050505050'), 1::bigint, 'finalized tryout and its configuration are preserved');
 

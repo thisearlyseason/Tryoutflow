@@ -65,6 +65,7 @@ describe('tryout configuration commands', () => {
     const result = await createTryout(
       {
         organizationId,
+        newSeasonName: 'Fall 2026',
         name: 'Fall ID Camp',
         sport: 'Hockey',
         timezone: 'America/Edmonton',
@@ -85,6 +86,7 @@ describe('tryout configuration commands', () => {
     const result = await createTryout(
       {
         organizationId,
+        newSeasonName: 'Fall 2026',
         name: 'Fall ID Camp',
         sport: 'Hockey',
         timezone: 'America/Edmonton',
@@ -107,6 +109,7 @@ describe('tryout configuration commands', () => {
     const result = await createTryout(
       {
         organizationId,
+        newSeasonName: 'Fall 2026',
         name: 'Fall ID Camp',
         sport: 'Hockey',
         timezone: 'America/Edmonton',
@@ -127,6 +130,7 @@ describe('tryout configuration commands', () => {
     const result = await createTryout(
       {
         organizationId,
+        newSeasonName: 'Fall 2026',
         name: 'Fall ID Camp',
         sport: 'Hockey',
         timezone: 'America/Edmonton',

@@ -8,6 +8,7 @@ const auth = vi.hoisted(() => ({
   resetPasswordForEmail: vi.fn(),
   resend: vi.fn(),
   signInWithPassword: vi.fn(),
+  signUp: vi.fn(),
   signOut: vi.fn(),
   updateUser: vi.fn(),
 }));
@@ -31,19 +32,16 @@ vi.mock('next/headers', () => ({
 }));
 
 import { GET as callback } from '../../../src/app/(auth)/auth/callback/route';
-import { POST as requestPasswordRecovery } from '../../../src/app/(auth)/auth/recovery/route';
-import { POST as requestVerification } from '../../../src/app/(auth)/auth/verification/route';
+import { handlePasswordRecovery } from '../../../src/app/(auth)/auth/recovery/route';
+import { handleSignUp } from '../../../src/app/(auth)/auth/sign-up/route';
+import { handleEmailVerification } from '../../../src/app/(auth)/auth/verification/route';
 import InvitePage from '../../../src/app/(auth)/invite/[token]/page';
+import { createOwnerAccount } from '../../../src/modules/identity/application/create-account';
 import { requestEmailVerification } from '../../../src/modules/identity/application/request-email-verification';
 import { requestPasswordRecovery as requestPasswordRecoveryCommand } from '../../../src/modules/identity/application/request-password-recovery';
 import {
-  createPasswordSignInRateLimiter,
-  getTrustedSignInRequestContext,
-} from '../../../src/modules/identity/application/password-sign-in-rate-limiter';
-import {
-  resetDefaultPasswordSignInAbuseProtectionForTests,
   safeInternalPath,
-  signInWithPassword,
+  signInWithPassword as signInWithPasswordCommand,
   type PasswordSignInAbuseProtection,
 } from '../../../src/modules/identity/application/sign-in';
 import { signOut } from '../../../src/modules/identity/application/sign-out';
@@ -51,6 +49,35 @@ import { proxy } from '../../../src/proxy';
 
 function requestFor(pathname: string): NextRequest {
   return new NextRequest(`http://localhost${pathname}`);
+}
+
+const botToken = 'unit-test-bot-token';
+const allowPasswordProtection: PasswordSignInAbuseProtection = {
+  check: async () => ({ allowed: true }),
+};
+const allowAuthProtection = { check: async () => ({ allowed: true as const }) };
+
+function signInWithPassword(
+  input: Parameters<typeof signInWithPasswordCommand>[0],
+  dependencies: Parameters<typeof signInWithPasswordCommand>[1] = {},
+) {
+  const record = input && typeof input === 'object' ? input : {};
+  return signInWithPasswordCommand(
+    { ...record, botVerificationToken: botToken },
+    { abuseProtection: allowPasswordProtection, ...dependencies },
+  );
+}
+
+function authFormRequest(path: string, fields: Record<string, string>) {
+  return new NextRequest(`http://localhost${path}`, {
+    body: new URLSearchParams({ ...fields, 'cf-turnstile-response': botToken }),
+    headers: {
+      origin: 'http://localhost',
+      'content-type': 'application/x-www-form-urlencoded',
+      'x-vercel-forwarded-for': '203.0.113.8',
+    },
+    method: 'POST',
+  });
 }
 
 describe('authentication session boundaries', () => {
@@ -62,11 +89,11 @@ describe('authentication session boundaries', () => {
     auth.resetPasswordForEmail.mockReset();
     auth.resend.mockReset();
     auth.signInWithPassword.mockReset();
+    auth.signUp.mockReset();
     auth.signOut.mockReset();
     auth.updateUser.mockReset();
     responseCookies.set.mockReset();
     createServerClientMock.mockClear();
-    resetDefaultPasswordSignInAbuseProtectionForTests();
   });
 
   it('redirects an anonymous app request to sign in with a safe return path', async () => {
@@ -123,67 +150,6 @@ describe('authentication session boundaries', () => {
     );
 
     expect(result).toEqual({ ok: false, error: 'rate_limited' });
-  });
-
-  it('denies excessive attempts through the default page-action protection path', async () => {
-    auth.signInWithPassword.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
-
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      await expect(
-        signInWithPassword({
-          email: 'COACH@example.com',
-          password: 'correct horse battery staple',
-        }),
-      ).resolves.toEqual({ ok: true, value: { redirectTo: '/app' } });
-    }
-
-    await expect(
-      signInWithPassword({
-        email: 'coach@example.com',
-        password: 'correct horse battery staple',
-      }),
-    ).resolves.toEqual({ ok: false, error: 'rate_limited' });
-    expect(auth.signInWithPassword).toHaveBeenCalledTimes(5);
-  });
-
-  it('bounds and expires default-compatible in-memory limiter records', async () => {
-    let now = 0;
-    const limiter = createPasswordSignInRateLimiter({
-      maxAttempts: 1,
-      maxEntries: 2,
-      now: () => now,
-      windowMs: 100,
-    });
-
-    await limiter.check({ email: 'first@example.com' });
-    await limiter.check({ email: 'second@example.com' });
-    await limiter.check({ email: 'third@example.com' });
-
-    expect(limiter.entryCount()).toBe(2);
-
-    now = 101;
-    await limiter.check({ email: 'fresh@example.com' });
-
-    expect(limiter.entryCount()).toBe(1);
-  });
-
-  it('normalizes the account identifier and uses only trusted deployment network context', async () => {
-    const limiter = createPasswordSignInRateLimiter({ maxAttempts: 1 });
-    const context = getTrustedSignInRequestContext(
-      new Headers({
-        'x-forwarded-for': '203.0.113.7',
-        'x-vercel-forwarded-for': '198.51.100.8',
-      }),
-    );
-
-    await limiter.check({ email: 'COACH@example.com', requestContext: context });
-    const repeatedAttempt = await limiter.check({
-      email: 'coach@example.com',
-      requestContext: context,
-    });
-
-    expect(context).toEqual({ networkAddress: '198.51.100.8' });
-    expect(repeatedAttempt).toEqual({ allowed: false, reason: 'rate_limited' });
   });
 
   it('fails closed when the configured abuse protection cannot be reached', async () => {
@@ -335,11 +301,9 @@ describe('authentication session boundaries', () => {
       error: { message: 'User not found' },
     });
 
-    const response = await requestPasswordRecovery(
-      new NextRequest('http://localhost/auth/recovery', {
-        body: new URLSearchParams({ email: 'coach@example.com' }),
-        method: 'POST',
-      }),
+    const response = await handlePasswordRecovery(
+      authFormRequest('/auth/recovery', { email: 'coach@example.com' }),
+      { abuseProtection: allowAuthProtection },
     );
 
     expect(response.headers.get('location')).toBe('http://localhost/forgot-password?sent=1');
@@ -359,13 +323,62 @@ describe('authentication session boundaries', () => {
   it('shows a generic verification confirmation after provider failure', async () => {
     auth.resend.mockResolvedValue({ data: {}, error: { message: 'No user found' } });
 
-    const response = await requestVerification(
-      new NextRequest('http://localhost/auth/verification', {
-        body: new URLSearchParams({ email: 'coach@example.com' }),
-        method: 'POST',
-      }),
+    const response = await handleEmailVerification(
+      authFormRequest('/auth/verification', { email: 'coach@example.com' }),
+      { abuseProtection: allowAuthProtection },
     );
 
     expect(response.headers.get('location')).toBe('http://localhost/verify-email?sent=1');
+  });
+
+  it('creates an anonymous password account with a verification callback to onboarding', async () => {
+    auth.signUp.mockResolvedValue({ data: { user: { id: 'new-user' } }, error: null });
+
+    const response = await handleSignUp(
+      authFormRequest('/auth/sign-up', {
+        email: 'new-owner@example.com',
+        password: 'correct horse battery staple',
+        confirmPassword: 'correct horse battery staple',
+      }),
+      { abuseProtection: allowAuthProtection },
+    );
+
+    expect(auth.signUp).toHaveBeenCalledWith({
+      email: 'new-owner@example.com',
+      password: 'correct horse battery staple',
+      options: { emailRedirectTo: 'http://localhost/auth/callback?next=%2Fstart' },
+    });
+    expect(response.headers.get('location')).toBe('http://localhost/verify-email?signup=1');
+  });
+
+  it('does not create an account when bot verification fails', async () => {
+    const response = await handleSignUp(
+      authFormRequest('/auth/sign-up', {
+        email: 'new-owner@example.com',
+        password: 'correct horse battery staple',
+        confirmPassword: 'correct horse battery staple',
+      }),
+      {
+        abuseProtection: {
+          check: async () => ({ allowed: false, reason: 'bot_verification_required' as const }),
+        },
+      },
+    );
+    expect(auth.signUp).not.toHaveBeenCalled();
+    expect(response.headers.get('location')).toBe('http://localhost/sign-up?error=unavailable');
+  });
+
+  it('returns the same signup confirmation when Supabase masks or reports an existing account', async () => {
+    auth.signUp.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'already registered' },
+    });
+    await expect(
+      createOwnerAccount({
+        email: 'existing@example.com',
+        password: 'correct horse battery staple',
+        emailRedirectTo: 'http://localhost/auth/callback?next=%2Fstart',
+      }),
+    ).resolves.toEqual({ ok: true, value: undefined });
   });
 });

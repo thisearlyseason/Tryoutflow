@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
+import { ErrorState } from '@/components/feedback/error-state';
+import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import {
   canManageTryoutStaffing,
@@ -29,10 +31,10 @@ export default async function TryoutStaffPage({
   if (!canManageTryoutStaffing(current.authorization, tryoutId)) notFound();
 
   const [
-    { data: tryout },
-    { data: divisions },
-    { data: sessions },
-    { data: groups },
+    tryoutResult,
+    divisionsResult,
+    sessionsResult,
+    groupsResult,
     directory,
     manageableAssignments,
   ] = await Promise.all([
@@ -69,6 +71,31 @@ export default async function TryoutStaffPage({
       p_tryout_id: tryoutId,
     }),
   ]);
+  const loadError =
+    tryoutResult.error ??
+    divisionsResult.error ??
+    sessionsResult.error ??
+    groupsResult.error ??
+    directory.error ??
+    manageableAssignments.error;
+  if (loadError) {
+    captureOperationalError(loadError, {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      tryoutId,
+      operation: 'staffing.load',
+    });
+    return (
+      <ErrorState
+        description="Evaluator assignments could not be loaded. Refresh before changing access."
+        title="Staffing temporarily unavailable"
+      />
+    );
+  }
+  const tryout = tryoutResult.data;
+  const divisions = divisionsResult.data;
+  const sessions = sessionsResult.data;
+  const groups = groupsResult.data;
   if (!tryout) notFound();
   const divisionById = new Map(divisions?.map((division) => [division.id, division.name]));
   const sessionById = new Map(sessions?.map((session) => [session.id, session.name]));

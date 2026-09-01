@@ -76,13 +76,14 @@ test.beforeAll(async ({ request }) => {
     API_URL: string;
     DB_URL: string;
     PUBLISHABLE_KEY: string;
+    SECRET_KEY?: string;
     SERVICE_ROLE_KEY: string;
   };
   databaseUrl = local.DB_URL;
   const created = await request.post(`${local.API_URL}/auth/v1/admin/users`, {
     headers: {
-      apikey: local.SERVICE_ROLE_KEY,
-      authorization: `Bearer ${local.SERVICE_ROLE_KEY}`,
+      apikey: local.SECRET_KEY ?? local.SERVICE_ROLE_KEY,
+      authorization: `Bearer ${local.SECRET_KEY ?? local.SERVICE_ROLE_KEY}`,
     },
     data: { email, password, email_confirm: true },
   });

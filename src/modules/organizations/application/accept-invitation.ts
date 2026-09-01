@@ -7,7 +7,7 @@ import { defaultOrganizationGateway } from './organization-dependencies';
 import type { OrganizationGateway } from '../domain/organization';
 
 export type AcceptInvitationError = {
-  code: 'invalid' | 'expired' | 'wrong_email' | 'duplicate_membership';
+  code: 'invalid' | 'expired' | 'wrong_email' | 'duplicate_membership' | 'unverified';
 };
 const tokenSchema = z.string().min(32).max(512);
 

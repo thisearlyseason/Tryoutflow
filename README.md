@@ -27,7 +27,7 @@ corepack npm@11.12.1 run supabase:reset
 corepack npm@11.12.1 run dev
 ```
 
-Fill `.env.local` only with local or synthetic credentials. Never connect local, test, or preview work to production providers. See `docs/operations/environment.md` for every variable and ownership boundary.
+Fill `.env.local` only with local or synthetic credentials. Protected public/auth forms require a configured Turnstile development site plus the shared abuse-protection HMAC secret; the deterministic bot adapter exists only inside the exact automated-test boundary. Local Supabase sends verification mail to its controlled Mailpit inbox. Never connect local, test, or preview work to production providers. See `docs/operations/environment.md` for every variable and ownership boundary.
 
 ## Release-candidate verification
 
@@ -39,4 +39,4 @@ bash scripts/verify-production-readiness.sh
 
 The gate installs locked dependencies; checks formatting, lint, and types; replays migrations; runs full pgTAP, unit, supervised integration, provider contract, production artifact, and strict five-project browser tests; verifies generated-type reproducibility, dependency audit, tracked-secret/diff boundaries, and exact cleanup. It is local-only, does not deploy, and does not call live providers. A successful run leaves the local database unseeded. Early read-only failures do not modify or clean the database state that was present when the command started. After owned database work begins, any failure triggers the canonical unseeded reset and residue audit.
 
-A green automated gate is not production approval. Legal/privacy review, production domains/TLS, hosted backup/restore evidence, Stripe/Resend/The Squad live credentials and certification, monitoring ownership, and deployed authenticated smoke tests remain unchecked in `docs/operations/release-checklist.md` until external evidence exists.
+A green automated gate is not production approval. Legal/privacy review, production domains/TLS, hosted backup/restore evidence, production Supabase Auth confirmation/SMTP/redirect configuration, Turnstile and HMAC-secret configuration, Stripe/Resend/The Squad live credentials and certification, analytics-outbox/monitoring ownership, and deployed signup/authenticated smoke tests remain unchecked in `docs/operations/release-checklist.md` until external evidence exists.

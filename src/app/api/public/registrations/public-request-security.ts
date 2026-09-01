@@ -61,7 +61,13 @@ export async function guardPublicJsonRequest<T>(
     parse(value: unknown): ParsedTarget<T> | null;
   },
 ): Promise<
-  (ParsedTarget<T> & { ok: true; contextRateKey: string; rateKey: string }) | GuardFailure
+  | (ParsedTarget<T> & {
+      ok: true;
+      contextRateKey: string;
+      rateKey: string;
+      requestContext: { networkAddress: string };
+    })
+  | GuardFailure
 > {
   const origin = request.headers.get('origin');
   const mime = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
@@ -105,7 +111,13 @@ export async function guardPublicJsonRequest<T>(
     const rateKey = createHmac('sha256', secret)
       .update(`${namespace}${options.bucket}|target|${parsed.target}|${address}`)
       .digest('hex');
-    return { ok: true, ...parsed, contextRateKey, rateKey };
+    return {
+      ok: true,
+      ...parsed,
+      contextRateKey,
+      rateKey,
+      requestContext: { networkAddress: address },
+    };
   } catch {
     return { ok: false, status: 400 };
   }

@@ -1,4 +1,10 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+
+import { ErrorState } from '@/components/feedback/error-state';
+import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
+import { captureOperationalError } from '@/infrastructure/observability/server-observability';
+import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,12 +18,42 @@ export default async function NewTryoutPage({
 }) {
   const { organizationSlug } = await params;
   const current = await requireCurrentOrganization(organizationSlug);
+  const seasonsResult = await current.client
+    .from('seasons')
+    .select('id,name')
+    .eq('organization_id', current.organization.id)
+    .order('name');
+  if (seasonsResult.error) {
+    captureOperationalError(seasonsResult.error, {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      operation: 'tryouts.load',
+    });
+    return (
+      <ErrorState
+        action={
+          <Link
+            className="button-secondary inline-flex min-h-11 items-center"
+            href={`/app/${organizationSlug}/tryouts/new`}
+            prefetch={false}
+          >
+            Retry cycles
+          </Link>
+        }
+        description="Available cycles could not be loaded. No draft was created."
+        title="Tryout setup temporarily unavailable"
+      />
+    );
+  }
+  const seasons = seasonsResult.data ?? [];
   async function create(formData: FormData) {
     'use server';
     const route = await requireCurrentOrganization(organizationSlug);
     const result = await createTryout(
       {
         organizationId: route.organization.id,
+        seasonId: formData.get('seasonId') || undefined,
+        newSeasonName: formData.get('newSeasonName') || undefined,
         name: formData.get('name'),
         sport: formData.get('sport'),
         timezone: formData.get('timezone'),
@@ -27,6 +63,12 @@ export default async function NewTryoutPage({
       { authorization: route.authorization },
     );
     if (!result.ok) redirect(`/app/${organizationSlug}/tryouts/new?error=${result.error.code}`);
+    await trackSupabaseWorkflowSafely(route.client, {
+      name: 'workflow.completed',
+      workflow: 'tryout_setup',
+      organizationId: route.organization.id,
+      correlationId: createCorrelationId(),
+    });
     redirect(`/app/${organizationSlug}/tryouts/${result.value.id}/setup/basics`);
   }
   return (
@@ -47,6 +89,27 @@ export default async function NewTryoutPage({
             required
           />
         </label>
+        <fieldset className="space-y-3">
+          <legend className="font-bold">Cycle or season</legend>
+          <label className="block" htmlFor="seasonId">
+            <span>Use an existing cycle</span>
+            <select className="min-h-11 w-full rounded border px-3" id="seasonId" name="seasonId">
+              <option value="">Create a new cycle</option>
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id}>
+                  {season.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block" htmlFor="newSeasonName">
+            <span>New cycle name</span>
+            <Input id="newSeasonName" maxLength={120} name="newSeasonName" />
+          </label>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Choose an existing cycle, or leave it on “Create a new cycle” and enter a new name.
+          </p>
+        </fieldset>
         <label className="block" htmlFor="timezone">
           <span className="font-bold">Timezone</span>
           <Input

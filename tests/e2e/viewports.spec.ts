@@ -31,6 +31,7 @@ async function createDraftForWizard(page: Page, organizationSlug: string, name: 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
   await page.getByLabel('Tryout name').fill(name);
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('New cycle name').fill(`${name} cycle`);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
   await page.getByLabel('Registration closes').fill('2026-09-30T20:00');

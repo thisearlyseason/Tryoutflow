@@ -38,6 +38,20 @@ export default async function TryoutOverviewPage({
         <div className="mt-4 flex flex-wrap gap-3">
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/registration`}
+            prefetch={false}
+          >
+            Registrations
+          </Link>
+          <Link
+            className="button-secondary inline-flex min-h-11 items-center"
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/sessions`}
+            prefetch={false}
+          >
+            Sessions
+          </Link>
+          <Link
+            className="button-secondary inline-flex min-h-11 items-center"
             href={`/app/${organizationSlug}/tryouts/${tryoutId}/staff`}
             prefetch={false}
           >

@@ -8,6 +8,7 @@ import {
   RegistrationFormSchema,
   type RegistrationFormSchema as FormSchema,
 } from '../../../../modules/registration/domain/form-schema';
+import { TurnstileClientChallenge } from '../../../../modules/identity/ui/turnstile-client';
 
 type RegistrationTryout = {
   name: string;
@@ -16,7 +17,15 @@ type RegistrationTryout = {
   positions: { id: string; name: string }[];
 };
 
-export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
+export function RegistrationForm({
+  tryoutSlug,
+  botSiteKey,
+  deterministicBotToken,
+}: {
+  tryoutSlug: string;
+  botSiteKey?: string;
+  deterministicBotToken?: string;
+}) {
   const [tryout, setTryout] = useState<RegistrationTryout | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,6 +82,7 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           tryoutSlug,
+          botVerificationToken: fields.get('cf-turnstile-response'),
           idempotencyKey: stableIdempotencyKey(),
           submission: {
             givenName: fields.get('givenName'),
@@ -269,6 +279,11 @@ export function RegistrationForm({ tryoutSlug }: { tryoutSlug: string }) {
             </label>
           ))}
         {error && <p role="alert">{error}</p>}
+        <TurnstileClientChallenge
+          action="public_registration"
+          deterministicToken={deterministicBotToken}
+          siteKey={botSiteKey}
+        />
         <Button busy={busy} type="submit">
           Submit registration
         </Button>

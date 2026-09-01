@@ -21,7 +21,7 @@ const rawLocal = z
 const local = localSupabaseSchema.parse({
   API_URL: rawLocal.API_URL,
   PUBLISHABLE_KEY: rawLocal.PUBLISHABLE_KEY,
-  SERVICE_ROLE_KEY: rawLocal.SERVICE_ROLE_KEY,
+  SERVICE_ROLE_KEY: rawLocal.SECRET_KEY ?? rawLocal.SERVICE_ROLE_KEY,
 });
 const port = 3112;
 const origin = `http://127.0.0.1:${port}`;
@@ -41,6 +41,7 @@ export default defineConfig({
     'responsive-and-accessibility.spec.ts',
     'platform-administration.spec.ts',
     'viewports.spec.ts',
+    'final-remediation.spec.ts',
   ],
   globalSetup: './tests/e2e/global-database-lifecycle.ts',
   globalTeardown: './tests/e2e/global-database-lifecycle.ts',
@@ -66,6 +67,8 @@ export default defineConfig({
       NEXT_PUBLIC_APP_URL: 'https://task30.e2e.example.test',
       TASK30_LOCAL_REQUEST_ORIGIN: origin,
       PUBLIC_REGISTRATION_RATE_LIMIT_SECRET: task30RateLimitSecret,
+      ABUSE_PROTECTION_HMAC_SECRET: 'task30-abuse-protection-secret'.padEnd(64, 'a'),
+      TRYOUTFLOW_BOT_PROTECTION_MODE: 'deterministic-test',
       NEXT_PUBLIC_EVALUATION_SNAPSHOT_PROOF_PUBLIC_JWK: publicSnapshotKey,
       EVALUATION_SNAPSHOT_PROOF_PRIVATE_JWK: privateSnapshotKey,
       ENABLE_MOCK_THE_SQUAD_PROVIDER: 'true',

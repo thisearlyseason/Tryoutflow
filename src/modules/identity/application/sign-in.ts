@@ -9,12 +9,11 @@ import {
 } from './password-sign-in-rate-limiter';
 
 export type { PasswordSignInAbuseProtection } from './password-sign-in-rate-limiter';
-export { resetDefaultPasswordSignInAbuseProtectionForTests } from './password-sign-in-rate-limiter';
 
 const signInInputSchema = z.object({
   email: z.email(),
-  botVerificationToken: z.string().min(1).optional(),
-  password: z.string().min(1),
+  botVerificationToken: z.string().min(1).max(2_048),
+  password: z.string().min(1).max(128),
   next: z.string().optional(),
 });
 

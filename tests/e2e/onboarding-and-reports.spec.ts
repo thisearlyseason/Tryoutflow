@@ -17,14 +17,14 @@ let serviceRoleKey = '';
 test.beforeAll(async ({ request }) => {
   const local = JSON.parse(
     execFileSync('supabase', ['status', '-o', 'json'], { encoding: 'utf8' }),
-  ) as { API_URL: string; DB_URL: string; SERVICE_ROLE_KEY: string };
+  ) as { API_URL: string; DB_URL: string; SECRET_KEY?: string; SERVICE_ROLE_KEY: string };
   databaseUrl = local.DB_URL;
   apiUrl = local.API_URL;
-  serviceRoleKey = local.SERVICE_ROLE_KEY;
+  serviceRoleKey = local.SECRET_KEY ?? local.SERVICE_ROLE_KEY;
   const created = await request.post(`${local.API_URL}/auth/v1/admin/users`, {
     headers: {
-      apikey: local.SERVICE_ROLE_KEY,
-      authorization: `Bearer ${local.SERVICE_ROLE_KEY}`,
+      apikey: serviceRoleKey,
+      authorization: `Bearer ${serviceRoleKey}`,
     },
     data: { email, password, email_confirm: true },
   });

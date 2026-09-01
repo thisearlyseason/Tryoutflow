@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
+import { ErrorState } from '@/components/feedback/error-state';
+import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
+import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { CheckinWorkspace } from '@/modules/checkin/ui/checkin-workspace';
+import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 
@@ -23,24 +27,58 @@ const checkinSchema = z.strictObject({
 
 export default async function CheckinPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationSlug: string; tryoutId: string }>;
+  searchParams: Promise<{ qr?: string }>;
 }) {
   const { organizationSlug, tryoutId } = await params;
+  const requestedQr = (await searchParams).qr?.trim().toLowerCase() ?? '';
+  const initialQuery = /^[0-9a-f]{64}$/.test(requestedQr) ? requestedQr : '';
   const current = await requireCurrentOrganization(organizationSlug);
-  const { data: tryout } = await current.client
+  const tryoutResult = await current.client
     .from('tryouts')
     .select('id,name')
     .eq('organization_id', current.organization.id)
     .eq('id', tryoutId)
     .maybeSingle();
+  if (tryoutResult.error) {
+    captureOperationalError(tryoutResult.error, {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      tryoutId,
+      operation: 'checkin.load',
+    });
+    return (
+      <ErrorState
+        description="Tryout check-in could not be loaded. Refresh and try again."
+        title="Check-in temporarily unavailable"
+      />
+    );
+  }
+  const tryout = tryoutResult.data;
   if (!tryout) notFound();
-  const { data: sessions } = await current.client
+  const sessionsResult = await current.client
     .from('tryout_sessions')
     .select('id,name,division_id,session_groups!session_groups_session_fkey(id,name)')
     .eq('organization_id', current.organization.id)
     .eq('tryout_id', tryoutId)
     .order('starts_at');
+  if (sessionsResult.error) {
+    captureOperationalError(sessionsResult.error, {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      tryoutId,
+      operation: 'checkin.load',
+    });
+    return (
+      <ErrorState
+        description="Session placements could not be loaded. Refresh before checking anyone in."
+        title="Check-in temporarily unavailable"
+      />
+    );
+  }
+  const sessions = sessionsResult.data;
   type Placement = {
     sessionId: string;
     sessionName: string;
@@ -81,7 +119,20 @@ export default async function CheckinPage({
           : [],
       );
     }) ?? [];
-  if (placements.length === 0) notFound();
+  if (!sessions?.length)
+    return (
+      <section aria-labelledby="checkin-empty">
+        <h2 id="checkin-empty">No check-in sessions configured</h2>
+        <p>Complete tryout setup before checking in registrations.</p>
+      </section>
+    );
+  if (placements.length === 0)
+    return (
+      <section aria-labelledby="checkin-denied">
+        <h2 id="checkin-denied">Check-in unavailable</h2>
+        <p role="alert">You do not have access to any session placement in this tryout.</p>
+      </section>
+    );
 
   async function search(query: string, placement?: { sessionId: string; groupId?: string }) {
     'use server';
@@ -100,7 +151,15 @@ export default async function CheckinPage({
       p_limit: 25,
       p_rate_key_hash: rateKey,
     });
-    if (error) return { outcome: 'unexpected_error' as const, results: [] };
+    if (error) {
+      captureOperationalError(error, {
+        actorId: scoped.userId,
+        organizationId: scoped.organization.id,
+        tryoutId,
+        operation: 'checkin.load',
+      });
+      return { outcome: 'unexpected_error' as const, results: [] };
+    }
     const first = data[0];
     if (!first) return { outcome: 'ok' as const, results: [] };
     if (first.outcome !== 'ok') {
@@ -135,13 +194,23 @@ export default async function CheckinPage({
     const parsed = checkinSchema.safeParse(input);
     if (!parsed.success) return { outcome: 'invalid_request' as const };
     const scoped = await requireCurrentOrganization(organizationSlug);
-    const { data: session } = await scoped.client
+    const sessionResult = await scoped.client
       .from('tryout_sessions')
       .select('id,division_id')
       .eq('organization_id', scoped.organization.id)
       .eq('tryout_id', tryoutId)
       .eq('id', parsed.data.sessionId)
       .maybeSingle();
+    if (sessionResult.error) {
+      captureOperationalError(sessionResult.error, {
+        actorId: scoped.userId,
+        organizationId: scoped.organization.id,
+        tryoutId,
+        operation: 'checkin.write',
+      });
+      return { outcome: 'unexpected_error' as const };
+    }
+    const session = sessionResult.data;
     if (
       !session ||
       !requireCapability(scoped.authorization, 'checkin:write', {
@@ -165,7 +234,23 @@ export default async function CheckinPage({
       p_scope_kind: parsed.data.numberScope,
       p_requested: (parsed.data.requestedNumber ?? null) as unknown as number,
     });
-    if (error || !data[0]) return { outcome: 'unexpected_error' as const };
+    if (error || !data[0]) {
+      captureOperationalError(error ?? new Error('check-in receipt missing'), {
+        actorId: scoped.userId,
+        organizationId: scoped.organization.id,
+        registrationId: parsed.data.registrationId,
+        tryoutId,
+        operation: 'checkin.write',
+      });
+      return { outcome: 'unexpected_error' as const };
+    }
+    if (['checked_in', 'already_checked_in'].includes(data[0].outcome))
+      await trackSupabaseWorkflowSafely(scoped.client, {
+        name: 'workflow.completed',
+        workflow: 'checkin',
+        organizationId: scoped.organization.id,
+        correlationId: createCorrelationId(),
+      });
     return {
       outcome: data[0].outcome as
         | 'checked_in'
@@ -198,7 +283,12 @@ export default async function CheckinPage({
         Find a registration, confirm placement, and assign an automatic or requested number.
       </p>
       <div className="mt-6">
-        <CheckinWorkspace onCheckIn={onCheckIn} placements={placements} search={search} />
+        <CheckinWorkspace
+          initialQuery={initialQuery}
+          onCheckIn={onCheckIn}
+          placements={placements}
+          search={search}
+        />
       </div>
     </section>
   );

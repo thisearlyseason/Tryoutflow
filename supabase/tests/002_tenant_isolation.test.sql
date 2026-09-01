@@ -232,11 +232,22 @@ select ok(
   'reviewers cannot mutate evaluations'
 );
 
+reset role;
 set local role anon;
 select set_config('request.jwt.claim.role', 'anon', true);
 select set_config('request.jwt.claim.sub', '', true);
-select is((select count(*) from public.organizations), 0::bigint, 'anonymous users cannot read tenant records');
-select ok(not public.can_read_tenant_record('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), 'anonymous users cannot read private athlete-bound tenant data');
+select throws_ok(
+  $$select count(*) from public.organizations$$,
+  '42501',
+  null,
+  'anonymous users have no tenant-table read privilege'
+);
+select throws_ok(
+  $$select public.can_read_tenant_record('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')$$,
+  '42501',
+  null,
+  'anonymous users have no tenant-authorization helper execution path'
+);
 
 select * from finish();
 

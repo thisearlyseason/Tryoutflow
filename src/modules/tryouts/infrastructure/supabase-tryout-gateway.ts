@@ -2,7 +2,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '../../../infrastructure/supabase/database.types';
 import type { OrganizationId } from '../../../lib/ids';
-import type { LifecycleTransition, TryoutDraft, TryoutGateway } from '../domain/tryout';
+import type {
+  CreateTryoutDraftCommand,
+  LifecycleTransition,
+  TryoutDraft,
+  TryoutGateway,
+} from '../domain/tryout';
 
 type TryoutRow = {
   tryout_id: string;
@@ -45,12 +50,13 @@ function toTryoutDraft(row: TryoutRow): TryoutDraft {
 export class SupabaseTryoutGateway implements TryoutGateway {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
-  async createDraft(input: Omit<TryoutDraft, 'id'>): Promise<TryoutDraft> {
-    const result = await this.client.rpc('create_tryout_draft', {
+  async createDraft(input: CreateTryoutDraftCommand): Promise<TryoutDraft> {
+    const result = await this.client.rpc('create_tryout_draft_with_cycle', {
       p_organization_id: input.organizationId,
       // Supabase's generated RPC types currently model nullable PostgreSQL
       // parameters as strings even though the function accepts SQL NULL.
       p_season_id: input.seasonId as unknown as string,
+      p_new_season_name: input.newSeasonName as unknown as string,
       p_name: input.name,
       p_slug: input.slug,
       p_sport: input.sport,

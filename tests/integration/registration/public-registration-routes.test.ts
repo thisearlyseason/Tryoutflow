@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { recordIntegrationRateKey } from '../../fixtures/integration-lock/record-rate-key';
+import { createDeterministicTestBotToken } from '../../../src/modules/identity/application/bot-protection';
 
 vi.mock('server-only', () => ({}));
 
@@ -72,6 +73,10 @@ function latestQueuedConfirmationToken() {
 }
 
 function jsonRequest(path: string, body: unknown, headers: Record<string, string> = {}) {
+  const protectedBody =
+    path === '/api/public/registrations' && body && typeof body === 'object' && !Array.isArray(body)
+      ? { ...body, botVerificationToken: createDeterministicTestBotToken() }
+      : body;
   return new NextRequest(`${origin}${path}`, {
     method: 'POST',
     headers: {
@@ -80,7 +85,7 @@ function jsonRequest(path: string, body: unknown, headers: Record<string, string
       'x-forwarded-for': '203.0.113.10',
       ...headers,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(protectedBody),
   });
 }
 
@@ -91,6 +96,7 @@ beforeAll(async () => {
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
+  process.env.ABUSE_PROTECTION_HMAC_SECRET = recordIntegrationRateKey('a'.repeat(64));
   process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
   directCanonicalRateKey = recordIntegrationRateKey(directCanonicalRateKey);
   execFileSync(

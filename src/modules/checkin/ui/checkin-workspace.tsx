@@ -66,6 +66,7 @@ export function CheckinWorkspace({
   search,
   onCheckIn,
   placements = [],
+  initialQuery = '',
 }: {
   search: (
     query: string,
@@ -86,8 +87,9 @@ export function CheckinWorkspace({
     groupName?: string;
     numberScope?: 'session' | 'group';
   }[];
+  initialQuery?: string;
 }) {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   const [results, setResults] = useState<CheckinSearchResult[] | null>(null);
   const [message, setMessage] = useState('Search for a registration to begin.');
   const [operation, setOperation] = useState<'checkin' | 'search' | null>(null);

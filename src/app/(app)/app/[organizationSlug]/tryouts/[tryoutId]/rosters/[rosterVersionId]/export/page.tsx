@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { ensureDemoMockConnection } from '@/infrastructure/integrations/ensure-demo-mock-connection';
 import { getServerTeamManagementProviderRegistry } from '@/infrastructure/integrations/server-provider-registry';
+import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { previewRosterExport } from '@/modules/integrations/application/preview-roster-export';
 import { retrySyncJob } from '@/modules/integrations/application/retry-sync-job';
 import { startRosterExport } from '@/modules/integrations/application/start-roster-export';
@@ -52,6 +53,12 @@ export default async function RosterExportPage({
     .eq('state', 'connected')
     .maybeSingle();
   if (connectionError) {
+    captureOperationalError(connectionError, {
+      actorId: scoped.userId,
+      organizationId: scoped.organization.id,
+      tryoutId,
+      operation: 'integration.load',
+    });
     return (
       <div className="mx-auto max-w-4xl p-4 sm:p-8">
         <IntegrationCard
@@ -97,7 +104,13 @@ export default async function RosterExportPage({
     if (destinations.length === 0) {
       availabilityMessage = 'No demo destinations are available for this connection.';
     }
-  } catch {
+  } catch (error) {
+    captureOperationalError(error, {
+      actorId: scoped.userId,
+      organizationId: scoped.organization.id,
+      tryoutId,
+      operation: 'integration.load',
+    });
     destinations = [];
     availabilityMessage =
       'Demo destinations could not be loaded. Verify the connection or try again later.';
@@ -113,6 +126,12 @@ export default async function RosterExportPage({
     .limit(1)
     .maybeSingle();
   if (latestJobError) {
+    captureOperationalError(latestJobError, {
+      actorId: scoped.userId,
+      organizationId: scoped.organization.id,
+      tryoutId,
+      operation: 'integration.load',
+    });
     availabilityMessage = 'Export history could not be loaded. Refresh before confirming.';
   }
   let initialJob:
@@ -142,6 +161,12 @@ export default async function RosterExportPage({
       .eq('organization_id', scoped.organization.id)
       .eq('sync_job_id', latestJob.id);
     if (itemsError) {
+      captureOperationalError(itemsError, {
+        actorId: scoped.userId,
+        organizationId: scoped.organization.id,
+        tryoutId,
+        operation: 'integration.load',
+      });
       availabilityMessage = 'Export item history could not be loaded. Refresh before retrying.';
     } else {
       initialJob = {

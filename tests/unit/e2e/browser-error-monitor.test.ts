@@ -57,6 +57,59 @@ describe('Task 30 browser error monitor', () => {
     expect(() => monitor.assertClean()).not.toThrow();
   });
 
+  it('bounds an implementation-defined request failure to zero or one exact occurrence', () => {
+    const expectation = {
+      errorText: 'Frame load interrupted',
+      label: 'optional WebKit download handoff interruption',
+      maxCount: 1,
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/api/organizations/org/exports/roster',
+    } as const;
+
+    const absentPage = new FakePage();
+    const absent = monitorBrowserErrors(absentPage as unknown as Page);
+    absent.allowOptionalRequestFailure(expectation);
+    expect(() => absent.assertClean()).not.toThrow();
+
+    const presentPage = new FakePage();
+    const present = monitorBrowserErrors(presentPage as unknown as Page);
+    present.allowOptionalRequestFailure(expectation);
+    presentPage.emit(
+      'requestfailed',
+      failedRequest({
+        errorText: expectation.errorText,
+        method: expectation.method,
+        url: expectation.url,
+      }),
+    );
+    expect(() => present.assertClean()).not.toThrow();
+
+    const duplicatePage = new FakePage();
+    const duplicate = monitorBrowserErrors(duplicatePage as unknown as Page);
+    duplicate.allowOptionalRequestFailure(expectation);
+    const exactFailure = failedRequest({
+      errorText: expectation.errorText,
+      method: expectation.method,
+      url: expectation.url,
+    });
+    duplicatePage.emit('requestfailed', exactFailure);
+    duplicatePage.emit('requestfailed', exactFailure);
+    expect(() => duplicate.assertClean()).toThrow(/unexpected request failure/u);
+
+    const mismatchPage = new FakePage();
+    const mismatch = monitorBrowserErrors(mismatchPage as unknown as Page);
+    mismatch.allowOptionalRequestFailure(expectation);
+    mismatchPage.emit(
+      'requestfailed',
+      failedRequest({
+        errorText: 'different failure',
+        method: expectation.method,
+        url: expectation.url,
+      }),
+    );
+    expect(() => mismatch.assertClean()).toThrow(/unexpected request failure/u);
+  });
+
   it('fails an unrelated request even when its URL resembles an expected failure', () => {
     const page = new FakePage();
     const monitor = monitorBrowserErrors(page as unknown as Page);

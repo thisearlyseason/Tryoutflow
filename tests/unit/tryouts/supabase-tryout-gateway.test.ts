@@ -34,6 +34,7 @@ describe('SupabaseTryoutGateway', () => {
     await gateway.createDraft({
       organizationId,
       seasonId: null,
+      newSeasonName: 'Fall 2026',
       name: 'Fall ID Camp',
       slug: 'fall-id-camp',
       sport: 'Hockey',
@@ -48,12 +49,13 @@ describe('SupabaseTryoutGateway', () => {
       updatedAt: new Date('2026-08-28T12:00:00.000Z'),
     });
 
-    expect(rpc).toHaveBeenCalledWith('create_tryout_draft', {
+    expect(rpc).toHaveBeenCalledWith('create_tryout_draft_with_cycle', {
       p_name: 'Fall ID Camp',
       p_organization_id: organizationId,
       p_registration_ends_at: null,
       p_registration_starts_at: null,
       p_season_id: null,
+      p_new_season_name: 'Fall 2026',
       p_slug: 'fall-id-camp',
       p_sport: 'Hockey',
       p_timezone: 'America/Edmonton',

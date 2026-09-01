@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 
+import { ErrorState } from '@/components/feedback/error-state';
+import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 
@@ -23,7 +25,20 @@ export default async function AthleteDetailPage({
     .eq('organization_id', current.organization.id)
     .eq('id', athleteId)
     .maybeSingle();
-  if (result.error || !result.data) notFound();
+  if (result.error) {
+    captureOperationalError(result.error, {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      operation: 'registration.load',
+    });
+    return (
+      <ErrorState
+        description="The athlete record could not be loaded. Refresh and try again."
+        title="Athlete temporarily unavailable"
+      />
+    );
+  }
+  if (!result.data) notFound();
   const athlete = result.data;
   return (
     <section aria-labelledby="athlete-heading" className="max-w-2xl">

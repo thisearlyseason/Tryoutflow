@@ -8,7 +8,7 @@ TryoutFlow handles minor-athlete and guardian data. Data minimization and tenant
 - Credentials and provider material: auth credentials, service keys, webhook secrets, API keys, confirmation tokens, provider tokens, raw webhook/provider payloads, and signed proof material. Keep server-only and never place in logs or analytics.
 - Audit evidence: organization, actor, action, target type/ID, timestamp, and narrowly safe metadata. Audit rows are append-only; support elevation creates its audit record transactionally.
 - Operational logs: construct only from approved request, correlation, organization, actor, job, operation, and error-code identifiers. Raw errors/messages/stacks and arbitrary context are not approved because they can contain tenant content.
-- Analytics: the adapter accepts only the strict workflow event contract. Scores, notes, guardian/contact data, credentials, secrets, tokens, raw payloads, and arbitrary properties are rejected.
+- Analytics: the adapter accepts only the strict workflow event contract and appends it to a tenant-scoped durable outbox after the protected write. The outbox payload is structurally empty; scores, notes, guardian/contact data, credentials, secrets, tokens, provider content, raw payloads, and arbitrary properties are rejected.
 - Health: public health is only `ok`/`degraded`; platform detail is aggregate counts without tenant IDs or content.
 
 Correlation/request IDs must be server-generated or trusted, 8–64 characters, and limited to letters, digits, `_`, and `-`. Never derive one from an email, name, phone, token, provider payload, or free text.
@@ -20,6 +20,7 @@ Correlation/request IDs must be server-generated or trusted, 8–64 characters, 
 - Integration export previews are bounded to at most seven days and are purged by the job processor.
 - Support elevations last at least five minutes and at most four hours. Expiry removes authority even if the row remains as evidence.
 - Queue leases are short-lived execution claims, not retention periods.
+- Auth abuse buckets and consumed bot-token digests expire automatically; they contain HMAC/digest material rather than raw email, IP address, or provider token. The HMAC secret remains a credential with a named rotation owner.
 
 The repository intentionally does not invent a retention period for athlete records, guardian data, completed evaluations, rosters, provider event evidence, or audit logs. Production launch is blocked until legal/privacy owners approve purpose-specific periods, litigation/contract holds, deletion/correction/export workflows, backup expiry, and customer notices. Until then, do not run ad-hoc deletes against immutable or related records.
 

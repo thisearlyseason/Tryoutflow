@@ -23,6 +23,11 @@ export type ExpectedRequestFailure = CountedExpectation &
     url: TextMatcher;
   }>;
 
+export type OptionalRequestFailure = Omit<ExpectedRequestFailure, 'count'> &
+  Readonly<{
+    maxCount: number;
+  }>;
+
 export type ExpectedCancellableRequest = ExpectedRequestFailure;
 
 export type ExpectedRscCancellation = CountedExpectation &
@@ -43,6 +48,7 @@ export type ExpectedConsoleError = CountedExpectation &
   }>;
 
 export type BrowserErrorMonitor = Readonly<{
+  allowOptionalRequestFailure(expectation: OptionalRequestFailure): void;
   expectCancellableRequest(expectation: ExpectedCancellableRequest): void;
   expectCancellableRscRequest(expectation: ExpectedCancellableRscRequest): void;
   expectConsoleError(expectation: ExpectedConsoleError): void;
@@ -89,6 +95,7 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
   const cancellableRscExpectations: Array<ExpectedCancellableRscRequest & { consumed: number }> =
     [];
   const cancellableRscRequests = new WeakMap<Request, ExpectedCancellableRscRequest>();
+  const optionalRequestFailures: Array<OptionalRequestFailure & { consumed: number }> = [];
   const requestExpectations: Array<ExpectedRequestFailure & { consumed: number }> = [];
   const rscExpectations: Array<ExpectedRscCancellation & { consumed: number }> = [];
   const rscRequests = new WeakMap<
@@ -237,6 +244,22 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
       expectation.consumed += 1;
       return;
     }
+    const optionalExpectation = optionalRequestFailures.find(
+      (candidate) =>
+        candidate.consumed < candidate.maxCount &&
+        candidate.method === method &&
+        matches(url, candidate.url) &&
+        (typeof candidate.errorText === 'string'
+          ? errorText === candidate.errorText
+          : candidate.errorText.includes(errorText)) &&
+        Object.entries(candidate.headers ?? {}).every(([name, expected]) =>
+          matches(headers[name] ?? '', expected),
+        ),
+    );
+    if (optionalExpectation) {
+      optionalExpectation.consumed += 1;
+      return;
+    }
     failures.push(`unexpected request failure: ${method} ${url} ${errorText}`);
   };
   page.on('console', onConsole);
@@ -244,6 +267,10 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
   page.on('request', onRequest);
   page.on('requestfailed', onRequestFailed);
   return {
+    allowOptionalRequestFailure(expectation) {
+      validExpectation({ count: expectation.maxCount, label: expectation.label });
+      optionalRequestFailures.push({ ...expectation, consumed: 0 });
+    },
     expectCancellableRequest(expectation) {
       validExpectation(expectation);
       cancellableExpectations.push({ ...expectation, consumed: 0 });
