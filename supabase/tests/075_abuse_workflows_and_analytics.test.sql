@@ -1,7 +1,7 @@
 begin;
 
 set local search_path=extensions,public;
-select plan(26);
+select plan(28);
 
 select has_table('private','abuse_rate_limits','shared abuse counters are durable');
 select has_table('private','bot_token_receipts','bot replay receipts are durable');
@@ -22,6 +22,19 @@ select is((select allowed from public.consume_abuse_rate_limit(repeat('a',64),re
 select is((select allowed from public.consume_abuse_rate_limit(repeat('a',64),repeat('c',64),'auth_sign_in',2,60)),true,'trusted-address digest participates in the key');
 select is((select consumed from public.consume_bot_token_once(repeat('d',64),'sign_in',300)),true,'first verified token digest is recorded');
 select is((select consumed from public.consume_bot_token_once(repeat('d',64),'sign_in',300)),false,'verified token replay is rejected');
+reset role;
+
+update private.abuse_rate_limits set
+  window_started_at=clock_timestamp()-interval '2 minutes',
+  expires_at=clock_timestamp()-interval '1 minute'
+where subject_digest=repeat('a',64) and address_digest=repeat('b',64) and scope='auth_sign_in';
+update private.bot_token_receipts set
+  consumed_at=clock_timestamp()-interval '2 minutes',
+  expires_at=clock_timestamp()-interval '1 minute'
+where token_digest=repeat('d',64) and action='sign_in';
+set local role service_role;
+select is((select allowed from public.consume_abuse_rate_limit(repeat('a',64),repeat('b',64),'auth_sign_in',2,60)),true,'expired shared counters atomically begin a fresh window');
+select is((select consumed from public.consume_bot_token_once(repeat('d',64),'sign_in',300)),true,'expired bot-token evidence permits one fresh provider token lifetime');
 reset role;
 
 insert into auth.users(id,email,email_confirmed_at) values ('94000000-0000-4000-8000-000000000001','flow-owner@example.test',clock_timestamp());

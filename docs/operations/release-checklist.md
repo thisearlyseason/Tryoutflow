@@ -97,7 +97,7 @@ These remain incomplete until a named owner attaches dated external evidence. A 
 - [ ] legal/privacy approval for minor-athlete data, notices, terms, retention, correction, deletion, export, residency, and breach procedures
 - [ ] production domains, DNS, and TLS for Vercel and Supabase, with environment separation and rotation ownership
 - [ ] production Supabase Auth configuration: public email/password signup, mandatory confirmation, exact Site URL and redirect allowlist, SMTP sender/domain/template/expiry/rate-limit delivery, bounce/support ownership, and a hosted verification exercise
-- [ ] Cloudflare Turnstile production site key, server secret, exact hostname/action configuration, shared abuse-protection HMAC secret and rotation owner, plus hosted staging success/failure evidence for sign-in, signup, recovery, verification, and public registration
+- [ ] Cloudflare Turnstile production site key, server secret, exact hostname/action configuration, shared abuse-protection HMAC secret and rotation owner, plus hosted staging success/failure evidence for sign-in, signup, recovery, verification, public registration submission, registration confirmation, and confirmation reissue
 - [ ] Stripe live credentials, delivery, and certification for products/prices, signed webhook reachability, tax/legal review, cancellation, and portal behavior
 - [ ] Resend credentials, domain delivery, and certification for SPF/DKIM/DMARC, signed callbacks, bounce/suppression behavior, and support ownership
 - [ ] The Squad credentials, delivery, and certification against a documented authenticated API; keep the mock disabled until then

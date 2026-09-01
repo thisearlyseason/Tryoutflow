@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { NextRequest } from 'next/server';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { guardPublicJsonRequest } from '../../../src/app/api/public/registrations/public-request-security';
 
@@ -33,6 +33,10 @@ describe('shared public registration request defenses', () => {
     process.env.SUPABASE_SERVICE_ROLE_KEY = 'local-service-key';
     process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = 'r'.repeat(64);
     delete process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('accepts same-origin JSON and derives a non-reversible route-specific bucket', async () => {
@@ -106,6 +110,44 @@ describe('shared public registration request defenses', () => {
     await expect(guardPublicJsonRequest(proxied, { bucket: 'consume', parse })).resolves.toEqual(
       expect.objectContaining({ ok: true }),
     );
+  });
+
+  it('uses the canonical production origin instead of attacker-controlled Host metadata', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://tryoutflow.example');
+    const canonical = new NextRequest(
+      'http://internal:3000/api/public/registrations/confirmation',
+      {
+        method: 'POST',
+        headers: {
+          host: 'attacker.example',
+          origin: 'https://tryoutflow.example',
+          'x-forwarded-proto': 'https',
+          'content-type': 'application/json',
+          'x-vercel-forwarded-for': '203.0.113.9',
+        },
+        body: '{"target":"fall-camp"}',
+      },
+    );
+    await expect(guardPublicJsonRequest(canonical, { bucket: 'consume', parse })).resolves.toEqual(
+      expect.objectContaining({ ok: true }),
+    );
+
+    const forged = new NextRequest('http://internal:3000/api/public/registrations/confirmation', {
+      method: 'POST',
+      headers: {
+        host: 'attacker.example',
+        origin: 'https://attacker.example',
+        'x-forwarded-proto': 'https',
+        'content-type': 'application/json',
+        'x-vercel-forwarded-for': '203.0.113.9',
+      },
+      body: '{"target":"fall-camp"}',
+    });
+    await expect(guardPublicJsonRequest(forged, { bucket: 'consume', parse })).resolves.toEqual({
+      ok: false,
+      status: 403,
+    });
   });
 
   it.each([

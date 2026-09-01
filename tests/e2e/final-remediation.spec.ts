@@ -61,6 +61,13 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   task30Database,
 }, testInfo) => {
   const monitor = monitorBrowserErrors(page);
+  monitor.allowOptionalRequestFailure({
+    errorText: 'NS_BINDING_ABORTED',
+    label: 'optional Firefox hashed application icon navigation cancellation',
+    maxCount: 1,
+    method: 'GET',
+    url: /^http:\/\/127\.0\.0\.1:3112\/icon\.svg\?icon\.[a-z0-9]+\.svg$/u,
+  });
   const suffix = `${testInfo.project.name.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}-${randomUUID().slice(0, 8)}`;
   const email = `t30-signup-${suffix}@example.test`;
   const password = `Task30-Signup-${randomUUID()}!Aa`;
@@ -159,6 +166,7 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
   await lookup.click();
   await expect(page).toHaveURL(/\/check-in\?qr=[0-9a-f]{64}$/u);
   await expect(page.getByLabel('Search registrations')).toHaveValue(/^[0-9a-f]{64}$/u);
+  expectCancellableServerAction(monitor, page, 'QR-assisted registration lookup');
   await page.getByRole('button', { name: 'Search' }).click();
   await expect(page.getByRole('heading', { name: 'Manual Browser' })).toBeVisible();
 
@@ -188,6 +196,50 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
   await page.getByRole('link', { name: 'Retry' }).click();
   await expect(page.getByRole('heading', { name: 'Tryouts' })).toBeVisible();
   await page.waitForLoadState('networkidle');
+
+  await page.goto(
+    `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview?__testLoaderFailure=overview`,
+  );
+  await expect(page.getByRole('heading', { name: 'Tryout temporarily unavailable' })).toBeVisible();
+  await expect(page.getByText('No data was changed.')).toBeVisible();
+  expect(
+    Number(
+      scenario.database.scalar(
+        `select count(*) from public.analytics_outbox_events where organization_id='${scenario.ids.organization}' and event_name='workflow.failed' and workflow='tryout_setup'`,
+      ),
+    ),
+  ).toBeGreaterThanOrEqual(1);
+  expectCancellableNextRscRequest(
+    monitor,
+    new URL(
+      `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`,
+      page.url(),
+    ).toString(),
+    'overview loader retry',
+  );
+  await page.getByRole('link', { name: 'Retry' }).click();
+  await expect(page.getByRole('heading', { name: scenario.tryoutName })).toBeVisible();
+
+  monitor.allowOptionalConsoleError({
+    label: 'injected public registration loader 503',
+    maxCount: 1,
+    text: /Failed to load resource: the server responded with a status of 503/u,
+    url: new RegExp(
+      `/api/public/registrations\\?tryoutSlug=${scenario.organizationSlug}-critical-flow`,
+      'u',
+    ),
+  });
+  await page.goto(
+    `/register/${scenario.organizationSlug}-critical-flow?__testLoaderFailure=public-registration`,
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Registration temporarily unavailable' }),
+  ).toBeVisible();
+  await expect(page.getByText('No registration was changed.')).toBeVisible();
+  await page.getByRole('button', { name: 'Retry' }).click();
+  await expect(
+    page.getByRole('heading', { name: `Register for ${scenario.tryoutName}` }),
+  ).toBeVisible();
 
   await page.goto(`/app/${scenario.organizationSlug}/organization/members`);
   const managedMemberLabel = `Member …${scenario.users.member.id.slice(-8)}`;

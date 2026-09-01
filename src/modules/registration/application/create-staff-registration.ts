@@ -8,6 +8,8 @@ import type { OrganizationId } from '../../../lib/ids';
 import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import { requireCapability } from '../../organizations/application/require-capability';
+import type { RegistrationFormSchema as RegistrationForm } from '../domain/form-schema';
+import { validateRegistrationResponses } from './register-athlete';
 
 const schema = z
   .object({
@@ -44,6 +46,11 @@ export type StaffRegistrationGateway = {
   }): Promise<{ outcome: string; registrationId?: string; athleteId?: string }>;
 };
 
+export type StaffRegistrationDependencies = {
+  form: RegistrationForm;
+  gateway?: StaffRegistrationGateway;
+};
+
 async function defaultGateway(): Promise<StaffRegistrationGateway> {
   const client = await createServerSupabaseClient();
   return {
@@ -74,7 +81,7 @@ async function defaultGateway(): Promise<StaffRegistrationGateway> {
 export async function createStaffRegistration(
   input: unknown,
   actor: { authorization: AuthorizationContext },
-  dependencies: { gateway?: StaffRegistrationGateway } = {},
+  dependencies: StaffRegistrationDependencies,
 ): Promise<
   AppResult<
     { registrationId: string; athleteId: string; replayed: boolean },
@@ -91,9 +98,16 @@ export async function createStaffRegistration(
     }).ok
   )
     return failure({ code: 'forbidden' });
+  let responses: Record<string, unknown>;
+  try {
+    responses = validateRegistrationResponses(parsed.data.responses, dependencies.form);
+  } catch {
+    return failure({ code: 'invalid_input' });
+  }
   try {
     const created = await (dependencies.gateway ?? (await defaultGateway())).create({
       ...parsed.data,
+      responses,
       submissionKeyDigest: createHash('sha256')
         .update(`staff-registration\u0000${parsed.data.idempotencyKey}`)
         .digest('hex'),

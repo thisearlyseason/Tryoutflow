@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { createAdminSupabaseClient } from '../../../../../infrastructure/supabase/admin';
+import { getDefaultAuthAbuseProtection } from '../../../../../modules/identity/application/database-auth-abuse-protection';
 import { guardPublicJsonRequest } from '../public-request-security';
 
 export async function POST(request: NextRequest) {
@@ -8,14 +9,43 @@ export async function POST(request: NextRequest) {
     bucket: 'confirmation',
     parse(value) {
       if (!value || typeof value !== 'object') return null;
-      const token = (value as { token?: unknown }).token;
-      if (typeof token !== 'string' || !/^[0-9a-f]{64}$/i.test(token)) return null;
-      return { body: { token: token.toLowerCase() }, target: token.toLowerCase() };
+      const body = value as { token?: unknown; botVerificationToken?: unknown };
+      if (
+        Object.keys(body).some((key) => !['token', 'botVerificationToken'].includes(key)) ||
+        typeof body.token !== 'string' ||
+        !/^[0-9a-f]{64}$/iu.test(body.token) ||
+        typeof body.botVerificationToken !== 'string' ||
+        body.botVerificationToken.length < 1 ||
+        body.botVerificationToken.length > 2_048
+      )
+        return null;
+      return {
+        body: {
+          token: body.token.toLowerCase(),
+          botVerificationToken: body.botVerificationToken,
+        },
+        target: body.token.toLowerCase(),
+      };
     },
   });
   if (!guarded.ok) return NextResponse.json({ status: 'invalid' }, { status: guarded.status });
   try {
     const client = createAdminSupabaseClient();
+    const abuseDecision = await getDefaultAuthAbuseProtection().check({
+      scope: 'registration_confirmation',
+      action: 'registration_confirmation',
+      // Confirmation capabilities are attacker-controlled. Keep the shared subject
+      // stable so token rotation cannot create an unbounded counter or evade the
+      // trusted-address limit; neither the capability nor address is stored raw.
+      subject: 'registration-confirmation-capability',
+      token: guarded.body.botVerificationToken,
+      requestContext: guarded.requestContext,
+    });
+    if (!abuseDecision.allowed)
+      return NextResponse.json(
+        { status: abuseDecision.reason === 'rate_limited' ? 'rate_limited' : 'invalid' },
+        { status: abuseDecision.reason === 'rate_limited' ? 429 : 400 },
+      );
     const contextLimit = await client.rpc('consume_public_registration_rate_limit', {
       p_rate_key_hash: guarded.contextRateKey,
       p_limit: 10,

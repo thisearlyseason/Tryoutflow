@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 
 import { getServerEnvironment } from '../../../../lib/env';
+import { getTrustedRequestOrigin } from '../../../../lib/request-origin';
 
 export const MAX_PUBLIC_REGISTRATION_BODY_BYTES = 32 * 1024;
 
@@ -71,18 +72,12 @@ export async function guardPublicJsonRequest<T>(
 > {
   const origin = request.headers.get('origin');
   const mime = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
-  const host = request.headers.get('host');
-  const forwardedProtocol = request.headers
-    .get('x-forwarded-proto')
-    ?.split(',', 1)[0]
-    ?.trim()
-    .toLowerCase();
-  const protocol =
-    forwardedProtocol === 'http' || forwardedProtocol === 'https'
-      ? forwardedProtocol
-      : request.nextUrl.protocol.slice(0, -1);
-  const expectedOrigin =
-    host && /^[A-Za-z0-9.:[\]-]+$/u.test(host) ? `${protocol}://${host}` : request.nextUrl.origin;
+  let expectedOrigin: string;
+  try {
+    expectedOrigin = getTrustedRequestOrigin(request);
+  } catch {
+    return { ok: false, status: 403 };
+  }
   if (origin === null || origin !== expectedOrigin || mime !== 'application/json') {
     return { ok: false, status: 403 };
   }

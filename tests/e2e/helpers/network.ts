@@ -47,7 +47,13 @@ export type ExpectedConsoleError = CountedExpectation &
     url?: TextMatcher;
   }>;
 
+export type OptionalConsoleError = Omit<ExpectedConsoleError, 'count'> &
+  Readonly<{
+    maxCount: number;
+  }>;
+
 export type BrowserErrorMonitor = Readonly<{
+  allowOptionalConsoleError(expectation: OptionalConsoleError): void;
   allowOptionalRequestFailure(expectation: OptionalRequestFailure): void;
   expectCancellableRequest(expectation: ExpectedCancellableRequest): void;
   expectCancellableRscRequest(expectation: ExpectedCancellableRscRequest): void;
@@ -90,6 +96,7 @@ function matchesGeneratedRscUrl(requestUrl: string, expectedApplicationUrl: stri
 export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
   const failures: string[] = [];
   const consoleExpectations: Array<ExpectedConsoleError & { consumed: number }> = [];
+  const optionalConsoleErrors: Array<OptionalConsoleError & { consumed: number }> = [];
   const cancellableExpectations: Array<ExpectedCancellableRequest & { consumed: number }> = [];
   const cancellableRequests = new WeakMap<Request, ExpectedCancellableRequest>();
   const cancellableRscExpectations: Array<ExpectedCancellableRscRequest & { consumed: number }> =
@@ -117,6 +124,16 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
     );
     if (expectation) {
       expectation.consumed += 1;
+      return;
+    }
+    const optionalExpectation = optionalConsoleErrors.find(
+      (candidate) =>
+        candidate.consumed < candidate.maxCount &&
+        matches(text, candidate.text) &&
+        (candidate.url === undefined || matches(url, candidate.url)),
+    );
+    if (optionalExpectation) {
+      optionalExpectation.consumed += 1;
       return;
     }
     failures.push(`unexpected console error: ${text}${url ? ` (${url})` : ''}`);
@@ -267,6 +284,10 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
   page.on('request', onRequest);
   page.on('requestfailed', onRequestFailed);
   return {
+    allowOptionalConsoleError(expectation) {
+      validExpectation({ count: expectation.maxCount, label: expectation.label });
+      optionalConsoleErrors.push({ ...expectation, consumed: 0 });
+    },
     allowOptionalRequestFailure(expectation) {
       validExpectation({ count: expectation.maxCount, label: expectation.label });
       optionalRequestFailures.push({ ...expectation, consumed: 0 });

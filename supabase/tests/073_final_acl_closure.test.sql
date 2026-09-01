@@ -2,7 +2,7 @@ begin;
 
 set local search_path=extensions,public;
 
-select plan(25);
+select plan(26);
 
 select is(
   (
@@ -212,7 +212,7 @@ select is(
     'create_athlete_import_preview','create_decision_message_batch_v2',
     'create_organization_invitation','create_organization_with_owner',
     'create_registration_form_revision','create_roster_draft','create_rubric_revision',
-    'create_staff_registration','create_tryout_draft','create_tryout_draft_with_cycle',
+    'create_staff_registration','create_tryout_draft_with_cycle',
     'enqueue_analytics_event','finalize_roster_version','get_owned_subscription_account',
     'has_active_configuration_assignment','is_active_organization_member','issue_checkin_qr_token',
     'issue_roster_export_source',
@@ -241,6 +241,7 @@ select is(
 );
 
 select function_privs_are('public','public_health_check',array[]::text[],'anon',array['EXECUTE'],'anonymous can execute only coarse health');
+select function_privs_are('public','create_tryout_draft',array['uuid','uuid','text','text','text','text','timestamp with time zone','timestamp with time zone'],'authenticated',array[]::text[],'the obsolete cycle-less tryout command has no authenticated execution grant');
 select function_privs_are('public','create_organization_invitation',array['uuid','text','text','text','timestamp with time zone','uuid'],'authenticated',array['EXECUTE'],'invitation creation uses a guarded RPC');
 select function_privs_are('public','change_organization_member',array['uuid','uuid','text','text','bigint','uuid'],'authenticated',array['EXECUTE'],'member changes use a guarded versioned RPC');
 select function_privs_are('public','transfer_organization_ownership',array['uuid','uuid','bigint','bigint','uuid'],'authenticated',array['EXECUTE'],'ownership transfer uses a guarded versioned RPC');

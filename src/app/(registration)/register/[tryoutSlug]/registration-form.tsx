@@ -21,13 +21,19 @@ export function RegistrationForm({
   tryoutSlug,
   botSiteKey,
   deterministicBotToken,
+  testLoaderFailure,
 }: {
   tryoutSlug: string;
   botSiteKey?: string;
   deterministicBotToken?: string;
+  testLoaderFailure?: string;
 }) {
   const [tryout, setTryout] = useState<RegistrationTryout | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadOutcome, setLoadOutcome] = useState<'loading' | 'not_found' | 'unavailable'>(
+    'loading',
+  );
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
 
@@ -52,17 +58,30 @@ export function RegistrationForm({
   }
 
   useEffect(() => {
-    fetch(`/api/public/registrations?tryoutSlug=${encodeURIComponent(tryoutSlug)}`)
+    setError(null);
+    setLoadOutcome('loading');
+    const parameters = new URLSearchParams({ tryoutSlug });
+    if (loadAttempt === 0 && testLoaderFailure)
+      parameters.set('__testLoaderFailure', testLoaderFailure);
+    fetch(`/api/public/registrations?${parameters.toString()}`)
       .then(async (response) => {
-        if (!response.ok) throw new Error('closed');
+        if (response.status === 404) {
+          setLoadOutcome('not_found');
+          return null;
+        }
+        if (!response.ok) throw new Error('unavailable');
         const body = (await response.json()) as { tryout: RegistrationTryout };
         setTryout({
           ...body.tryout,
           formSchema: RegistrationFormSchema.parse(body.tryout.formSchema),
         });
+        return body;
       })
-      .catch(() => setError('This registration is unavailable or closed.'));
-  }, [tryoutSlug]);
+      .catch(() => {
+        setError('Registration configuration could not be loaded. No registration was changed.');
+        setLoadOutcome('unavailable');
+      });
+  }, [loadAttempt, testLoaderFailure, tryoutSlug]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,11 +150,21 @@ export function RegistrationForm({
     }
   }
 
-  if (error && !tryout)
+  if (loadOutcome === 'not_found' && !tryout)
     return (
       <main className="mx-auto max-w-xl p-6">
         <h1>Registration unavailable</h1>
+        <p role="alert">This registration is unavailable or closed.</p>
+      </main>
+    );
+  if (loadOutcome === 'unavailable' && !tryout)
+    return (
+      <main className="mx-auto max-w-xl p-6">
+        <h1>Registration temporarily unavailable</h1>
         <p role="alert">{error}</p>
+        <Button className="mt-4" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+          Retry
+        </Button>
       </main>
     );
   if (!tryout)

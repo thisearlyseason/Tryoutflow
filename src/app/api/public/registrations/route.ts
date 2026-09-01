@@ -1,15 +1,29 @@
 import { createHash } from 'node:crypto';
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { z } from 'zod';
 
+import { captureOperationalError } from '../../../../infrastructure/observability/server-observability';
 import { createAdminSupabaseClient } from '../../../../infrastructure/supabase/admin';
 import type { Json } from '../../../../infrastructure/supabase/database.types';
 import { getPublicAppOrigin } from '../../../../lib/env';
 import { DurableRegistrationConfirmationNotifier } from '../../../../modules/communications/application/queue-communication';
 import { getDefaultAuthAbuseProtection } from '../../../../modules/identity/application/database-auth-abuse-protection';
+import { AppError } from '../../../../modules/observability/domain/app-error';
+import { shouldInjectTestLoaderFailure } from '../../../../modules/observability/application/test-failure-boundary';
 import { registerAthlete } from '../../../../modules/registration/application/register-athlete';
 import { RegistrationFormSchema } from '../../../../modules/registration/domain/form-schema';
 import { guardPublicJsonRequest } from './public-request-security';
+
+const publicConfigurationSchema = z.object({
+  tryout_id: z.uuid(),
+  name: z.string().min(1).max(160),
+  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
+  form_schema: RegistrationFormSchema,
+  divisions: z.array(z.object({ id: z.uuid(), name: z.string().min(1).max(120) })),
+  positions: z.array(z.object({ id: z.uuid(), name: z.string().min(1).max(120) })),
+});
+const publicConfigurationRowsSchema = z.array(publicConfigurationSchema).max(1);
 
 function genericError(status: number) {
   return NextResponse.json(
@@ -18,26 +32,56 @@ function genericError(status: number) {
   );
 }
 
+function publicLoadError(outcome: 'not_found' | 'unavailable') {
+  return NextResponse.json(
+    outcome === 'not_found'
+      ? { outcome, message: 'This registration is unavailable or closed.' }
+      : { outcome, message: 'Registration is temporarily unavailable. Please retry.' },
+    { status: outcome === 'not_found' ? 404 : 503 },
+  );
+}
+
 export async function GET(request: NextRequest) {
   const slug = request.nextUrl.searchParams.get('tryoutSlug');
-  if (!slug || slug.length > 63) return genericError(404);
+  if (!slug || slug.length > 63 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(slug))
+    return publicLoadError('not_found');
   try {
+    if (
+      shouldInjectTestLoaderFailure(
+        request.nextUrl.searchParams.get('__testLoaderFailure') ?? undefined,
+        'public-registration',
+      )
+    ) {
+      const error = new AppError('network_unavailable');
+      captureOperationalError(error, { operation: 'registration.load' });
+      return publicLoadError('unavailable');
+    }
     const result = await createAdminSupabaseClient().rpc('public_registration_tryout_v2', {
       p_tryout_slug: slug,
     });
-    const row = result.data?.[0];
-    if (result.error || !row) return genericError(404);
+    if (result.error) {
+      captureOperationalError(result.error, { operation: 'registration.load' });
+      return publicLoadError('unavailable');
+    }
+    const parsed = publicConfigurationRowsSchema.safeParse(result.data);
+    if (!parsed.success) {
+      captureOperationalError(parsed.error, { operation: 'registration.load' });
+      return publicLoadError('unavailable');
+    }
+    const [configuration] = parsed.data;
+    if (!configuration) return publicLoadError('not_found');
     return NextResponse.json({
       tryout: {
-        name: row.name,
-        slug: row.slug,
-        formSchema: row.form_schema,
-        divisions: row.divisions,
-        positions: row.positions,
+        name: configuration.name,
+        slug: configuration.slug,
+        formSchema: configuration.form_schema,
+        divisions: configuration.divisions,
+        positions: configuration.positions,
       },
     });
-  } catch {
-    return genericError(404);
+  } catch (error) {
+    captureOperationalError(error, { operation: 'registration.load' });
+    return publicLoadError('unavailable');
   }
 }
 

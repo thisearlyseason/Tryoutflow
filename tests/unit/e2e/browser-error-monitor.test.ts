@@ -110,6 +110,49 @@ describe('Task 30 browser error monitor', () => {
     expect(() => mismatch.assertClean()).toThrow(/unexpected request failure/u);
   });
 
+  it('bounds a browser-defined console error to zero or one exact occurrence', () => {
+    const expectation = {
+      label: 'optional browser 503 console diagnostic',
+      maxCount: 1,
+      text: /status of 503/u,
+      url: /\/api\/public\/registrations/u,
+    } as const;
+
+    const absentPage = new FakePage();
+    const absent = monitorBrowserErrors(absentPage as unknown as Page);
+    absent.allowOptionalConsoleError(expectation);
+    expect(() => absent.assertClean()).not.toThrow();
+
+    const presentPage = new FakePage();
+    const present = monitorBrowserErrors(presentPage as unknown as Page);
+    present.allowOptionalConsoleError(expectation);
+    presentPage.emit(
+      'console',
+      consoleError(
+        'Failed to load resource: the server responded with a status of 503',
+        'http://127.0.0.1:3112/api/public/registrations?tryoutSlug=org',
+      ),
+    );
+    expect(() => present.assertClean()).not.toThrow();
+
+    const duplicatePage = new FakePage();
+    const duplicate = monitorBrowserErrors(duplicatePage as unknown as Page);
+    duplicate.allowOptionalConsoleError(expectation);
+    const exactError = consoleError(
+      'Failed to load resource: the server responded with a status of 503',
+      'http://127.0.0.1:3112/api/public/registrations?tryoutSlug=org',
+    );
+    duplicatePage.emit('console', exactError);
+    duplicatePage.emit('console', exactError);
+    expect(() => duplicate.assertClean()).toThrow(/unexpected console error/u);
+
+    const mismatchPage = new FakePage();
+    const mismatch = monitorBrowserErrors(mismatchPage as unknown as Page);
+    mismatch.allowOptionalConsoleError(expectation);
+    mismatchPage.emit('console', consoleError('different error'));
+    expect(() => mismatch.assertClean()).toThrow(/unexpected console error/u);
+  });
+
   it('fails an unrelated request even when its URL resembles an expected failure', () => {
     const page = new FakePage();
     const monitor = monitorBrowserErrors(page as unknown as Page);

@@ -3,9 +3,9 @@ select plan(17);
 
 select has_function(
   'public',
-  'create_tryout_draft',
-  array['uuid', 'uuid', 'text', 'text', 'text', 'text', 'timestamptz', 'timestamptz'],
-  'tryout drafts are created through an atomic database command'
+  'create_tryout_draft_with_cycle',
+  array['uuid', 'uuid', 'text', 'text', 'text', 'text', 'text', 'timestamptz', 'timestamptz'],
+  'tryout drafts are created through the production cycle-aware atomic command'
 );
 select has_function(
   'public',
@@ -105,7 +105,7 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '21212121-2121-4212-8212-212121212121', true);
 select is(
-  (select status from public.create_tryout_draft('20202020-2020-4202-8202-202020202020', null::uuid, 'Atomic Camp', 'atomic-camp', 'Hockey', 'America/Edmonton', null::timestamptz, null::timestamptz)),
+  (select status from public.create_tryout_draft_with_cycle('20202020-2020-4202-8202-202020202020', null::uuid, 'Security Cycle', 'Atomic Camp', 'atomic-camp', 'Hockey', 'America/Edmonton', null::timestamptz, null::timestamptz)),
   'draft',
   'the create RPC atomically persists a draft root record'
 );

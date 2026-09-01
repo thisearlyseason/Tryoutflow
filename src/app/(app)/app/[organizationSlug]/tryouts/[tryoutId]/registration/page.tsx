@@ -133,6 +133,7 @@ export default async function TryoutRegistrationPage({
         idempotencyKey: formData.get('idempotencyKey'),
       },
       { authorization: route.authorization },
+      { form: configuration.form_schema },
     );
     if (!result.ok)
       redirect(

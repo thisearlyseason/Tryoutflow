@@ -73,9 +73,20 @@ function latestQueuedConfirmationToken() {
 }
 
 function jsonRequest(path: string, body: unknown, headers: Record<string, string> = {}) {
+  const protectedPaths = new Set([
+    '/api/public/registrations',
+    '/api/public/registrations/confirmation',
+    '/api/public/registrations/confirmation/reissue',
+  ]);
   const protectedBody =
-    path === '/api/public/registrations' && body && typeof body === 'object' && !Array.isArray(body)
-      ? { ...body, botVerificationToken: createDeterministicTestBotToken() }
+    protectedPaths.has(path) && body && typeof body === 'object' && !Array.isArray(body)
+      ? {
+          ...body,
+          botVerificationToken:
+            'botVerificationToken' in body
+              ? (body as { botVerificationToken?: unknown }).botVerificationToken
+              : createDeterministicTestBotToken(),
+        }
       : body;
   return new NextRequest(`${origin}${path}`, {
     method: 'POST',
@@ -460,6 +471,113 @@ describe('real public registration route with local Supabase', () => {
     await expect(replay.json()).resolves.toEqual({ status: 'already_confirmed' });
   });
 
+  it('requires a fresh server-verified bot token before confirmation and reissue mutation', async () => {
+    const email = `bot-${randomUUID()}@example.com`;
+    const registration = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        {
+          tryoutSlug: 'http-registration-camp',
+          idempotencyKey: `bot-confirm-${randomUUID()}`,
+          submission: { ...validSubmission, givenName: 'BotConfirm', guardianEmail: email },
+        },
+        { 'x-forwarded-for': '203.0.113.180' },
+      ),
+    );
+    expect(registration.status).toBe(200);
+    await registration.json();
+    const token = latestQueuedConfirmationToken();
+
+    const rejected = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token, botVerificationToken: 'invalid-provider-token' },
+        { 'x-forwarded-for': '203.0.113.181' },
+      ),
+    );
+    expect(rejected.status).toBe(400);
+    await expect(rejected.json()).resolves.toEqual({ status: 'invalid' });
+    expect(
+      psql(
+        `select used_at is null from public.registration_confirmation_tokens where token_digest=encode(extensions.digest('${token}','sha256'),'hex')`,
+      ),
+    ).toBe('t');
+
+    const confirmed = await consumeConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation',
+        { token },
+        { 'x-forwarded-for': '203.0.113.181' },
+      ),
+    );
+    expect(confirmed.status).toBe(200);
+    await expect(confirmed.json()).resolves.toEqual({ status: 'confirmed' });
+
+    const reissueEmail = `reissue-bot-${randomUUID()}@example.com`;
+    const reissueRegistration = await submitRegistration(
+      jsonRequest(
+        '/api/public/registrations',
+        {
+          tryoutSlug: 'http-registration-camp',
+          idempotencyKey: `bot-reissue-${randomUUID()}`,
+          submission: {
+            ...validSubmission,
+            givenName: 'BotReissue',
+            guardianEmail: reissueEmail,
+          },
+        },
+        { 'x-forwarded-for': '203.0.113.182' },
+      ),
+    );
+    expect(reissueRegistration.status).toBe(200);
+    await reissueRegistration.json();
+    const reissueToken = latestQueuedConfirmationToken();
+    const rejectedReissue = await reissueConfirmation(
+      jsonRequest(
+        '/api/public/registrations/confirmation/reissue',
+        {
+          token: reissueToken,
+          guardianEmail: reissueEmail,
+          botVerificationToken: 'invalid-provider-token',
+        },
+        { 'x-forwarded-for': '203.0.113.183' },
+      ),
+    );
+    expect(rejectedReissue.status).toBe(400);
+    await expect(rejectedReissue.json()).resolves.toEqual({ status: 'invalid' });
+    expect(
+      psql(
+        `select count(*) from public.registration_confirmation_tokens where registration_id=(select registration_id from public.registration_confirmation_tokens where token_digest=encode(extensions.digest('${reissueToken}','sha256'),'hex'))`,
+      ),
+    ).toBe('1');
+
+    expect(
+      Number(
+        psql(
+          "select count(*) from private.abuse_rate_limits where scope in('registration_confirmation','registration_reissue')",
+        ),
+      ),
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it('rejects undeclared confirmation and reissue fields before any mutation', async () => {
+    const confirmation = await consumeConfirmation(
+      jsonRequest('/api/public/registrations/confirmation', {
+        token: 'a'.repeat(64),
+        role: 'owner',
+      }),
+    );
+    expect(confirmation.status).toBe(400);
+    const reissue = await reissueConfirmation(
+      jsonRequest('/api/public/registrations/confirmation/reissue', {
+        token: 'b'.repeat(64),
+        guardianEmail: 'guardian@example.com',
+        role: 'owner',
+      }),
+    );
+    expect(reissue.status).toBe(400);
+  });
+
   it('enforces origin, exact MIME, and streamed multibyte byte limits on confirmation', async () => {
     const crossOrigin = await consumeConfirmation(
       jsonRequest(
@@ -573,10 +691,47 @@ describe('real public registration route with local Supabase', () => {
       );
       statuses.push(response.status);
     }
-    expect(statuses.slice(0, 5)).toEqual(Array(5).fill(200));
-    expect(statuses.slice(5)).toEqual(Array(15).fill(429));
+    expect(statuses.slice(0, 4)).toEqual(Array(4).fill(200));
+    expect(statuses.slice(4)).toEqual(Array(16).fill(429));
     const after = Number(psql('select count(*) from public.registration_rate_counters'));
     expect(after - before).toBeLessThanOrEqual(6);
+  });
+
+  it('atomically enforces confirmation and reissue scopes under concurrent token rotation', async () => {
+    const confirmationResponses = await Promise.all(
+      Array.from({ length: 30 }, (_unused, attempt) =>
+        consumeConfirmation(
+          jsonRequest(
+            '/api/public/registrations/confirmation',
+            { token: (attempt + 1_000).toString(16).padStart(64, '0') },
+            { 'x-forwarded-for': '203.0.113.190' },
+          ),
+        ),
+      ),
+    );
+    expect(confirmationResponses.map(({ status }) => status).sort()).toEqual([
+      ...Array(10).fill(200),
+      ...Array(20).fill(429),
+    ]);
+
+    const reissueResponses = await Promise.all(
+      Array.from({ length: 12 }, (_unused, attempt) =>
+        reissueConfirmation(
+          jsonRequest(
+            '/api/public/registrations/confirmation/reissue',
+            {
+              token: (attempt + 2_000).toString(16).padStart(64, '0'),
+              guardianEmail: 'concurrent-guardian@example.com',
+            },
+            { 'x-forwarded-for': '203.0.113.191' },
+          ),
+        ),
+      ),
+    );
+    expect(reissueResponses.map(({ status }) => status).sort()).toEqual([
+      ...Array(4).fill(200),
+      ...Array(8).fill(429),
+    ]);
   });
 
   it('durably rate-limits malformed submissions before the registration transaction rolls back', async () => {
@@ -708,6 +863,6 @@ describe('real public registration route with local Supabase', () => {
       );
       statuses.push(response.status);
     }
-    expect(statuses).toEqual([200, 200, 200, 200, 200, 429]);
+    expect(statuses).toEqual([200, 200, 200, 200, 429, 429]);
   });
 });

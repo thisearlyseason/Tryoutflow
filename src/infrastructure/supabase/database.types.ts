@@ -3463,6 +3463,7 @@ export type Database = {
           registration_form_version_id: string;
           responses: Json;
           source: string;
+          staff_request_digest: string | null;
           status: string;
           submission_digest: string;
           submission_digest_version: number;
@@ -3480,6 +3481,7 @@ export type Database = {
           registration_form_version_id: string;
           responses: Json;
           source?: string;
+          staff_request_digest?: string | null;
           status?: string;
           submission_digest?: string;
           submission_digest_version?: number;
@@ -3497,6 +3499,7 @@ export type Database = {
           registration_form_version_id?: string;
           responses?: Json;
           source?: string;
+          staff_request_digest?: string | null;
           status?: string;
           submission_digest?: string;
           submission_digest_version?: number;

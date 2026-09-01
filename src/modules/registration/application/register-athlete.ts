@@ -43,19 +43,20 @@ const SubmissionSchema = AthleteIdentitySchema.extend({
 
 export type RegistrationSubmission = z.infer<typeof SubmissionSchema>;
 
-export function validateRegistrationSubmission(
+export function validateRegistrationResponses(
   input: unknown,
   form: RegistrationForm,
-): RegistrationSubmission {
-  const submission = SubmissionSchema.parse(input);
+): Record<string, unknown> {
+  const responses = z.record(z.string(), z.unknown()).parse(input);
   const schema = RegistrationFormSchema.parse(form);
   const fields = new Map(schema.fields.map((field) => [field.key, field]));
+  const normalized: Record<string, unknown> = { ...responses };
 
-  for (const key of Object.keys(submission.responses)) {
+  for (const key of Object.keys(responses)) {
     if (!fields.has(key)) throw new Error(`Unknown registration response field: ${key}`);
   }
   for (const field of fields.values()) {
-    const value = submission.responses[field.key];
+    const value = responses[field.key];
     if (
       field.required &&
       (value === undefined ||
@@ -95,8 +96,22 @@ export function validateRegistrationSubmission(
     ) {
       throw new Error(`Invalid registration response field: ${field.key}`);
     }
+    if (typeof value === 'string' && ['text', 'textarea', 'email', 'phone'].includes(field.kind)) {
+      normalized[field.key] = canonicalRegistrationText(value);
+    }
   }
-  return submission;
+  return normalized;
+}
+
+export function validateRegistrationSubmission(
+  input: unknown,
+  form: RegistrationForm,
+): RegistrationSubmission {
+  const submission = SubmissionSchema.parse(input);
+  return {
+    ...submission,
+    responses: validateRegistrationResponses(submission.responses, form),
+  };
 }
 
 export type RegisterAthleteGateway = {
