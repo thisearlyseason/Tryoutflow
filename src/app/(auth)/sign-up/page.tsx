@@ -1,4 +1,8 @@
 import { BotChallenge } from '../../../modules/identity/ui/bot-challenge';
+import { AuthShell } from '../../../components/layout/auth-shell';
+import { Button } from '../../../components/ui/button';
+import { FormField } from '../../../components/ui/form-field';
+import { Input } from '../../../components/ui/input';
 
 type SignUpPageProps = { searchParams: Promise<{ error?: string }> };
 
@@ -11,44 +15,68 @@ const messages: Record<string, string> = {
 export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const parameters = await searchParams;
   return (
-    <main className="auth-page">
-      <section aria-labelledby="sign-up-heading" className="auth-card">
-        <p className="eyebrow">TryoutFlow</p>
-        <h1 id="sign-up-heading">Create your organization account</h1>
-        <p>Use your own email. You’ll verify it before creating your organization.</p>
-        {parameters.error ? (
-          <p role="alert">{messages[parameters.error] ?? messages.unavailable}</p>
-        ) : null}
-        <form action="/auth/sign-up" method="post">
-          <label htmlFor="email">Email</label>
-          <input autoComplete="email" id="email" name="email" required type="email" />
-          <label htmlFor="password">Password</label>
-          <input
-            autoComplete="new-password"
-            id="password"
-            minLength={12}
-            maxLength={128}
-            name="password"
-            required
-            type="password"
-          />
-          <label htmlFor="confirmPassword">Confirm password</label>
-          <input
-            autoComplete="new-password"
-            id="confirmPassword"
-            minLength={12}
-            maxLength={128}
-            name="confirmPassword"
-            required
-            type="password"
-          />
-          <BotChallenge action="sign_up" />
-          <button type="submit">Create account</button>
-        </form>
-        <p>
-          <a href="/sign-in">Already have an account? Sign in</a>
+    <AuthShell
+      description="Use your own email. You’ll verify it before creating your organization."
+      eyebrow="New organization"
+      footer={<a href="/sign-in">Already have an account? Sign in</a>}
+      title="Create your organization account"
+    >
+      {parameters.error ? (
+        <p className="auth-alert" role="alert">
+          {messages[parameters.error] ?? messages.unavailable}
         </p>
-      </section>
-    </main>
+      ) : null}
+      <form action="/auth/sign-up" method="post">
+        <FormField htmlFor="email" label="Email" required>
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              autoComplete="email"
+              id="email"
+              name="email"
+              required
+              type="email"
+            />
+          )}
+        </FormField>
+        <FormField
+          description="Use 12–128 characters."
+          htmlFor="password"
+          label="Password"
+          required
+        >
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              autoComplete="new-password"
+              id="password"
+              maxLength={128}
+              minLength={12}
+              name="password"
+              required
+              type="password"
+            />
+          )}
+        </FormField>
+        <FormField htmlFor="confirmPassword" label="Confirm password" required>
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              autoComplete="new-password"
+              id="confirmPassword"
+              maxLength={128}
+              minLength={12}
+              name="confirmPassword"
+              required
+              type="password"
+            />
+          )}
+        </FormField>
+        <BotChallenge action="sign_up" />
+        <Button className="mt-2 w-full" type="submit">
+          Create account
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

@@ -1,4 +1,8 @@
 import { BotChallenge } from '../../../modules/identity/ui/bot-challenge';
+import { AuthShell } from '../../../components/layout/auth-shell';
+import { Button } from '../../../components/ui/button';
+import { FormField } from '../../../components/ui/form-field';
+import { Input } from '../../../components/ui/input';
 
 type VerifyEmailPageProps = {
   searchParams: Promise<{ confirmed?: string; error?: string; sent?: string; signup?: string }>;
@@ -17,18 +21,36 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
           : 'Enter your email to receive another verification link.';
 
   return (
-    <main className="auth-page">
-      <section aria-labelledby="verify-email-heading" className="auth-card">
-        <p className="eyebrow">TryoutFlow</p>
-        <h1 id="verify-email-heading">Verify your email</h1>
-        <p role={parameters.error ? 'alert' : 'status'}>{status}</p>
-        <form action="/auth/verification" method="post">
-          <label htmlFor="email">Email</label>
-          <input autoComplete="email" id="email" name="email" required type="email" />
-          <BotChallenge action="verification" />
-          <button type="submit">Send verification link</button>
-        </form>
-      </section>
-    </main>
+    <AuthShell
+      description="Keep your organization secure by confirming the email connected to your account."
+      eyebrow="Account security"
+      footer={<a href="/sign-in">Return to sign in</a>}
+      title="Verify your email"
+    >
+      <p
+        className={parameters.error ? 'auth-alert' : 'auth-status'}
+        role={parameters.error ? 'alert' : 'status'}
+      >
+        {status}
+      </p>
+      <form action="/auth/verification" method="post">
+        <FormField htmlFor="email" label="Email" required>
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              autoComplete="email"
+              id="email"
+              name="email"
+              required
+              type="email"
+            />
+          )}
+        </FormField>
+        <BotChallenge action="verification" />
+        <Button className="mt-2 w-full" type="submit">
+          Send verification link
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

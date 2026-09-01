@@ -1,5 +1,9 @@
 import { redirect } from 'next/navigation';
 
+import { AuthShell } from '../../../components/layout/auth-shell';
+import { Button } from '../../../components/ui/button';
+import { FormField } from '../../../components/ui/form-field';
+import { Input } from '../../../components/ui/input';
 import { createOrganization } from '../../../modules/organizations/application/create-organization';
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
 import { parseUserId } from '../../../lib/ids';
@@ -33,22 +37,47 @@ export default function StartPage() {
   }
 
   return (
-    <main className="auth-page">
-      <section aria-labelledby="start-heading" className="auth-card">
-        <p className="eyebrow">TryoutFlow setup</p>
-        <h1 id="start-heading">Set up your organization</h1>
-        <p>Start with the team or academy that runs your tryouts. You will be its first owner.</p>
-        <form action={submit}>
-          <label htmlFor="name">Organization name</label>
-          <input id="name" name="name" required />
-          <label htmlFor="slug">Organization URL</label>
-          <input aria-describedby="slug-help" id="slug" name="slug" required />
-          <p id="slug-help">Use a recognizable name; TryoutFlow creates a clean URL for you.</p>
-          <label htmlFor="timezone">Timezone</label>
-          <input defaultValue="America/Edmonton" id="timezone" name="timezone" required />
-          <button type="submit">Create organization</button>
-        </form>
-      </section>
-    </main>
+    <AuthShell
+      description="Start with the team, club, or academy that runs your tryouts. You will be its first owner."
+      eyebrow="Organization setup"
+      title="Set up your organization"
+    >
+      <form action={submit}>
+        <FormField htmlFor="name" label="Organization name" required>
+          {({ describedBy }) => (
+            <Input aria-describedby={describedBy} id="name" name="name" required />
+          )}
+        </FormField>
+        <FormField
+          description="Use a recognizable name; TryoutFlow creates a clean URL for you."
+          htmlFor="slug"
+          label="Organization URL"
+          required
+        >
+          {({ describedBy }) => (
+            <Input aria-describedby={describedBy} id="slug" name="slug" required />
+          )}
+        </FormField>
+        <FormField
+          description="Times and schedules use this IANA timezone."
+          htmlFor="timezone"
+          label="Timezone"
+          required
+        >
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              defaultValue="America/Edmonton"
+              id="timezone"
+              name="timezone"
+              required
+            />
+          )}
+        </FormField>
+        <Button className="mt-2 w-full" type="submit">
+          Create organization
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

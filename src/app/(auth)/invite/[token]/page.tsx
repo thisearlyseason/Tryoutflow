@@ -1,9 +1,11 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { acceptInvitation } from '../../../../modules/organizations/application/accept-invitation';
 import { createServerSupabaseClient } from '../../../../infrastructure/supabase/server';
 import { parseUserId } from '../../../../lib/ids';
+import { AuthShell } from '../../../../components/layout/auth-shell';
+import { Button } from '../../../../components/ui/button';
+import { LinkButton } from '../../../../components/ui/link-button';
 
 type InvitePageProps = {
   params: Promise<{ token: string }>;
@@ -16,16 +18,16 @@ export default async function InvitePage({ params, searchParams }: InvitePagePro
 
   if (invitationFailed) {
     return (
-      <main className="auth-page">
-        <section aria-labelledby="invite-error-heading" className="auth-card">
-          <h1 id="invite-error-heading">This invitation is no longer valid</h1>
-          <p>
-            Invitations expire for your organization’s security. Ask an administrator to send a new
-            invitation if you still need access.
-          </p>
-          <Link href="/sign-in">Return to sign in</Link>
-        </section>
-      </main>
+      <AuthShell
+        description="Invitations expire to protect your organization’s athlete and staff records."
+        eyebrow="Invitation closed"
+        footer={<a href="/sign-in">Return to sign in</a>}
+        title="This invitation is no longer valid"
+      >
+        <p className="auth-alert" role="alert">
+          Ask an administrator to send a new invitation if you still need access.
+        </p>
+      </AuthShell>
     );
   }
 
@@ -36,15 +38,15 @@ export default async function InvitePage({ params, searchParams }: InvitePagePro
 
   if (!user?.email) {
     return (
-      <main className="auth-page">
-        <section aria-labelledby="invite-heading" className="auth-card">
-          <h1 id="invite-heading">Your invitation is ready</h1>
-          <p>Sign in with the email address that received this invitation to confirm access.</p>
-          <Link href={`/sign-in?next=${encodeURIComponent(`/invite/${token}`)}`}>
-            Continue to sign in
-          </Link>
-        </section>
-      </main>
+      <AuthShell
+        description="Sign in with the email address that received this invitation to confirm access."
+        eyebrow="Team invitation"
+        title="Your invitation is ready"
+      >
+        <LinkButton href={`/sign-in?next=${encodeURIComponent(`/invite/${token}`)}`}>
+          Continue to sign in
+        </LinkButton>
+      </AuthShell>
     );
   }
   const invitationActor = { userId: parseUserId(user.id), email: user.email };
@@ -57,17 +59,16 @@ export default async function InvitePage({ params, searchParams }: InvitePagePro
   }
 
   return (
-    <main className="auth-page">
-      <section aria-labelledby="invite-heading" className="auth-card">
-        <h1 id="invite-heading">Your invitation is ready</h1>
-        <p>
-          Confirm access to join your organization. This link can only be used by the invited email
-          address.
-        </p>
-        <form action={accept}>
-          <button type="submit">Accept invitation</button>
-        </form>
-      </section>
-    </main>
+    <AuthShell
+      description="Confirm access to join your organization. This link can only be used by the invited email address."
+      eyebrow="Team invitation"
+      title="Your invitation is ready"
+    >
+      <form action={accept}>
+        <Button className="w-full" type="submit">
+          Accept invitation
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

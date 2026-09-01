@@ -1,4 +1,8 @@
 import { BotChallenge } from '../../../modules/identity/ui/bot-challenge';
+import { AuthShell } from '../../../components/layout/auth-shell';
+import { Button } from '../../../components/ui/button';
+import { FormField } from '../../../components/ui/form-field';
+import { Input } from '../../../components/ui/input';
 
 type SignInPageProps = {
   searchParams: Promise<{ error?: string; next?: string }>;
@@ -19,54 +23,55 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const message = parameters.error ? messages[parameters.error] : undefined;
 
   return (
-    <main className="auth-page">
-      <section aria-labelledby="sign-in-heading" className="auth-card">
-        <p className="eyebrow">TryoutFlow</p>
-        <h1 id="sign-in-heading">Sign in to your organization</h1>
-        <p>Use the email and password connected to your coaching account.</p>
-        {message ? <p role="alert">{message}</p> : null}
-        <form action="/auth/sign-in" method="post">
-          {parameters.next ? <input name="next" type="hidden" value={parameters.next} /> : null}
-          <label htmlFor="email">Email</label>
-          <input
-            className="min-h-11 px-3"
-            autoComplete="email"
-            id="email"
-            name="email"
-            required
-            type="email"
-          />
-          <label htmlFor="password">Password</label>
-          <input
-            autoComplete="current-password"
-            className="min-h-11 px-3"
-            id="password"
-            minLength={1}
-            name="password"
-            required
-            type="password"
-          />
-          <BotChallenge action="sign_in" />
-          <button className="min-h-11 px-4" type="submit">
-            Sign in
-          </button>
-        </form>
-        <p>
-          <a className="inline-flex min-h-11 items-center" href="/sign-up">
-            Create an organization account
-          </a>
+    <AuthShell
+      description="Use the email and password connected to your coaching account."
+      eyebrow="Welcome back"
+      footer={
+        <nav aria-label="Account help">
+          <a href="/sign-up">Create an organization account</a>
+          <a href="/forgot-password">Forgot your password?</a>
+          <a href="/verify-email">Need a new verification link?</a>
+        </nav>
+      }
+      title="Sign in to your organization"
+    >
+      {message ? (
+        <p className="auth-alert" role="alert">
+          {message}
         </p>
-        <p>
-          <a className="inline-flex min-h-11 items-center" href="/forgot-password">
-            Forgot your password?
-          </a>
-        </p>
-        <p>
-          <a className="inline-flex min-h-11 items-center" href="/verify-email">
-            Need a new verification link?
-          </a>
-        </p>
-      </section>
-    </main>
+      ) : null}
+      <form action="/auth/sign-in" method="post">
+        {parameters.next ? <input name="next" type="hidden" value={parameters.next} /> : null}
+        <FormField htmlFor="email" label="Email" required>
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              autoComplete="email"
+              id="email"
+              name="email"
+              required
+              type="email"
+            />
+          )}
+        </FormField>
+        <FormField htmlFor="password" label="Password" required>
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              autoComplete="current-password"
+              id="password"
+              minLength={1}
+              name="password"
+              required
+              type="password"
+            />
+          )}
+        </FormField>
+        <BotChallenge action="sign_in" />
+        <Button className="mt-2 w-full" type="submit">
+          Sign in
+        </Button>
+      </form>
+    </AuthShell>
   );
 }

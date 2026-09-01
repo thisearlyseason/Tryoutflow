@@ -101,19 +101,185 @@ textarea {
     radial-gradient(circle at 88% 12%, rgb(199 240 0 / 24%), transparent 18rem), var(--color-canvas);
 }
 
-.auth-card {
-  width: min(100%, 38rem);
+.auth-layout {
+  display: grid;
+  width: min(100%, 72rem);
+  overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: calc(var(--radius-surface) * 1.25);
+  border-radius: calc(var(--radius-surface) * 1.5);
   background: var(--color-surface);
   box-shadow: var(--shadow-raised);
+}
+
+.auth-proof {
+  display: flex;
+  min-height: auto;
+  align-items: center;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background:
+    linear-gradient(145deg, rgb(0 87 255 / 18%), transparent 50%),
+    radial-gradient(circle at 80% 85%, rgb(199 240 0 / 22%), transparent 16rem), #07182b;
+  color: #f8fbff;
+}
+
+.auth-proof > div,
+.auth-proof-note {
+  display: none;
+}
+
+.auth-proof h2 {
+  max-width: 11em;
+  color: #f8fbff;
+  font-size: clamp(2.25rem, 4vw, 4.5rem);
+  font-weight: 950;
+  letter-spacing: -0.055em;
+}
+
+.auth-brand {
+  display: inline-flex;
+  min-height: var(--target-mobile);
+  align-items: center;
+  gap: var(--space-3);
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.auth-brand-mark {
+  display: inline-grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--color-performance);
+  color: #07182b;
+  font-family: var(--font-bib);
+  font-size: 0.75rem;
+}
+
+.auth-kicker {
+  margin-bottom: var(--space-3);
+  color: var(--color-performance);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.auth-proof-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-8) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.auth-proof-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-weight: 750;
+}
+
+.auth-proof-list li::before {
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 auto;
+  border: 3px solid var(--color-performance);
+  border-radius: 50%;
+  content: '';
+}
+
+.auth-proof-note {
+  margin: 0;
+  color: #b9c7d7;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.auth-card {
+  width: 100%;
+  align-self: center;
+  background: var(--color-surface);
   padding: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.auth-card h1 {
+  margin-bottom: var(--space-3);
+  font-size: clamp(2rem, 5vw, 3.25rem);
+}
+
+.auth-description {
+  max-width: 34rem;
+  color: var(--color-text-muted);
+}
+
+.auth-content {
+  margin-top: var(--space-6);
 }
 
 .auth-card form {
   display: grid;
   gap: var(--space-3);
   margin-top: var(--space-6);
+}
+
+.auth-alert,
+.auth-status {
+  margin: 0 0 var(--space-4);
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.auth-alert {
+  border: 1px solid var(--color-destructive);
+  background: var(--color-destructive-surface);
+}
+
+.auth-status {
+  border: 1px solid var(--color-primary);
+  background: var(--color-info-surface);
+}
+
+.auth-footer {
+  margin-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.auth-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.auth-footer a {
+  display: inline-flex;
+  min-height: var(--target-mobile);
+  align-items: center;
+  color: var(--color-text);
+  font-weight: 750;
+}
+
+@media (min-width: 900px) {
+  .auth-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(24rem, 0.9fr);
+  }
+
+  .auth-proof {
+    min-height: 42rem;
+    align-items: stretch;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .auth-proof > div,
+  .auth-proof-note {
+    display: block;
+  }
 }
 
 .auth-card input,
@@ -189,6 +355,17 @@ textarea {
   color: var(--color-destructive);
   font-size: 0.8125rem;
   font-weight: 700;
+}
+
+.field-control {
+  transition:
+    border-color var(--duration-enter),
+    box-shadow var(--duration-enter),
+    background-color var(--duration-enter);
+}
+
+.field-control:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
 }
 
 .workspace-state {
