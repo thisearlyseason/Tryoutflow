@@ -228,8 +228,10 @@ describe('production readiness release gate', () => {
     ]);
     expect(result.stdout).toContain('Production readiness automated gate passed');
     const script = await readFile(releaseScript, 'utf8');
+    const gitignore = await readFile(join(repositoryRoot, '.gitignore'), 'utf8');
     expect(script).toContain("run_stage 'canonical visual regression'");
     expect(script).not.toContain('--update-snapshots');
+    expect(gitignore).toContain('output/playwright/*-results/');
   });
 
   it('rejects the wrong Node before checking npm or installing dependencies', async () => {
