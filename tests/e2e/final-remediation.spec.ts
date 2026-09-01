@@ -154,9 +154,34 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
   await page.getByLabel('New athlete date of birth').fill('2014-04-05');
   await page.getByLabel('Division').selectOption(scenario.ids.division);
   await page.getByLabel('I consent').check();
+  const manualRequestKey = await page.locator('input[name="idempotencyKey"]').inputValue();
   expectCancellableServerAction(monitor, page, 'manual registration redirect');
   await page.getByRole('button', { name: 'Create registration' }).click();
   await expect(page.getByRole('status')).toContainText('Registration created');
+
+  await page.locator('input[name="idempotencyKey"]').evaluate((element, requestKey) => {
+    (element as HTMLInputElement).value = requestKey;
+  }, manualRequestKey);
+  await page.getByLabel('New athlete first name').fill('Conflicting');
+  await page.getByLabel('New athlete last name').fill('Content');
+  await page.getByLabel('New athlete date of birth').fill('2014-04-06');
+  await page.getByLabel('Division').selectOption(scenario.ids.division);
+  await page.getByLabel('I consent').check();
+  expectCancellableServerAction(monitor, page, 'manual registration idempotency conflict redirect');
+  await page.getByRole('button', { name: 'Create registration' }).click();
+  const conflictAlert = page.getByRole('alert').filter({ hasText: 'Registration was not created' });
+  await expect(conflictAlert).toContainText(
+    'this request key is already bound to different content',
+  );
+  await expect(conflictAlert).toContainText(
+    'Review the athlete and form details, then restart the registration',
+  );
+  expect(
+    scenario.database.scalar(
+      `select count(*) from public.athletes where organization_id='${scenario.ids.organization}' and given_name='Conflicting' and family_name='Content'`,
+    ),
+  ).toBe('0');
+
   const manualRegistration = page.getByRole('listitem').filter({ hasText: 'Manual Browser' });
   await expect(manualRegistration).toBeVisible();
   expectCancellableServerAction(monitor, page, 'QR issuance followed by assisted lookup');

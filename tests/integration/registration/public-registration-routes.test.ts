@@ -532,6 +532,10 @@ describe('real public registration route with local Supabase', () => {
     expect(reissueRegistration.status).toBe(200);
     await reissueRegistration.json();
     const reissueToken = latestQueuedConfirmationToken();
+    const reissueRateRowsBefore = Number(
+      psql("select count(*) from private.abuse_rate_limits where scope='registration_reissue'"),
+    );
+    const botReceiptRowsBefore = Number(psql('select count(*) from private.bot_token_receipts'));
     const rejectedReissue = await reissueConfirmation(
       jsonRequest(
         '/api/public/registrations/confirmation/reissue',
@@ -545,6 +549,14 @@ describe('real public registration route with local Supabase', () => {
     );
     expect(rejectedReissue.status).toBe(400);
     await expect(rejectedReissue.json()).resolves.toEqual({ status: 'invalid' });
+    expect(
+      Number(
+        psql("select count(*) from private.abuse_rate_limits where scope='registration_reissue'"),
+      ),
+    ).toBe(reissueRateRowsBefore);
+    expect(Number(psql('select count(*) from private.bot_token_receipts'))).toBe(
+      botReceiptRowsBefore,
+    );
     expect(
       psql(
         `select count(*) from public.registration_confirmation_tokens where registration_id=(select registration_id from public.registration_confirmation_tokens where token_digest=encode(extensions.digest('${reissueToken}','sha256'),'hex'))`,
@@ -676,16 +688,18 @@ describe('real public registration route with local Supabase', () => {
     expect(after - before).toBeLessThanOrEqual(11);
   });
 
-  it('rate-limits random reissue tokens by stable context with bounded durable rows', async () => {
+  it('rate-limits rotating reissue tokens and emails with one fixed-cardinality durable row', async () => {
     const address = '203.0.113.152';
-    const before = Number(psql('select count(*) from public.registration_rate_counters'));
+    const before = Number(
+      psql("select count(*) from private.abuse_rate_limits where scope='registration_reissue'"),
+    );
     const statuses: number[] = [];
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const token = (attempt + 100).toString(16).padStart(64, '0');
       const response = await reissueConfirmation(
         jsonRequest(
           '/api/public/registrations/confirmation/reissue',
-          { token, guardianEmail: 'guardian@example.com' },
+          { token, guardianEmail: `rotating-${attempt}@example.com` },
           { 'x-forwarded-for': address },
         ),
       );
@@ -693,8 +707,15 @@ describe('real public registration route with local Supabase', () => {
     }
     expect(statuses.slice(0, 4)).toEqual(Array(4).fill(200));
     expect(statuses.slice(4)).toEqual(Array(16).fill(429));
-    const after = Number(psql('select count(*) from public.registration_rate_counters'));
-    expect(after - before).toBeLessThanOrEqual(6);
+    const after = Number(
+      psql("select count(*) from private.abuse_rate_limits where scope='registration_reissue'"),
+    );
+    expect(after - before).toBe(1);
+    expect(
+      psql(
+        "select count(*) from private.abuse_rate_limits where to_jsonb(abuse_rate_limits)::text like '%rotating-%'",
+      ),
+    ).toBe('0');
   });
 
   it('atomically enforces confirmation and reissue scopes under concurrent token rotation', async () => {
@@ -714,6 +735,9 @@ describe('real public registration route with local Supabase', () => {
       ...Array(20).fill(429),
     ]);
 
+    const reissueRowsBefore = Number(
+      psql("select count(*) from private.abuse_rate_limits where scope='registration_reissue'"),
+    );
     const reissueResponses = await Promise.all(
       Array.from({ length: 12 }, (_unused, attempt) =>
         reissueConfirmation(
@@ -732,6 +756,11 @@ describe('real public registration route with local Supabase', () => {
       ...Array(4).fill(200),
       ...Array(8).fill(429),
     ]);
+    expect(
+      Number(
+        psql("select count(*) from private.abuse_rate_limits where scope='registration_reissue'"),
+      ) - reissueRowsBefore,
+    ).toBe(1);
   });
 
   it('durably rate-limits malformed submissions before the registration transaction rolls back', async () => {

@@ -66,6 +66,12 @@ export function RegistrationConfirmationClient({
   const [tryoutSlug, setTryoutSlug] = useState('');
   const [guardianEmail, setGuardianEmail] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmationChallengeReady, setConfirmationChallengeReady] = useState(
+    Boolean(confirmationBotToken),
+  );
+  const [reissueChallengeReady, setReissueChallengeReady] = useState(Boolean(reissueBotToken));
+  const [confirmationChallengeResetKey, setConfirmationChallengeResetKey] = useState(0);
+  const [reissueChallengeResetKey, setReissueChallengeResetKey] = useState(0);
 
   useEffect(() => {
     const slug = currentTryoutSlug();
@@ -132,6 +138,7 @@ export function RegistrationConfirmationClient({
     if (!token) return;
     const fields = new FormData(event.currentTarget);
     setBusy(true);
+    setConfirmationChallengeReady(false);
     try {
       const response = await fetch('/api/public/registrations/confirmation', {
         method: 'POST',
@@ -150,6 +157,7 @@ export function RegistrationConfirmationClient({
       setStatus('invalid');
     } finally {
       setBusy(false);
+      setConfirmationChallengeResetKey((value) => value + 1);
     }
   }
 
@@ -158,6 +166,7 @@ export function RegistrationConfirmationClient({
     if (!token || !guardianEmail) return;
     const fields = new FormData(event.currentTarget);
     setBusy(true);
+    setReissueChallengeReady(false);
     try {
       const response = await fetch('/api/public/registrations/confirmation/reissue', {
         method: 'POST',
@@ -196,6 +205,7 @@ export function RegistrationConfirmationClient({
       setStatus('invalid');
     } finally {
       setBusy(false);
+      setReissueChallengeResetKey((value) => value + 1);
     }
   }
 
@@ -224,12 +234,14 @@ export function RegistrationConfirmationClient({
             <TurnstileClientChallenge
               action="registration_confirmation"
               deterministicToken={confirmationBotToken}
+              onReadyChange={setConfirmationChallengeReady}
+              resetKey={confirmationChallengeResetKey}
               siteKey={botSiteKey}
             />
             <button
               className="min-h-[44px] rounded bg-[var(--color-primary)] px-4 text-white"
               type="submit"
-              disabled={busy}
+              disabled={busy || !confirmationChallengeReady}
             >
               {busy ? 'Confirming…' : 'Confirm registration'}
             </button>
@@ -272,12 +284,14 @@ export function RegistrationConfirmationClient({
             <TurnstileClientChallenge
               action="registration_reissue"
               deterministicToken={reissueBotToken}
+              onReadyChange={setReissueChallengeReady}
+              resetKey={reissueChallengeResetKey}
               siteKey={botSiteKey}
             />
             <button
               className="min-h-[44px] rounded bg-[var(--color-primary)] px-4 text-white"
               type="submit"
-              disabled={busy}
+              disabled={busy || !reissueChallengeReady}
             >
               {busy ? 'Requesting…' : 'Get a new confirmation code'}
             </button>

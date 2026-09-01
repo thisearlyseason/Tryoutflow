@@ -44,12 +44,13 @@ export async function POST(request: NextRequest) {
   if (!guarded.ok) return NextResponse.json({ status: 'invalid' }, { status: guarded.status });
   try {
     const client = createAdminSupabaseClient();
-    const abuseDecision = await getDefaultAuthAbuseProtection().check({
+    const abuseDecision = await getDefaultAuthAbuseProtection().checkBotFirst({
       scope: 'registration_reissue',
       action: 'registration_reissue',
-      // Bind the shared counter to canonical guardian proof, not the
-      // attacker-controlled capability, so random token rotation cannot evade it.
-      subject: guarded.body.guardianEmail,
+      // One HMAC'd action subject plus the trusted network address has fixed
+      // cardinality for rotating email/capability input. The provider token is
+      // verified and consumed before this subject can be written durably.
+      subject: 'registration-reissue-network',
       token: guarded.body.botVerificationToken,
       requestContext: guarded.requestContext,
     });
@@ -58,20 +59,6 @@ export async function POST(request: NextRequest) {
         { status: abuseDecision.reason === 'rate_limited' ? 'rate_limited' : 'invalid' },
         { status: abuseDecision.reason === 'rate_limited' ? 429 : 400 },
       );
-    const contextLimit = await client.rpc('consume_public_registration_rate_limit', {
-      p_rate_key_hash: guarded.contextRateKey,
-      p_limit: 5,
-    });
-    if (contextLimit.error) return NextResponse.json({ status: 'invalid' }, { status: 400 });
-    if (contextLimit.data?.[0]?.outcome === 'rate_limited')
-      return NextResponse.json({ status: 'rate_limited' }, { status: 429 });
-    const limit = await client.rpc('consume_public_registration_rate_limit', {
-      p_rate_key_hash: guarded.rateKey,
-      p_limit: 5,
-    });
-    if (limit.error) return NextResponse.json({ status: 'invalid' }, { status: 400 });
-    if (limit.data?.[0]?.outcome === 'rate_limited')
-      return NextResponse.json({ status: 'rate_limited' }, { status: 429 });
     const result = await client.rpc('reissue_registration_confirmation_token', {
       p_token: guarded.body.token,
       p_guardian_email: guarded.body.guardianEmail,

@@ -125,6 +125,79 @@ describe('Turnstile bot protection', () => {
 });
 
 describe('shared auth abuse protection', () => {
+  it('verifies reissue bot proof before creating any durable limiter or replay row', async () => {
+    const events: string[] = [];
+    const rpc = vi.fn(async (name: string) => {
+      events.push(name);
+      return name === 'consume_abuse_rate_limit'
+        ? { data: [{ allowed: true }], error: null }
+        : { data: [{ consumed: true }], error: null };
+    });
+    const protection = createDatabaseAuthAbuseProtection({
+      rpc,
+      botProtection: {
+        verify: vi.fn(async () => {
+          events.push('verify_bot');
+          return { ok: false as const, reason: 'invalid' as const };
+        }),
+      },
+      hmacSecret: 'h'.repeat(64),
+    });
+
+    await expect(
+      protection.checkBotFirst({
+        scope: 'registration_reissue',
+        action: 'registration_reissue',
+        subject: 'registration-reissue-network',
+        token: 'invalid-provider-token',
+        requestContext: { networkAddress: '203.0.113.7' },
+      }),
+    ).resolves.toEqual({ allowed: false, reason: 'bot_verification_required' });
+    expect(events).toEqual(['verify_bot']);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('consumes a verified reissue token before one fixed-cardinality network counter', async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      calls.push({ name, args });
+      return name === 'consume_bot_token_once'
+        ? { data: [{ consumed: true }], error: null }
+        : { data: [{ allowed: true }], error: null };
+    });
+    const protection = createDatabaseAuthAbuseProtection({
+      rpc,
+      botProtection: { verify: vi.fn(async () => ({ ok: true as const })) },
+      hmacSecret: 'h'.repeat(64),
+    });
+    const attempt = (token: string) => ({
+      scope: 'registration_reissue' as const,
+      action: 'registration_reissue' as const,
+      subject: 'registration-reissue-network',
+      token,
+      requestContext: { networkAddress: '203.0.113.7' },
+    });
+
+    await expect(protection.checkBotFirst(attempt('provider-token-one'))).resolves.toEqual({
+      allowed: true,
+    });
+    await expect(protection.checkBotFirst(attempt('provider-token-two'))).resolves.toEqual({
+      allowed: true,
+    });
+
+    expect(calls.map(({ name }) => name)).toEqual([
+      'consume_bot_token_once',
+      'consume_abuse_rate_limit',
+      'consume_bot_token_once',
+      'consume_abuse_rate_limit',
+    ]);
+    const rateCalls = calls.filter(({ name }) => name === 'consume_abuse_rate_limit');
+    expect(rateCalls).toHaveLength(2);
+    expect(rateCalls[0]?.args.p_subject_digest).toBe(rateCalls[1]?.args.p_subject_digest);
+    expect(JSON.stringify(calls)).not.toContain('provider-token');
+    expect(JSON.stringify(calls)).not.toContain('203.0.113.7');
+  });
+
   it('stores only HMAC/digest material and rejects replayed verified tokens', async () => {
     const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
     const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {

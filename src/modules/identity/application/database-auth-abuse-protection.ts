@@ -37,6 +37,14 @@ export type AuthAbuseProtection = {
   check(attempt: AuthAbuseAttempt): Promise<AuthAbuseDecision>;
 };
 
+export type BotFirstAuthAbuseProtection = AuthAbuseProtection & {
+  /**
+   * For unauthenticated capability workflows, verify and consume the provider
+   * token before creating a durable rate-limit subject row.
+   */
+  checkBotFirst(attempt: AuthAbuseAttempt): Promise<AuthAbuseDecision>;
+};
+
 type RpcPort = (
   name: 'consume_abuse_rate_limit' | 'consume_bot_token_once',
   args: Record<string, unknown>,
@@ -86,65 +94,103 @@ export function createDatabaseAuthAbuseProtection(input: {
   botProtection: BotProtection;
   hmacSecret: string;
   limits?: Partial<Record<AuthAbuseScope, { limit: number; windowSeconds: number }>>;
-}): AuthAbuseProtection {
+}): BotFirstAuthAbuseProtection {
   if (input.hmacSecret.length < 32) throw new Error('Abuse-protection HMAC secret is invalid');
   const limits = { ...defaultLimits, ...input.limits };
   const hmac = (label: string, value: string) =>
     createHmac('sha256', input.hmacSecret).update(`${label}\u0000${value}`).digest('hex');
 
+  function validateAttempt(attempt: AuthAbuseAttempt) {
+    const normalizedSubject = attempt.subject.trim().toLocaleLowerCase('en-US');
+    const address = attempt.requestContext?.networkAddress;
+    if (
+      scopeActions[attempt.scope] !== attempt.action ||
+      normalizedSubject.length < 1 ||
+      normalizedSubject.length > 320 ||
+      /[\u0000-\u001f\u007f]/u.test(normalizedSubject) ||
+      !address ||
+      address.length > 128 ||
+      attempt.token.length < 1 ||
+      attempt.token.length > 2_048
+    )
+      return null;
+    return { address, normalizedSubject };
+  }
+
+  async function consumeRateLimit(
+    attempt: AuthAbuseAttempt,
+    normalizedSubject: string,
+    address: string,
+  ): Promise<AuthAbuseDecision | null> {
+    const limit = limits[attempt.scope];
+    const rate = await input.rpc('consume_abuse_rate_limit', {
+      p_subject_digest: hmac(`subject:${attempt.scope}`, normalizedSubject),
+      p_address_digest: hmac(`address:${attempt.scope}`, address),
+      p_scope: attempt.scope,
+      p_limit: limit.limit,
+      p_window_seconds: limit.windowSeconds,
+    });
+    const rateRow = singleRow(rate.data);
+    if (rate.error || typeof rateRow?.allowed !== 'boolean')
+      return { allowed: false, reason: 'abuse_protection_unavailable' };
+    return rateRow.allowed ? null : { allowed: false, reason: 'rate_limited' };
+  }
+
+  async function verifyAndConsumeBot(
+    attempt: AuthAbuseAttempt,
+    address: string,
+  ): Promise<AuthAbuseDecision | null> {
+    const bot = await input.botProtection.verify({
+      token: attempt.token,
+      action: attempt.action,
+      remoteAddress: address,
+    });
+    if (!bot.ok)
+      return {
+        allowed: false,
+        reason:
+          bot.reason === 'invalid' ? 'bot_verification_required' : 'abuse_protection_unavailable',
+      };
+    const receipt = await input.rpc('consume_bot_token_once', {
+      p_token_digest: createHash('sha256').update(attempt.token).digest('hex'),
+      p_action: attempt.action,
+      p_ttl_seconds: 300,
+    });
+    const receiptRow = singleRow(receipt.data);
+    if (receipt.error || typeof receiptRow?.consumed !== 'boolean')
+      return { allowed: false, reason: 'abuse_protection_unavailable' };
+    return receiptRow.consumed ? null : { allowed: false, reason: 'bot_verification_required' };
+  }
+
   return {
     async check(attempt) {
-      const normalizedSubject = attempt.subject.trim().toLocaleLowerCase('en-US');
-      const address = attempt.requestContext?.networkAddress;
-      if (
-        scopeActions[attempt.scope] !== attempt.action ||
-        normalizedSubject.length < 1 ||
-        normalizedSubject.length > 320 ||
-        /[\u0000-\u001f\u007f]/u.test(normalizedSubject) ||
-        !address ||
-        address.length > 128 ||
-        attempt.token.length < 1 ||
-        attempt.token.length > 2_048
-      )
-        return { allowed: false, reason: 'abuse_protection_unavailable' };
+      const validated = validateAttempt(attempt);
+      if (!validated) return { allowed: false, reason: 'abuse_protection_unavailable' };
       try {
-        const limit = limits[attempt.scope];
-        const rate = await input.rpc('consume_abuse_rate_limit', {
-          p_subject_digest: hmac(`subject:${attempt.scope}`, normalizedSubject),
-          p_address_digest: hmac(`address:${attempt.scope}`, address),
-          p_scope: attempt.scope,
-          p_limit: limit.limit,
-          p_window_seconds: limit.windowSeconds,
-        });
-        const rateRow = singleRow(rate.data);
-        if (rate.error || typeof rateRow?.allowed !== 'boolean')
-          return { allowed: false, reason: 'abuse_protection_unavailable' };
-        if (!rateRow.allowed) return { allowed: false, reason: 'rate_limited' };
-
-        const bot = await input.botProtection.verify({
-          token: attempt.token,
-          action: attempt.action,
-          remoteAddress: address,
-        });
-        if (!bot.ok)
-          return {
-            allowed: false,
-            reason:
-              bot.reason === 'invalid'
-                ? 'bot_verification_required'
-                : 'abuse_protection_unavailable',
-          };
-        const receipt = await input.rpc('consume_bot_token_once', {
-          p_token_digest: createHash('sha256').update(attempt.token).digest('hex'),
-          p_action: attempt.action,
-          p_ttl_seconds: 300,
-        });
-        const receiptRow = singleRow(receipt.data);
-        if (receipt.error || typeof receiptRow?.consumed !== 'boolean')
-          return { allowed: false, reason: 'abuse_protection_unavailable' };
-        return receiptRow.consumed
-          ? { allowed: true }
-          : { allowed: false, reason: 'bot_verification_required' };
+        const rateDecision = await consumeRateLimit(
+          attempt,
+          validated.normalizedSubject,
+          validated.address,
+        );
+        if (rateDecision) return rateDecision;
+        const botDecision = await verifyAndConsumeBot(attempt, validated.address);
+        return botDecision ?? { allowed: true };
+      } catch {
+        return { allowed: false, reason: 'abuse_protection_unavailable' };
+      }
+    },
+    async checkBotFirst(attempt) {
+      const validated = validateAttempt(attempt);
+      if (!validated) return { allowed: false, reason: 'abuse_protection_unavailable' };
+      try {
+        const botDecision = await verifyAndConsumeBot(attempt, validated.address);
+        if (botDecision) return botDecision;
+        const rateDecision = await consumeRateLimit(
+          attempt,
+          validated.normalizedSubject,
+          validated.address,
+        );
+        return rateDecision ?? { allowed: true };
       } catch {
         return { allowed: false, reason: 'abuse_protection_unavailable' };
       }
@@ -154,7 +200,7 @@ export function createDatabaseAuthAbuseProtection(input: {
 
 export function getDefaultAuthAbuseProtection(
   environment: Record<string, string | undefined> = process.env,
-): AuthAbuseProtection {
+): BotFirstAuthAbuseProtection {
   const hmacSecret = environment.ABUSE_PROTECTION_HMAC_SECRET;
   if (!hmacSecret) throw new Error('Abuse protection is not configured');
   const client = createAdminSupabaseClient();

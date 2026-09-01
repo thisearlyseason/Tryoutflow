@@ -183,7 +183,12 @@ export default async function TryoutRegistrationPage({
         <h2 id="registration-heading">{configuration.tryout_name} registrations</h2>
         <p>Register a new athlete or select an existing organization athlete.</p>
         {query.created === '1' ? <p role="status">Registration created.</p> : null}
-        {query.error ? (
+        {query.error === 'idempotency_conflict' ? (
+          <p role="alert">
+            Registration was not created because this request key is already bound to different
+            content. Review the athlete and form details, then restart the registration.
+          </p>
+        ) : query.error ? (
           <p role="alert">Registration could not be created. Review the fields and try again.</p>
         ) : null}
       </div>

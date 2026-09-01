@@ -85,7 +85,9 @@ export async function createStaffRegistration(
 ): Promise<
   AppResult<
     { registrationId: string; athleteId: string; replayed: boolean },
-    { code: 'invalid_input' | 'forbidden' | 'not_found' | 'unavailable' }
+    {
+      code: 'invalid_input' | 'idempotency_conflict' | 'forbidden' | 'not_found' | 'unavailable';
+    }
   >
 > {
   const parsed = schema.safeParse(input);
@@ -112,8 +114,11 @@ export async function createStaffRegistration(
         .update(`staff-registration\u0000${parsed.data.idempotencyKey}`)
         .digest('hex'),
     });
-    if (!['created', 'replayed'].includes(created.outcome))
+    if (!['created', 'replayed'].includes(created.outcome)) {
+      if (created.outcome === 'idempotency_conflict')
+        return failure({ code: 'idempotency_conflict' });
       return failure({ code: created.outcome === 'not_found' ? 'not_found' : 'invalid_input' });
+    }
     if (!created.registrationId || !created.athleteId) return failure({ code: 'unavailable' });
     return success({
       registrationId: created.registrationId,

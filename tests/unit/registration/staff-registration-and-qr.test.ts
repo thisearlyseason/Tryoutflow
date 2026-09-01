@@ -123,6 +123,29 @@ describe('staff-assisted registration and QR commands', () => {
     );
   });
 
+  it('preserves a database idempotency conflict as an exact application result', async () => {
+    const gateway: StaffRegistrationGateway = {
+      create: vi.fn().mockResolvedValue({ outcome: 'idempotency_conflict' }),
+    };
+
+    await expect(
+      createStaffRegistration(
+        {
+          organizationId,
+          tryoutId,
+          divisionId: '55555555-5555-4555-8555-555555555555',
+          givenName: 'Ada',
+          familyName: 'Lovelace',
+          birthDate: '2014-01-02',
+          responses: { consent: true },
+          idempotencyKey: '66666666-6666-4666-8666-666666666666',
+        },
+        { authorization: authorization('owner') },
+        { gateway, form: consentForm },
+      ),
+    ).resolves.toEqual({ ok: false, error: { code: 'idempotency_conflict' } });
+  });
+
   it('supports a returning athlete without permitting mixed identity input', async () => {
     const gateway: StaffRegistrationGateway = {
       create: vi.fn().mockResolvedValue({
