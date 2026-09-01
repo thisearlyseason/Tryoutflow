@@ -42,16 +42,30 @@ export function OnboardingChecklist({
       <p className="onboarding-summary">
         {progress.completedCount} of {progress.totalCount} complete
       </p>
-      <ol className="onboarding-list">
-        {progress.items.map((item) => (
-          <li key={item.key}>
-            <span>{item.label}</span>
-            <StatusBadge status={item.complete ? 'ready' : 'draft'}>
-              {item.complete ? 'Complete' : 'Next'}
-            </StatusBadge>
-          </li>
-        ))}
-      </ol>
+      {progress.percent === 100 ? (
+        <details className="onboarding-complete-details">
+          <summary>View completed checklist</summary>
+          <ol className="onboarding-list">
+            {progress.items.map((item) => (
+              <li key={item.key}>
+                <span>{item.label}</span>
+                <StatusBadge status="ready">Complete</StatusBadge>
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : (
+        <ol className="onboarding-list">
+          {progress.items.map((item) => (
+            <li key={item.key}>
+              <span>{item.label}</span>
+              <StatusBadge status={item.complete ? 'ready' : 'draft'}>
+                {item.complete ? 'Complete' : 'Next'}
+              </StatusBadge>
+            </li>
+          ))}
+        </ol>
+      )}
       {organizationSlug && progress.next ? (
         <div className="onboarding-next">
           <span>

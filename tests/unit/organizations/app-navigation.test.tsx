@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
@@ -8,6 +9,7 @@ import {
   buildAppNavigation,
   flattenNavigation,
 } from '../../../src/modules/organizations/components/app-navigation-model';
+import { MobileNav } from '../../../src/components/layout/mobile-nav';
 
 const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as OrganizationId;
 const userId = '11111111-1111-4111-8111-111111111111' as UserId;
@@ -109,5 +111,30 @@ describe('role-aware application navigation', () => {
       'aria-current',
       'page',
     );
+  });
+
+  it('groups secondary mobile destinations without presenting category numbers as workflow steps', async () => {
+    const groups = buildAppNavigation({
+      authorization: authorization({ organizationRole: 'owner', assignments: [] }),
+      organizationSlug: 'badlands',
+    });
+    render(
+      <MobileNav
+        groups={groups}
+        organization={{ name: 'Badlands Hockey Academy', slug: 'badlands' }}
+        pathname="/app/badlands/home"
+        roleLabel="Owner"
+      />,
+    );
+
+    const more = screen.getByRole('button', { name: 'More navigation' });
+    expect(more).toBeVisible();
+    await userEvent.click(more);
+    expect(screen.getByRole('heading', { name: 'Operations' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Organization' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Close navigation' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeVisible();
+    expect(screen.queryByText('01')).not.toBeInTheDocument();
+    expect(screen.queryByText('06')).not.toBeInTheDocument();
   });
 });

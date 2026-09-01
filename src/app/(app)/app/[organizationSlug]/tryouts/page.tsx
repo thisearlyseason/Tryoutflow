@@ -4,11 +4,11 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { LinkButton } from '@/components/ui/link-button';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { AppError } from '@/modules/observability/domain/app-error';
 import { shouldInjectTestLoaderFailure } from '@/modules/observability/application/test-failure-boundary';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import { TryoutCard } from '@/modules/tryouts/ui/tryout-card';
 
 export default async function TryoutsPage({
   params,
@@ -83,8 +83,10 @@ export default async function TryoutsPage({
       {tryouts?.length ? (
         <ul className="workspace-card-grid">
           {tryouts.map((tryout) => (
-            <li className="card workspace-card" key={tryout.id}>
-              <StatusBadge
+            <li key={tryout.id}>
+              <TryoutCard
+                baseHref={`/app/${organizationSlug}/tryouts/${tryout.id}`}
+                name={tryout.name}
                 status={
                   tryout.status === 'draft' ||
                   tryout.status === 'published' ||
@@ -92,19 +94,8 @@ export default async function TryoutsPage({
                     ? tryout.status
                     : 'unavailable'
                 }
-              >
-                {tryout.status}
-              </StatusBadge>
-              <Link
-                className="workspace-card-title"
-                href={`/app/${organizationSlug}/tryouts/${tryout.id}/${tryout.status === 'draft' ? 'setup/basics' : 'overview'}`}
-                prefetch={false}
-              >
-                {tryout.name}
-              </Link>
-              <p>
-                Open the {tryout.status === 'draft' ? 'guided setup' : 'operational control room'}.
-              </p>
+                updatedAt={tryout.updated_at}
+              />
             </li>
           ))}
         </ul>

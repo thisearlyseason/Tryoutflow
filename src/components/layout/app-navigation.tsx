@@ -1,5 +1,14 @@
 'use client';
 
+import {
+  BarChart3,
+  ClipboardList,
+  House,
+  Settings,
+  UserRoundCheck,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -10,13 +19,13 @@ import type {
   NavigationItem,
 } from '../../modules/organizations/components/app-navigation-model';
 
-const iconLabels: Record<NavigationIcon, string> = {
-  home: '01',
-  tryouts: '02',
-  athletes: '03',
-  evaluate: '04',
-  reports: '05',
-  organization: '06',
+const navigationIcons: Record<NavigationIcon, LucideIcon> = {
+  home: House,
+  tryouts: ClipboardList,
+  athletes: Users,
+  evaluate: UserRoundCheck,
+  reports: BarChart3,
+  organization: Settings,
 };
 
 export function isNavigationItemActive(pathname: string, item: NavigationItem) {
@@ -25,6 +34,7 @@ export function isNavigationItemActive(pathname: string, item: NavigationItem) {
 
 export function NavigationLink({ item, pathname }: { item: NavigationItem; pathname: string }) {
   const active = isNavigationItemActive(pathname, item);
+  const Icon = navigationIcons[item.icon];
   return (
     <Link
       aria-current={active ? 'page' : undefined}
@@ -34,7 +44,7 @@ export function NavigationLink({ item, pathname }: { item: NavigationItem; pathn
       prefetch={false}
     >
       <span aria-hidden="true" className="app-nav-icon">
-        {iconLabels[item.icon]}
+        <Icon size={17} strokeWidth={2.25} />
       </span>
       <span>{item.label}</span>
     </Link>

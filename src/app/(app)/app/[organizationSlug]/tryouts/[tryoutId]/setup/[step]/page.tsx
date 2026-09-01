@@ -20,6 +20,7 @@ import {
 } from '@/modules/tryouts/application/save-wizard-configuration';
 import { persistWizardStep } from '@/modules/tryouts/application/persist-wizard-step';
 import { TryoutWizard } from '@/modules/tryouts/ui/tryout-wizard';
+import { parseTryoutBasics } from '@/modules/tryouts/ui/tryout-basics';
 import { WizardProgress } from '@/modules/tryouts/ui/wizard-progress';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 
@@ -38,7 +39,9 @@ export default async function TryoutSetupStepPage({
   const current = await requireCurrentOrganization(organizationSlug);
   const tryoutResult = await current.client
     .from('tryouts')
-    .select('id, name, status, version')
+    .select(
+      'id, name, sport, timezone, registration_starts_at, registration_ends_at, status, version',
+    )
     .eq('organization_id', current.organization.id)
     .eq('id', tryoutId)
     .maybeSingle();
@@ -58,6 +61,21 @@ export default async function TryoutSetupStepPage({
   }
   const tryout = tryoutResult.data;
   if (!tryout || tryout.status !== 'draft') notFound();
+  const basics = parseTryoutBasics(tryout);
+  if (!basics) {
+    captureOperationalError(new AppError('unexpected_error'), {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      tryoutId,
+      operation: 'tryout_setup.load',
+    });
+    return (
+      <ErrorState
+        description="Saved tryout details are incomplete. Refresh before making changes."
+        title="Setup details unavailable"
+      />
+    );
+  }
   const [progressResult, validation, divisionsResult, sessionsResult] = await Promise.all([
     current.client
       .from('tryout_setup_progress')
@@ -184,6 +202,7 @@ export default async function TryoutSetupStepPage({
       />
       <TryoutWizard
         action={save}
+        basics={basics}
         blockers={blockers}
         divisions={divisions ?? []}
         error={error}

@@ -16,6 +16,7 @@ import { requireCapability } from '@/modules/organizations/application/require-c
 import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
 import { createStaffRegistration } from '@/modules/registration/application/create-staff-registration';
 import { RegistrationFormSchema } from '@/modules/registration/domain/form-schema';
+import { ParticipantWorkspaceHeader } from '@/modules/registration/ui/participant-workspace-header';
 
 const configurationSchema = z.object({
   tryout_name: z.string(),
@@ -86,7 +87,7 @@ export default async function TryoutRegistrationPage({
       : { data: [], error: null };
   const registrationsResult = await current.client
     .from('tryout_registrations')
-    .select('id,status,athletes!inner(given_name,family_name)')
+    .select('id,status,athletes!inner(given_name,family_name)', { count: 'exact' })
     .eq('organization_id', current.organization.id)
     .eq('tryout_id', tryoutId)
     .order('created_at', { ascending: false })
@@ -177,11 +178,18 @@ export default async function TryoutRegistrationPage({
   }
 
   return (
-    <section aria-labelledby="registration-heading" className="grid gap-8">
+    <section aria-label="Participant workspace" className="grid gap-8">
       <div>
-        <p className="eyebrow">Registration operations</p>
-        <h2 id="registration-heading">{configuration.tryout_name} registrations</h2>
-        <p>Register a new athlete or select an existing organization athlete.</p>
+        <ParticipantWorkspaceHeader
+          importHref={`/app/${organizationSlug}/athletes/import`}
+          overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview#registration-share`}
+          participantCount={
+            registrationsResult.error
+              ? null
+              : (registrationsResult.count ?? registrationsResult.data?.length ?? 0)
+          }
+          tryoutName={configuration.tryout_name}
+        />
         {query.created === '1' ? <p role="status">Registration created.</p> : null}
         {query.error === 'idempotency_conflict' ? (
           <p role="alert">
@@ -193,7 +201,7 @@ export default async function TryoutRegistrationPage({
         ) : null}
       </div>
 
-      <section aria-labelledby="returning-heading" className="card p-5">
+      <section aria-labelledby="returning-heading" className="card p-5" id="returning-participant">
         <h3 id="returning-heading">Find a returning athlete</h3>
         <form className="mt-3 flex flex-col gap-2 sm:flex-row" method="get">
           <label className="grow" htmlFor="returning-query">
@@ -215,8 +223,8 @@ export default async function TryoutRegistrationPage({
         ) : null}
       </section>
 
-      <section aria-labelledby="manual-heading" className="card p-5">
-        <h3 id="manual-heading">Manual registration</h3>
+      <section aria-labelledby="manual-heading" className="card p-5" id="add-participant">
+        <h3 id="manual-heading">Add a new participant</h3>
         <form action={createRegistration} className="mt-4 grid gap-4">
           <input name="idempotencyKey" type="hidden" value={randomUUID()} />
           <label>

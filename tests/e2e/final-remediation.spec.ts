@@ -104,6 +104,10 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
     new RegExp(`/app/${organizationSlug}/tryouts/.+/setup/basics$`, 'u'),
   );
   await expect(page.getByRole('heading', { name: 'Guided setup' })).toBeVisible();
+  await expect(page.getByLabel('Sport')).toHaveValue('Hockey');
+  await expect(page.getByLabel(/Timezone/u)).toHaveValue('America/Edmonton');
+  await expect(page.getByLabel('Registration opens')).toHaveValue('2026-09-01T09:00');
+  await expect(page.getByLabel('Registration closes')).toHaveValue('2026-09-10T21:00');
 
   expect(
     task30Database.scalar(
@@ -131,10 +135,20 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
   await expect(page.getByRole('group', { name: 'Cycle or season' })).toBeVisible();
   await expect(page.getByLabel('New cycle name')).toBeVisible();
 
+  await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`);
+  await expect(page.getByRole('heading', { name: 'Participants' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add participant' })).toHaveAttribute(
+    'href',
+    `${registrationPath}#add-participant`,
+  );
+  await expect(page.getByRole('link', { name: 'Share registration link' })).toBeVisible();
+
   await page.goto(`${registrationPath}?q=Returning`);
   await expect(
-    page.getByRole('heading', { name: `${scenario.tryoutName} registrations` }),
+    page.getByRole('heading', { name: `${scenario.tryoutName} participants` }),
   ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Add a new participant' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Find a returning athlete' })).toBeVisible();
   await expect(page.getByLabel('Returning athlete (optional)')).toContainText('Returning Prospect');
   await page.getByLabel('Returning athlete (optional)').selectOption(scenario.ids.returningAthlete);
   await page.getByLabel('Division').selectOption(scenario.ids.division);

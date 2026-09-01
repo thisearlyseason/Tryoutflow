@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { RegistrationShare } from '@/modules/tryouts/ui/registration-share';
-import { TryoutLifecycle } from '@/modules/tryouts/ui/tryout-lifecycle';
+import { TryoutActionPlan } from '@/modules/tryouts/ui/tryout-action-plan';
 import { getPublicAppOrigin } from '@/lib/env';
 import {
   canManageTryoutStaffing,
@@ -75,17 +75,31 @@ export default async function TryoutOverviewPage({
 
   if (shouldInjectTestLoaderFailure(query.__testLoaderFailure, 'overview'))
     return unavailable(new AppError('network_unavailable'));
-  const result = await current.client
-    .from('tryouts')
-    .select('id, name, slug, status')
-    .eq('organization_id', current.organization.id)
-    .eq('id', tryoutId)
-    .maybeSingle();
+  const [result, participantCountResult] = await Promise.all([
+    current.client
+      .from('tryouts')
+      .select('id, name, slug, status')
+      .eq('organization_id', current.organization.id)
+      .eq('id', tryoutId)
+      .maybeSingle(),
+    current.client
+      .from('tryout_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', current.organization.id)
+      .eq('tryout_id', tryoutId),
+  ]);
   if (result.error) return unavailable(result.error);
   if (!result.data) notFound();
   const parsed = tryoutOverviewSchema.safeParse(result.data);
   if (!parsed.success) return unavailable(parsed.error);
   const tryout = parsed.data;
+  if (participantCountResult.error)
+    captureOperationalError(participantCountResult.error, {
+      actorId: current.userId,
+      organizationId: current.organization.id,
+      tryoutId,
+      operation: 'registrations.load',
+    });
   const managesTryout = canManageTryoutStaffing(current.authorization, tryoutId);
   const base = `/app/${organizationSlug}/tryouts/${tryoutId}`;
   return (
@@ -96,77 +110,14 @@ export default async function TryoutOverviewPage({
         eyebrow="Tryout control room"
         title={tryout.name}
       />
-      <TryoutLifecycle
-        completed={
-          tryout.status === 'draft'
-            ? ['draft']
-            : tryout.status === 'published'
-              ? ['draft', 'published']
-              : ['draft', 'published', 'finalized']
-        }
-        current={tryout.status}
-        hrefs={
-          managesTryout
-            ? {
-                draft: `${base}/setup/basics`,
-                published: `${base}/overview`,
-                registration: `${base}/registration`,
-                evaluation: `${base}/live`,
-                decisions: `${base}/rankings`,
-                finalized: `${base}/rosters`,
-              }
-            : {
-                evaluation: `${base}/live`,
-                decisions: `${base}/rankings`,
-                finalized: `${base}/rosters`,
-              }
-        }
-      />
       {managesTryout ? (
-        <div className="workspace-actions">
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts/${tryoutId}/registration`}
-            prefetch={false}
-          >
-            Registrations
-          </Link>
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts/${tryoutId}/sessions`}
-            prefetch={false}
-          >
-            Sessions
-          </Link>
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts/${tryoutId}/staff`}
-            prefetch={false}
-          >
-            Manage staff
-          </Link>
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts/${tryoutId}/live`}
-            prefetch={false}
-          >
-            Live dashboard
-          </Link>
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts/${tryoutId}/rankings`}
-            prefetch={false}
-          >
-            Rankings
-          </Link>
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts/${tryoutId}/rosters`}
-            prefetch={false}
-          >
-            Rosters
-          </Link>
-        </div>
+        <TryoutActionPlan
+          baseHref={base}
+          participantCount={
+            participantCountResult.error ? null : (participantCountResult.count ?? 0)
+          }
+          status={tryout.status}
+        />
       ) : null}
       {tryout.status === 'published' ? (
         <div className="card p-5">

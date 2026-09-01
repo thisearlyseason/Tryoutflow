@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 import type { TryoutSetupStep } from '../application/save-tryout-setup-step';
+import type { TryoutBasicsValues } from './tryout-basics';
 
 const guidance: Record<TryoutSetupStep, { title: string; description: string }> = {
   basics: {
@@ -40,6 +41,7 @@ const guidance: Record<TryoutSetupStep, { title: string; description: string }> 
 
 export function TryoutWizard({
   action,
+  basics,
   blockers,
   divisions = [],
   error,
@@ -48,6 +50,7 @@ export function TryoutWizard({
   step,
 }: {
   action: (formData: FormData) => void | Promise<void>;
+  basics?: TryoutBasicsValues;
   blockers: string[];
   divisions?: { id: string; name: string }[];
   error?: string;
@@ -58,6 +61,14 @@ export function TryoutWizard({
   const [confirmation, setConfirmation] = useState('');
   const item = guidance[step];
   const publishing = step === 'publish';
+  const errorMessage =
+    step === 'basics' && error === 'invalid_input'
+      ? 'Check the highlighted fields. Sport and timezone are required, and registration must close after it opens.'
+      : error === 'invalid_time_range'
+        ? 'Registration must close after it opens.'
+        : error
+          ? `Could not save this step: ${error.replaceAll('_', ' ')}. Your progress was not advanced.`
+          : null;
   return (
     <section
       aria-labelledby="wizard-step-heading"
@@ -66,9 +77,9 @@ export function TryoutWizard({
       <p className="eyebrow">Setup step</p>
       <h2 id="wizard-step-heading">{item.title}</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">{item.description}</p>
-      {error ? (
+      {errorMessage ? (
         <p className="mt-4 rounded-lg border border-[var(--color-destructive)] p-3" role="alert">
-          Could not save this step: {error.replaceAll('_', ' ')}. Your progress was not advanced.
+          {errorMessage}
         </p>
       ) : null}
       {blockers.length > 0 && (step === 'review' || step === 'publish') ? (
@@ -98,25 +109,65 @@ export function TryoutWizard({
           </label>
         ) : step === 'basics' ? (
           <>
-            <label className="block">
-              Name
-              <Input defaultValue={name} name="name" required />
+            <p className="text-sm font-bold text-[var(--color-text-muted)]">
+              All fields are required.
+            </p>
+            <label className="block" htmlFor="tryout-basics-name">
+              Tryout name
+              <Input
+                defaultValue={basics?.name ?? name}
+                id="tryout-basics-name"
+                maxLength={160}
+                name="name"
+                required
+              />
             </label>
-            <label className="block">
+            <label className="block" htmlFor="tryout-basics-sport">
               Sport
-              <Input name="sport" required />
+              <Input
+                defaultValue={basics?.sport}
+                id="tryout-basics-sport"
+                maxLength={80}
+                name="sport"
+                required
+              />
             </label>
-            <label className="block">
+            <label className="block" htmlFor="tryout-basics-timezone">
               Timezone
-              <Input name="timezone" required />
+              <Input
+                aria-describedby="tryout-basics-timezone-help"
+                defaultValue={basics?.timezone}
+                id="tryout-basics-timezone"
+                maxLength={100}
+                name="timezone"
+                required
+              />
+              <span
+                className="mt-1 block text-sm text-[var(--color-text-muted)]"
+                id="tryout-basics-timezone-help"
+              >
+                Use an IANA timezone such as America/Edmonton.
+              </span>
             </label>
-            <label className="block">
+            <label className="block" htmlFor="tryout-basics-opens">
               Registration opens
-              <Input name="registrationStartsAt" required type="datetime-local" />
+              <Input
+                defaultValue={basics?.registrationStartsAt}
+                id="tryout-basics-opens"
+                name="registrationStartsAt"
+                required
+                type="datetime-local"
+              />
             </label>
-            <label className="block">
+            <label className="block" htmlFor="tryout-basics-closes">
               Registration closes
-              <Input name="registrationEndsAt" required type="datetime-local" />
+              <Input
+                defaultValue={basics?.registrationEndsAt}
+                id="tryout-basics-closes"
+                name="registrationEndsAt"
+                required
+                type="datetime-local"
+              />
             </label>
           </>
         ) : step === 'divisions' ? (

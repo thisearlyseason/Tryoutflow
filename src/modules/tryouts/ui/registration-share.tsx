@@ -19,6 +19,7 @@ export async function RegistrationShare({
     <section
       aria-labelledby="registration-share-heading"
       className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+      id="registration-share"
     >
       <h2 id="registration-share-heading">Registration link</h2>
       <p className="mt-2 break-all text-sm text-[var(--color-text-muted)]">{url}</p>
