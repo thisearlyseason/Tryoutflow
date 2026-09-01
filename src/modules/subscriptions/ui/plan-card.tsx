@@ -81,7 +81,8 @@ export function PlanCard({
   }
 
   return (
-    <article className="flex min-w-0 flex-col rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-surface)]">
+    <article className="plan-card flex min-w-0 flex-col overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-surface)]">
+      <p className="eyebrow">Monthly plan</p>
       <h3 className="text-xl font-black">{plan.name}</h3>
       <p className="mt-3">
         <span className="font-[family-name:var(--font-score)] text-3xl font-black">

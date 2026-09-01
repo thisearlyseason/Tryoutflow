@@ -16,48 +16,43 @@ export function IntegrationCard({
   notice,
 }: IntegrationCardProps) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <article className="integration-card rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-[var(--shadow-surface)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">
-            Team management
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-slate-950">{providerName}</h2>
+          <p className="eyebrow">Team management</p>
+          <h2 className="mt-2 text-2xl font-black">{providerName}</h2>
         </div>
-        <span className="rounded-full bg-lime-100 px-3 py-1 text-sm font-bold text-lime-950">
+        <StatusBadge data-status="warning" status="warning">
           Demo/mock only
-        </span>
+        </StatusBadge>
       </div>
-      <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-700">
+      <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--color-text-muted)]">
         Synthetic demonstration data only. No provider credentials or production endpoint are
         configured.
       </p>
       {notice ? (
         <p
           role="alert"
-          className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-950"
+          className="mt-4 rounded-[var(--radius-control)] border border-[var(--color-warning)] bg-[var(--color-warning-surface)] p-4 font-semibold text-[var(--color-warning)]"
         >
           {notice}
         </p>
       ) : null}
       {!enabled ? (
-        <p className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-semibold text-amber-950">
+        <p className="mt-5 rounded-[var(--radius-control)] border border-[var(--color-warning)] bg-[var(--color-warning-surface)] p-4 font-semibold text-[var(--color-warning)]">
           Disabled by default. An administrator must enable the server-side demo flag.
         </p>
       ) : connected ? (
-        <p className="mt-5 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 font-semibold text-emerald-950">
+        <p className="mt-5 rounded-[var(--radius-control)] border border-[var(--color-success)] bg-[var(--color-success-surface)] p-4 font-semibold text-[var(--color-success)]">
           Connected to {connectionLabel ?? providerName} for this administrator’s demo session.
         </p>
       ) : connectAction ? (
         <form action={connectAction} className="mt-5">
-          <button
-            type="submit"
-            className="min-h-11 rounded-xl bg-blue-700 px-5 py-3 font-bold text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
-          >
-            Connect demo provider
-          </button>
+          <Button type="submit">Connect demo provider</Button>
         </form>
       ) : null}
     </article>
   );
 }
+import { Button } from '../../../components/ui/button';
+import { StatusBadge } from '../../../components/ui/status-badge';

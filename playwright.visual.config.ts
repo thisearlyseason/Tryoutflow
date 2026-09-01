@@ -68,6 +68,7 @@ export default defineConfig({
       name: 'mobile-chromium',
       testIgnore: [
         'application-shell.visual.spec.ts',
+        'administration.visual.spec.ts',
         'decisions.visual.spec.ts',
         'game-day.visual.spec.ts',
         'tryout-administration.visual.spec.ts',

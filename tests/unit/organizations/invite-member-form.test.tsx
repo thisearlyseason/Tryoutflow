@@ -14,6 +14,8 @@ describe('InviteMemberForm', () => {
     const user = userEvent.setup();
 
     render(<InviteMemberForm action={action} />);
+    expect(screen.getByTestId('invite-member-form')).toHaveClass('admin-form');
+    expect(screen.getByLabelText('Email')).toHaveClass('min-h-11');
     await user.type(screen.getByLabelText('Email'), 'coach@example.com');
     await user.click(screen.getByRole('button', { name: 'Create invitation' }));
 

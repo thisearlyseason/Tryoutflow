@@ -109,7 +109,11 @@ export function MessageComposer({
   }
 
   return (
-    <section aria-labelledby="compose-heading" className="grid gap-5">
+    <section
+      aria-labelledby="compose-heading"
+      className="admin-panel grid gap-5 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-surface)]"
+      data-testid="message-setup"
+    >
       <div>
         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
           Decision messages
@@ -221,7 +225,7 @@ export function MessageComposer({
       {preview ? (
         <section
           aria-labelledby="recipient-preview"
-          className="rounded-[var(--radius-surface)] border p-4"
+          className="rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface-muted)] p-4"
         >
           <h3 id="recipient-preview" className="text-lg font-bold">
             Exact recipient preview · {preview.count}
