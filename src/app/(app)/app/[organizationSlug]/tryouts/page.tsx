@@ -2,6 +2,9 @@ import Link from 'next/link';
 
 import { EmptyState } from '@/components/feedback/empty-state';
 import { ErrorState } from '@/components/feedback/error-state';
+import { PageHeader } from '@/components/layout/page-header';
+import { LinkButton } from '@/components/ui/link-button';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { AppError } from '@/modules/observability/domain/app-error';
 import { shouldInjectTestLoaderFailure } from '@/modules/observability/application/test-failure-boundary';
@@ -68,35 +71,40 @@ export default async function TryoutsPage({
   }
   const tryouts = tryoutsResult.data;
   return (
-    <section aria-labelledby="tryouts-heading">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="eyebrow">Operations</p>
-          <h2 id="tryouts-heading">Tryouts</h2>
-        </div>
-        <Link
-          className="inline-flex min-h-[var(--target-mobile)] items-center rounded-[var(--radius-control)] bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)]"
-          href={`/app/${organizationSlug}/tryouts/new`}
-          prefetch={false}
-        >
-          Create tryout
-        </Link>
-      </div>
+    <section aria-label="Tryouts" className="workspace-stack">
+      <PageHeader
+        actions={
+          <LinkButton href={`/app/${organizationSlug}/tryouts/new`}>Create tryout</LinkButton>
+        }
+        description="Create, publish, operate, and close each evaluation cycle from one durable workspace."
+        eyebrow="Operations"
+        title="Tryouts"
+      />
       {tryouts?.length ? (
-        <ul className="mt-6 space-y-3">
+        <ul className="workspace-card-grid">
           {tryouts.map((tryout) => (
-            <li
-              key={tryout.id}
-              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-            >
+            <li className="card workspace-card" key={tryout.id}>
+              <StatusBadge
+                status={
+                  tryout.status === 'draft' ||
+                  tryout.status === 'published' ||
+                  tryout.status === 'finalized'
+                    ? tryout.status
+                    : 'unavailable'
+                }
+              >
+                {tryout.status}
+              </StatusBadge>
               <Link
-                className="font-bold text-[var(--color-primary)] underline"
+                className="workspace-card-title"
                 href={`/app/${organizationSlug}/tryouts/${tryout.id}/${tryout.status === 'draft' ? 'setup/basics' : 'overview'}`}
                 prefetch={false}
               >
                 {tryout.name}
               </Link>
-              <p className="text-sm text-[var(--color-text-muted)]">{tryout.status}</p>
+              <p>
+                Open the {tryout.status === 'draft' ? 'guided setup' : 'operational control room'}.
+              </p>
             </li>
           ))}
         </ul>

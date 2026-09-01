@@ -2,9 +2,12 @@ import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { ErrorState } from '@/components/feedback/error-state';
+import { PageHeader } from '@/components/layout/page-header';
+import { StatusBadge } from '@/components/ui/status-badge';
 import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { RegistrationShare } from '@/modules/tryouts/ui/registration-share';
+import { TryoutLifecycle } from '@/modules/tryouts/ui/tryout-lifecycle';
 import { getPublicAppOrigin } from '@/lib/env';
 import {
   canManageTryoutStaffing,
@@ -83,12 +86,44 @@ export default async function TryoutOverviewPage({
   const parsed = tryoutOverviewSchema.safeParse(result.data);
   if (!parsed.success) return unavailable(parsed.error);
   const tryout = parsed.data;
+  const managesTryout = canManageTryoutStaffing(current.authorization, tryoutId);
+  const base = `/app/${organizationSlug}/tryouts/${tryoutId}`;
   return (
-    <section aria-labelledby="tryout-overview-heading">
-      <p className="eyebrow">{tryout.status}</p>
-      <h2 id="tryout-overview-heading">{tryout.name}</h2>
-      {canManageTryoutStaffing(current.authorization, tryoutId) ? (
-        <div className="mt-4 flex flex-wrap gap-3">
+    <section aria-label="Tryout overview" className="workspace-stack">
+      <PageHeader
+        actions={<StatusBadge status={tryout.status}>{tryout.status}</StatusBadge>}
+        description="Follow the operational path from setup through evidence review and immutable roster decisions."
+        eyebrow="Tryout control room"
+        title={tryout.name}
+      />
+      <TryoutLifecycle
+        completed={
+          tryout.status === 'draft'
+            ? ['draft']
+            : tryout.status === 'published'
+              ? ['draft', 'published']
+              : ['draft', 'published', 'finalized']
+        }
+        current={tryout.status}
+        hrefs={
+          managesTryout
+            ? {
+                draft: `${base}/setup/basics`,
+                published: `${base}/overview`,
+                registration: `${base}/registration`,
+                evaluation: `${base}/live`,
+                decisions: `${base}/rankings`,
+                finalized: `${base}/rosters`,
+              }
+            : {
+                evaluation: `${base}/live`,
+                decisions: `${base}/rankings`,
+                finalized: `${base}/rosters`,
+              }
+        }
+      />
+      {managesTryout ? (
+        <div className="workspace-actions">
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
             href={`/app/${organizationSlug}/tryouts/${tryoutId}/registration`}
@@ -134,13 +169,11 @@ export default async function TryoutOverviewPage({
         </div>
       ) : null}
       {tryout.status === 'published' ? (
-        <div className="mt-6">
+        <div className="card p-5">
           <RegistrationShare origin={getPublicAppOrigin()} publicSlug={tryout.slug} />
         </div>
       ) : (
-        <p className="mt-4 text-[var(--color-text-muted)]">
-          Finish guided setup before this tryout can be shared.
-        </p>
+        <p className="workspace-note">Finish guided setup before this tryout can be shared.</p>
       )}
     </section>
   );

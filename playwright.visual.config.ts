@@ -66,7 +66,7 @@ export default defineConfig({
     },
     {
       name: 'mobile-chromium',
-      testIgnore: ['application-shell.visual.spec.ts'],
+      testIgnore: ['application-shell.visual.spec.ts', 'tryout-administration.visual.spec.ts'],
       use: { ...devices['Pixel 7'] },
     },
   ],
