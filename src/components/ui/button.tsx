@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes } from 'react';
 
 import { focusRingClassName } from './focus-ring';
 
-type ButtonVariant = 'primary' | 'secondary' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'quiet' | 'destructive';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   busy?: boolean;
@@ -11,12 +11,22 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variantClassNames: Record<ButtonVariant, string> = {
-  primary: 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[#0049d6]',
-  secondary:
-    'bg-[var(--color-surface)] text-[var(--color-text)] ring-1 ring-inset ring-[var(--color-border)] hover:bg-[var(--color-surface-muted)]',
-  destructive:
-    'bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)] hover:bg-[#a52222]',
+  primary: 'button-primary hover:bg-[var(--color-primary-hover)]',
+  secondary: 'button-secondary hover:bg-[var(--color-surface-muted)]',
+  quiet: 'button-quiet hover:bg-[var(--color-surface-muted)]',
+  destructive: 'button-destructive hover:brightness-90',
 };
+
+export function buttonClassName(variant: ButtonVariant, className?: string) {
+  return [
+    'min-h-[var(--target-mobile)] min-w-[var(--target-mobile)] transition-colors duration-[var(--duration-enter)] disabled:cursor-not-allowed disabled:opacity-55',
+    focusRingClassName,
+    variantClassNames[variant],
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {
@@ -35,14 +45,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       {...props}
       ref={ref}
       aria-busy={busy || undefined}
-      className={[
-        'inline-flex min-h-[var(--target-mobile)] min-w-[var(--target-mobile)] items-center justify-center rounded-[var(--radius-control)] px-4 py-2 text-sm font-bold tracking-wide transition-colors duration-[var(--duration-enter)] disabled:cursor-not-allowed disabled:opacity-55',
-        focusRingClassName,
-        variantClassNames[variant],
-        className,
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      className={buttonClassName(variant, className)}
       disabled={disabled || busy}
       type={type}
     >

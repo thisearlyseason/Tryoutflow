@@ -1,6 +1,212 @@
 @import './theme.css';
 @import 'tailwindcss';
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-canvas);
+  font-family: var(--font-body);
+  color: var(--color-text);
+  text-rendering: optimizeLegibility;
+}
+
 body {
   margin: 0;
+  min-width: 320px;
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 12% 0%, rgb(199 240 0 / 9%), transparent 25rem), var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  line-height: 1.55;
+}
+
+::selection {
+  background: var(--color-selection);
+  color: var(--color-selection-foreground);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-block-start: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  color: var(--color-text);
+  letter-spacing: -0.025em;
+  line-height: 1.08;
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 3.75rem);
+  font-weight: 900;
+}
+
+h2 {
+  font-size: clamp(1.5rem, 2.8vw, 2.5rem);
+  font-weight: 850;
+}
+
+h3 {
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+  font-weight: 800;
+}
+
+a {
+  color: inherit;
+  text-underline-offset: 0.2em;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.auth-page {
+  display: grid;
+  min-height: 100dvh;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 3rem);
+  background:
+    linear-gradient(135deg, rgb(0 87 255 / 8%), transparent 48%),
+    radial-gradient(circle at 88% 12%, rgb(199 240 0 / 24%), transparent 18rem), var(--color-canvas);
+}
+
+.auth-card {
+  width: min(100%, 38rem);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius-surface) * 1.25);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+}
+
+.auth-card form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.auth-card input,
+.auth-card select,
+.auth-card textarea {
+  width: 100%;
+  min-height: var(--target-mobile);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-raised);
+  padding: 0.65rem 0.8rem;
+}
+
+.button-primary,
+.button-secondary,
+.button-quiet,
+.button-destructive {
+  display: inline-flex;
+  min-height: var(--target-mobile);
+  min-width: var(--target-mobile);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-control);
+  padding: 0.65rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.button-primary {
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+
+.button-secondary {
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.button-quiet {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text);
+}
+
+.button-destructive {
+  border: 1px solid var(--color-destructive);
+  background: var(--color-destructive);
+  color: var(--color-destructive-foreground);
+}
+
+.field-group {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.field-label {
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.field-description {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.field-error {
+  margin: 0;
+  color: var(--color-destructive);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.workspace-state {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-surface);
+  background: var(--color-surface);
+  padding: var(--space-6);
+}
+
+.score-value {
+  font-family: var(--font-score);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+}
+
+.app-frame {
+  min-height: 100dvh;
+  background: var(--color-canvas);
+  color: var(--color-text);
 }
