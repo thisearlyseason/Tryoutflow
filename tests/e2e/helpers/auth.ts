@@ -9,10 +9,14 @@ export async function signInAs(
   user: BrowserUser,
   expectedOrganizationSlug?: string,
   monitor: BrowserErrorMonitor = monitorBrowserErrors(page),
+  onBotToken?: (token: string) => void,
 ) {
   await page.goto('/sign-in');
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
+  if (onBotToken) {
+    onBotToken(await page.locator('input[name="cf-turnstile-response"]').inputValue());
+  }
   await page.getByRole('button', { name: 'Sign in' }).click();
   if (expectedOrganizationSlug) {
     await expect(page).toHaveURL(new RegExp(`/app/${expectedOrganizationSlug}/home$`, 'u'));

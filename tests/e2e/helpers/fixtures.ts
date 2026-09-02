@@ -5,10 +5,14 @@ import { test as base, expect, type APIRequestContext, type TestInfo } from '@pl
 import { z } from 'zod';
 
 import {
+  task30AbuseRecord,
   task30BrowserAddress,
   task30PublicRequestRateKeys,
   task30RegistrationRateKeys,
   type Task30PublicRateBucket,
+  type Task30AbuseAttempt,
+  type Task30AbuseRateKey,
+  type Task30BotReceiptKey,
 } from './environment';
 
 const localSupabaseSchema = z.strictObject({
@@ -88,6 +92,7 @@ export type Task30Scenario = Readonly<{
   database: Readonly<{
     execute(sql: string): void;
     scalar(sql: string): string;
+    trackAbuseAttempt(attempt: Task30AbuseAttempt): void;
     trackPublicRateTarget(bucket: Task30PublicRateBucket, target: string): void;
     trackRegistrationRateTarget(target: string): void;
   }>;
@@ -170,6 +175,66 @@ function scalarSql(databaseUrl: string, sql: string) {
   }).trim();
 }
 
+const digestSchema = z.string().regex(/^[0-9a-f]{64}$/u);
+const abuseRateKeySchema = z.strictObject({
+  scope: z.enum(['auth_sign_in', 'public_registration']),
+  subjectDigest: digestSchema,
+  addressDigest: digestSchema,
+});
+const botReceiptKeySchema = z.strictObject({
+  action: z.enum(['sign_in', 'public_registration']),
+  tokenDigest: digestSchema,
+});
+
+function exactAbusePredicates(
+  rateKeys: readonly Task30AbuseRateKey[],
+  botKeys: readonly Task30BotReceiptKey[],
+) {
+  const rates = rateKeys.map((key) => abuseRateKeySchema.parse(key));
+  const bots = botKeys.map((key) => botReceiptKeySchema.parse(key));
+  return {
+    rate:
+      rates.length === 0
+        ? 'false'
+        : rates
+            .map(
+              (key) =>
+                `(subject_digest='${key.subjectDigest}' and address_digest='${key.addressDigest}' and scope='${key.scope}')`,
+            )
+            .join(' or '),
+    bot:
+      bots.length === 0
+        ? 'false'
+        : bots
+            .map((key) => `(token_digest='${key.tokenDigest}' and action='${key.action}')`)
+            .join(' or '),
+  };
+}
+
+export function cleanupTask30AbuseRecords(
+  databaseUrl: string,
+  rateKeys: readonly Task30AbuseRateKey[],
+  botKeys: readonly Task30BotReceiptKey[],
+) {
+  const predicates = exactAbusePredicates(rateKeys, botKeys);
+  executeSql(
+    databaseUrl,
+    `delete from private.abuse_rate_limits where ${predicates.rate}; delete from private.bot_token_receipts where ${predicates.bot};`,
+  );
+}
+
+function countTask30AbuseRecords(
+  databaseUrl: string,
+  rateKeys: readonly Task30AbuseRateKey[],
+  botKeys: readonly Task30BotReceiptKey[],
+) {
+  const predicates = exactAbusePredicates(rateKeys, botKeys);
+  return scalarSql(
+    databaseUrl,
+    `select (select count(*) from private.abuse_rate_limits where ${predicates.rate})::text||'|'||(select count(*) from private.bot_token_receipts where ${predicates.bot})::text`,
+  );
+}
+
 function commaSeparated(value: string) {
   return value.split(',').filter(Boolean);
 }
@@ -246,8 +311,6 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
     delete from public.organizations where id=any(array[${organizations}]::uuid[]);
     delete from public.platform_administrators where user_id=any(array[${users}]::uuid[]);
     delete from public.profiles where id=any(array[${users}]::uuid[]);
-    delete from private.abuse_rate_limits;
-    delete from private.bot_token_receipts;
     set local session_replication_role=origin;
     delete from auth.users where id=any(array[${users}]::uuid[]);
     commit;`;
@@ -269,10 +332,6 @@ export function cleanupTask30Residue() {
   );
   if (organizationIds.length > 0 || userIds.length > 0)
     executeSql(local.DB_URL, cleanupSql(organizationIds, userIds));
-  executeSql(
-    local.DB_URL,
-    'delete from private.abuse_rate_limits; delete from private.bot_token_receipts;',
-  );
 }
 
 function idsFor(key: string): ScenarioIds {
@@ -535,6 +594,8 @@ export const test = base.extend<Task30Fixtures>({
     const tryoutName = `Task 30 ${key} Critical Tryout`;
     const publicTryoutSlug = `${organizationSlug}-critical-flow`;
     const publicRateKeys = new Set(task30RegistrationRateKeys(key, publicTryoutSlug));
+    const abuseRateKeys = new Map<string, Task30AbuseRateKey>();
+    const botReceiptKeys = new Map<string, Task30BotReceiptKey>();
     cleanupPublicRegistrationRateKeys(local.DB_URL, publicRateKeys);
     try {
       executeSql(
@@ -561,6 +622,14 @@ export const test = base.extend<Task30Fixtures>({
         database: {
           execute: (sql) => executeSql(local.DB_URL, sql),
           scalar: (sql) => scalarSql(local.DB_URL, sql),
+          trackAbuseAttempt(attempt) {
+            const record = task30AbuseRecord(attempt);
+            abuseRateKeys.set(
+              `${record.rate.scope}:${record.rate.subjectDigest}:${record.rate.addressDigest}`,
+              record.rate,
+            );
+            botReceiptKeys.set(`${record.bot.action}:${record.bot.tokenDigest}`, record.bot);
+          },
           trackPublicRateTarget(bucket, target) {
             for (const rateKey of task30PublicRequestRateKeys(key, bucket, target)) {
               publicRateKeys.add(rateKey);
@@ -579,6 +648,19 @@ export const test = base.extend<Task30Fixtures>({
         countPublicRegistrationRateKeys(local.DB_URL, publicRateKeys),
         'scenario teardown left exact public registration rate-limit residue',
       ).toBe('0');
+      cleanupTask30AbuseRecords(
+        local.DB_URL,
+        [...abuseRateKeys.values()],
+        [...botReceiptKeys.values()],
+      );
+      expect(
+        countTask30AbuseRecords(
+          local.DB_URL,
+          [...abuseRateKeys.values()],
+          [...botReceiptKeys.values()],
+        ),
+        'scenario teardown left exact abuse-rate or bot-token residue',
+      ).toBe('0|0');
     }
   },
   brandedJourney: async ({ scenario }, use) => {
