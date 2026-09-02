@@ -13,7 +13,7 @@ The existing `public_registration_tryout_v2(text)` returned no organization iden
 ## Implementation
 
 - Added `GET /api/organizations/[organizationSlug]/logo`. It validates the slug, calls only `read_organization_logo_service`, requires zero or one result, validates the PostgREST bytea representation, length, WebP header, and SHA-256, and returns the exact normalized bytes.
-- Successful responses use `image/webp`, exact `Content-Length`, a strong quoted digest ETag, `Cache-Control: public, max-age=0, must-revalidate`, and `X-Content-Type-Options: nosniff`. Matching quoted `If-None-Match` returns a bodyless 304. No response has `Content-Disposition`.
+- Successful responses use `image/webp`, exact `Content-Length`, a strong quoted digest ETag, `Cache-Control: public, max-age=0, must-revalidate`, and `X-Content-Type-Options: nosniff`. A weakly matching `If-None-Match` validator, valid validator list, or wildcard returns a bodyless 304. No response has `Content-Disposition`.
 - Missing assets return generic 404; invalid cardinality, malformed service data, RPC failures, and exceptions return generic 503. Error responses are `no-store` and expose no tenant identity, bytes, digest, or database/provider message.
 - Added client-owned `OrganizationMark({ name, logoUrl, size })`. A missing URL or one image-load failure switches locally to the accessible `TF` fallback; the failed URL is not retried. Replacing the URL naturally resets the failure boundary.
 - Extended authenticated organization view models with only optional `logoUrl`. The byte-free metadata RPC provides existence, digest validation, and `updated_at` cache version. Malformed, duplicate, denied, or temporarily unavailable metadata fails closed to the fallback.
@@ -92,3 +92,26 @@ Modified:
 - The integration suite creates short-lived abuse, bot-receipt, and legacy registration-rate rows that its existing supervisor does not remove. Because the database had just been reset unseeded and all organization/user roots were zero, the exact task-owned rows were deleted from only those three tables after final integration verification; database residue is zero.
 - The repository residue checker still reports port 3112 because PID 54263 is an unrelated Next server rooted at `/Users/tylerans/Documents/ChatGPT/TryoutFlow`, started at 17:35 before this task. It was deliberately preserved. No Task 4 process remains.
 - No subagent or reviewer was spawned because the controller explicitly prohibited delegation/reviewers; the implementation received a local line-by-line and mutation-oriented self-review.
+
+## Review fix round 1
+
+The independent review found that the route decoded and hashed bytea text before comparing its real length, so an upstream response could force an allocation and digest pass beyond the normalized 350,000-byte boundary. It also found that conditional GET handled only exact whole-header equality rather than `If-None-Match` list, wildcard, and weak-comparison semantics.
+
+### RED
+
+- Added oversized and declared-length-mismatch regressions that instrument `Buffer.from` and `createHash` at the route boundary.
+- Added wildcard, weak validator, validator-list, comma-inside-opaque-tag, malformed-list, and nonmatching conditional request cases.
+- `corepack npm exec -- vitest run --config vitest.config.ts tests/unit/organizations/organization-logo-route.test.ts`
+  - Exit 1: 6 failed and 14 passed.
+  - Four valid conditional requests returned 200 instead of 304; both invalid payload shapes invoked decoding before returning the generic 503.
+
+### GREEN
+
+- Bounded `content` to the exact maximum PostgREST bytea text size of 700,002 characters and required `content.length === 2 + 2 * byte_length` before `Buffer.from` or SHA-256.
+- Added a strict quote-aware validator parser. It accepts exact `*`, valid comma-separated entity-tag lists, and weak validators using weak comparison; malformed or nonmatching fields continue to receive the 200 representation. The emitted ETag remains strong.
+- Focused route unit command: 1 file passed, 20 tests passed.
+- Real Supabase organization-logo integration command: 1 file passed, 1 test passed.
+- `corepack npm run test:unit`: 105 files passed, 1,175 tests passed.
+- `corepack npm run format:check`, `corepack npm run lint`, and `corepack npm run typecheck -- --incremental false`: passed.
+- Production `corepack npm run build` with synthetic public app/Supabase placeholders: passed; Next 16 retained the dynamic organization-logo route.
+- `git diff --check`: passed before the fix commit.

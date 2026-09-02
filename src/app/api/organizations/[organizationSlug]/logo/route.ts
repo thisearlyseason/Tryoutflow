@@ -6,10 +6,15 @@ import { captureOperationalError } from '../../../../../infrastructure/observabi
 import { createAdminSupabaseClient } from '../../../../../infrastructure/supabase/admin';
 
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const maximumLogoByteLength = 350_000;
+const maximumByteaTextLength = 2 + 2 * maximumLogoByteLength;
 const logoRowSchema = z.object({
-  content: z.string().regex(/^\\x(?:[0-9a-f]{2})+$/u),
+  content: z
+    .string()
+    .max(maximumByteaTextLength)
+    .regex(/^\\x(?:[0-9a-f]{2})+$/u),
   content_type: z.literal('image/webp'),
-  byte_length: z.number().int().min(12).max(350_000),
+  byte_length: z.number().int().min(12).max(maximumLogoByteLength),
   sha256: z.string().regex(/^[0-9a-f]{64}$/u),
   updated_at: z.string().min(1),
 });
@@ -37,6 +42,54 @@ function validWebp(bytes: Uint8Array) {
     Buffer.from(bytes.subarray(0, 4)).toString('ascii') === 'RIFF' &&
     Buffer.from(bytes.subarray(8, 12)).toString('ascii') === 'WEBP'
   );
+}
+
+function ifNoneMatchMatches(value: string | null, opaqueTag: string) {
+  if (value === null) return false;
+
+  let position = 0;
+  const skipOptionalWhitespace = () => {
+    while (value[position] === ' ' || value[position] === '\t') position += 1;
+  };
+
+  skipOptionalWhitespace();
+  if (value[position] === '*') {
+    position += 1;
+    skipOptionalWhitespace();
+    return position === value.length;
+  }
+
+  let matches = false;
+  while (position < value.length) {
+    if (value.startsWith('W/', position)) position += 2;
+    if (value[position] !== '"') return false;
+    position += 1;
+
+    const tagStart = position;
+    while (position < value.length && value[position] !== '"') {
+      const codePoint = value.charCodeAt(position);
+      if (
+        codePoint !== 0x21 &&
+        !(codePoint >= 0x23 && codePoint <= 0x7e) &&
+        !(codePoint >= 0x80 && codePoint <= 0xff)
+      ) {
+        return false;
+      }
+      position += 1;
+    }
+    if (value[position] !== '"') return false;
+    if (value.slice(tagStart, position) === opaqueTag) matches = true;
+    position += 1;
+
+    skipOptionalWhitespace();
+    if (position === value.length) return matches;
+    if (value[position] !== ',') return false;
+    position += 1;
+    skipOptionalWhitespace();
+    if (position === value.length) return false;
+  }
+
+  return false;
 }
 
 export async function GET(
@@ -70,6 +123,13 @@ export async function GET(
     const [logo] = parsed.data;
     if (!logo) return unavailable('not_found');
 
+    if (logo.content.length !== 2 + 2 * logo.byte_length) {
+      captureOperationalError(new Error('invalid organization logo service response'), {
+        operation: 'organization.logo.read',
+      });
+      return unavailable('unavailable');
+    }
+
     const bytes = Buffer.from(logo.content.slice(2), 'hex');
     const digest = createHash('sha256').update(bytes).digest('hex');
     if (bytes.byteLength !== logo.byte_length || !validWebp(bytes) || digest !== logo.sha256) {
@@ -85,7 +145,7 @@ export async function GET(
       etag,
       'x-content-type-options': 'nosniff',
     };
-    if (request.headers.get('if-none-match') === etag) {
+    if (ifNoneMatchMatches(request.headers.get('if-none-match'), logo.sha256)) {
       return new Response(null, { status: 304, headers: sharedHeaders });
     }
     return new Response(bytes, {

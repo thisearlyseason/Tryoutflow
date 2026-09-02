@@ -45,4 +45,4 @@ Task 3: complete (commits 01a8bf7..1517f24, review clean)
 
 Task 4: Ruling: add narrow migration 100 to extend `public_registration_tryout_v2(text)` with only `organization_name`, `organization_slug`, and `logo_exists` because the existing public projection exposed no organization identity, the authenticated metadata RPC correctly rejects public callers, and the service reader must remain byte-route-only — direct logo-table grants remain absent and the cost is one additive public-projection signature change.
 
-Task 4: complete (commits 1517f24..22f85fa, locally self-reviewed; controller prohibited subagent/reviewer delegation)
+Task 4 review round 1: Important — public route decodes/hash-allocates unbounded malformed bytea before validating real length; Minor — `If-None-Match` handling omits validator lists, weak validators, and `*`. Returned to implementer for TDD remediation and fresh scoped review.
