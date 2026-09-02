@@ -61,6 +61,12 @@ Task 6 review round 1: Important — communication row existence falsely equates
 
 Task 6 review round 2: prior findings closed; Important — staff-registration zero-row/out-of-scope not-found branch now exposes requester-scoped overview/session links. Returned to distinguish link-free non-oracular absence from navigable dependency/contract errors.
 
+Task 6: complete (commits 2412af8..f09c25f, all Important findings closed; fresh scoped re-review clean)
+
+Task 7: Ruling: run focused production-bound browser acceptance on an isolated alternate localhost port while the pre-existing user-visible main-worktree server owns 3112 — behavior/configuration must otherwise remain canonical and Task 8 must still prove the release gate — if wrong, the cost is an extra test-only port override that can be removed once 3112 is free.
+
+Task 7: complete (implementation `3b3bb8e`; focused Chromium 1/1 and exact five-project matrix 5/5, zero retries/skips; exact DB/auth/logo/rate-key cleanup green on alternate 3217; Task 8 must still prove the canonical 3112 release gate after PID 54263 is owner-stopped)
+
 Task 6 review round 1 remediation: implemented in `a05db5251ce5f02752d3fba3d3cdff4d51d58bf9`; all four findings have focused regressions and are awaiting fresh scoped re-review.
 
 Task 6: complete (commits c8e8f62..a05db52, round 1 review findings remediated; fresh focused/full/integration/build gates green)
