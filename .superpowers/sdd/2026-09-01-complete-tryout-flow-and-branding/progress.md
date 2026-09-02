@@ -48,3 +48,7 @@ Task 4: Ruling: add narrow migration 100 to extend `public_registration_tryout_v
 Task 4 review round 1: Important — public route decodes/hash-allocates unbounded malformed bytea before validating real length; Minor — `If-None-Match` handling omits validator lists, weak validators, and `*`. Returned to implementer for TDD remediation and fresh scoped review.
 
 Task 4 review round 2: prior Important closed; Minor — RFC list parsing must ignore reasonable leading, interior, and trailing empty `If-None-Match` members rather than treating them as malformed. Returned for a narrow parser/test correction.
+
+Task 4: complete (commits 1517f24..907a5ef, Important and Minor findings closed; fresh scoped re-review clean)
+
+Task 5: complete (commit 2e9299630bc375df4808a7da69ac647b177381e5; exact guidance, accessible field errors, and proportional gates green; no reviewer by controller instruction)
