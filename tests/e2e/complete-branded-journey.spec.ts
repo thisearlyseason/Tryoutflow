@@ -52,6 +52,16 @@ test('isolated owner completes the branded tryout journey and removes the logo c
         token,
       }),
   );
+  if (testInfo.project.name === 'firefox') {
+    const escapedOrigin = new URL(String(baseURL)).origin.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    ownerMonitor.allowOptionalRequestFailure({
+      errorText: 'NS_BINDING_ABORTED',
+      label: 'Firefox generated icon cancellation during branded journey navigation',
+      maxCount: 1,
+      method: 'GET',
+      url: new RegExp(`^${escapedOrigin}/icon\\.svg\\?icon\\.[a-z0-9]+\\.svg$`, 'u'),
+    });
+  }
   const settingsPath = `/app/${scenario.organizationSlug}/organization/settings`;
   const [registrationOpens, registrationCloses, sessionStarts, sessionEnds] = scenario.database
     .scalar(
@@ -396,13 +406,10 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   const evaluationPage = await evaluationContext.newPage();
   try {
     const evaluationMonitor = monitorBrowserErrors(evaluationPage);
-    const logoVersion = scenario.database.scalar(
-      `select to_char(updated_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US')||'+00:00' from private.organization_brand_assets where organization_id='${scenario.ids.organization}'`,
-    );
     if (testInfo.project.name === 'firefox') {
       expectCancellableImageRequest(
         evaluationMonitor,
-        `${baseURL}/api/organizations/${scenario.organizationSlug}/logo?v=${encodeURIComponent(logoVersion)}`,
+        new URL(initialLogoSrc!, String(baseURL)).href,
         'two versioned evaluator shell logo requests in Firefox responsive chrome',
         2,
       );

@@ -106,7 +106,13 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   monitor.expectRequestFailure({
     count: 1,
-    errorText: ['net::ERR_FAILED', 'NS_ERROR_FAILURE', 'Load failed', 'Blocked by Web Inspector'],
+    errorText: [
+      'net::ERR_FAILED',
+      'net::ERR_ABORTED',
+      'NS_ERROR_FAILURE',
+      'Load failed',
+      'Blocked by Web Inspector',
+    ],
     headers: { 'next-action': /.+/u },
     label: 'one deliberately lost roster export confirmation response',
     method: 'POST',

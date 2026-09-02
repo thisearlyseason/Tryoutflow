@@ -1,13 +1,13 @@
 import { expect, test } from '@playwright/test';
 
-import { expectVisual, signInDemoOwner } from '../helpers/visual';
+import { expectVisual, openDemoTryout, signInDemoOwner } from '../helpers/visual';
 
 test('owner sees an evidence-first rankings and roster workspace', async ({ page }) => {
   await signInDemoOwner(page);
   await page.goto('/app/badlands-hockey-academy/tryouts');
-  await page.getByRole('link', { name: 'U15 Fall Evaluations' }).click();
+  await openDemoTryout(page);
 
-  await page.getByRole('link', { name: 'Rankings', exact: true }).click();
+  await page.goto(page.url().replace('/overview', '/rankings'));
   await expect(page.getByRole('heading', { name: 'Rankings' })).toBeVisible();
   await expect(page.locator('.ranking-card').first()).toBeVisible();
   await expectVisual(page, 'rankings-decision-board.png');

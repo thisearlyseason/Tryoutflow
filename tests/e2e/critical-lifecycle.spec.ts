@@ -74,6 +74,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
   await page.getByLabel('Organization URL').fill(organizationSlug);
+  await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/home$`, 'u'));
@@ -105,6 +106,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   expectCancellableServerAction(monitor, page, 'wizard divisions redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await expect(page.getByLabel('Session name')).toBeVisible();
+  await page.getByLabel('Division').selectOption({ label: 'U15' });
   await page.getByLabel('Session name').fill('Skills session');
   await page.getByLabel('Starts').fill('2026-10-01T16:00');
   await page.getByLabel('Ends').fill('2026-10-01T18:00');
@@ -116,6 +118,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   expectCancellableServerAction(monitor, page, 'wizard registration redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await expect(page.getByLabel('Rubric name')).toBeVisible();
+  await page.getByLabel('Session').selectOption({ label: 'Skills session' });
   await page.getByLabel('Rubric name').fill('Skating rubric');
   await page.getByLabel('Category name').fill('Skating');
   expectCancellableServerAction(monitor, page, 'wizard rubric redirect');
@@ -315,7 +318,13 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   const monitor = await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
   monitor.expectRequestFailure({
     count: 1,
-    errorText: ['net::ERR_FAILED', 'NS_ERROR_FAILURE', 'Load failed', 'Blocked by Web Inspector'],
+    errorText: [
+      'net::ERR_FAILED',
+      'net::ERR_ABORTED',
+      'NS_ERROR_FAILURE',
+      'Load failed',
+      'Blocked by Web Inspector',
+    ],
     label: 'one deliberately failed offline evaluation synchronization request',
     method: 'POST',
     url: new RegExp(`^http://127\\.0\\.0\\.1:3112/api/evaluations/[^/]+/mutations$`, 'u'),

@@ -88,6 +88,7 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(`AC01 ${testInfo.project.name} Hockey`);
   await page.getByLabel('Organization URL').fill(organizationSlug);
+  await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'anonymous owner organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/home$`, 'u'));
@@ -137,9 +138,9 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`);
   await expect(page.getByRole('heading', { name: 'Participants' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Add participant' })).toHaveAttribute(
+  await expect(page.getByRole('link', { name: 'Manage participants' })).toHaveAttribute(
     'href',
-    `${registrationPath}#add-participant`,
+    registrationPath,
   );
   await expect(page.getByRole('link', { name: 'Share registration link' })).toBeVisible();
 

@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-import { expectVisual, signInDemoOwner } from '../helpers/visual';
+import { expectVisual, openDemoTryout, signInDemoOwner } from '../helpers/visual';
 
 test('owner sees bounded Game-Day check-in and live operations', async ({ page }) => {
   await signInDemoOwner(page);
   await page.goto('/app/badlands-hockey-academy/tryouts');
-  await page.getByRole('link', { name: 'U15 Fall Evaluations' }).click();
-  await expect(page.getByRole('list', { name: 'Tryout lifecycle' })).toBeVisible();
+  await openDemoTryout(page);
+  await expect(page.getByRole('heading', { name: 'Tryout journey' })).toBeVisible();
   const overviewUrl = page.url();
 
   await page.goto(overviewUrl.replace('/overview', '/check-in'));

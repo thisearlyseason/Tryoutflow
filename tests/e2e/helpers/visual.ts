@@ -21,6 +21,14 @@ export async function signInDemoOwner(page: Page) {
   demoSessionCookies = await page.context().cookies();
 }
 
+export async function openDemoTryout(page: Page) {
+  const tryout = page.getByRole('article').filter({
+    has: page.getByRole('heading', { name: 'U15 Fall Evaluations' }),
+  });
+  await tryout.getByRole('link', { name: 'Open tryout' }).click();
+  await expect(page).toHaveURL(/\/tryouts\/[0-9a-f-]+\/overview$/u);
+}
+
 export async function prepareVisualPage(page: Page) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.waitForLoadState('networkidle');
