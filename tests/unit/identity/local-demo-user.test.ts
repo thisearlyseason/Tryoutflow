@@ -48,6 +48,8 @@ describe('local demo identity bootstrap', () => {
       NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'local-publishable-key',
       SUPABASE_SERVICE_ROLE_KEY: 'local-service-role-key',
+      ABUSE_PROTECTION_HMAC_SECRET:
+        'tryoutflow-local-demo-rate-limit-secret-v1-000000000000000000000000',
     });
 
     expect(() =>
