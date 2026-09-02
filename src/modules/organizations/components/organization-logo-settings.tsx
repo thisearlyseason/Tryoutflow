@@ -54,13 +54,16 @@ export function OrganizationLogoSettings({
         />
       </div>
       {canManage ? (
-        <div className="mt-4 flex flex-wrap items-end gap-3">
-          <form action={uploadAction} encType="multipart/form-data">
-            <label className="grid gap-1 font-bold" htmlFor="organization-logo-file">
+        <div className="mt-4 flex min-w-0 flex-wrap items-end gap-3">
+          <form action={uploadAction} className="min-w-0 max-w-full" encType="multipart/form-data">
+            <label
+              className="grid min-w-0 max-w-full gap-1 font-bold"
+              htmlFor="organization-logo-file"
+            >
               Choose logo
               <input
                 accept="image/png,image/jpeg,image/webp"
-                className="min-h-11 max-w-full rounded-[var(--radius-control)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-normal"
+                className="min-h-11 w-full min-w-0 max-w-full rounded-[var(--radius-control)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 font-normal"
                 id="organization-logo-file"
                 name="logo"
                 required

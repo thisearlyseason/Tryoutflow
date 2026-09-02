@@ -22,7 +22,7 @@ vi.mock('../../../src/infrastructure/observability/server-observability', () => 
   captureOperationalError: mocks.captureOperationalError,
 }));
 
-import { GET } from '../../../src/app/api/organizations/[organizationSlug]/logo/route';
+import { GET } from '../../../src/app/api/organizations/[organizationId]/logo/route';
 
 const digest = '3fe79651a92ea3850c3fc3dd9519a67c7f70b598fa238a3fd92042f6446e6452';
 const webpHex = '524946460400000057454250';
@@ -41,8 +41,8 @@ function request(headers?: HeadersInit) {
 }
 
 const context = {
-  params: Promise.resolve({ organizationSlug: 'badlands' }),
-} as RouteContext<'/api/organizations/[organizationSlug]/logo'>;
+  params: Promise.resolve({ organizationId: 'badlands' }),
+} as RouteContext<'/api/organizations/[organizationId]/logo'>;
 
 describe('organization logo delivery route', () => {
   beforeEach(() => {
@@ -125,8 +125,8 @@ describe('organization logo delivery route', () => {
 
     const missing = await GET(request(), context);
     const invalid = await GET(request(), {
-      params: Promise.resolve({ organizationSlug: 'Badlands/private' }),
-    } as RouteContext<'/api/organizations/[organizationSlug]/logo'>);
+      params: Promise.resolve({ organizationId: 'Badlands/private' }),
+    } as RouteContext<'/api/organizations/[organizationId]/logo'>);
 
     expect(missing.status).toBe(404);
     expect(await missing.text()).toBe('Logo unavailable.');

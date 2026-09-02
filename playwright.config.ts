@@ -23,7 +23,12 @@ const local = localSupabaseSchema.parse({
   PUBLISHABLE_KEY: rawLocal.PUBLISHABLE_KEY,
   SERVICE_ROLE_KEY: rawLocal.SECRET_KEY ?? rawLocal.SERVICE_ROLE_KEY,
 });
-const port = 3112;
+const port = z.coerce
+  .number()
+  .int()
+  .min(1)
+  .max(65_535)
+  .parse(process.env.TRYOUTFLOW_PLAYWRIGHT_PORT ?? 3112);
 const origin = `http://127.0.0.1:${port}`;
 const publicSnapshotKey =
   '{"kty":"EC","x":"_dPSSLsCXidd4IPFKgJiSwnJ5UBPRpQGKTLfFAN0zG8","y":"DgpgvwNVaOr-dWfrync-k3yGYDk8OGjuElujacdtynQ","crv":"P-256"}';
@@ -42,6 +47,7 @@ export default defineConfig({
     'platform-administration.spec.ts',
     'viewports.spec.ts',
     'final-remediation.spec.ts',
+    'complete-branded-journey.spec.ts',
   ],
   globalSetup: './tests/e2e/global-database-lifecycle.ts',
   globalTeardown: './tests/e2e/global-database-lifecycle.ts',

@@ -63,6 +63,7 @@ export default async function EvaluationProgressPage({
       <Link
         className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-5 py-3 text-center font-bold text-[var(--color-primary-foreground)]"
         href={`${basePath}/athletes`}
+        prefetch={false}
       >
         View assigned athletes
       </Link>

@@ -400,6 +400,32 @@ describe('production request origin', () => {
       getTrustedRequestOrigin(request, { ...exact, TRYOUTFLOW_SERVER_TEST_ENV: 'other' }),
     ).toBe('https://task30.e2e.example.test');
   });
+
+  it('accepts an explicitly configured alternate loopback E2E origin without trusting another port', () => {
+    const alternate = new NextRequest('http://internal:3000/auth/sign-up', {
+      headers: { host: '127.0.0.1:3217', 'x-forwarded-proto': 'http' },
+    });
+    const wrongPort = new NextRequest('http://internal:3000/auth/sign-up', {
+      headers: { host: '127.0.0.1:3218', 'x-forwarded-proto': 'http' },
+    });
+    const exact = {
+      NODE_ENV: 'production',
+      TRYOUTFLOW_SERVER_TEST_ENV: 'task30-playwright',
+      TRYOUTFLOW_BOT_PROTECTION_MODE: 'deterministic-test',
+      NEXT_PUBLIC_APP_URL: 'https://task30.e2e.example.test',
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+      TASK30_LOCAL_REQUEST_ORIGIN: 'http://127.0.0.1:3217',
+    };
+
+    expect(getTrustedRequestOrigin(alternate, exact)).toBe('http://127.0.0.1:3217');
+    expect(getTrustedRequestOrigin(wrongPort, exact)).toBe('https://task30.e2e.example.test');
+    expect(
+      getTrustedRequestOrigin(alternate, {
+        ...exact,
+        TASK30_LOCAL_REQUEST_ORIGIN: 'http://192.0.2.1:3217',
+      }),
+    ).toBe('https://task30.e2e.example.test');
+  });
 });
 
 it('never hashes privacy subjects without an HMAC secret', () => {

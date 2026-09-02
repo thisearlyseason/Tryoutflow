@@ -128,10 +128,10 @@ describe('organization logo application boundary against PostgreSQL', () => {
       }
 
       const { GET: getLogo } =
-        await import('../../../src/app/api/organizations/[organizationSlug]/logo/route');
+        await import('../../../src/app/api/organizations/[organizationId]/logo/route');
       const routeContext = {
-        params: Promise.resolve({ organizationSlug: slug }),
-      } as RouteContext<'/api/organizations/[organizationSlug]/logo'>;
+        params: Promise.resolve({ organizationId: slug }),
+      } as RouteContext<'/api/organizations/[organizationId]/logo'>;
       const delivered = await getLogo(
         new NextRequest(`http://localhost/api/organizations/${slug}/logo`),
         routeContext,

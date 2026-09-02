@@ -381,6 +381,10 @@ async function loadRunStage(
           status: 'complete',
           supportingText,
           primaryAction: { label: 'Open live dashboard', href: `${baseHref}/live` },
+          secondaryActions: [
+            { label: 'Open check-in', href: `${baseHref}/check-in` },
+            { label: 'Review sessions', href: `${baseHref}/sessions` },
+          ],
         };
   } catch {
     return unavailableStage(base, 'Operational counts unavailable');

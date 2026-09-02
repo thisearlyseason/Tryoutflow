@@ -89,10 +89,12 @@ export type Task30Scenario = Readonly<{
     execute(sql: string): void;
     scalar(sql: string): string;
     trackPublicRateTarget(bucket: Task30PublicRateBucket, target: string): void;
+    trackRegistrationRateTarget(target: string): void;
   }>;
 }>;
 
 type Task30Fixtures = {
+  brandedJourney: Task30Scenario;
   newOwner: BrowserUser;
   scenario: Task30Scenario;
   task30Database: Readonly<{
@@ -153,6 +155,14 @@ function cleanupPublicRegistrationRateKeys(databaseUrl: string, rateKeys: Readon
   );
 }
 
+function countPublicRegistrationRateKeys(databaseUrl: string, rateKeys: ReadonlySet<string>) {
+  const keys = [...rateKeys].map((value) => `'${value}'`).join(',');
+  return scalarSql(
+    databaseUrl,
+    `select count(*) from public.registration_rate_counters where key_hash in(${keys})`,
+  );
+}
+
 function scalarSql(databaseUrl: string, sql: string) {
   return execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
     encoding: 'utf8',
@@ -204,6 +214,7 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
     alter table public.roster_decisions disable trigger guard_roster_decisions_snapshot;
     alter table public.roster_versions disable trigger prevent_finalized_roster_version_mutation;
     alter table public.tryout_teams disable trigger prevent_finalized_roster_team_mutation;
+    delete from private.organization_brand_assets where organization_id=any(array[${organizations}]::uuid[]);
     delete from private.roster_report_snapshot_items where organization_id=any(array[${organizations}]::uuid[]);
     delete from private.roster_report_snapshots where organization_id=any(array[${organizations}]::uuid[]);
     alter table private.roster_report_snapshot_items enable always trigger prevent_roster_report_snapshot_item_update_delete;
@@ -215,7 +226,7 @@ function cleanupSql(organizationIds: readonly string[], userIds: readonly string
         join information_schema.tables t using(table_schema,table_name)
         where c.table_schema in('private','public') and c.column_name='organization_id'
           and c.table_name<>'organizations' and t.table_type='BASE TABLE'
-          and c.table_name not in('roster_report_snapshots','roster_report_snapshot_items')
+          and c.table_name not in('organization_brand_assets','roster_report_snapshots','roster_report_snapshot_items')
         order by c.table_schema,c.table_name
       loop
         execute format('delete from %I.%I where organization_id=any($1)',target.table_schema,target.table_name)
@@ -555,10 +566,38 @@ export const test = base.extend<Task30Fixtures>({
               publicRateKeys.add(rateKey);
             }
           },
+          trackRegistrationRateTarget(target) {
+            for (const rateKey of task30RegistrationRateKeys(key, target)) {
+              publicRateKeys.add(rateKey);
+            }
+          },
         },
       });
     } finally {
       cleanupPublicRegistrationRateKeys(local.DB_URL, publicRateKeys);
+      expect(
+        countPublicRegistrationRateKeys(local.DB_URL, publicRateKeys),
+        'scenario teardown left exact public registration rate-limit residue',
+      ).toBe('0');
+    }
+  },
+  brandedJourney: async ({ scenario }, use) => {
+    const local = localSupabase();
+    const organizationIds = [scenario.ids.organization, scenario.ids.otherOrganization];
+    const userIds = Object.values(scenario.users).map((user) => user.id);
+    const organizationSql = organizationIds.map((id) => `'${id}'::uuid`).join(',');
+    const userSql = userIds.map((id) => `'${id}'::uuid`).join(',');
+    try {
+      await use(scenario);
+    } finally {
+      executeSql(local.DB_URL, cleanupSql(organizationIds, userIds));
+      expect(
+        scalarSql(
+          local.DB_URL,
+          `select (select count(*) from private.organization_brand_assets where organization_id=any(array[${organizationSql}]::uuid[]))::text||'|'||(select count(*) from public.organizations where id=any(array[${organizationSql}]::uuid[]))::text||'|'||(select count(*) from public.profiles where id=any(array[${userSql}]::uuid[]))::text||'|'||(select count(*) from auth.users where id=any(array[${userSql}]::uuid[]))::text`,
+        ),
+        'complete branded journey teardown left logo, organization, profile, or auth residue',
+      ).toBe('0|0|0|0');
     }
   },
 });

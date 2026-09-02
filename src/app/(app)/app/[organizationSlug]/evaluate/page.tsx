@@ -45,6 +45,7 @@ export default async function EvaluatorLandingPage({
               <Link
                 className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-4 py-3 text-center font-bold text-[var(--color-primary-foreground)]"
                 href={`/app/${organizationSlug}/evaluate/session/${destination.sessionId}`}
+                prefetch={false}
               >
                 Open scoring session
               </Link>

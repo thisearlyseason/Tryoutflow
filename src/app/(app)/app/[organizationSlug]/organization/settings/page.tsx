@@ -1,3 +1,4 @@
+import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
 import { FIELD_EXAMPLES } from '@/components/forms/field-examples';
@@ -79,6 +80,7 @@ export default async function SettingsPage({
       { organizationId: route.organization.id, file: formData.get('logo') },
       { userId: route.userId, authorization: route.authorization },
     );
+    if (result.ok) revalidatePath(`/app/${organizationSlug}`, 'layout');
     redirect(
       `/app/${organizationSlug}/organization/settings?${result.ok ? 'logo=updated' : `logoError=${result.error.code}`}`,
     );
@@ -90,6 +92,7 @@ export default async function SettingsPage({
       { organizationId: route.organization.id, remove: true },
       { userId: route.userId, authorization: route.authorization },
     );
+    if (result.ok) revalidatePath(`/app/${organizationSlug}`, 'layout');
     redirect(
       `/app/${organizationSlug}/organization/settings?${result.ok ? 'logo=removed' : `logoError=${result.error.code}`}`,
     );

@@ -77,7 +77,7 @@ export function AssignedAthleteList({
             <Link
               className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-4 py-3 text-center font-bold text-[var(--color-primary-foreground)] focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)]"
               href={`${basePath}/athletes/${athlete.registrationId}`}
-              prefetch
+              prefetch={false}
             >
               {evaluation ? 'Open evaluation' : 'Start evaluation'}
             </Link>

@@ -27,7 +27,11 @@ export function ParticipantWorkspaceHeader({
         overviewHref={overviewRoute}
       />
       <PageHeader
-        context={<Link href={overviewRoute}>Back to tryout overview</Link>}
+        context={
+          <Link href={overviewRoute} prefetch={false}>
+            Back to tryout overview
+          </Link>
+        }
         description="Add someone directly, reuse an existing athlete, or invite families to register themselves."
         eyebrow="Participants"
         title={`${tryoutName} participants`}

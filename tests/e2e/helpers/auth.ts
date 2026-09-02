@@ -2,10 +2,14 @@ import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import type { BrowserUser } from './fixtures';
-import { monitorBrowserErrors } from './network';
+import { monitorBrowserErrors, type BrowserErrorMonitor } from './network';
 
-export async function signInAs(page: Page, user: BrowserUser, expectedOrganizationSlug?: string) {
-  const monitor = monitorBrowserErrors(page);
+export async function signInAs(
+  page: Page,
+  user: BrowserUser,
+  expectedOrganizationSlug?: string,
+  monitor: BrowserErrorMonitor = monitorBrowserErrors(page),
+) {
   await page.goto('/sign-in');
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);

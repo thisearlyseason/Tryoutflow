@@ -503,6 +503,36 @@ describe('authoritative tryout journey projection', () => {
     });
   });
 
+  it('keeps check-in reachable without duplicating the primary live action after evaluations complete', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      checkinCount: 0,
+      completedEvaluationCount: 2,
+      evaluatorAssignmentExists: true,
+    });
+    const run = journey.stages.find((stage) => stage.id === 'run');
+
+    expect(run).toMatchObject({
+      status: 'complete',
+      primaryAction: {
+        label: 'Open live dashboard',
+        href: `/app/badlands/tryouts/${tryoutId}/live`,
+      },
+    });
+    expect(run?.secondaryActions).toEqual([
+      {
+        label: 'Open check-in',
+        href: `/app/badlands/tryouts/${tryoutId}/check-in`,
+      },
+      {
+        label: 'Review sessions',
+        href: `/app/badlands/tryouts/${tryoutId}/sessions`,
+      },
+    ]);
+  });
+
   it('uses exact head counts and limit-one state reads within both tenant keys', async () => {
     const { client, logs, rpcLogs } = fakeClient({
       status: 'published',

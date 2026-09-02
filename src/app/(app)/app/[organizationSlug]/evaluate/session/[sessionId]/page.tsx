@@ -32,18 +32,21 @@ export default async function EvaluatorSessionPage({
         <Link
           className="min-h-[44px] rounded-xl bg-[var(--color-primary)] p-5 font-bold text-[var(--color-primary-foreground)]"
           href={nextIncomplete ? `${basePath}/athletes/${nextIncomplete}` : `${basePath}/progress`}
+          prefetch={false}
         >
           {nextIncomplete ? 'Continue scoring' : 'Review completed session'}
         </Link>
         <Link
           className="min-h-[44px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 font-bold"
           href={`${basePath}/athletes`}
+          prefetch={false}
         >
           Assigned athletes
         </Link>
         <Link
           className="min-h-[44px] rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 font-bold"
           href={`${basePath}/progress`}
+          prefetch={false}
         >
           Your progress
         </Link>

@@ -108,9 +108,9 @@ function ifNoneMatchMatches(value: string | null, opaqueTag: string) {
 
 export async function GET(
   request: Request,
-  { params }: RouteContext<'/api/organizations/[organizationSlug]/logo'>,
+  { params }: RouteContext<'/api/organizations/[organizationId]/logo'>,
 ) {
-  const { organizationSlug } = await params;
+  const { organizationId: organizationSlug } = await params;
   if (
     organizationSlug.length < 1 ||
     organizationSlug.length > 63 ||

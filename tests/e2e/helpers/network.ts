@@ -361,6 +361,22 @@ export function expectCancellableServerAction(
   });
 }
 
+export function expectCancellableImageRequest(
+  monitor: BrowserErrorMonitor,
+  url: string,
+  label: string,
+  count = 1,
+) {
+  monitor.expectCancellableRequest({
+    count,
+    errorText: browserCancellationErrors,
+    headers: { accept: /image\//u },
+    label,
+    method: 'GET',
+    url,
+  });
+}
+
 export function expectNextRscCancellation(
   monitor: BrowserErrorMonitor,
   url: string,
@@ -385,7 +401,7 @@ export function expectCancellableNextRscRequest(
 ) {
   monitor.expectCancellableRscRequest({
     count,
-    errorText: 'net::ERR_ABORTED',
+    errorText: browserCancellationErrors,
     headers: { rsc: '1' },
     label,
     method: 'GET',

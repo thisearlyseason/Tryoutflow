@@ -34,6 +34,22 @@ function isExactLocalProductionBrowserBoundary(
     return false;
   try {
     const browserOrigin = new URL(requestHeaderOrigin(request));
+    const configuredLocalOrigin = environment.TASK30_LOCAL_REQUEST_ORIGIN;
+    if (configuredLocalOrigin) {
+      const configured = new URL(configuredLocalOrigin);
+      if (
+        configured.protocol !== 'http:' ||
+        !['127.0.0.1', 'localhost'].includes(configured.hostname) ||
+        configured.port.length === 0 ||
+        configured.username.length > 0 ||
+        configured.password.length > 0 ||
+        configured.pathname !== '/' ||
+        configured.search.length > 0 ||
+        configured.hash.length > 0
+      )
+        return false;
+      return browserOrigin.origin === configured.origin;
+    }
     return (
       browserOrigin.protocol === 'http:' &&
       ['127.0.0.1', 'localhost'].includes(browserOrigin.hostname) &&
