@@ -65,7 +65,9 @@ Task 6: complete (commits 2412af8..f09c25f, all Important findings closed; fresh
 
 Task 7: Ruling: run focused production-bound browser acceptance on an isolated alternate localhost port while the pre-existing user-visible main-worktree server owns 3112 — behavior/configuration must otherwise remain canonical and Task 8 must still prove the release gate — if wrong, the cost is an extra test-only port override that can be removed once 3112 is free.
 
-Task 7: complete (implementation `3b3bb8e`; focused Chromium 1/1 and exact five-project matrix 5/5, zero retries/skips; exact DB/auth/logo/rate-key cleanup green on alternate 3217; Task 8 must still prove the canonical 3112 release gate after PID 54263 is owner-stopped)
+Task 7 review round 1: Important — fixture teardown globally deletes unrelated abuse/bot rows; Important — hard-coded September 2026 registration dates expire; Important — authored tryout skips its staff setup stage and later evaluation uses another fixture; Minor — replacement reuses identical bytes and public fallback is not rechecked after removal. Returned for isolated, durable, truly end-to-end TDD remediation and fresh five-project proof.
+
+Task 7 review round 1 remediation: implemented in `6e53fb39872b4a228f3ea38ac602cc5c800adfae`; exact abuse/bot-key cleanup preserves sentinels, clock-relative timezone bounds persist, the authored tryout owns staffing/evaluation/decision/roster/message/report proof, and distinct replacement/fallback branding is verified; focused Chromium 1/1 and exact five-project matrix 5/5 pass with zero retries/skips on approved alternate 3217. Awaiting fresh scoped re-review; Task 8 must still prove canonical 3112 after PID 54263 is owner-stopped.
 
 Task 6 review round 1 remediation: implemented in `a05db5251ce5f02752d3fba3d3cdff4d51d58bf9`; all four findings have focused regressions and are awaiting fresh scoped re-review.
 

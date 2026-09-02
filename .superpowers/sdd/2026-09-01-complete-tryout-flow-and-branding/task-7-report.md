@@ -82,3 +82,45 @@ No assertion was weakened, no route/RPC was bypassed, and no skip, retry, blanke
 - Firefox issues two exact requests for the desktop/mobile responsive shell logo and may cancel one; Chromium can reuse the already-versioned representation without a new request. The test records only Firefox's observed exact versioned URL/count and otherwise leaves the monitor strict.
 - The Supabase CLI repeatedly reports its existing deprecated `inbucket` configuration and stopped optional imgproxy/edge-runtime/pooler services. These warnings did not affect the local database, authentication, logo conversion, or browser outcomes.
 - No subagent or reviewer was spawned, per the Task 7 controller constraint.
+
+## Review round 1 remediation
+
+### Commit and classification
+
+- Remediation implementation: `6e53fb39872b4a228f3ea38ac602cc5c800adfae`.
+- All four findings were acceptance-test or fixture gaps. The remediation exposed no new product defect and made no production-code change.
+- The authored roster prerequisite exposed by the strengthened journey was closed through the production UI (draft teams, selected decision, team placement, and immutable finalization), not through SQL or a route/RPC bypass.
+
+### Exact cleanup and sentinel preservation
+
+- Removed both unqualified private-table deletes from the scenario teardown and stale-residue cleanup.
+- The fixture now records each attempt's exact scope/action plus production-derived subject HMAC, address HMAC, and bot-token SHA-256 digest. Teardown validates those digests, deletes only the recorded predicates, and asserts `0|0` for exactly those predicates.
+- Added `tests/integration/e2e/task30-abuse-cleanup.test.ts`, which inserts owned and unrelated rate-limit/token-receipt rows, runs the exported cleanup boundary, and proves `0|0|1|1`: owned rows removed, unrelated sentinels preserved.
+- The final matrix left `0|0|0` Task 30 organizations/auth users/logo rows. Both private abuse tables and the public registration counter table contained zero post-run rows. These global counts are residue evidence only; cleanup itself remains exact-key scoped.
+
+### Durable dates and one authored journey
+
+- Registration/session instants are derived from PostgreSQL `clock_timestamp()` truncated to the minute: registration opens 30 days before the anchor, closes 180 days after it, and the session runs on day 181. This keeps registration safely open while avoiding a hard-coded expiry.
+- The browser uses the America/Edmonton local values. Reload and database assertions prove exact local persistence, an already-open registration, a close more than 150 days ahead, and exact session start/end values.
+- Before publish, the owner visits the exact authored tryout's staff workspace and assigns the isolated evaluator at tryout scope; the exact active assignment is asserted in PostgreSQL.
+- The anonymous Jordan registration, session enrollment, staff registration visibility, check-in, evaluation, selected roster decision, North-team placement, finalized roster, Messages page, and Reports page all use the same authored tryout/participant/session IDs. No specialist SQL seed is used for downstream proof.
+
+### Distinct replacement and public fallback
+
+- Initial fixture SHA-256: `b5b4ed9c638b69a16c0e94cb52c6dca4039743b603fee3e3701928ac1e917bb7` (64×64 RGBA PNG, 1,472 bytes).
+- Replacement fixture SHA-256: `cd336d6b3a5cb236103ea7ff2370c6e7d910b91a6579b9c9dbd4f232df9e8a0d` (1,440×960 RGB PNG, 208,814 bytes).
+- Replacement proof requires changed database SHA-256/`updated_at`, a `200` response to the old ETag, a different exact 64-hex ETag, a changed versioned staff image source, and a successfully decoded rendered image.
+- After removal, a fresh anonymous 320px context reopens the authored public registration route and proves the `TF` fallback, registration heading, strict request/console cleanliness, and no horizontal overflow.
+
+### TDD and final verification evidence
+
+- Cleanup regression RED: `cleanupTask30AbuseRecords is not a function`; GREEN: 1 integration file and 1 test passed with owned/sentinel result `0|0|1|1`.
+- Strengthened browser RED 1: the initial broad `Evaluator` label was correctly rejected as ambiguous; the selector was bound to the named evaluator and scope controls.
+- Strengthened browser RED 2: Messages rendered `No finalized roster snapshots`; the exact authored roster was then created, decided, placed, and finalized through the UI.
+- Final focused Chromium: `TRYOUTFLOW_PLAYWRIGHT_PORT=3217 corepack npm exec -- playwright test tests/e2e/complete-branded-journey.spec.ts --project=chromium --retries=0` — 1 passed in 19.2s.
+- Final exact matrix: `TRYOUTFLOW_PLAYWRIGHT_PORT=3217 corepack npm exec -- playwright test tests/e2e/complete-branded-journey.spec.ts --project=chromium --project=firefox --project=webkit --project='Mobile Chrome' --project='Mobile Safari' --retries=0` — 5 passed in 1.3m, zero retries and zero skips.
+- Final sentinel integration: `corepack npm exec -- vitest run --config vitest.integration.config.ts tests/integration/e2e/task30-abuse-cleanup.test.ts` — 1 file and 1 test passed.
+- `corepack npm run format:check`, `corepack npm run lint`, `corepack npm run typecheck`, and `git diff --check`: passed.
+- `corepack npm run test:unit`: 111 files and 1,228 tests passed.
+- Final artifacts contain only `output/playwright/test-results/.last-run.json` plus the HTML report; no failure screenshot, video, trace, or error-context remains.
+- Nothing listens on 3217 after teardown. User-visible PID 54263 remains untouched on `127.0.0.1:3112`. Task 8 still must prove the canonical default-port release gate after the owner intentionally stops that process.
