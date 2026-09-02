@@ -90,3 +90,65 @@ Modified:
 - The integration fixture seeds a completed evaluation under `session_replication_role=replica` because production deliberately rejects direct privileged evaluation writes outside its trusted command. The journey itself is loaded through a real authenticated Supabase client with PostgreSQL RLS and production RPC authorization active; cleanup is explicit, transactional, and residue-checked.
 - The production build still requires deployment-owned public environment values, so verification used the same non-secret synthetic configuration documented by prior task reports.
 - No subagent or reviewer was spawned because the controller explicitly prohibited delegation and reviewers. Local requirement, privacy, authorization, accessibility, and diff reviews found no remaining Task 6 gap.
+
+## Review remediation round 1
+
+### Commit
+
+- Remediation implementation: `a05db5251ce5f02752d3fba3d3cdff4d51d58bf9`
+
+### Changes
+
+- Replaced communication-message existence counting with a bounded 500-row `state` projection plus an exact count. Every row is strictly parsed against the full durable state allow-list, and a truncated, malformed, or unknown result makes only the Complete stage unavailable.
+- Communication is complete only when every known message is `delivered`. Queued, submitted, delayed/uncertain, failed, bounced, cancelled, suppressed, complained, and mixed results remain actionable through `Review communication`, with exact per-state supporting counts.
+- Changed the participant failure fallback to neutral `Manage participants`; `Add first participant` is emitted only after a successful exact zero count. The global recommendation now inherits the same neutral action when participant evidence is unavailable.
+- Gated both journey audit links and the reports-page next action with the existing exact `audit:read` capability. Directors retain `report:read` navigation without receiving an unusable audit action.
+- Preserved journey navigation on dependency-error branches for sessions, both initial check-in reads, live operations, initial roster reads, participant configuration, and initial messages loading. Existing rankings, downstream roster/message, and reports errors already remained inside navigated shells.
+- Distinguished roster query failure from genuine absence: dependency failure renders the existing unavailable state with navigation, while a successful absent lookup remains non-oracular.
+- No schema, migration, generated type, role, or capability rule changed.
+
+### TDD evidence
+
+- Projection RED:
+  - `tests/unit/tryouts/load-tryout-journey.test.ts`: 8 failed and 12 passed.
+  - Failures reproduced the fabricated participant action, mixed/failed/bounced messages marked complete, unknown message state accepted, and audit link exposed to a director.
+- Navigation RED:
+  - `tests/unit/tryouts/tryout-stage-navigation-errors.test.tsx`: 8 failed of 8 because every named error branch lacked `Back to overview` or exposed the audit action.
+  - Added a separate initial roster-query regression; RED was 1 failed and 8 passed because the dependency error fell through to `NEXT_NOT_FOUND`.
+- Focused GREEN:
+  - `corepack npm exec -- vitest run --config vitest.config.ts tests/unit/tryouts/load-tryout-journey.test.ts tests/unit/tryouts/tryout-journey.test.tsx tests/unit/tryouts/tryout-stage-navigation-errors.test.tsx tests/unit/tryouts/tryout-overview-loader.test.tsx tests/unit/registration/participant-workspace-header.test.tsx --maxWorkers=2`
+  - 5 files passed, 35 tests passed.
+- Real PostgreSQL/RLS journey integration remained GREEN: 1 file and 1 test passed, with 0 task-owned organizations and 0 task-owned auth users remaining.
+
+### Verification
+
+- Full unit suite: 111 files passed, 1,224 tests passed.
+- `corepack npm run format:check`: passed.
+- `corepack npm run lint`: passed with no diagnostics.
+- `corepack npm run typecheck`: passed with no diagnostics.
+- Production build with non-secret synthetic public app/Supabase values: passed; all 36 static pages generated.
+- `git diff --check`: passed before the remediation implementation commit.
+
+### Files
+
+Created:
+
+- `tests/unit/tryouts/tryout-stage-navigation-errors.test.tsx`
+
+Modified:
+
+- `src/modules/tryouts/application/load-tryout-journey.ts`
+- `src/modules/tryouts/ui/tryout-journey.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/sessions/page.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/check-in/page.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/live/page.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rosters/page.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/registration/page.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/messages/page.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/reports/page.tsx`
+- `tests/unit/tryouts/load-tryout-journey.test.ts`
+
+### Concerns
+
+- A tryout with more than 500 roster-decision messages is deliberately reported as communication status unavailable rather than presenting partial counts. The specialist messages page remains the recovery action.
+- No new authorization interface was needed; the existing `audit:read` capability and communication RLS remain authoritative.

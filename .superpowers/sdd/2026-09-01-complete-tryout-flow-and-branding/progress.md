@@ -57,4 +57,8 @@ Task 5 review round 1 remediation: implemented in `55ff73e501ee22327e55a2b0e6028
 
 Task 5: complete (commits 907a5ef..2412af8, all review findings closed; fresh scoped re-review clean)
 
-Task 6: complete (implementation c8e8f621ce9fe1ee6a62bf14ef2ded079c97179a; authoritative journey, route navigation, PostgreSQL/RLS evidence, and verification recorded in task-6-report.md)
+Task 6 review round 1: Important — communication row existence falsely equates failed/bounced with queued/complete; Important — participant-count failure promotes a fabricated `Add first participant` action; Important — directors receive unusable audit links; Important — several specialist dependency-error branches hide Back/Next navigation. Returned for TDD remediation and fresh scoped review.
+
+Task 6 review round 1 remediation: implemented in `a05db5251ce5f02752d3fba3d3cdff4d51d58bf9`; all four findings have focused regressions and are awaiting fresh scoped re-review.
+
+Task 6: complete (commits c8e8f62..a05db52, round 1 review findings remediated; fresh focused/full/integration/build gates green)
