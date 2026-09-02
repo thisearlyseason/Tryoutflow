@@ -711,7 +711,6 @@ function recommendedStage(
   const decide = byId.get('decide')!;
   const complete = byId.get('complete')!;
   if (status === 'draft') return prepare;
-  if (complete.status === 'ready' || complete.status === 'complete') return complete;
   if (participants.status === 'not-started' || participants.status === 'unavailable')
     return participants;
   if (run.status !== 'complete') return run;

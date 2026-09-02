@@ -576,6 +576,73 @@ describe('authoritative tryout journey projection', () => {
     });
   });
 
+  it.each([
+    ['missing', [], 'ready'],
+    [
+      'queued',
+      [
+        { source_roster_version_id: finalizedRosterAId, state: 'queued' },
+        { source_roster_version_id: finalizedRosterBId, state: 'queued' },
+      ],
+      'in-progress',
+    ],
+    [
+      'delivered',
+      [
+        { source_roster_version_id: finalizedRosterAId, state: 'delivered' },
+        { source_roster_version_id: finalizedRosterBId, state: 'delivered' },
+      ],
+      'complete',
+    ],
+  ] as const)(
+    'keeps a partial Run ahead of %s multi-division communication evidence',
+    async (_evidence, communicationMessages, completeStatus) => {
+      const journey = await loadFixtureJourney({
+        status: 'published',
+        participantCount: 4,
+        sessionCount: 1,
+        completedEvaluationCount: 1,
+        expectedEvaluationCount: 2,
+        evaluatorAssignmentExists: true,
+        divisionIds: [divisionAId, divisionBId],
+        rosterVersions: [
+          {
+            id: finalizedRosterAId,
+            division_id: divisionAId,
+            state: 'finalized',
+            revision_number: 2,
+          },
+          {
+            id: finalizedRosterBId,
+            division_id: divisionBId,
+            state: 'finalized',
+            revision_number: 4,
+          },
+        ],
+        communicationMessages: [...communicationMessages],
+      });
+
+      expect(journey.stages.find((stage) => stage.id === 'run')).toMatchObject({
+        status: 'in-progress',
+        supportingText: expect.stringContaining('1 of 2 evaluations complete'),
+      });
+      expect(journey.stages.find((stage) => stage.id === 'decide')).toMatchObject({
+        status: 'complete',
+        supportingText: expect.stringContaining('2 of 2 divisions finalized'),
+      });
+      expect(journey.stages.find((stage) => stage.id === 'complete')).toMatchObject({
+        status: completeStatus,
+      });
+      expect(journey).toMatchObject({
+        nextStage: 'run',
+        primaryAction: {
+          label: 'Open live dashboard',
+          href: `/app/badlands/tryouts/${tryoutId}/live`,
+        },
+      });
+    },
+  );
+
   it('fails the run stage closed when expected evaluation coverage is malformed', async () => {
     const journey = await loadFixtureJourney({
       status: 'published',

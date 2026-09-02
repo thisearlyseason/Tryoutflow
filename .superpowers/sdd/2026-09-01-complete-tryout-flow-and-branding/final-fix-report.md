@@ -48,3 +48,17 @@ Expected non-failing output was limited to the repository's local Supabase `[inb
 ## Honest boundary
 
 This evidence is local. Deployed migration approval, hosted Supabase/Auth/SMTP behavior, production secret rotation and ownership, real provider/webhook certification, backup/restore evidence, production monitoring, legal/privacy approval, and post-deployment anonymous/authenticated logo smoke evidence remain the production owner's responsibilities recorded in the main release report.
+
+## Final scoped recommendation-precedence correction
+
+The scoped re-review found one remaining Important ordering defect: the terminal Complete stage was inspected before upstream process prerequisites, so early-finalized rosters could recommend communication or reports while Run still had only `1 of 2` expected evaluations complete.
+
+The owning unit matrix fixes the evaluation evidence at `completedEvaluations=1` and `expectedEvaluations=2`, finalizes both configured divisions, and varies communication evidence across missing (`Complete: ready`), queued (`Complete: in-progress`), and delivered (`Complete: complete`). RED failed exactly the missing and delivered rows because both recommended Complete; queued already respected Run. The minimal production correction removes only the premature Complete shortcut. Recommendation now advances in process order: draft Prepare; incomplete or unavailable Participants; incomplete or unavailable Run; incomplete or unavailable Decide; then terminal Complete. Existing completed and dependency-unavailable projections remain intact.
+
+Fresh proportional evidence:
+
+- Focused RED: `load-tryout-journey.test.ts` — 2 failed / 27 passed, with both failures receiving `nextStage: complete` instead of literal `nextStage: run`.
+- Focused GREEN: `load-tryout-journey.test.ts` — 29/29 passed.
+- Tryout unit scope: 15 files / 78 tests passed.
+- PostgreSQL/RLS journey integration: 1/1 passed.
+- Full repository `typecheck`, `lint`, and `format:check` each exited 0.
