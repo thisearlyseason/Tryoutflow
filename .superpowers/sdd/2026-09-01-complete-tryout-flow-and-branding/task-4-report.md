@@ -115,3 +115,22 @@ The independent review found that the route decoded and hashed bytea text before
 - `corepack npm run format:check`, `corepack npm run lint`, and `corepack npm run typecheck -- --incremental false`: passed.
 - Production `corepack npm run build` with synthetic public app/Supabase placeholders: passed; Next 16 retained the dynamic organization-logo route.
 - `git diff --check`: passed before the fix commit.
+
+## Review fix round 2
+
+The scoped re-review found that the conditional validator parser rejected empty list members. [RFC 9110 Section 5.6.1.2](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.1.2) requires recipients to parse and ignore a reasonable number of empty members, including leading, interior, and trailing forms, while retaining a defensive denial-of-service bound.
+
+### RED
+
+- Added route-level cases for an exact match after a leading empty member, a weak match after an interior empty member, an exact match before a trailing empty member, and a weak match surrounded by 64 empty members.
+- Moved the prior trailing-comma case out of the malformed table and retained malformed entity-tag, wildcard-list, and nonmatching coverage. Added a 65-empty-member defensive-ceiling case.
+- `corepack npm exec -- vitest run --config vitest.config.ts tests/unit/organizations/organization-logo-route.test.ts`
+  - Exit 1: 4 failed and 20 passed; only the four newly valid empty-member forms returned 200 instead of 304.
+
+### GREEN
+
+- The parser now counts and ignores at most 64 empty list members across leading, interior, and trailing positions. A 65th empty member returns a non-match without weakening entity-tag syntax, wildcard exclusivity, weak comparison, or logo byte bounds.
+- Focused route command: 1 file passed, 24 tests passed.
+- Focused Prettier and ESLint checks for the route and route test: passed.
+- `corepack npm run typecheck -- --incremental false`: passed.
+- `git diff --check`: passed before the fix commit.

@@ -21,6 +21,7 @@ const logoRowSchema = z.object({
 const logoRowsSchema = z.array(logoRowSchema).max(1);
 
 const representationCacheControl = 'public, max-age=0, must-revalidate';
+const maximumIgnoredEmptyEtagMembers = 64;
 
 function unavailable(outcome: 'not_found' | 'unavailable') {
   return new Response(
@@ -59,8 +60,23 @@ function ifNoneMatchMatches(value: string | null, opaqueTag: string) {
     return position === value.length;
   }
 
+  let emptyMembers = 0;
+  let followsDelimiter = false;
   let matches = false;
-  while (position < value.length) {
+  while (true) {
+    skipOptionalWhitespace();
+    if (position === value.length) {
+      if (followsDelimiter) emptyMembers += 1;
+      return emptyMembers <= maximumIgnoredEmptyEtagMembers && matches;
+    }
+    if (value[position] === ',') {
+      emptyMembers += 1;
+      if (emptyMembers > maximumIgnoredEmptyEtagMembers) return false;
+      position += 1;
+      followsDelimiter = true;
+      continue;
+    }
+
     if (value.startsWith('W/', position)) position += 2;
     if (value[position] !== '"') return false;
     position += 1;
@@ -80,16 +96,14 @@ function ifNoneMatchMatches(value: string | null, opaqueTag: string) {
     if (value[position] !== '"') return false;
     if (value.slice(tagStart, position) === opaqueTag) matches = true;
     position += 1;
+    followsDelimiter = false;
 
     skipOptionalWhitespace();
     if (position === value.length) return matches;
     if (value[position] !== ',') return false;
     position += 1;
-    skipOptionalWhitespace();
-    if (position === value.length) return false;
+    followsDelimiter = true;
   }
-
-  return false;
 }
 
 export async function GET(

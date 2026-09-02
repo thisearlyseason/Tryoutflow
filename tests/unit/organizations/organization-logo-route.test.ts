@@ -88,6 +88,13 @@ describe('organization logo delivery route', () => {
     ['a weak validator', `W/"${digest}"`],
     ['a validator list containing a weak match', `"other", W/"${digest}"`],
     ['a list with a comma inside an opaque tag', `"opaque,tag", W/"${digest}"`],
+    ['a matching validator after a leading empty member', `, "${digest}"`],
+    ['a matching validator after an interior empty member', `"other",, W/"${digest}"`],
+    ['a matching validator before a trailing empty member', `"${digest}",`],
+    [
+      'a matching validator surrounded by a bounded number of empty members',
+      `${', '.repeat(32)}W/"${digest}"${', '.repeat(32)}`,
+    ],
   ])('returns 304 when If-None-Match contains %s', async (_label, ifNoneMatch) => {
     mocks.rpc.mockResolvedValue({ data: [validRow], error: null });
 
@@ -101,9 +108,9 @@ describe('organization logo delivery route', () => {
   it.each([
     ['a nonmatching validator', '"other"'],
     ['an unquoted value', digest],
-    ['a trailing list delimiter', `W/"${digest}",`],
     ['a malformed member after a match', `"${digest}", nope`],
     ['a wildcard mixed into a list', `*, "${digest}"`],
+    ['too many empty list members', `${','.repeat(65)}W/"${digest}"`],
   ])('returns the representation for %s', async (_label, ifNoneMatch) => {
     mocks.rpc.mockResolvedValue({ data: [validRow], error: null });
 
