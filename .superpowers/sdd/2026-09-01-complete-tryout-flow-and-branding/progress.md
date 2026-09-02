@@ -54,3 +54,7 @@ Task 4: complete (commits 1517f24..907a5ef, Important and Minor findings closed;
 Task 5 review round 1: Important — retryable freshness-query failures drop bounded unsaved basics values; Important — session datetime guidance hard-codes Edmonton instead of the tryout timezone; Minor — schema-defined date fields lack guaranteed adjacent examples and accessible descriptions. Returned for TDD remediation and fresh scoped review.
 
 Task 5 review round 1 remediation: implemented in `55ff73e501ee22327e55a2b0e602840172453d2b`; all three findings have focused regressions and are awaiting fresh scoped re-review.
+
+Task 5: complete (commits 907a5ef..2412af8, all review findings closed; fresh scoped re-review clean)
+
+Task 6: complete (implementation c8e8f621ce9fe1ee6a62bf14ef2ded079c97179a; authoritative journey, route navigation, PostgreSQL/RLS evidence, and verification recorded in task-6-report.md)
