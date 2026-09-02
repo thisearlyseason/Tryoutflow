@@ -67,6 +67,10 @@ Task 7: Ruling: run focused production-bound browser acceptance on an isolated a
 
 Task 7 review round 1: Important — fixture teardown globally deletes unrelated abuse/bot rows; Important — hard-coded September 2026 registration dates expire; Important — authored tryout skips its staff setup stage and later evaluation uses another fixture; Minor — replacement reuses identical bytes and public fallback is not rechecked after removal. Returned for isolated, durable, truly end-to-end TDD remediation and fresh five-project proof.
 
+Task 7: complete (commits f09c25f..2ba38dc, all review findings closed; fresh five-project zero-retry re-review clean)
+
+Task 8: Ruling: stop only the exact pre-existing main-worktree Next server owning 127.0.0.1:3112 after revalidating its PID/cwd/command, so the canonical release gate can own the default port; restore the final merged application afterward — if wrong, the cost is a temporary interruption of the local demo server, with no persisted data deletion.
+
 Task 7 review round 1 remediation: implemented in `6e53fb39872b4a228f3ea38ac602cc5c800adfae`; exact abuse/bot-key cleanup preserves sentinels, clock-relative timezone bounds persist, the authored tryout owns staffing/evaluation/decision/roster/message/report proof, and distinct replacement/fallback branding is verified; focused Chromium 1/1 and exact five-project matrix 5/5 pass with zero retries/skips on approved alternate 3217. Awaiting fresh scoped re-review; Task 8 must still prove canonical 3112 after PID 54263 is owner-stopped.
 
 Task 6 review round 1 remediation: implemented in `a05db5251ce5f02752d3fba3d3cdff4d51d58bf9`; all four findings have focused regressions and are awaiting fresh scoped re-review.
@@ -76,3 +80,5 @@ Task 6: complete (commits c8e8f62..a05db52, round 1 review findings remediated; 
 Task 6 review round 2 remediation: implemented in `aa53dd8964f7ab01a6675d11c81a197b64b066b2`; zero-row cross-tenant absence is link-free and non-oracular, while RPC/contract failures retain recovery navigation.
 
 Task 6: complete (commits c8e8f62..aa53dd8, round 1 and round 2 review findings remediated; fresh focused/proportional/build gates green)
+
+Task 8: complete on exact base `2ba38dcf858328ca14416252436c1698aad3c143`; owning release-fixture/baseline corrections committed as `f06bd02944eda8543fc0cf3e3891f165b4cb153b`; canonical automated stages, final 170/170 five-project matrix, focused 5/5 branded journey, audit/secret/diff checks, final unseeded reset, and zero-residue proof are recorded in `report.md`. Main-worktree localhost remains stopped for controller restoration after integration.
