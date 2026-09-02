@@ -152,3 +152,47 @@ Modified:
 
 - A tryout with more than 500 roster-decision messages is deliberately reported as communication status unavailable rather than presenting partial counts. The specialist messages page remains the recovery action.
 - No new authorization interface was needed; the existing `audit:read` capability and communication RLS remain authoritative.
+
+## Review remediation round 2
+
+### Commit
+
+- Remediation implementation: `aa53dd8964f7ab01a6675d11c81a197b64b066b2`
+
+### Changes
+
+- Split the staff-registration configuration RPC outcomes before constructing recovery links.
+- A successful exact zero-row response now renders the prior generic `Tryout registration not found` state with no journey navigation or requester-derived tryout URL.
+- RPC errors remain navigable dependency failures. Malformed nonempty responses now render the navigable `Registration workspace unavailable` recovery state rather than being mislabeled as not-found.
+- Tightened the successful contract to one strict configuration row with strict division and position entries. No RPC, RLS, schema, route, or authorization rule changed.
+
+### TDD evidence
+
+- RED command:
+  - `corepack npm exec -- vitest run --config vitest.config.ts tests/unit/tryouts/tryout-stage-navigation-errors.test.tsx --maxWorkers=1`
+  - 2 failed and 9 passed.
+  - The malformed nonempty row rendered the not-found heading, and the successful cross-tenant zero-row result exposed `Back to overview` containing the probed tryout ID.
+- Focused GREEN:
+  - `corepack npm exec -- vitest run --config vitest.config.ts tests/unit/tryouts/tryout-stage-navigation-errors.test.tsx tests/unit/forms/core-workflow-guidance.test.tsx tests/unit/registration/staff-registration-and-qr.test.ts --maxWorkers=2`
+  - 3 files passed, 21 tests passed.
+- Proportional tryout/registration GREEN:
+  - 25 files passed, 130 tests passed.
+
+### Verification
+
+- `corepack npm run format:check`: passed.
+- `corepack npm run lint`: passed with no diagnostics.
+- `corepack npm run typecheck`: passed with no diagnostics.
+- Production build with non-secret synthetic public app/Supabase values: passed; all 36 static pages generated.
+- `git diff --check`: passed before the remediation implementation commit.
+
+### Files
+
+Modified:
+
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/registration/page.tsx`
+- `tests/unit/tryouts/tryout-stage-navigation-errors.test.tsx`
+
+### Concerns
+
+- None new. The successful zero-row outcome remains intentionally indistinguishable between absent and out-of-scope tryout IDs.

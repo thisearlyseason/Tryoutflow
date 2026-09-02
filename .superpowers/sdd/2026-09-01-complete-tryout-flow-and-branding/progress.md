@@ -59,6 +59,12 @@ Task 5: complete (commits 907a5ef..2412af8, all review findings closed; fresh sc
 
 Task 6 review round 1: Important — communication row existence falsely equates failed/bounced with queued/complete; Important — participant-count failure promotes a fabricated `Add first participant` action; Important — directors receive unusable audit links; Important — several specialist dependency-error branches hide Back/Next navigation. Returned for TDD remediation and fresh scoped review.
 
+Task 6 review round 2: prior findings closed; Important — staff-registration zero-row/out-of-scope not-found branch now exposes requester-scoped overview/session links. Returned to distinguish link-free non-oracular absence from navigable dependency/contract errors.
+
 Task 6 review round 1 remediation: implemented in `a05db5251ce5f02752d3fba3d3cdff4d51d58bf9`; all four findings have focused regressions and are awaiting fresh scoped re-review.
 
 Task 6: complete (commits c8e8f62..a05db52, round 1 review findings remediated; fresh focused/full/integration/build gates green)
+
+Task 6 review round 2 remediation: implemented in `aa53dd8964f7ab01a6675d11c81a197b64b066b2`; zero-row cross-tenant absence is link-free and non-oracular, while RPC/contract failures retain recovery navigation.
+
+Task 6: complete (commits c8e8f62..aa53dd8, round 1 and round 2 review findings remediated; fresh focused/proportional/build gates green)
