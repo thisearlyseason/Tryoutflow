@@ -1,6 +1,7 @@
 import { ErrorState } from '@/components/feedback/error-state';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
+import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { SupabaseReportGateway } from '@/modules/reports/infrastructure/supabase-report-gateway';
 import { ReportsPage } from '@/modules/reports/ui/reports-page';
 import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
@@ -12,12 +13,17 @@ export default async function TryoutReportsPage({
 }) {
   const { organizationSlug, tryoutId } = await params;
   const current = await requireOrganizationRouteContext(organizationSlug);
-  const journeyNavigation = (
-    <TryoutJourneyNavigation
-      nextAction={{
+  const auditAction = requireCapability(current.authorization, 'audit:read', {
+    organizationId: current.organization.id,
+  }).ok
+    ? {
         label: 'Review audit history',
         href: `/app/${organizationSlug}/organization/audit`,
-      }}
+      }
+    : undefined;
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={auditAction}
       overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
     />
   );

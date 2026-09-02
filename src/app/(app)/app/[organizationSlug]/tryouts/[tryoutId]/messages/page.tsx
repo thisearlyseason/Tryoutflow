@@ -46,6 +46,15 @@ export default async function MessagesPage({
   if (!z.uuid().safeParse(tryoutId).success) notFound();
   const current = await requireOrganizationRouteContext(organizationSlug);
   const organizationId = current.organization.id;
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Review reports',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/reports`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
   const [tryoutResult, versionsResult] = await Promise.all([
     current.client
       .from('tryouts')
@@ -69,24 +78,18 @@ export default async function MessagesPage({
       operation: 'messages.load',
     });
     return (
-      <ErrorState
-        description="Tryout details could not be loaded. Refresh and try again."
-        title="Messages temporarily unavailable"
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          description="Tryout details could not be loaded. Refresh and try again."
+          title="Messages temporarily unavailable"
+        />
+      </section>
     );
   }
   const tryout = tryoutResult.data;
   const versions = versionsResult.data;
   if (!tryout) notFound();
-  const journeyNavigation = (
-    <TryoutJourneyNavigation
-      nextAction={{
-        label: 'Review reports',
-        href: `/app/${organizationSlug}/tryouts/${tryoutId}/reports`,
-      }}
-      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
-    />
-  );
   if (versionsResult.error) {
     captureOperationalError(versionsResult.error, {
       actorId: current.userId,

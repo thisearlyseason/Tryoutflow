@@ -95,6 +95,20 @@ const evaluatorAssignmentSchema = z
     expires_at: z.iso.datetime({ offset: true }).nullable(),
   })
   .strict();
+const communicationStates = [
+  'queued',
+  'delivery_uncertain',
+  'submitted',
+  'delivery_delayed',
+  'delivered',
+  'failed',
+  'bounced',
+  'cancelled',
+  'suppressed',
+  'complained',
+] as const;
+const communicationStateSchema = z.object({ state: z.enum(communicationStates) }).strict();
+const maximumJourneyCommunicationRows = 500;
 const countSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 type QueryResult = { data: unknown; error: unknown; count?: number | null };
@@ -127,6 +141,18 @@ function parseCount(result: QueryResult): number {
   const parsed = countSchema.safeParse(result.count);
   if (!parsed.success) throw new TryoutJourneyLoadError('unavailable');
   return parsed.data;
+}
+
+function parseCommunicationStates(result: QueryResult) {
+  if (result.error) throw new TryoutJourneyLoadError('unavailable');
+  const rows = z
+    .array(communicationStateSchema)
+    .max(maximumJourneyCommunicationRows)
+    .safeParse(result.data);
+  const count = countSchema.safeParse(result.count);
+  if (!rows.success || !count.success || count.data !== rows.data.length)
+    throw new TryoutJourneyLoadError('unavailable');
+  return rows.data.map((row) => row.state);
 }
 
 function unavailableStage(
@@ -201,10 +227,7 @@ async function loadParticipantsStage(
     id: 'participants' as const,
     title: 'Participants',
     purpose: 'Bring athletes into the tryout.',
-    primaryAction: {
-      label: 'Add first participant',
-      href: `${baseHref}/registration#add-participant`,
-    },
+    primaryAction: { label: 'Manage participants', href: `${baseHref}/registration` },
     secondaryActions: [
       { label: 'Share registration link', href: `${baseHref}/overview#registration-share` },
       { label: 'Import CSV', href: `/app/${scope.organizationSlug}/athletes/import` },
@@ -242,7 +265,10 @@ async function loadParticipantsStage(
           : `${plural(count, 'participant')} registered`,
       primaryAction:
         count === 0
-          ? base.primaryAction
+          ? {
+              label: 'Add first participant',
+              href: `${baseHref}/registration#add-participant`,
+            }
           : { label: 'Manage participants', href: `${baseHref}/registration` },
     };
   } catch {
@@ -465,10 +491,14 @@ async function loadCompleteStage(
     primaryAction: { label: 'Build rosters', href: `${baseHref}/rosters` },
     secondaryActions: [
       { label: 'Review reports', href: `${baseHref}/reports` },
-      {
-        label: 'Review audit history',
-        href: `/app/${scope.organizationSlug}/organization/audit`,
-      },
+      ...(authorize(scope, 'audit:read')
+        ? [
+            {
+              label: 'Review audit history',
+              href: `/app/${scope.organizationSlug}/organization/audit`,
+            },
+          ]
+        : []),
     ],
   };
   if (status === 'draft') {
@@ -513,37 +543,49 @@ async function loadCompleteStage(
         blocker: 'Your current role cannot send roster decision messages.',
       };
     }
-    let messageCount: number;
+    let messageStates: Array<(typeof communicationStates)[number]>;
     try {
       const messagesResult = await client
         .from('communication_messages')
-        .select('id', { count: 'exact', head: true })
+        .select('state', { count: 'exact' })
         .eq('organization_id', scope.organizationId)
         .eq('source_kind', 'roster_decision')
-        .eq('source_roster_version_id', finalizedRoster.id);
-      messageCount = parseCount(messagesResult);
+        .eq('source_roster_version_id', finalizedRoster.id)
+        .limit(maximumJourneyCommunicationRows);
+      messageStates = parseCommunicationStates(messagesResult);
     } catch {
       return unavailableStage(
         {
           ...base,
           primaryAction: { label: 'Review communication', href: `${baseHref}/messages` },
         },
-        'Finalized roster ready · Communication count unavailable',
+        'Finalized roster ready · Communication status unavailable',
       );
     }
-    return messageCount === 0
-      ? {
-          ...base,
-          status: 'ready',
-          supportingText: 'Finalized roster ready · No decision messages queued',
-          primaryAction: { label: 'Review communication', href: `${baseHref}/messages` },
-        }
-      : {
-          ...base,
-          status: 'complete',
-          supportingText: `Finalized roster ready · ${plural(messageCount, 'decision message')} queued`,
-          primaryAction: { label: 'Review reports', href: `${baseHref}/reports` },
-        };
+    if (messageStates.length === 0)
+      return {
+        ...base,
+        status: 'ready',
+        supportingText: 'Finalized roster ready · No decision messages queued',
+        primaryAction: { label: 'Review communication', href: `${baseHref}/messages` },
+      };
+    const stateCounts = new Map(communicationStates.map((state) => [state, 0]));
+    for (const state of messageStates) stateCounts.set(state, (stateCounts.get(state) ?? 0) + 1);
+    const stateText = communicationStates
+      .flatMap((state) => {
+        const count = stateCounts.get(state) ?? 0;
+        return count === 0 ? [] : [`${count} ${state.replaceAll('_', ' ')}`];
+      })
+      .join(' · ');
+    const allDelivered = stateCounts.get('delivered') === messageStates.length;
+    return {
+      ...base,
+      status: allDelivered ? 'complete' : 'in-progress',
+      supportingText: `Finalized roster ready · ${stateText}`,
+      primaryAction: allDelivered
+        ? { label: 'Review reports', href: `${baseHref}/reports` }
+        : { label: 'Review communication', href: `${baseHref}/messages` },
+    };
   } catch {
     return unavailableStage(base, 'Completion status unavailable');
   }

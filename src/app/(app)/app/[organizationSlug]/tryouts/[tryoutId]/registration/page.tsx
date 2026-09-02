@@ -18,6 +18,7 @@ import { createCorrelationId } from '@/modules/observability/domain/correlation-
 import { createStaffRegistration } from '@/modules/registration/application/create-staff-registration';
 import { RegistrationFormSchema } from '@/modules/registration/domain/form-schema';
 import { ParticipantWorkspaceHeader } from '@/modules/registration/ui/participant-workspace-header';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
 const configurationSchema = z.object({
   tryout_name: z.string(),
@@ -49,6 +50,16 @@ export default async function TryoutRegistrationPage({
       </section>
     );
 
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Review sessions',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/sessions`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
+
   const configurationResult = await current.client.rpc('load_staff_registration_configuration', {
     p_organization_id: current.organization.id,
     p_tryout_id: tryoutId,
@@ -63,6 +74,7 @@ export default async function TryoutRegistrationPage({
     });
     return (
       <section aria-labelledby="registration-unavailable">
+        {journeyNavigation}
         <h2 id="registration-unavailable">Registration workspace unavailable</h2>
         <p role="alert">Configuration could not be loaded. Refresh or try again shortly.</p>
       </section>
@@ -71,6 +83,7 @@ export default async function TryoutRegistrationPage({
   if (!parsedConfiguration.success)
     return (
       <section aria-labelledby="registration-not-found">
+        {journeyNavigation}
         <h2 id="registration-not-found">Tryout registration not found</h2>
         <p>The tryout may have been removed or is outside your assigned scope.</p>
       </section>

@@ -20,7 +20,7 @@ type Fixture = {
   evaluatorAssignmentExists?: boolean;
   draftRoster?: boolean;
   finalizedRoster?: boolean;
-  communicationCount?: number;
+  communicationStates?: string[];
 };
 
 type QueryLog = {
@@ -111,7 +111,11 @@ function fakeClient(fixture: Fixture, failures: Partial<Record<string, Error>> =
         };
       }
       case 'communication_messages':
-        return { data: null, error: null, count: fixture.communicationCount ?? 0 };
+        return {
+          data: (fixture.communicationStates ?? []).map((state) => ({ state })),
+          error: null,
+          count: fixture.communicationStates?.length ?? 0,
+        };
       default:
         throw new Error(`Unexpected journey table: ${table}`);
     }
@@ -295,6 +299,32 @@ describe('authoritative tryout journey projection', () => {
     expect(journey.stages.find((stage) => stage.id === 'run')?.supportingText).not.toContain('0');
   });
 
+  it('uses a neutral participant action when the count is unavailable', async () => {
+    const { client } = fakeClient(
+      { status: 'published', sessionCount: 1 },
+      { 'tryout_registrations:0': new Error('participant storage unavailable') },
+    );
+
+    const journey = await loadTryoutJourney(client as never, {
+      organizationId,
+      tryoutId,
+      authorization: authorization(),
+      organizationSlug: 'badlands',
+    });
+
+    expect(journey.stages.find((stage) => stage.id === 'participants')).toMatchObject({
+      status: 'unavailable',
+      primaryAction: {
+        label: 'Manage participants',
+        href: `/app/badlands/tryouts/${tryoutId}/registration`,
+      },
+    });
+    expect(journey).toMatchObject({
+      nextStage: 'participants',
+      primaryAction: { label: 'Manage participants' },
+    });
+  });
+
   it('preserves a known finalized roster when only communication status is unavailable', async () => {
     const { client } = fakeClient(
       {
@@ -317,13 +347,126 @@ describe('authoritative tryout journey projection', () => {
 
     expect(complete).toMatchObject({
       status: 'unavailable',
-      supportingText: 'Finalized roster ready · Communication count unavailable',
+      supportingText: 'Finalized roster ready · Communication status unavailable',
       primaryAction: {
         label: 'Review communication',
         href: `/app/badlands/tryouts/${tryoutId}/messages`,
       },
     });
     expect(complete?.supportingText).not.toMatch(/0 decision messages/iu);
+  });
+
+  it('projects mixed durable communication states without declaring completion', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 2,
+      finalizedRoster: true,
+      communicationStates: ['queued', 'submitted', 'delivered', 'failed', 'bounced'],
+    });
+    const complete = journey.stages.find((stage) => stage.id === 'complete');
+
+    expect(complete).toMatchObject({
+      status: 'in-progress',
+      supportingText:
+        'Finalized roster ready · 1 queued · 1 submitted · 1 delivered · 1 failed · 1 bounced',
+      primaryAction: {
+        label: 'Review communication',
+        href: `/app/badlands/tryouts/${tryoutId}/messages`,
+      },
+    });
+    expect(journey).toMatchObject({
+      nextStage: 'complete',
+      primaryAction: { label: 'Review communication' },
+    });
+  });
+
+  it.each([
+    [['failed'], '1 failed'],
+    [['bounced', 'bounced'], '2 bounced'],
+    [['failed', 'bounced'], '1 failed · 1 bounced'],
+  ] as const)(
+    'keeps terminal unsuccessful communication %o actionable',
+    async (communicationStates, supportingText) => {
+      const journey = await loadFixtureJourney({
+        status: 'published',
+        participantCount: 4,
+        sessionCount: 1,
+        completedEvaluationCount: 2,
+        finalizedRoster: true,
+        communicationStates: [...communicationStates],
+      });
+      const complete = journey.stages.find((stage) => stage.id === 'complete');
+
+      expect(complete).toMatchObject({
+        status: 'in-progress',
+        supportingText: `Finalized roster ready · ${supportingText}`,
+        primaryAction: { label: 'Review communication' },
+      });
+      expect(complete?.status).not.toBe('complete');
+    },
+  );
+
+  it('marks communication complete only when every durable message is delivered', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 2,
+      finalizedRoster: true,
+      communicationStates: ['delivered', 'delivered'],
+    });
+
+    expect(journey.stages.find((stage) => stage.id === 'complete')).toMatchObject({
+      status: 'complete',
+      supportingText: 'Finalized roster ready · 2 delivered',
+      primaryAction: {
+        label: 'Review reports',
+        href: `/app/badlands/tryouts/${tryoutId}/reports`,
+      },
+    });
+  });
+
+  it('fails the communication stage closed for an unknown durable state', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 2,
+      finalizedRoster: true,
+      communicationStates: ['invented-state'],
+    });
+
+    expect(journey.stages.find((stage) => stage.id === 'complete')).toMatchObject({
+      status: 'unavailable',
+      supportingText: 'Finalized roster ready · Communication status unavailable',
+      primaryAction: { label: 'Review communication' },
+    });
+  });
+
+  it('omits audit actions when the exact scope lacks audit read capability', async () => {
+    const { client } = fakeClient({ status: 'published' });
+    const journey = await loadTryoutJourney(client as never, {
+      organizationId,
+      tryoutId,
+      organizationSlug: 'badlands',
+      authorization: authorization({
+        organizationRole: 'member',
+        assignments: [
+          {
+            role: 'director',
+            scope: { kind: 'tryout', tryoutId },
+          },
+        ],
+      }),
+    });
+
+    expect(
+      journey.stages
+        .find((stage) => stage.id === 'complete')
+        ?.secondaryActions.map((action) => action.label),
+    ).not.toContain('Review audit history');
   });
 
   it('blocks run readiness on the exact missing evaluator prerequisite', async () => {
@@ -424,7 +567,16 @@ describe('authoritative tryout journey projection', () => {
             )),
       ),
     ).toBe(true);
-    expect(logs.filter((log) => !log.options?.head).every((log) => log.limit === 1)).toBe(true);
+    expect(
+      logs
+        .filter((log) => !log.options?.head && log.table !== 'communication_messages')
+        .every((log) => log.limit === 1),
+    ).toBe(true);
+    expect(logs.find((log) => log.table === 'communication_messages')).toMatchObject({
+      columns: 'state',
+      options: { count: 'exact' },
+      limit: 500,
+    });
   });
 
   it('rejects malformed scope before any data access', async () => {

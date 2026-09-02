@@ -12,6 +12,15 @@ export default async function LivePage({
   params: Promise<{ organizationSlug: string; tryoutId: string }>;
 }) {
   const { organizationSlug, tryoutId } = await params;
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Review rankings',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/rankings`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
   const current = await requireOrganizationRouteContext(organizationSlug);
   const result = await getLiveDashboard(
     { organizationId: current.organization.id, tryoutId },
@@ -20,14 +29,17 @@ export default async function LivePage({
   );
   if (!result.ok)
     return (
-      <ErrorState
-        title="Live dashboard unavailable"
-        description={
-          result.error.code === 'forbidden'
-            ? 'Your current role cannot view live operations.'
-            : 'Refresh and try again.'
-        }
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          title="Live dashboard unavailable"
+          description={
+            result.error.code === 'forbidden'
+              ? 'Your current role cannot view live operations.'
+              : 'Refresh and try again.'
+          }
+        />
+      </section>
     );
   const cards = [
     ['Registrations', result.value.registrations],
@@ -42,13 +54,7 @@ export default async function LivePage({
       aria-labelledby="live-heading"
       className="theme-game-day rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6"
     >
-      <TryoutJourneyNavigation
-        nextAction={{
-          label: 'Review rankings',
-          href: `/app/${organizationSlug}/tryouts/${tryoutId}/rankings`,
-        }}
-        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
-      />
+      {journeyNavigation}
       <p className="eyebrow">Operational snapshot</p>
       <h2 id="live-heading">Live dashboard</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">

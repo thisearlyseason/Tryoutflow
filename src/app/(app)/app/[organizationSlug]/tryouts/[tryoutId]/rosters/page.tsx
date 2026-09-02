@@ -49,9 +49,18 @@ export default async function RostersPage({
   if (!uuid.safeParse(tryoutId).success) notFound();
   const current = await requireOrganizationRouteContext(organizationSlug);
   const organizationId = current.organization.id;
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Review communication',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/messages`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
 
   const [
-    { data: tryout },
+    { data: tryout, error: tryoutError },
     { data: divisions, error: divisionsError },
     { data: versions, error: versionsError },
   ] = await Promise.all([
@@ -76,15 +85,18 @@ export default async function RostersPage({
       .eq('tryout_id', tryoutId)
       .order('revision_number', { ascending: false }),
   ]);
-  if (!tryout) notFound();
-  if (divisionsError || versionsError) {
+  if (tryoutError || divisionsError || versionsError) {
     return (
-      <ErrorState
-        description="Roster configuration could not be loaded. Refresh and try again."
-        title="Roster workspace unavailable"
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          description="Roster configuration could not be loaded. Refresh and try again."
+          title="Roster workspace unavailable"
+        />
+      </section>
     );
   }
+  if (!tryout) notFound();
 
   const requestedDivision = first(query.division);
   if (requestedDivision !== undefined && !uuid.safeParse(requestedDivision).success) notFound();
@@ -345,13 +357,7 @@ export default async function RostersPage({
 
   return (
     <section aria-labelledby="roster-heading" className="min-w-0">
-      <TryoutJourneyNavigation
-        nextAction={{
-          label: 'Review communication',
-          href: `/app/${organizationSlug}/tryouts/${tryoutId}/messages`,
-        }}
-        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
-      />
+      {journeyNavigation}
       <p className="eyebrow">Human decisions</p>
       <h2 id="roster-heading">{tryout.name} rosters</h2>
       <p className="mb-4 mt-2 max-w-3xl text-[var(--color-text-muted)]">

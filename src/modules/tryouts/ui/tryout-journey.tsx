@@ -78,7 +78,7 @@ export function TryoutJourneyNavigation({
   nextAction,
   overviewHref,
 }: {
-  nextAction: JourneyAction;
+  nextAction?: JourneyAction;
   overviewHref: string;
 }) {
   return (
@@ -86,9 +86,11 @@ export function TryoutJourneyNavigation({
       <Link className="button-quiet" href={overviewHref} prefetch={false}>
         Back to overview
       </Link>
-      <Link className="button-secondary" href={nextAction.href} prefetch={false}>
-        Next: {nextAction.label}
-      </Link>
+      {nextAction ? (
+        <Link className="button-secondary" href={nextAction.href} prefetch={false}>
+          Next: {nextAction.label}
+        </Link>
+      ) : null}
     </nav>
   );
 }

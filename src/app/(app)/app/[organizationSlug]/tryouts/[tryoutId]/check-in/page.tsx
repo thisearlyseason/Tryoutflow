@@ -34,6 +34,15 @@ export default async function CheckinPage({
   searchParams: Promise<{ qr?: string }>;
 }) {
   const { organizationSlug, tryoutId } = await params;
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Open live dashboard',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/live`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
   const requestedQr = (await searchParams).qr?.trim().toLowerCase() ?? '';
   const initialQuery = /^[0-9a-f]{64}$/.test(requestedQr) ? requestedQr : '';
   const current = await requireCurrentOrganization(organizationSlug);
@@ -51,10 +60,13 @@ export default async function CheckinPage({
       operation: 'checkin.load',
     });
     return (
-      <ErrorState
-        description="Tryout check-in could not be loaded. Refresh and try again."
-        title="Check-in temporarily unavailable"
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          description="Tryout check-in could not be loaded. Refresh and try again."
+          title="Check-in temporarily unavailable"
+        />
+      </section>
     );
   }
   const tryout = tryoutResult.data;
@@ -73,10 +85,13 @@ export default async function CheckinPage({
       operation: 'checkin.load',
     });
     return (
-      <ErrorState
-        description="Session placements could not be loaded. Refresh before checking anyone in."
-        title="Check-in temporarily unavailable"
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          description="Session placements could not be loaded. Refresh before checking anyone in."
+          title="Check-in temporarily unavailable"
+        />
+      </section>
     );
   }
   const sessions = sessionsResult.data;
@@ -278,13 +293,7 @@ export default async function CheckinPage({
 
   return (
     <section aria-labelledby="checkin-heading" className="min-w-0">
-      <TryoutJourneyNavigation
-        nextAction={{
-          label: 'Open live dashboard',
-          href: `/app/${organizationSlug}/tryouts/${tryoutId}/live`,
-        }}
-        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
-      />
+      {journeyNavigation}
       <p className="eyebrow">Live operations</p>
       <h2 id="checkin-heading">{tryout.name} check-in</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">

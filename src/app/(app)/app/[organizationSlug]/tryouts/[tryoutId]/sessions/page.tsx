@@ -18,6 +18,15 @@ export default async function TryoutSessionsPage({
   params: Promise<{ organizationSlug: string; tryoutId: string }>;
 }) {
   const { organizationSlug, tryoutId } = await params;
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Open check-in',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/check-in`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
   const current = await requireCurrentOrganization(organizationSlug);
   if (
     !requireCapability(current.authorization, 'tryout:read', {
@@ -58,6 +67,7 @@ export default async function TryoutSessionsPage({
     });
     return (
       <section aria-labelledby="sessions-unavailable">
+        {journeyNavigation}
         <h2 id="sessions-unavailable">Sessions temporarily unavailable</h2>
         <p role="alert">Session details could not be loaded. Refresh or try again shortly.</p>
       </section>
@@ -73,13 +83,7 @@ export default async function TryoutSessionsPage({
 
   return (
     <section aria-labelledby="sessions-heading" className="min-w-0">
-      <TryoutJourneyNavigation
-        nextAction={{
-          label: 'Open check-in',
-          href: `/app/${organizationSlug}/tryouts/${tryoutId}/check-in`,
-        }}
-        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
-      />
+      {journeyNavigation}
       <p className="eyebrow">Tryout schedule</p>
       <h2 id="sessions-heading">{tryoutResult.data.name} sessions</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">
