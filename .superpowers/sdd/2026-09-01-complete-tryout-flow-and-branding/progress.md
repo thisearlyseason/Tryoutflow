@@ -51,4 +51,6 @@ Task 4 review round 2: prior Important closed; Minor — RFC list parsing must i
 
 Task 4: complete (commits 1517f24..907a5ef, Important and Minor findings closed; fresh scoped re-review clean)
 
-Task 5: complete (commit 2e9299630bc375df4808a7da69ac647b177381e5; exact guidance, accessible field errors, and proportional gates green; no reviewer by controller instruction)
+Task 5 review round 1: Important — retryable freshness-query failures drop bounded unsaved basics values; Important — session datetime guidance hard-codes Edmonton instead of the tryout timezone; Minor — schema-defined date fields lack guaranteed adjacent examples and accessible descriptions. Returned for TDD remediation and fresh scoped review.
+
+Task 5 review round 1 remediation: implemented in `55ff73e501ee22327e55a2b0e602840172453d2b`; all three findings have focused regressions and are awaiting fresh scoped re-review.

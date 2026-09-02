@@ -78,3 +78,53 @@ Modified:
 - The build requires deployment-owned public environment values even for static marketing metadata. The first environment-free failure was configuration-only; the same tree passed with non-secret synthetic values.
 - The full unit run emitted the existing privacy-safe `integration_unavailable` observability lines for recovery/verification negative-path tests; the suite still completed with zero failures.
 - No subagent or reviewer was spawned because the controller explicitly prohibited delegation and reviewers. A local requirement, accessibility, mutation, and diff self-review found no remaining Task 5 gap.
+
+## Review remediation round 1
+
+### Commit
+
+- Remediation implementation: `55ff73e501ee22327e55a2b0e602840172453d2b`
+
+### Changes
+
+- Captured and bounded submitted basics values before the asynchronous freshness query. Retryable freshness failures and otherwise unassignable persistence failures now return those values through `useActionState`; they never echo through a URL.
+- Rendered session datetime examples using the authoritative saved tryout timezone. The exact `FIELD_EXAMPLES.timezone` catalog entry remains the safe fallback when a standalone fixture omits basics.
+- Added adjacent examples with stable `aria-describedby` IDs for every schema-defined date field in both staff and public registration, including optional fields without authored `helpText`.
+
+### TDD evidence
+
+- RED command: `corepack npm exec -- vitest run --config vitest.config.ts tests/unit/tryouts/prepare-wizard-save-attempt.test.ts tests/unit/tryouts/tryout-wizard.test.tsx tests/unit/forms/core-workflow-guidance.test.tsx --maxWorkers=2`
+  - Exit 1: the pre-freshness helper module was missing, Toronto guidance still rendered Edmonton, and the staff dynamic date lacked `aria-describedby`; two loaded assertions failed and six passed.
+- GREEN rerun of the same command:
+  - 3 files passed, 10 tests passed.
+- The new action regression mutates `FormData` after the freshness await begins and proves the returned values were trimmed and bounded before that boundary. The UI regression proves a retryable form error restores those sanitized values.
+
+### Verification
+
+- Task 5 focused suite: 43 files passed, 249 tests passed.
+- Full unit suite: 108 files passed, 1,193 tests passed.
+- `corepack npm run format:check`: passed.
+- `corepack npm run lint`: passed with no diagnostics.
+- `corepack npm run typecheck -- --incremental false`: passed with no diagnostics.
+- Production build with the report's documented synthetic public environment values: passed; all 36 static pages generated.
+- `git diff --check`: passed before the implementation commit.
+
+### Files
+
+Created:
+
+- `src/modules/tryouts/application/prepare-wizard-save-attempt.ts`
+- `tests/unit/tryouts/prepare-wizard-save-attempt.test.ts`
+
+Modified:
+
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/setup/[step]/page.tsx`
+- `src/modules/tryouts/ui/tryout-wizard.tsx`
+- `src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/registration/page.tsx`
+- `src/app/(registration)/register/[tryoutSlug]/registration-form.tsx`
+- `tests/unit/tryouts/tryout-wizard.test.tsx`
+- `tests/unit/forms/core-workflow-guidance.test.tsx`
+
+### Concerns
+
+- None new. The build still requires deployment-owned public environment values, so verification used the same non-secret synthetic values documented above.
