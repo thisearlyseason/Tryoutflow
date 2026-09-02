@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 import { MobileNav } from './mobile-nav';
+import { OrganizationMark } from '../../modules/organizations/components/organization-mark';
 import type {
   NavigationGroup,
   NavigationIcon,
@@ -57,7 +58,7 @@ export function AppNavigation({
   roleLabel,
 }: {
   groups: readonly NavigationGroup[];
-  organization: Readonly<{ name: string; slug: string }>;
+  organization: Readonly<{ name: string; slug: string; logoUrl?: string }>;
   roleLabel: string;
 }) {
   const pathname = usePathname();
@@ -71,8 +72,11 @@ export function AppNavigation({
           <span>TryoutFlow</span>
         </Link>
         <div className="app-organization">
-          <p>{organization.name}</p>
-          <span>{roleLabel}</span>
+          <OrganizationMark name={organization.name} logoUrl={organization.logoUrl} />
+          <div className="app-organization-copy">
+            <p>{organization.name}</p>
+            <span>{roleLabel}</span>
+          </div>
         </div>
         <nav aria-label="Primary navigation" className="app-navigation">
           {groups.map((group) => (

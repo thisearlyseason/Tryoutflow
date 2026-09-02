@@ -9,12 +9,18 @@ import {
   type RegistrationFormSchema as FormSchema,
 } from '../../../../modules/registration/domain/form-schema';
 import { TurnstileClientChallenge } from '../../../../modules/identity/ui/turnstile-client';
+import { OrganizationMark } from '../../../../modules/organizations/components/organization-mark';
 
 type RegistrationTryout = {
   name: string;
   formSchema: FormSchema;
   divisions: { id: string; name: string }[];
   positions: { id: string; name: string }[];
+};
+
+type RegistrationOrganization = {
+  name: string;
+  logoUrl?: string;
 };
 
 export function RegistrationForm({
@@ -29,6 +35,7 @@ export function RegistrationForm({
   testLoaderFailure?: string;
 }) {
   const [tryout, setTryout] = useState<RegistrationTryout | null>(null);
+  const [organization, setOrganization] = useState<RegistrationOrganization | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadOutcome, setLoadOutcome] = useState<'loading' | 'not_found' | 'unavailable'>(
     'loading',
@@ -70,7 +77,11 @@ export function RegistrationForm({
           return null;
         }
         if (!response.ok) throw new Error('unavailable');
-        const body = (await response.json()) as { tryout: RegistrationTryout };
+        const body = (await response.json()) as {
+          organization: RegistrationOrganization;
+          tryout: RegistrationTryout;
+        };
+        setOrganization(body.organization);
         setTryout({
           ...body.tryout,
           formSchema: RegistrationFormSchema.parse(body.tryout.formSchema),
@@ -171,7 +182,7 @@ export function RegistrationForm({
         </section>
       </main>
     );
-  if (!tryout)
+  if (!tryout || !organization)
     return (
       <main className="registration-page">
         <p aria-live="polite" className="registration-card">
@@ -184,13 +195,14 @@ export function RegistrationForm({
     <main className="registration-page">
       <section className="registration-card">
         <header className="registration-header">
-          <span aria-hidden="true" className="app-sidebar-mark">
-            TF
-          </span>
+          <OrganizationMark name={organization.name} logoUrl={organization.logoUrl} size={48} />
           <div>
-            <p className="eyebrow">Athlete registration</p>
+            <p className="eyebrow">{organization.name}</p>
             <h1>Register for {tryout.name}</h1>
-            <p>A guardian must complete this form. We collect only what this tryout needs.</p>
+            <p>
+              Athlete registration. A guardian must complete this form. We collect only what this
+              tryout needs.
+            </p>
           </div>
         </header>
         <form className="mt-6 grid gap-4" onSubmit={submit} noValidate>

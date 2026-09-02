@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { OrganizationLogoSettings } from '../../../src/modules/organizations/components/organization-logo-settings';
@@ -54,6 +54,26 @@ describe('OrganizationLogoSettings', () => {
     const remove = screen.getByRole('button', { name: 'Remove logo' });
     expect(replace.closest('form')).toHaveAttribute('enctype', 'multipart/form-data');
     expect(remove.closest('form')).not.toBe(replace.closest('form'));
+  });
+
+  it('replaces a failed current preview with the reusable TF fallback', () => {
+    render(
+      <OrganizationLogoSettings
+        canManage
+        hasLogo
+        organizationName="Badlands Hockey Academy"
+        organizationSlug="badlands-hockey-academy"
+        removeAction={removeAction}
+        uploadAction={uploadAction}
+      />,
+    );
+
+    fireEvent.error(screen.getByRole('img', { name: 'Badlands Hockey Academy logo' }));
+
+    expect(
+      screen.getByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
+    ).toHaveTextContent('TF');
+    expect(screen.queryByRole('img', { name: 'Badlands Hockey Academy logo' })).toBeNull();
   });
 
   it('does not render mutation controls for a member without organization-update capability', () => {

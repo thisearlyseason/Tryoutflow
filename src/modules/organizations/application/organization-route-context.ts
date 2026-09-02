@@ -10,9 +10,15 @@ import {
   type UserId,
 } from '../../../lib/ids';
 import type { AuthorizationContext } from './capabilities';
+import { loadOrganizationLogoUrl } from './current-organization';
 import { SupabaseMembershipRepository } from '../infrastructure/membership-repository';
 
-export type OrganizationShell = { id: OrganizationId; name: string; slug: string };
+export type OrganizationShell = {
+  id: OrganizationId;
+  name: string;
+  slug: string;
+  logoUrl?: string;
+};
 
 export type OrganizationRouteContextGateway = {
   findOrganizationShellBySlug(slug: string): Promise<OrganizationShell | null>;
@@ -79,5 +85,13 @@ export async function requireOrganizationRouteContext(slug: string) {
   const userId = parseUserId(user.id);
   const context = await resolveOrganizationRouteContext(slug, userId, serverGateway(client));
   if (!context) notFound();
-  return { ...context, client };
+  const logoUrl = await loadOrganizationLogoUrl(client, context.organization);
+  return {
+    ...context,
+    organization: {
+      ...context.organization,
+      ...(logoUrl ? { logoUrl } : {}),
+    },
+    client,
+  };
 }

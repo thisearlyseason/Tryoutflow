@@ -1,11 +1,12 @@
 // @vitest-environment node
 
-import { execFile as execFileCallback } from 'node:child_process';
+import { execFile as execFileCallback, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 
+import { NextRequest } from 'next/server';
 import sharp from 'sharp';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
@@ -19,6 +20,21 @@ const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
+
+beforeAll(() => {
+  const config = execFileSync(
+    'docker',
+    ['exec', 'supabase_kong_tryoutflow', 'cat', '/home/kong/kong.yml'],
+    { encoding: 'utf8' },
+  );
+  const serviceKey = config.match(/sb_secret_[A-Za-z0-9_-]+/u)?.[0];
+  const publishableKey = config.match(/sb_publishable_[A-Za-z0-9_-]+/u)?.[0];
+  if (!serviceKey || !publishableKey) throw new Error('local Supabase API keys unavailable');
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey;
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = publishableKey;
+  process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = 'organization-logo-route-integration-secret';
+});
 
 function authorization(
   organizationId: OrganizationId,
@@ -110,6 +126,28 @@ describe('organization logo application boundary against PostgreSQL', () => {
       if (!uploaded.ok || uploaded.value.kind !== 'updated') {
         throw new Error('owner upload failed');
       }
+
+      const { GET: getLogo } =
+        await import('../../../src/app/api/organizations/[organizationSlug]/logo/route');
+      const routeContext = {
+        params: Promise.resolve({ organizationSlug: slug }),
+      } as RouteContext<'/api/organizations/[organizationSlug]/logo'>;
+      const delivered = await getLogo(
+        new NextRequest(`http://localhost/api/organizations/${slug}/logo`),
+        routeContext,
+      );
+      expect(delivered.status).toBe(200);
+      expect(delivered.headers.get('content-type')).toBe('image/webp');
+      expect(delivered.headers.get('etag')).toBe(`"${uploaded.value.sha256}"`);
+      expect(Buffer.from(await delivered.arrayBuffer())).toHaveLength(uploaded.value.byteLength);
+      const notModified = await getLogo(
+        new NextRequest(`http://localhost/api/organizations/${slug}/logo`, {
+          headers: { 'if-none-match': `"${uploaded.value.sha256}"` },
+        }),
+        routeContext,
+      );
+      expect(notModified.status).toBe(304);
+      expect(await notModified.text()).toBe('');
 
       expect(
         (
@@ -217,6 +255,12 @@ describe('organization logo application boundary against PostgreSQL', () => {
       ).toBe(
         `organization.logo_removed|${administratorId}|${replaced.value.sha256}|${replaced.value.byteLength}`,
       );
+      const missing = await getLogo(
+        new NextRequest(`http://localhost/api/organizations/${slug}/logo`),
+        routeContext,
+      );
+      expect(missing.status).toBe(404);
+      expect(await missing.text()).toBe('Logo unavailable.');
     } finally {
       await psql(`
         begin;

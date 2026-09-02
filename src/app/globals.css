@@ -888,18 +888,28 @@ textarea {
 }
 
 .app-organization {
-  display: grid;
-  gap: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   border-block: 1px solid rgb(255 255 255 / 12%);
   padding-block: var(--space-5);
 }
 
-.app-organization p {
-  margin: 0;
-  font-weight: 900;
+.app-organization-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
 }
 
-.app-organization span {
+.app-organization-copy p {
+  overflow: hidden;
+  margin: 0;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-organization-copy > span {
   color: #b9c7d7;
   font-size: 0.75rem;
   font-weight: 800;

@@ -22,6 +22,9 @@ const publicConfigurationSchema = z.object({
   form_schema: RegistrationFormSchema,
   divisions: z.array(z.object({ id: z.uuid(), name: z.string().min(1).max(120) })),
   positions: z.array(z.object({ id: z.uuid(), name: z.string().min(1).max(120) })),
+  organization_name: z.string().min(1).max(160),
+  organization_slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
+  logo_exists: z.boolean(),
 });
 const publicConfigurationRowsSchema = z.array(publicConfigurationSchema).max(1);
 
@@ -71,6 +74,14 @@ export async function GET(request: NextRequest) {
     const [configuration] = parsed.data;
     if (!configuration) return publicLoadError('not_found');
     return NextResponse.json({
+      organization: {
+        name: configuration.organization_name,
+        ...(configuration.logo_exists
+          ? {
+              logoUrl: `/api/organizations/${encodeURIComponent(configuration.organization_slug)}/logo`,
+            }
+          : {}),
+      },
       tryout: {
         name: configuration.name,
         slug: configuration.slug,

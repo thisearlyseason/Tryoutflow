@@ -20,6 +20,9 @@ let apiKeys: ReturnType<typeof localApiKeys>;
 let directCanonicalRateKey = 'c'.repeat(64);
 
 const origin = 'http://localhost';
+const brandingUserId = 'a5101010-1010-4010-8010-101010101010';
+const brandingOrganizationId = 'a1101010-1010-4010-8010-101010101010';
+const brandingDigest = '3fe79651a92ea3850c3fc3dd9519a67c7f70b598fa238a3fd92042f6446e6452';
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 const validSubmission = {
@@ -125,6 +128,56 @@ beforeAll(async () => {
 });
 
 describe('real public registration route with local Supabase', () => {
+  it('returns only the exact published organization name and conditional logo URL', async () => {
+    const { GET: loadRegistration } =
+      await import('../../../src/app/api/public/registrations/route');
+    try {
+      psql(`
+        delete from private.organization_brand_assets
+        where organization_id='${brandingOrganizationId}';
+        insert into auth.users(id,email,email_confirmed_at)
+        values('${brandingUserId}','branding-route@example.test',clock_timestamp())
+        on conflict(id) do nothing;
+      `);
+
+      const absent = await loadRegistration(
+        new NextRequest(`${origin}/api/public/registrations?tryoutSlug=http-registration-camp`),
+      );
+      expect(absent.status).toBe(200);
+      const absentBody = (await absent.json()) as {
+        organization: Record<string, unknown>;
+      };
+      expect(absentBody.organization).toEqual({ name: 'HTTP Registration Club' });
+
+      psql(`
+        insert into private.organization_brand_assets(
+          organization_id,content,content_type,byte_length,sha256,updated_by_user_id
+        ) values(
+          '${brandingOrganizationId}',decode('524946460400000057454250','hex'),
+          'image/webp',12,'${brandingDigest}','${brandingUserId}'
+        );
+      `);
+      const present = await loadRegistration(
+        new NextRequest(`${origin}/api/public/registrations?tryoutSlug=http-registration-camp`),
+      );
+      expect(present.status).toBe(200);
+      await expect(present.json()).resolves.toMatchObject({
+        organization: {
+          name: 'HTTP Registration Club',
+          logoUrl: '/api/organizations/http-registration-club/logo',
+        },
+        tryout: { name: 'HTTP Registration Camp', slug: 'http-registration-camp' },
+      });
+    } finally {
+      psql(`
+        delete from private.organization_brand_assets
+        where organization_id='${brandingOrganizationId}';
+        delete from public.profiles where id='${brandingUserId}';
+        delete from auth.users where id='${brandingUserId}';
+      `);
+    }
+  });
+
   it('exposes only the canonical submission RPC through real PostgREST', async () => {
     const headers = {
       apikey: apiKeys.service,

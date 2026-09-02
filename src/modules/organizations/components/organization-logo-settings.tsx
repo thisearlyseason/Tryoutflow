@@ -1,6 +1,5 @@
-import Image from 'next/image';
-
 import { Button } from '../../../components/ui/button';
+import { OrganizationMark } from './organization-mark';
 
 export type OrganizationLogoSettingsStatus =
   'updated' | 'removed' | 'invalid_file' | 'too_large' | 'forbidden' | 'unavailable';
@@ -46,24 +45,13 @@ export function OrganizationLogoSettings({
         </p>
       ) : null}
       <div className="mt-4 flex min-h-32 w-48 items-center justify-center overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
-        {hasLogo ? (
-          <Image
-            alt={`${organizationName} logo`}
-            className="max-h-28 w-auto object-contain"
-            height={112}
-            src={`/api/organizations/${encodeURIComponent(organizationSlug)}/logo`}
-            unoptimized
-            width={168}
-          />
-        ) : (
-          <span
-            aria-label={`${organizationName} logo fallback`}
-            className="text-3xl font-black tracking-tight text-[var(--color-primary)]"
-            role="img"
-          >
-            TF
-          </span>
-        )}
+        <OrganizationMark
+          name={organizationName}
+          logoUrl={
+            hasLogo ? `/api/organizations/${encodeURIComponent(organizationSlug)}/logo` : undefined
+          }
+          size={112}
+        />
       </div>
       {canManage ? (
         <div className="mt-4 flex flex-wrap items-end gap-3">

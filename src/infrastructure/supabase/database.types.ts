@@ -5211,7 +5211,10 @@ export type Database = {
         Returns: {
           divisions: Json;
           form_schema: Json;
+          logo_exists: boolean;
           name: string;
+          organization_name: string;
+          organization_slug: string;
           positions: Json;
           slug: string;
           tryout_id: string;

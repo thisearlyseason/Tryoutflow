@@ -29,12 +29,56 @@ const validConfiguration = {
   form_schema: { fields: [] },
   divisions: [],
   positions: [],
+  organization_name: 'Badlands Hockey Academy',
+  organization_slug: 'badlands-hockey-academy',
+  logo_exists: true,
 };
 
 describe('public registration configuration loader outcomes', () => {
   beforeEach(() => {
     mocks.rpc.mockReset();
     mocks.captureOperationalError.mockReset();
+  });
+
+  it('returns only safe branding for the exact published tryout organization', async () => {
+    mocks.rpc.mockResolvedValue({ data: [validConfiguration], error: null });
+
+    const response = await GET(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      organization: {
+        name: 'Badlands Hockey Academy',
+        logoUrl: '/api/organizations/badlands-hockey-academy/logo',
+      },
+      tryout: {
+        name: 'Fall Camp',
+        slug: 'fall-camp',
+        formSchema: { fields: [] },
+        divisions: [],
+        positions: [],
+      },
+    });
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith('public_registration_tryout_v2', {
+      p_tryout_slug: 'fall-camp',
+    });
+  });
+
+  it('omits the logo URL when the exact published organization has no logo', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: [{ ...validConfiguration, logo_exists: false }],
+      error: null,
+    });
+
+    const response = await GET(request());
+    const body = (await response.json()) as { organization: Record<string, unknown> };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      organization: { name: 'Badlands Hockey Academy' },
+    });
+    expect(body.organization).not.toHaveProperty('logoUrl');
   });
 
   it('keeps an actually absent or closed tryout non-oracular', async () => {

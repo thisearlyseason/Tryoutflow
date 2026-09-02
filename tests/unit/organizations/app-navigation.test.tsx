@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -111,6 +111,48 @@ describe('role-aware application navigation', () => {
       'aria-current',
       'page',
     );
+    expect(
+      screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo fallback' })[0],
+    ).toHaveTextContent('TF');
+  });
+
+  it('renders the current organization logo in desktop and mobile navigation and falls back on failure', () => {
+    const groups = buildAppNavigation({
+      authorization: authorization({ organizationRole: 'owner', assignments: [] }),
+      organizationSlug: 'badlands',
+    });
+    render(
+      <AppShell
+        navigation={groups}
+        organization={{
+          name: 'Badlands Hockey Academy',
+          slug: 'badlands',
+          logoUrl: '/api/organizations/badlands/logo?v=2026-09-01T17%3A00%3A00.000Z',
+        }}
+        roleLabel="Owner"
+      >
+        <h1>Operations overview</h1>
+      </AppShell>,
+    );
+
+    const logos = screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo' });
+    expect(logos).toHaveLength(2);
+    for (const logo of logos) {
+      expect(logo).toHaveAttribute(
+        'src',
+        expect.stringContaining('/api/organizations/badlands/logo?v=2026-09-01T17%3A00%3A00.000Z'),
+      );
+    }
+
+    fireEvent.error(logos[0]!);
+
+    expect(
+      screen.getByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
+    ).toHaveTextContent('TF');
+    expect(screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo' })).toHaveLength(1);
   });
 
   it('groups secondary mobile destinations without presenting category numbers as workflow steps', async () => {

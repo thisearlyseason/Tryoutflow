@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { NavigationGroup } from '../../modules/organizations/components/app-navigation-model';
 import { flattenNavigation } from '../../modules/organizations/components/app-navigation-model';
 import { NavigationLink } from './app-navigation';
+import { OrganizationMark } from '../../modules/organizations/components/organization-mark';
 
 export function MobileNav({
   groups,
@@ -16,7 +17,7 @@ export function MobileNav({
 }: {
   groups?: readonly NavigationGroup[];
   items?: readonly Readonly<{ href: string; label: string }>[];
-  organization?: Readonly<{ name: string; slug: string }>;
+  organization?: Readonly<{ name: string; slug: string; logoUrl?: string }>;
   pathname?: string;
   roleLabel?: string;
 }) {
@@ -50,9 +51,7 @@ export function MobileNav({
   return (
     <nav aria-label="Mobile navigation" className="mobile-navigation">
       <div className="mobile-organization">
-        <span aria-hidden="true" className="app-sidebar-mark">
-          TF
-        </span>
+        <OrganizationMark name={organization.name} logoUrl={organization.logoUrl} />
         <span>
           <strong>{organization.name}</strong>
           <small>{roleLabel}</small>

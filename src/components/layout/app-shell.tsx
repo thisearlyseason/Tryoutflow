@@ -7,7 +7,7 @@ export type AppShellProps = {
   children: ReactNode;
   mode?: 'lab' | 'game-day';
   navigation?: ReactNode | readonly NavigationGroup[];
-  organization?: Readonly<{ name: string; slug: string }>;
+  organization?: Readonly<{ name: string; slug: string; logoUrl?: string }>;
   roleLabel?: string;
 };
 
