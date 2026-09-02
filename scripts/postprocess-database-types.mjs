@@ -122,6 +122,10 @@ nullableFunctionFields('get_owned_subscription_account', {
   provider_subscription_id: 'string',
   trial_end: 'string',
 });
+nullableFunctionFields('get_organization_logo_metadata', {
+  sha256: 'string',
+  updated_at: 'string',
+});
 nullableFunctionArgs('apply_stripe_subscription_event', {
   p_cancel_at: 'string',
   p_canceled_at: 'string',

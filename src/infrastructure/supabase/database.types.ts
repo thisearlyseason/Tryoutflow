@@ -4771,6 +4771,14 @@ export type Database = {
           version: number | null;
         }[];
       };
+      get_organization_logo_metadata: {
+        Args: { p_organization_id: string };
+        Returns: {
+          logo_exists: boolean;
+          sha256: string | null;
+          updated_at: string | null;
+        }[];
+      };
       get_owned_subscription_account: {
         Args: { p_organization_id: string };
         Returns: {
@@ -5402,6 +5410,16 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      read_organization_logo_service: {
+        Args: { p_organization_slug: string };
+        Returns: {
+          byte_length: number;
+          content: string;
+          content_type: string;
+          sha256: string;
+          updated_at: string;
+        }[];
+      };
       record_outbox_job_delivery_uncertain_v2: {
         Args: {
           p_job_id: string;
@@ -5432,6 +5450,10 @@ export type Database = {
           p_session_id: string;
           p_tryout_id: string;
         };
+        Returns: string;
+      };
+      remove_organization_logo: {
+        Args: { p_organization_id: string };
         Returns: string;
       };
       reopen_evaluation: {
@@ -5833,6 +5855,14 @@ export type Database = {
           updated_at: string;
           version: number;
         }[];
+      };
+      upsert_organization_logo: {
+        Args: {
+          p_content_base64: string;
+          p_organization_id: string;
+          p_sha256: string;
+        };
+        Returns: string;
       };
       validate_integration_outbox_execution: {
         Args: {

@@ -96,6 +96,14 @@ describe('database type postprocessor', () => {
           version: number;
         }[];
       };
+      get_organization_logo_metadata: {
+        Args: { p_organization_id: string };
+        Returns: {
+          logo_exists: boolean;
+          sha256: string;
+          updated_at: string;
+        }[];
+      };
       apply_stripe_subscription_event: {
         Args: {
           p_cancel_at: string;
@@ -167,6 +175,14 @@ describe('database type postprocessor', () => {
           version: number;
         }[];
       };`);
+      expect(processed).toContain(`      get_organization_logo_metadata: {
+        Args: { p_organization_id: string };
+        Returns: {
+          logo_exists: boolean;
+          sha256: string | null;
+          updated_at: string | null;
+        }[];
+      };`);
       expect(processed).toContain(`      apply_stripe_subscription_event: {
         Args: {
           p_cancel_at: string | null;
@@ -196,32 +212,33 @@ describe('database type postprocessor', () => {
     }
   });
 
-  it.each(['get_owned_subscription_account', 'apply_stripe_subscription_event'])(
-    'fails when the generated %s subscription RPC declaration is missing',
-    (functionName) => {
-      const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-database-types-missing-'));
-      const databaseTypes = join(directory, 'database.types.ts');
+  it.each([
+    'get_owned_subscription_account',
+    'get_organization_logo_metadata',
+    'apply_stripe_subscription_event',
+  ])('fails when the generated %s RPC declaration is missing', (functionName) => {
+    const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-database-types-missing-'));
+    const databaseTypes = join(directory, 'database.types.ts');
 
-      try {
-        const tracked = readFileSync(
-          resolve('src/infrastructure/supabase/database.types.ts'),
-          'utf8',
-        );
-        const start = tracked.indexOf(`      ${functionName}: {`);
-        const end = tracked.indexOf('\n      };', start);
-        expect(start).toBeGreaterThanOrEqual(0);
-        expect(end).toBeGreaterThan(start);
-        writeFileSync(databaseTypes, tracked.slice(0, start) + tracked.slice(end + 9));
-        expect(() =>
-          execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes], {
-            stdio: 'pipe',
-          }),
-        ).toThrow();
-      } finally {
-        rmSync(directory, { recursive: true, force: true });
-      }
-    },
-  );
+    try {
+      const tracked = readFileSync(
+        resolve('src/infrastructure/supabase/database.types.ts'),
+        'utf8',
+      );
+      const start = tracked.indexOf(`      ${functionName}: {`);
+      const end = tracked.indexOf('\n      };', start);
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(end).toBeGreaterThan(start);
+      writeFileSync(databaseTypes, tracked.slice(0, start) + tracked.slice(end + 9));
+      expect(() =>
+        execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes], {
+          stdio: 'pipe',
+        }),
+      ).toThrow();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
   it('is byte-idempotent for the tracked processed declaration shape', () => {
     const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-database-types-tracked-'));

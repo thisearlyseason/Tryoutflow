@@ -213,7 +213,8 @@ select is(
     'create_organization_invitation','create_organization_with_owner',
     'create_registration_form_revision','create_roster_draft','create_rubric_revision',
     'create_staff_registration','create_tryout_draft_with_cycle',
-    'enqueue_analytics_event','finalize_roster_version','get_owned_subscription_account',
+    'enqueue_analytics_event','finalize_roster_version','get_organization_logo_metadata',
+    'get_owned_subscription_account',
     'has_active_configuration_assignment','is_active_organization_member','issue_checkin_qr_token',
     'issue_roster_export_source',
     'list_assigned_athletes','list_communication_templates_for_notice',
@@ -227,7 +228,7 @@ select is(
     'publish_registration_form_version','publish_rubric_version','publish_tryout',
     'purge_expired_athlete_import_previews','queue_invitation_communication_v2',
     'queue_registration_communication_v2','queue_roster_decision_communication_v2',
-    'release_tryout_number','reopen_evaluation',
+    'release_tryout_number','remove_organization_logo','reopen_evaluation',
     'reserve_subscription_checkout_intent','resolve_athlete_import_duplicate',
     'resolve_registration_duplicate','retry_integration_sync_job_v4','revise_roster_version',
     'revoke_evaluator_assignment','save_communication_template','save_evaluation_draft',
@@ -235,7 +236,7 @@ select is(
     'save_tryout_wizard_configuration','search_checkin_registrations',
     'search_checkin_registrations_v2','select_tryout_registration_form_version',
     'sync_evaluation_mutation','transfer_organization_ownership','transition_tryout_lifecycle',
-    'validate_tryout_for_publish'
+    'upsert_organization_logo','validate_tryout_for_publish'
   ]::name[],
   'authenticated executes exactly the current production RPC allowlist'
 );
@@ -284,7 +285,7 @@ select is(
     'public_registration_tryout_v2','purge_expired_communication_previews',
     'purge_expired_integration_previews','purge_expired_subscription_checkout_intents',
     'queue_invitation_communication_v2','queue_registration_confirmation_communication_v2',
-    'record_outbox_job_delivery_uncertain_v2',
+    'read_organization_logo_service','record_outbox_job_delivery_uncertain_v2',
     'reissue_registration_confirmation_token','submit_public_registration_v2',
     'validate_integration_outbox_execution'
   ]::name[],
