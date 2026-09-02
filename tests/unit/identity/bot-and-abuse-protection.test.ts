@@ -10,6 +10,7 @@ import {
   DETERMINISTIC_TEST_BOT_TOKEN,
   TurnstileBotProtection,
   createBotProtectionFromEnvironment,
+  isExactDeterministicBotTestEnvironment,
 } from '../../../src/modules/identity/application/bot-protection';
 import {
   createDatabaseAuthAbuseProtection,
@@ -121,6 +122,34 @@ describe('Turnstile bot protection', () => {
         TRYOUTFLOW_BOT_PROTECTION_MODE: 'deterministic-test',
       }),
     ).toThrow(/not configured/u);
+  });
+
+  it('allows deterministic bot proof only for the explicit loopback development demo', async () => {
+    const exactLocalDemo = {
+      NODE_ENV: 'development',
+      NEXT_PUBLIC_TRYOUTFLOW_LOCAL_DEMO_MODE: 'true',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3112',
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+    };
+
+    expect(isExactDeterministicBotTestEnvironment(exactLocalDemo)).toBe(true);
+    await expect(
+      createBotProtectionFromEnvironment(exactLocalDemo).verify({
+        token: DETERMINISTIC_TEST_BOT_TOKEN,
+        action: 'sign_in',
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    for (const environment of [
+      { ...exactLocalDemo, NEXT_PUBLIC_TRYOUTFLOW_LOCAL_DEMO_MODE: undefined },
+      { ...exactLocalDemo, NODE_ENV: 'production' },
+      { ...exactLocalDemo, NEXT_PUBLIC_APP_URL: 'http://localhost:3113' },
+      { ...exactLocalDemo, NEXT_PUBLIC_APP_URL: 'https://tryoutflow.example' },
+      { ...exactLocalDemo, NEXT_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' },
+    ]) {
+      expect(isExactDeterministicBotTestEnvironment(environment)).toBe(false);
+      expect(() => createBotProtectionFromEnvironment(environment)).toThrow(/not configured/u);
+    }
   });
 });
 

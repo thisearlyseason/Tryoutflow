@@ -153,6 +153,15 @@ class DeterministicTestBotProtection implements BotProtection {
 export function isExactDeterministicBotTestEnvironment(
   environment: Record<string, string | undefined>,
 ) {
+  if (
+    environment.NODE_ENV === 'development' &&
+    environment.NEXT_PUBLIC_TRYOUTFLOW_LOCAL_DEMO_MODE === 'true' &&
+    environment.NEXT_PUBLIC_APP_URL === 'http://localhost:3112' &&
+    /^http:\/\/(?:127\.0\.0\.1|localhost):54321\/?$/u.test(
+      environment.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    )
+  )
+    return true;
   if (environment.TRYOUTFLOW_BOT_PROTECTION_MODE !== 'deterministic-test') return false;
   if (environment.NODE_ENV === 'test' && environment.TRYOUTFLOW_SERVER_TEST_ENV === 'vitest')
     return true;

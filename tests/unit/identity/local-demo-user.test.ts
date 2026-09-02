@@ -5,6 +5,7 @@ import {
   DEMO_USER,
   requireLocalDemoPassword,
 } from '../../../scripts/ensure-local-demo-user.mjs';
+import { createLocalDemoEnvironment } from '../../../scripts/start-local-demo.mjs';
 
 describe('local demo identity bootstrap', () => {
   it('accepts only loopback Supabase origins before provisioning', () => {
@@ -29,5 +30,55 @@ describe('local demo identity bootstrap', () => {
     expect(
       requireLocalDemoPassword({ TRYOUTFLOW_LOCAL_DEMO_PASSWORD: 'TryoutFlowDemo!2026' }),
     ).toBe('TryoutFlowDemo!2026');
+  });
+
+  it('builds the local demo runtime only for the canonical loopback app and Supabase origins', () => {
+    expect(
+      createLocalDemoEnvironment(
+        {
+          apiUrl: 'http://127.0.0.1:54321',
+          publishableKey: 'local-publishable-key',
+          serviceRoleKey: 'local-service-role-key',
+        },
+        {},
+      ),
+    ).toMatchObject({
+      NEXT_PUBLIC_TRYOUTFLOW_LOCAL_DEMO_MODE: 'true',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3112',
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'local-publishable-key',
+      SUPABASE_SERVICE_ROLE_KEY: 'local-service-role-key',
+    });
+
+    expect(() =>
+      createLocalDemoEnvironment(
+        {
+          apiUrl: 'https://project.supabase.co',
+          publishableKey: 'local-publishable-key',
+          serviceRoleKey: 'local-service-role-key',
+        },
+        {},
+      ),
+    ).toThrow('local Supabase only');
+    expect(() =>
+      createLocalDemoEnvironment(
+        {
+          apiUrl: 'http://[::1]:54321',
+          publishableKey: 'local-publishable-key',
+          serviceRoleKey: 'local-service-role-key',
+        },
+        {},
+      ),
+    ).toThrow('127.0.0.1 or localhost');
+    expect(() =>
+      createLocalDemoEnvironment(
+        {
+          apiUrl: 'http://127.0.0.1:54321',
+          publishableKey: 'local-publishable-key',
+          serviceRoleKey: 'local-service-role-key',
+        },
+        { NEXT_PUBLIC_APP_URL: 'https://tryoutflow.example' },
+      ),
+    ).toThrow('localhost:3112');
   });
 });
