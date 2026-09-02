@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const userId = '11111111-1111-4111-8111-111111111111';
 const tryoutId = '22222222-2222-4222-8222-222222222222';
+const otherTenantTryoutId = '33333333-3333-4333-8333-333333333333';
 
 const mocks = vi.hoisted(() => ({
   captureOperationalError: vi.fn(),
@@ -230,7 +231,7 @@ describe('tryout stage dependency navigation', () => {
     expectOverviewNavigation();
   });
 
-  it('keeps overview navigation when participant configuration fails', async () => {
+  it('keeps overview navigation when the participant configuration RPC fails', async () => {
     mocks.requireCurrentOrganization.mockResolvedValue(
       route(clientWith({}, { data: null, error: new Error('configuration unavailable') })),
     );
@@ -246,6 +247,53 @@ describe('tryout stage dependency navigation', () => {
       screen.getByRole('heading', { name: 'Registration workspace unavailable' }),
     ).toBeVisible();
     expectOverviewNavigation();
+  });
+
+  it('keeps overview navigation for a malformed nonempty participant configuration', async () => {
+    mocks.requireCurrentOrganization.mockResolvedValue(
+      route(
+        clientWith(
+          {},
+          {
+            data: [{ tryout_name: 'Fall Evaluations', tryout_status: 'published' }],
+            error: null,
+          },
+        ),
+      ),
+    );
+
+    render(
+      await TryoutRegistrationPage({
+        params: Promise.resolve({ organizationSlug: 'badlands', tryoutId }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(
+      screen.getByRole('heading', { name: 'Registration workspace unavailable' }),
+    ).toBeVisible();
+    expectOverviewNavigation();
+  });
+
+  it('keeps a successful cross-tenant zero-row configuration link-free and non-oracular', async () => {
+    mocks.requireCurrentOrganization.mockResolvedValue(
+      route(clientWith({}, { data: [], error: null })),
+    );
+
+    render(
+      await TryoutRegistrationPage({
+        params: Promise.resolve({
+          organizationSlug: 'badlands',
+          tryoutId: otherTenantTryoutId,
+        }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+
+    expect(screen.getByRole('heading', { name: 'Tryout registration not found' })).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'Back to overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /next:/iu })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(otherTenantTryoutId);
   });
 
   it('keeps overview navigation when the initial messages dependency fails', async () => {

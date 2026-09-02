@@ -20,13 +20,14 @@ import { RegistrationFormSchema } from '@/modules/registration/domain/form-schem
 import { ParticipantWorkspaceHeader } from '@/modules/registration/ui/participant-workspace-header';
 import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
-const configurationSchema = z.object({
+const configurationSchema = z.strictObject({
   tryout_name: z.string(),
   tryout_status: z.string(),
-  divisions: z.array(z.object({ id: z.uuid(), name: z.string() })),
-  positions: z.array(z.object({ id: z.uuid(), name: z.string() })),
+  divisions: z.array(z.strictObject({ id: z.uuid(), name: z.string() })),
+  positions: z.array(z.strictObject({ id: z.uuid(), name: z.string() })),
   form_schema: RegistrationFormSchema,
 });
+const configurationRowsSchema = z.tuple([configurationSchema]);
 
 export default async function TryoutRegistrationPage({
   params,
@@ -64,7 +65,6 @@ export default async function TryoutRegistrationPage({
     p_organization_id: current.organization.id,
     p_tryout_id: tryoutId,
   });
-  const parsedConfiguration = configurationSchema.safeParse(configurationResult.data?.[0]);
   if (configurationResult.error) {
     captureOperationalError(configurationResult.error, {
       actorId: current.userId,
@@ -80,15 +80,23 @@ export default async function TryoutRegistrationPage({
       </section>
     );
   }
-  if (!parsedConfiguration.success)
+  if (Array.isArray(configurationResult.data) && configurationResult.data.length === 0)
     return (
       <section aria-labelledby="registration-not-found">
-        {journeyNavigation}
         <h2 id="registration-not-found">Tryout registration not found</h2>
         <p>The tryout may have been removed or is outside your assigned scope.</p>
       </section>
     );
-  const configuration = parsedConfiguration.data;
+  const parsedConfiguration = configurationRowsSchema.safeParse(configurationResult.data);
+  if (!parsedConfiguration.success)
+    return (
+      <section aria-labelledby="registration-unavailable">
+        {journeyNavigation}
+        <h2 id="registration-unavailable">Registration workspace unavailable</h2>
+        <p role="alert">Configuration could not be loaded. Refresh or try again shortly.</p>
+      </section>
+    );
+  const configuration = parsedConfiguration.data[0];
   const athleteQuery = typeof query.q === 'string' ? query.q.trim() : '';
   const returningResult =
     athleteQuery.length >= 2 && athleteQuery.length <= 80
