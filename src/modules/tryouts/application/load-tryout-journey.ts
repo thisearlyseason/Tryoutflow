@@ -1,0 +1,611 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { z } from 'zod';
+
+import type { Database } from '../../../infrastructure/supabase/database.types';
+import type { OrganizationId } from '../../../lib/ids';
+import type {
+  AuthorizationContext,
+  Capability,
+} from '../../organizations/application/capabilities';
+import { requireCapability } from '../../organizations/application/require-capability';
+import { SupabaseLiveDashboardGateway } from './get-live-dashboard';
+import { tryoutSetupSteps } from './save-tryout-setup-step';
+
+export type JourneyStageId = 'prepare' | 'participants' | 'run' | 'decide' | 'complete';
+export type JourneyStageStatus =
+  'not-started' | 'in-progress' | 'ready' | 'complete' | 'unavailable';
+
+export type JourneyAction = {
+  label: string;
+  href: string;
+};
+
+export type JourneyStage = {
+  id: JourneyStageId;
+  title: string;
+  purpose: string;
+  status: JourneyStageStatus;
+  supportingText: string;
+  primaryAction: JourneyAction;
+  secondaryActions: JourneyAction[];
+  blocker?: string;
+};
+
+export type TryoutJourney = {
+  tryout: {
+    id: string;
+    name: string;
+    slug: string;
+    status: 'draft' | 'published' | 'finalized';
+  };
+  stages: [JourneyStage, JourneyStage, JourneyStage, JourneyStage, JourneyStage];
+  nextStage: JourneyStageId;
+  primaryAction: JourneyAction;
+};
+
+export type TryoutJourneyScope = {
+  organizationId: OrganizationId;
+  tryoutId: string;
+  organizationSlug: string;
+  authorization: AuthorizationContext;
+};
+
+export class TryoutJourneyLoadError extends Error {
+  constructor(public readonly code: 'invalid_scope' | 'forbidden' | 'not_found' | 'unavailable') {
+    super(`Tryout journey ${code}`);
+    this.name = 'TryoutJourneyLoadError';
+  }
+}
+
+const scopeSchema = z
+  .object({
+    organizationId: z.uuid(),
+    tryoutId: z.uuid(),
+    organizationSlug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
+  })
+  .strict();
+const tryoutSchema = z
+  .object({
+    id: z.uuid(),
+    name: z.string().min(1).max(160),
+    slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
+    status: z.enum(['draft', 'published', 'finalized']),
+  })
+  .strict();
+const progressSchema = z
+  .object({
+    completed_steps: z
+      .array(z.enum(tryoutSetupSteps))
+      .max(tryoutSetupSteps.length)
+      .refine((steps) => new Set(steps).size === steps.length),
+    last_step: z.enum(tryoutSetupSteps),
+  })
+  .strict();
+const rosterSchema = z.object({ id: z.uuid(), state: z.enum(['draft', 'finalized']) }).strict();
+const evaluatorAssignmentSchema = z
+  .object({
+    assignment_id: z.uuid(),
+    evaluator_user_id: z.uuid(),
+    evaluator_name: z.string().min(1),
+    scope_kind: z.enum(['tryout', 'division', 'session', 'group']),
+    division_id: z.uuid().nullable(),
+    session_id: z.uuid().nullable(),
+    group_id: z.uuid().nullable(),
+    scope_label: z.string().min(1),
+    expires_at: z.iso.datetime({ offset: true }).nullable(),
+  })
+  .strict();
+const countSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+
+type QueryResult = { data: unknown; error: unknown; count?: number | null };
+
+async function loadOperationalCounts(client: SupabaseClient<Database>, scope: TryoutJourneyScope) {
+  const result = await new SupabaseLiveDashboardGateway(client).load({
+    organizationId: scope.organizationId,
+    tryoutId: scope.tryoutId,
+  });
+  if (result.outcome !== 'ok') throw new TryoutJourneyLoadError('unavailable');
+  return result.dashboard;
+}
+
+function authorize(scope: TryoutJourneyScope, capability: Capability): scope is TryoutJourneyScope {
+  return requireCapability(scope.authorization, capability, {
+    organizationId: scope.organizationId,
+    tryoutId: scope.tryoutId,
+  }).ok;
+}
+
+function parseOne<T>(result: QueryResult, schema: z.ZodType<T>): T | null {
+  if (result.error) throw new TryoutJourneyLoadError('unavailable');
+  const parsed = z.array(schema).max(1).safeParse(result.data);
+  if (!parsed.success) throw new TryoutJourneyLoadError('unavailable');
+  return parsed.data[0] ?? null;
+}
+
+function parseCount(result: QueryResult): number {
+  if (result.error) throw new TryoutJourneyLoadError('unavailable');
+  const parsed = countSchema.safeParse(result.count);
+  if (!parsed.success) throw new TryoutJourneyLoadError('unavailable');
+  return parsed.data;
+}
+
+function unavailableStage(
+  stage: Pick<JourneyStage, 'id' | 'title' | 'purpose' | 'primaryAction' | 'secondaryActions'>,
+  supportingText: string,
+  blocker = 'This stage could not be verified. Refresh before relying on its status.',
+): JourneyStage {
+  return { ...stage, status: 'unavailable', supportingText, blocker };
+}
+
+function plural(count: number, singular: string, pluralForm = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+async function loadPrepareStage(
+  client: SupabaseClient<Database>,
+  scope: TryoutJourneyScope,
+  status: TryoutJourney['tryout']['status'],
+  baseHref: string,
+): Promise<JourneyStage> {
+  const base = {
+    id: 'prepare' as const,
+    title: 'Prepare',
+    purpose: 'Configure and publish the tryout.',
+    primaryAction: { label: 'Continue setup', href: `${baseHref}/setup/basics` },
+    secondaryActions: [{ label: 'Review setup', href: `${baseHref}/setup/review` }],
+  };
+  if (status !== 'draft') {
+    return {
+      ...base,
+      status: 'complete',
+      supportingText: 'Tryout published',
+      primaryAction: { label: 'Review setup', href: `${baseHref}/setup/review` },
+      secondaryActions: [],
+    };
+  }
+  if (!authorize(scope, 'tryout:write')) {
+    return unavailableStage(
+      base,
+      'Setup access unavailable',
+      'Your current role cannot update tryout setup.',
+    );
+  }
+  try {
+    const result = await client
+      .from('tryout_setup_progress')
+      .select('completed_steps,last_step')
+      .eq('organization_id', scope.organizationId)
+      .eq('tryout_id', scope.tryoutId)
+      .limit(1);
+    const progress = parseOne(result, progressSchema);
+    const completed = progress?.completed_steps ?? [];
+    const nextStep = tryoutSetupSteps.find((step) => !completed.includes(step)) ?? 'publish';
+    return {
+      ...base,
+      status: completed.length === tryoutSetupSteps.length ? 'ready' : 'in-progress',
+      supportingText: `${completed.length} of ${tryoutSetupSteps.length} setup steps complete`,
+      primaryAction: { label: 'Continue setup', href: `${baseHref}/setup/${nextStep}` },
+    };
+  } catch {
+    return unavailableStage(base, 'Setup progress unavailable');
+  }
+}
+
+async function loadParticipantsStage(
+  client: SupabaseClient<Database>,
+  scope: TryoutJourneyScope,
+  status: TryoutJourney['tryout']['status'],
+  baseHref: string,
+): Promise<JourneyStage> {
+  const base = {
+    id: 'participants' as const,
+    title: 'Participants',
+    purpose: 'Bring athletes into the tryout.',
+    primaryAction: {
+      label: 'Add first participant',
+      href: `${baseHref}/registration#add-participant`,
+    },
+    secondaryActions: [
+      { label: 'Share registration link', href: `${baseHref}/overview#registration-share` },
+      { label: 'Import CSV', href: `/app/${scope.organizationSlug}/athletes/import` },
+    ],
+  };
+  if (status === 'draft') {
+    return {
+      ...base,
+      status: 'not-started',
+      supportingText: 'Participant intake opens after publishing',
+      primaryAction: { label: 'Continue setup', href: `${baseHref}/setup/basics` },
+      blocker: 'Publish the tryout before adding participants.',
+    };
+  }
+  if (!authorize(scope, 'athlete:read')) {
+    return unavailableStage(
+      base,
+      'Participant count unavailable',
+      'Your current role cannot read participant intake.',
+    );
+  }
+  try {
+    const result = await client
+      .from('tryout_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', scope.organizationId)
+      .eq('tryout_id', scope.tryoutId);
+    const count = parseCount(result);
+    return {
+      ...base,
+      status: count === 0 ? 'not-started' : 'ready',
+      supportingText:
+        count === 0
+          ? 'No participants registered yet'
+          : `${plural(count, 'participant')} registered`,
+      primaryAction:
+        count === 0
+          ? base.primaryAction
+          : { label: 'Manage participants', href: `${baseHref}/registration` },
+    };
+  } catch {
+    return unavailableStage(base, 'Participant count unavailable');
+  }
+}
+
+async function loadRunStage(
+  client: SupabaseClient<Database>,
+  scope: TryoutJourneyScope,
+  status: TryoutJourney['tryout']['status'],
+  baseHref: string,
+): Promise<JourneyStage> {
+  const base = {
+    id: 'run' as const,
+    title: 'Run tryout',
+    purpose: 'Check in athletes and collect evaluations.',
+    primaryAction: { label: 'Open check-in', href: `${baseHref}/check-in` },
+    secondaryActions: [
+      { label: 'Review sessions', href: `${baseHref}/sessions` },
+      { label: 'Open live dashboard', href: `${baseHref}/live` },
+    ],
+  };
+  if (status === 'draft') {
+    return {
+      ...base,
+      status: 'not-started',
+      supportingText: 'Operations open after publishing',
+      blocker: 'Publish the tryout before running sessions.',
+    };
+  }
+  if (
+    !authorize(scope, 'athlete:read') ||
+    !authorize(scope, 'checkin:read') ||
+    !authorize(scope, 'evaluation:read') ||
+    !authorize(scope, 'tryout:write')
+  ) {
+    return unavailableStage(
+      base,
+      'Operational counts unavailable',
+      'Your current role cannot read all operational evidence.',
+    );
+  }
+  try {
+    const [participantsResult, sessionsResult, operations, evaluatorAssignmentsResult] =
+      await Promise.all([
+        client
+          .from('tryout_registrations')
+          .select('id', { count: 'exact', head: true })
+          .eq('organization_id', scope.organizationId)
+          .eq('tryout_id', scope.tryoutId),
+        client
+          .from('tryout_sessions')
+          .select('id', { count: 'exact', head: true })
+          .eq('organization_id', scope.organizationId)
+          .eq('tryout_id', scope.tryoutId),
+        loadOperationalCounts(client, scope),
+        client
+          .rpc('list_manageable_evaluator_assignments', {
+            p_organization_id: scope.organizationId,
+            p_tryout_id: scope.tryoutId,
+          })
+          .limit(1),
+      ]);
+    const participantCount = parseCount(participantsResult);
+    const sessionCount = parseCount(sessionsResult);
+    const evaluatorAssignment = parseOne(evaluatorAssignmentsResult, evaluatorAssignmentSchema);
+    const checkinCount = operations.checkedIn;
+    const evaluationCount = operations.completedEvaluations;
+    const evaluatorText = operations.activeEvaluators
+      ? plural(operations.activeEvaluators, 'active evaluator')
+      : evaluatorAssignment
+        ? 'Evaluator assigned'
+        : 'No evaluator assigned';
+    const supportingText = `${plural(sessionCount, 'session')} · ${evaluatorText} · ${plural(checkinCount, 'check-in')} · ${plural(evaluationCount, 'completed evaluation')}`;
+    if (participantCount === 0) {
+      return {
+        ...base,
+        status: 'not-started',
+        supportingText,
+        primaryAction: {
+          label: 'Add first participant',
+          href: `${baseHref}/registration#add-participant`,
+        },
+        blocker: 'Add a participant before opening tryout operations.',
+      };
+    }
+    if (sessionCount === 0) {
+      return {
+        ...base,
+        status: 'in-progress',
+        supportingText,
+        primaryAction: { label: 'Review sessions', href: `${baseHref}/sessions` },
+        blocker: 'Configure at least one session before check-in.',
+      };
+    }
+    if (!evaluatorAssignment) {
+      return {
+        ...base,
+        status: 'in-progress',
+        supportingText,
+        primaryAction: { label: 'Review staff', href: `${baseHref}/staff` },
+        blocker: 'Assign at least one evaluator before running sessions.',
+      };
+    }
+    return evaluationCount === 0
+      ? { ...base, status: 'ready', supportingText }
+      : {
+          ...base,
+          status: 'complete',
+          supportingText,
+          primaryAction: { label: 'Open live dashboard', href: `${baseHref}/live` },
+        };
+  } catch {
+    return unavailableStage(base, 'Operational counts unavailable');
+  }
+}
+
+async function loadDecideStage(
+  client: SupabaseClient<Database>,
+  scope: TryoutJourneyScope,
+  status: TryoutJourney['tryout']['status'],
+  baseHref: string,
+): Promise<JourneyStage> {
+  const base = {
+    id: 'decide' as const,
+    title: 'Make decisions',
+    purpose: 'Review evidence and build rosters.',
+    primaryAction: { label: 'Review rankings', href: `${baseHref}/rankings` },
+    secondaryActions: [
+      { label: 'Compare athletes', href: `${baseHref}/compare` },
+      { label: 'Build rosters', href: `${baseHref}/rosters` },
+    ],
+  };
+  if (status === 'draft') {
+    return {
+      ...base,
+      status: 'not-started',
+      supportingText: 'Decision evidence is not available yet',
+      blocker: 'Publish and run the tryout before making decisions.',
+    };
+  }
+  if (
+    !authorize(scope, 'evaluation:read') ||
+    !authorize(scope, 'ranking:read') ||
+    !authorize(scope, 'roster:read')
+  ) {
+    return unavailableStage(
+      base,
+      'Decision evidence unavailable',
+      'Your current role cannot read all decision evidence.',
+    );
+  }
+  try {
+    const [operations, draftRosterResult, finalizedRosterResult] = await Promise.all([
+      loadOperationalCounts(client, scope),
+      client
+        .from('roster_versions')
+        .select('id,state')
+        .eq('organization_id', scope.organizationId)
+        .eq('tryout_id', scope.tryoutId)
+        .eq('state', 'draft')
+        .order('revision_number', { ascending: false })
+        .limit(1),
+      client
+        .from('roster_versions')
+        .select('id,state')
+        .eq('organization_id', scope.organizationId)
+        .eq('tryout_id', scope.tryoutId)
+        .eq('state', 'finalized')
+        .order('revision_number', { ascending: false })
+        .limit(1),
+    ]);
+    const evaluationCount = operations.completedEvaluations;
+    const draftRoster = parseOne(draftRosterResult, rosterSchema);
+    const finalizedRoster = parseOne(finalizedRosterResult, rosterSchema);
+    if (finalizedRoster) {
+      return {
+        ...base,
+        status: 'complete',
+        supportingText: `${plural(evaluationCount, 'completed evaluation')} · Finalized roster recorded`,
+        primaryAction: { label: 'Review roster', href: `${baseHref}/rosters` },
+      };
+    }
+    if (evaluationCount === 0) {
+      return {
+        ...base,
+        status: 'not-started',
+        supportingText: 'No completed evaluations yet',
+        blocker: 'Complete at least one evaluation before making decisions.',
+      };
+    }
+    return draftRoster
+      ? {
+          ...base,
+          status: 'in-progress',
+          supportingText: `${plural(evaluationCount, 'completed evaluation')} · Roster draft in progress`,
+          primaryAction: { label: 'Continue roster', href: `${baseHref}/rosters` },
+        }
+      : {
+          ...base,
+          status: 'ready',
+          supportingText: `${plural(evaluationCount, 'completed evaluation')} ready for review`,
+        };
+  } catch {
+    return unavailableStage(base, 'Decision evidence unavailable');
+  }
+}
+
+async function loadCompleteStage(
+  client: SupabaseClient<Database>,
+  scope: TryoutJourneyScope,
+  status: TryoutJourney['tryout']['status'],
+  baseHref: string,
+): Promise<JourneyStage> {
+  const base = {
+    id: 'complete' as const,
+    title: 'Complete',
+    purpose: 'Communicate and report from immutable roster evidence.',
+    primaryAction: { label: 'Build rosters', href: `${baseHref}/rosters` },
+    secondaryActions: [
+      { label: 'Review reports', href: `${baseHref}/reports` },
+      {
+        label: 'Review audit history',
+        href: `/app/${scope.organizationSlug}/organization/audit`,
+      },
+    ],
+  };
+  if (status === 'draft') {
+    return {
+      ...base,
+      status: 'not-started',
+      supportingText: 'No finalized roster yet',
+      blocker: 'Publish and run the tryout before finalizing a roster.',
+    };
+  }
+  if (!authorize(scope, 'roster:read')) {
+    return unavailableStage(
+      base,
+      'Final roster status unavailable',
+      'Your current role cannot read finalized rosters.',
+    );
+  }
+  try {
+    const finalizedResult = await client
+      .from('roster_versions')
+      .select('id,state')
+      .eq('organization_id', scope.organizationId)
+      .eq('tryout_id', scope.tryoutId)
+      .eq('state', 'finalized')
+      .order('revision_number', { ascending: false })
+      .limit(1);
+    const finalizedRoster = parseOne(finalizedResult, rosterSchema);
+    if (!finalizedRoster) {
+      return {
+        ...base,
+        status: 'not-started',
+        supportingText: 'No finalized roster yet',
+        blocker: 'Finalize a roster before communicating decisions.',
+      };
+    }
+    if (!authorize(scope, 'roster:write')) {
+      return {
+        ...base,
+        status: 'ready',
+        supportingText: 'Finalized roster ready',
+        primaryAction: { label: 'Review reports', href: `${baseHref}/reports` },
+        blocker: 'Your current role cannot send roster decision messages.',
+      };
+    }
+    let messageCount: number;
+    try {
+      const messagesResult = await client
+        .from('communication_messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('organization_id', scope.organizationId)
+        .eq('source_kind', 'roster_decision')
+        .eq('source_roster_version_id', finalizedRoster.id);
+      messageCount = parseCount(messagesResult);
+    } catch {
+      return unavailableStage(
+        {
+          ...base,
+          primaryAction: { label: 'Review communication', href: `${baseHref}/messages` },
+        },
+        'Finalized roster ready · Communication count unavailable',
+      );
+    }
+    return messageCount === 0
+      ? {
+          ...base,
+          status: 'ready',
+          supportingText: 'Finalized roster ready · No decision messages queued',
+          primaryAction: { label: 'Review communication', href: `${baseHref}/messages` },
+        }
+      : {
+          ...base,
+          status: 'complete',
+          supportingText: `Finalized roster ready · ${plural(messageCount, 'decision message')} queued`,
+          primaryAction: { label: 'Review reports', href: `${baseHref}/reports` },
+        };
+  } catch {
+    return unavailableStage(base, 'Completion status unavailable');
+  }
+}
+
+function recommendedStage(
+  status: TryoutJourney['tryout']['status'],
+  stages: TryoutJourney['stages'],
+): JourneyStage {
+  const byId = new Map(stages.map((stage) => [stage.id, stage]));
+  const prepare = byId.get('prepare')!;
+  const participants = byId.get('participants')!;
+  const run = byId.get('run')!;
+  const decide = byId.get('decide')!;
+  const complete = byId.get('complete')!;
+  if (status === 'draft') return prepare;
+  if (complete.status === 'ready' || complete.status === 'complete') return complete;
+  if (decide.status === 'ready' || decide.status === 'in-progress') return decide;
+  if (participants.status === 'not-started' || participants.status === 'unavailable')
+    return participants;
+  if (run.status !== 'complete') return run;
+  return decide.status === 'complete' ? complete : decide;
+}
+
+export async function loadTryoutJourney(
+  client: SupabaseClient<Database>,
+  scope: TryoutJourneyScope,
+): Promise<TryoutJourney> {
+  const parsedScope = scopeSchema.safeParse({
+    organizationId: scope.organizationId,
+    tryoutId: scope.tryoutId,
+    organizationSlug: scope.organizationSlug,
+  });
+  if (!parsedScope.success) throw new TryoutJourneyLoadError('invalid_scope');
+  if (!authorize(scope, 'tryout:read')) throw new TryoutJourneyLoadError('forbidden');
+
+  const tryoutResult = await client
+    .from('tryouts')
+    .select('id,name,slug,status')
+    .eq('organization_id', scope.organizationId)
+    .eq('id', scope.tryoutId)
+    .limit(1);
+  let tryout;
+  try {
+    tryout = parseOne(tryoutResult, tryoutSchema);
+  } catch {
+    throw new TryoutJourneyLoadError('unavailable');
+  }
+  if (!tryout) throw new TryoutJourneyLoadError('not_found');
+  const baseHref = `/app/${scope.organizationSlug}/tryouts/${scope.tryoutId}`;
+  const stages = (await Promise.all([
+    loadPrepareStage(client, scope, tryout.status, baseHref),
+    loadParticipantsStage(client, scope, tryout.status, baseHref),
+    loadRunStage(client, scope, tryout.status, baseHref),
+    loadDecideStage(client, scope, tryout.status, baseHref),
+    loadCompleteStage(client, scope, tryout.status, baseHref),
+  ])) as TryoutJourney['stages'];
+  const next = recommendedStage(tryout.status, stages);
+  return {
+    tryout,
+    stages,
+    nextStage: next.id,
+    primaryAction: next.primaryAction,
+  };
+}

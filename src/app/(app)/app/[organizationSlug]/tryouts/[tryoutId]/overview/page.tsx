@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation';
-import { z } from 'zod';
 
 import { ErrorState } from '@/components/feedback/error-state';
 import { PageHeader } from '@/components/layout/page-header';
@@ -7,24 +6,18 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { RegistrationShare } from '@/modules/tryouts/ui/registration-share';
-import { TryoutActionPlan } from '@/modules/tryouts/ui/tryout-action-plan';
-import { getPublicAppOrigin } from '@/lib/env';
 import {
-  canManageTryoutStaffing,
-  requireOrganizationRouteContext,
-} from '@/modules/organizations/application/organization-route-context';
+  loadTryoutJourney,
+  TryoutJourneyLoadError,
+} from '@/modules/tryouts/application/load-tryout-journey';
+import { TryoutJourney } from '@/modules/tryouts/ui/tryout-journey';
+import { getPublicAppOrigin } from '@/lib/env';
+import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { AppError } from '@/modules/observability/domain/app-error';
 import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
 import { shouldInjectTestLoaderFailure } from '@/modules/observability/application/test-failure-boundary';
 import Link from 'next/link';
-
-const tryoutOverviewSchema = z.object({
-  id: z.uuid(),
-  name: z.string().min(1).max(160),
-  slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
-  status: z.enum(['draft', 'published', 'finalized']),
-});
 
 export default async function TryoutOverviewPage({
   params,
@@ -75,33 +68,23 @@ export default async function TryoutOverviewPage({
 
   if (shouldInjectTestLoaderFailure(query.__testLoaderFailure, 'overview'))
     return unavailable(new AppError('network_unavailable'));
-  const [result, participantCountResult] = await Promise.all([
-    current.client
-      .from('tryouts')
-      .select('id, name, slug, status')
-      .eq('organization_id', current.organization.id)
-      .eq('id', tryoutId)
-      .maybeSingle(),
-    current.client
-      .from('tryout_registrations')
-      .select('id', { count: 'exact', head: true })
-      .eq('organization_id', current.organization.id)
-      .eq('tryout_id', tryoutId),
-  ]);
-  if (result.error) return unavailable(result.error);
-  if (!result.data) notFound();
-  const parsed = tryoutOverviewSchema.safeParse(result.data);
-  if (!parsed.success) return unavailable(parsed.error);
-  const tryout = parsed.data;
-  if (participantCountResult.error)
-    captureOperationalError(participantCountResult.error, {
-      actorId: current.userId,
+  let journey;
+  try {
+    journey = await loadTryoutJourney(current.client, {
       organizationId: current.organization.id,
       tryoutId,
-      operation: 'registrations.load',
+      organizationSlug,
+      authorization: current.authorization,
     });
-  const managesTryout = canManageTryoutStaffing(current.authorization, tryoutId);
-  const base = `/app/${organizationSlug}/tryouts/${tryoutId}`;
+  } catch (error) {
+    if (
+      error instanceof TryoutJourneyLoadError &&
+      (error.code === 'not_found' || error.code === 'forbidden' || error.code === 'invalid_scope')
+    )
+      notFound();
+    return unavailable(error);
+  }
+  const tryout = journey.tryout;
   return (
     <section aria-label="Tryout overview" className="workspace-stack">
       <PageHeader
@@ -110,15 +93,7 @@ export default async function TryoutOverviewPage({
         eyebrow="Tryout control room"
         title={tryout.name}
       />
-      {managesTryout ? (
-        <TryoutActionPlan
-          baseHref={base}
-          participantCount={
-            participantCountResult.error ? null : (participantCountResult.count ?? 0)
-          }
-          status={tryout.status}
-        />
-      ) : null}
+      <TryoutJourney journey={journey} />
       {tryout.status === 'published' ? (
         <div className="card p-5">
           <RegistrationShare origin={getPublicAppOrigin()} publicSlug={tryout.slug} />

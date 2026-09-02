@@ -29,6 +29,7 @@ import {
   RosterDraftSetup,
   type RosterWorkspaceSnapshot,
 } from '@/modules/rosters/ui/roster-builder';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
 const uuid = z.uuid();
 
@@ -344,6 +345,13 @@ export default async function RostersPage({
 
   return (
     <section aria-labelledby="roster-heading" className="min-w-0">
+      <TryoutJourneyNavigation
+        nextAction={{
+          label: 'Review communication',
+          href: `/app/${organizationSlug}/tryouts/${tryoutId}/messages`,
+        }}
+        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+      />
       <p className="eyebrow">Human decisions</p>
       <h2 id="roster-heading">{tryout.name} rosters</h2>
       <p className="mb-4 mt-2 max-w-3xl text-[var(--color-text-muted)]">

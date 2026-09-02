@@ -14,6 +14,7 @@ import { MessageComposer } from '@/modules/communications/ui/message-composer';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
 const inputSchema = z
   .object({
@@ -77,6 +78,15 @@ export default async function MessagesPage({
   const tryout = tryoutResult.data;
   const versions = versionsResult.data;
   if (!tryout) notFound();
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Review reports',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/reports`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
   if (versionsResult.error) {
     captureOperationalError(versionsResult.error, {
       actorId: current.userId,
@@ -85,15 +95,19 @@ export default async function MessagesPage({
       operation: 'messages.load',
     });
     return (
-      <ErrorState
-        title="Messages unavailable"
-        description="Finalized roster snapshots could not be loaded."
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          title="Messages unavailable"
+          description="Finalized roster snapshots could not be loaded."
+        />
+      </section>
     );
   }
   if (!versions?.length)
     return (
       <section aria-labelledby="messages-empty">
+        {journeyNavigation}
         <h2 id="messages-empty">No finalized roster snapshots</h2>
         <p>Finalize a roster before preparing decision messages.</p>
       </section>
@@ -109,6 +123,7 @@ export default async function MessagesPage({
   if (authorizedVersions.length === 0)
     return (
       <section aria-labelledby="messages-denied">
+        {journeyNavigation}
         <h2 id="messages-denied">Messages unavailable</h2>
         <p role="alert">You do not have access to send messages for these roster scopes.</p>
       </section>
@@ -127,10 +142,13 @@ export default async function MessagesPage({
       operation: 'messages.load',
     });
     return (
-      <ErrorState
-        description="Message templates could not be loaded. Refresh before composing."
-        title="Messages temporarily unavailable"
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          description="Message templates could not be loaded. Refresh before composing."
+          title="Messages temporarily unavailable"
+        />
+      </section>
     );
   }
   const templateRows = Array.isArray(rawTemplateRows)
@@ -155,10 +173,13 @@ export default async function MessagesPage({
       operation: 'messages.load',
     });
     return (
-      <ErrorState
-        description="Delivery status could not be loaded. Refresh before composing."
-        title="Messages temporarily unavailable"
-      />
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          description="Delivery status could not be loaded. Refresh before composing."
+          title="Messages temporarily unavailable"
+        />
+      </section>
     );
   }
   const messages = messagesResult.data;
@@ -232,6 +253,7 @@ export default async function MessagesPage({
 
   return (
     <main className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-6 sm:px-6">
+      {journeyNavigation}
       <header>
         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
           {tryout.name}

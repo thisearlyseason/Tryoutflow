@@ -7,6 +7,7 @@ export type Status =
   | 'failed'
   | 'finalized'
   | 'in-progress'
+  | 'not-started'
   | 'published'
   | 'ready'
   | 'selected'
@@ -21,6 +22,7 @@ const statusLabels: Record<Status, string> = {
   failed: 'Failed',
   finalized: 'Finalized',
   'in-progress': 'In progress',
+  'not-started': 'Not started',
   published: 'Published',
   ready: 'Ready',
   selected: 'Selected',
@@ -37,6 +39,8 @@ const statusClassNames: Record<Status, string> = {
   failed: 'bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)]',
   finalized: 'bg-[var(--color-text)] text-[var(--color-text-inverted)]',
   'in-progress': 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]',
+  'not-started':
+    'bg-[var(--color-surface-muted)] text-[var(--color-text)] ring-1 ring-inset ring-[var(--color-border)]',
   published: 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]',
   ready: 'bg-[var(--color-success-surface)] text-[var(--color-success)]',
   selected: 'bg-[var(--color-performance)] text-[var(--color-performance-foreground)]',

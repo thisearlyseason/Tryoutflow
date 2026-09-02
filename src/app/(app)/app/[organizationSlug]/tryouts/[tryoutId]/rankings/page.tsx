@@ -3,6 +3,7 @@ import { listRankings } from '@/modules/rankings/application/list-rankings';
 import { SupabaseRankingGateway } from '@/modules/rankings/infrastructure/supabase-ranking-gateway';
 import { RankingsWorkspace } from '@/modules/rankings/ui/rankings-workspace';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -47,6 +48,13 @@ export default async function RankingsPage({
   );
   return (
     <section aria-labelledby="rankings-heading" className="min-w-0">
+      <TryoutJourneyNavigation
+        nextAction={{
+          label: 'Build rosters',
+          href: `/app/${organizationSlug}/tryouts/${tryoutId}/rosters`,
+        }}
+        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+      />
       <p className="eyebrow">Decision evidence</p>
       <h2 id="rankings-heading">Rankings</h2>
       <p className="mb-6 mt-2 max-w-3xl text-[var(--color-text-muted)]">

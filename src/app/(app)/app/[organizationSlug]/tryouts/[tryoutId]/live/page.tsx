@@ -4,6 +4,7 @@ import {
   getLiveDashboard,
   SupabaseLiveDashboardGateway,
 } from '@/modules/tryouts/application/get-live-dashboard';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
 export default async function LivePage({
   params,
@@ -41,6 +42,13 @@ export default async function LivePage({
       aria-labelledby="live-heading"
       className="theme-game-day rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6"
     >
+      <TryoutJourneyNavigation
+        nextAction={{
+          label: 'Review rankings',
+          href: `/app/${organizationSlug}/tryouts/${tryoutId}/rankings`,
+        }}
+        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+      />
       <p className="eyebrow">Operational snapshot</p>
       <h2 id="live-heading">Live dashboard</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">

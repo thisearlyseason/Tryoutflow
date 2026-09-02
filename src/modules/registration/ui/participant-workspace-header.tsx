@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { PageHeader } from '../../../components/layout/page-header';
+import { TryoutJourneyNavigation } from '../../tryouts/ui/tryout-journey';
 
 export function ParticipantWorkspaceHeader({
   importHref,
@@ -16,8 +17,15 @@ export function ParticipantWorkspaceHeader({
   const overviewRoute = overviewHref.includes('#')
     ? overviewHref.slice(0, overviewHref.indexOf('#'))
     : overviewHref;
+  const tryoutBase = overviewRoute.endsWith('/overview')
+    ? overviewRoute.slice(0, -'/overview'.length)
+    : overviewRoute;
   return (
     <div className="participant-workspace-header">
+      <TryoutJourneyNavigation
+        nextAction={{ label: 'Review sessions', href: `${tryoutBase}/sessions` }}
+        overviewHref={overviewRoute}
+      />
       <PageHeader
         context={<Link href={overviewRoute}>Back to tryout overview</Link>}
         description="Add someone directly, reuse an existing athlete, or invite families to register themselves."

@@ -445,6 +445,58 @@ textarea {
     var(--shadow-card);
 }
 
+.tryout-journey-recommendation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-surface);
+  background: var(--color-surface);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-card);
+}
+
+.tryout-journey-recommendation h3,
+.tryout-journey-recommendation p {
+  margin: 0;
+}
+
+.tryout-journey-recommendation h3 {
+  margin-top: var(--space-1);
+}
+
+.tryout-journey-recommendation p:last-child {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.tryout-journey-stage-heading,
+.tryout-journey-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.tryout-journey-supporting {
+  font-size: 0.875rem;
+}
+
+.tryout-journey-blocker {
+  border-left: 0.2rem solid var(--color-warning);
+  padding-left: var(--space-2);
+  color: var(--color-text);
+}
+
+.tryout-journey-navigation {
+  margin-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-3);
+}
+
 .tryout-plan-number {
   display: inline-grid;
   width: 2rem;
@@ -1124,8 +1176,14 @@ textarea {
 
   .metric-card,
   .tryout-card,
-  .tryout-plan-card {
+  .tryout-plan-card,
+  .tryout-journey-recommendation {
     padding: var(--space-3);
+  }
+
+  .tryout-journey-recommendation > *,
+  .tryout-journey-navigation > * {
+    width: 100%;
   }
 
   .metric-card {

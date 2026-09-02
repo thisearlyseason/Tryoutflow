@@ -10,6 +10,7 @@ import { CheckinWorkspace } from '@/modules/checkin/ui/checkin-workspace';
 import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
 const searchSchema = z.strictObject({
   query: z.string().trim().min(2).max(120),
@@ -277,6 +278,13 @@ export default async function CheckinPage({
 
   return (
     <section aria-labelledby="checkin-heading" className="min-w-0">
+      <TryoutJourneyNavigation
+        nextAction={{
+          label: 'Open live dashboard',
+          href: `/app/${organizationSlug}/tryouts/${tryoutId}/live`,
+        }}
+        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+      />
       <p className="eyebrow">Live operations</p>
       <h2 id="checkin-heading">{tryout.name} check-in</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">

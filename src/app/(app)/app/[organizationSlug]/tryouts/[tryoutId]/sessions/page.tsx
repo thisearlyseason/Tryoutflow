@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat('en-CA', {
@@ -72,6 +73,13 @@ export default async function TryoutSessionsPage({
 
   return (
     <section aria-labelledby="sessions-heading" className="min-w-0">
+      <TryoutJourneyNavigation
+        nextAction={{
+          label: 'Open check-in',
+          href: `/app/${organizationSlug}/tryouts/${tryoutId}/check-in`,
+        }}
+        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+      />
       <p className="eyebrow">Tryout schedule</p>
       <h2 id="sessions-heading">{tryoutResult.data.name} sessions</h2>
       <p className="mt-2 text-[var(--color-text-muted)]">
