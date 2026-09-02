@@ -112,21 +112,25 @@ describe('core workflow field guidance', () => {
 
     const start = render(<StartPage />);
     const organizationName = screen.getByRole('textbox', { name: 'Organization name' });
-    const timezone = screen.getByRole('textbox', { name: 'Timezone' });
+    const timezone = screen.getByRole('combobox', { name: 'Timezone' });
     expect(organizationName).toHaveAttribute('placeholder', FIELD_EXAMPLES.organizationName);
-    expect(screen.getByRole('textbox', { name: 'Organization URL' })).toHaveAttribute(
-      'placeholder',
-      'badlands-hockey-academy',
-    );
+    expect(
+      screen.getByRole('textbox', { name: 'Your TryoutFlow workspace address' }),
+    ).toHaveAttribute('placeholder', 'badlands-hockey-academy');
+    expect(screen.getByText(/not your public website/i)).toBeVisible();
     expect(timezone).toHaveAttribute('placeholder', FIELD_EXAMPLES.timezone);
+    expect(timezone).toHaveAttribute('list', 'organization-timezone-options');
+    expect(
+      document.querySelector('#organization-timezone-options option[value="America/Edmonton"]'),
+    ).not.toBeNull();
     expect(timezone).toHaveAttribute('aria-describedby', 'timezone-description');
-    expect(screen.getByText(`Example: ${FIELD_EXAMPLES.timezone}.`)).toHaveAttribute(
+    expect(screen.getByText(/start typing to search timezones/i)).toHaveAttribute(
       'id',
       'timezone-description',
     );
     const startData = new FormData(organizationName.closest('form')!);
     expect(startData.get('name')).toBe('');
-    expect(startData.get('timezone')).toBe('');
+    expect(startData.get('timezone')).toBe(FIELD_EXAMPLES.timezone);
     start.unmount();
   });
 

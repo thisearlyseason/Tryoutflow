@@ -10,6 +10,7 @@ import { createServerSupabaseClient } from '../../../infrastructure/supabase/ser
 import { parseUserId } from '../../../lib/ids';
 import { trackSupabaseWorkflowSafely } from '../../../infrastructure/analytics/supabase-analytics-provider';
 import { createCorrelationId } from '../../../modules/observability/domain/correlation-id';
+import { TimezonePicker } from '../../../modules/organizations/ui/timezone-picker';
 
 export default function StartPage() {
   async function submit(formData: FormData) {
@@ -56,9 +57,9 @@ export default function StartPage() {
           )}
         </FormField>
         <FormField
-          description="Use a recognizable name; TryoutFlow creates a clean URL for you."
+          description="This creates your internal TryoutFlow workspace address, such as /app/badlands-hockey-academy. It is not your public website."
           htmlFor="slug"
-          label="Organization URL"
+          label="Your TryoutFlow workspace address"
           required
         >
           {({ describedBy }) => (
@@ -72,20 +73,12 @@ export default function StartPage() {
           )}
         </FormField>
         <FormField
-          description={`Example: ${FIELD_EXAMPLES.timezone}.`}
+          description="Start typing to search timezones. We select your device timezone when it is available."
           htmlFor="timezone"
           label="Timezone"
           required
         >
-          {({ describedBy }) => (
-            <Input
-              aria-describedby={describedBy}
-              id="timezone"
-              name="timezone"
-              placeholder={FIELD_EXAMPLES.timezone}
-              required
-            />
-          )}
+          {({ describedBy }) => <TimezonePicker describedBy={describedBy} />}
         </FormField>
         <Button className="mt-2 w-full" type="submit">
           Create organization

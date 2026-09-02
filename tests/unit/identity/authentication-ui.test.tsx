@@ -57,7 +57,7 @@ describe('Performance Lab authentication shell', () => {
     render(await SignInPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByRole('region', { name: 'TryoutFlow product summary' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Sign in to your organization' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
     expect(screen.getByRole('textbox', { name: 'Email' })).toHaveClass('field-control');
     expect(screen.getByLabelText(/^Password/)).toHaveClass('field-control');
     expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('button-primary');
@@ -66,6 +66,7 @@ describe('Performance Lab authentication shell', () => {
   it('uses the shared shell for account creation and organization onboarding', async () => {
     const signUp = render(await SignUpPage({ searchParams: Promise.resolve({}) }));
     expect(screen.getByRole('heading', { name: 'Create your organization account' })).toBeVisible();
+    expect(screen.getByText(/after verification, you’ll create your organization/i)).toBeVisible();
     expect(screen.getByRole('region', { name: 'TryoutFlow product summary' })).toBeVisible();
     expect(screen.getByLabelText('Password', { exact: true })).toBeVisible();
     expect(screen.getByLabelText('Confirm password', { exact: true })).toBeVisible();

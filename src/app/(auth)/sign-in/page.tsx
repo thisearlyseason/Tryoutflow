@@ -24,16 +24,16 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
   return (
     <AuthShell
-      description="Use the email and password connected to your coaching account."
+      description="Sign in to return to your organization. New to TryoutFlow? Create an organization account first."
       eyebrow="Welcome back"
       footer={
         <nav aria-label="Account help">
-          <a href="/sign-up">Create an organization account</a>
+          <a href="/sign-up">New to TryoutFlow? Create an organization account</a>
           <a href="/forgot-password">Forgot your password?</a>
           <a href="/verify-email">Need a new verification link?</a>
         </nav>
       }
-      title="Sign in to your organization"
+      title="Sign in to your account"
     >
       {message ? (
         <p className="auth-alert" role="alert">

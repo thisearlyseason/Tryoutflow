@@ -73,7 +73,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   const monitor = await signInAs(page, newOwner);
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
-  await page.getByLabel('Organization URL').fill(organizationSlug);
+  await page.getByLabel('Your TryoutFlow workspace address').fill(organizationSlug);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();

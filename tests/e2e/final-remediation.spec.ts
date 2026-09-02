@@ -87,7 +87,7 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await page.goto(await confirmationUrl(request, email));
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(`AC01 ${testInfo.project.name} Hockey`);
-  await page.getByLabel('Organization URL').fill(organizationSlug);
+  await page.getByLabel('Your TryoutFlow workspace address').fill(organizationSlug);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'anonymous owner organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();

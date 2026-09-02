@@ -17,7 +17,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const parameters = await searchParams;
   return (
     <AuthShell
-      description="Use your own email. You’ll verify it before creating your organization."
+      description="Use your own email. After verification, you’ll create your organization and workspace address."
       eyebrow="New organization"
       footer={<a href="/sign-in">Already have an account? Sign in</a>}
       title="Create your organization account"

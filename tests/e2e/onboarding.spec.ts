@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('shows the organization onboarding form', async ({ page }) => {
   await page.goto('/start');
   await expect(page.getByRole('heading', { name: 'Set up your organization' })).toBeVisible();
-  await expect(page.getByLabel('Organization URL')).toBeVisible();
+  await expect(page.getByLabel('Your TryoutFlow workspace address')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Create organization' })).toBeVisible();
 });
 
