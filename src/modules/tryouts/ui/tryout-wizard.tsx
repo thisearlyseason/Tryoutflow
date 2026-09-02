@@ -80,6 +80,7 @@ export function TryoutWizard({
   const publishing = step === 'publish';
   const submittedValues = state.status === 'idle' ? undefined : state.values;
   const basicsValues = submittedValues ?? basics;
+  const tryoutTimezone = basics?.timezone || FIELD_EXAMPLES.timezone;
   const fieldErrors = state.status === 'field_error' ? state.fieldErrors : {};
   const errorMessage =
     state.status === 'form_error' ? state.message : error ? 'Could not save this step' : null;
@@ -272,7 +273,7 @@ export function TryoutWizard({
                 className="mt-1 block text-sm text-[var(--color-text-muted)]"
                 id="tryout-session-starts-help"
               >
-                Example: September 15, 2026 at 6:00 PM in {FIELD_EXAMPLES.timezone}.
+                Example: September 15, 2026 at 6:00 PM in {tryoutTimezone}.
               </span>
             </label>
             <label className="block">
@@ -287,7 +288,7 @@ export function TryoutWizard({
                 className="mt-1 block text-sm text-[var(--color-text-muted)]"
                 id="tryout-session-ends-help"
               >
-                Example: September 15, 2026 at 8:00 PM in {FIELD_EXAMPLES.timezone}.
+                Example: September 15, 2026 at 8:00 PM in {tryoutTimezone}.
               </span>
             </label>
             <label className="block">

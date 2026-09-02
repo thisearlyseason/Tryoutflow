@@ -72,4 +72,54 @@ describe('tryout wizard basics', () => {
       'tryout-basics-closes-help tryout-basics-closes-error',
     );
   });
+
+  it('restores sanitized basics from a retryable form-level action failure', async () => {
+    const user = userEvent.setup();
+    render(
+      <TryoutWizard
+        action={vi.fn(async () => ({
+          status: 'form_error' as const,
+          message: 'Could not save this step' as const,
+          values: { ...basics, name: 'Unsaved Toronto Camp' },
+        }))}
+        basics={basics}
+        blockers={[]}
+        name={basics.name}
+        step="basics"
+      />,
+    );
+
+    const name = screen.getByRole('textbox', { name: /tryout name/i });
+    await user.clear(name);
+    await user.type(name, '  Unsaved Toronto Camp  ');
+    await user.click(screen.getByRole('button', { name: 'Save and continue' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save this step');
+    expect(screen.getByRole('textbox', { name: /tryout name/i })).toHaveValue(
+      'Unsaved Toronto Camp',
+    );
+  });
+
+  it('uses the saved tryout timezone in session datetime help', () => {
+    render(
+      <TryoutWizard
+        action={vi.fn()}
+        basics={{ ...basics, timezone: 'America/Toronto' }}
+        blockers={[]}
+        divisions={[]}
+        name={basics.name}
+        step="sessions"
+      />,
+    );
+
+    expect(screen.getByText(/September 15, 2026 at 6:00 PM in America\/Toronto/i)).toHaveAttribute(
+      'id',
+      'tryout-session-starts-help',
+    );
+    expect(screen.getByText(/September 15, 2026 at 8:00 PM in America\/Toronto/i)).toHaveAttribute(
+      'id',
+      'tryout-session-ends-help',
+    );
+    expect(screen.queryByText(/America\/Edmonton/i)).not.toBeInTheDocument();
+  });
 });

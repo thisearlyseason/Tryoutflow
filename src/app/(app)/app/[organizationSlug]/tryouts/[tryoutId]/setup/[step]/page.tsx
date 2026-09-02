@@ -19,6 +19,7 @@ import {
   wizardPayload,
 } from '@/modules/tryouts/application/save-wizard-configuration';
 import { persistWizardStep } from '@/modules/tryouts/application/persist-wizard-step';
+import { prepareWizardSaveAttempt } from '@/modules/tryouts/application/prepare-wizard-save-attempt';
 import { TryoutWizard, type TryoutWizardActionState } from '@/modules/tryouts/ui/tryout-wizard';
 import { parseTryoutBasics } from '@/modules/tryouts/ui/tryout-basics';
 import { WizardProgress } from '@/modules/tryouts/ui/wizard-progress';
@@ -132,12 +133,14 @@ export default async function TryoutSetupStepPage({
   ): Promise<TryoutWizardActionState> {
     'use server';
     const route = await requireCurrentOrganization(organizationSlug);
-    const fresh = await route.client
-      .from('tryouts')
-      .select('id, name, version, status')
-      .eq('organization_id', route.organization.id)
-      .eq('id', tryoutId)
-      .maybeSingle();
+    const { fresh, submittedValues } = await prepareWizardSaveAttempt(step, formData, () =>
+      route.client
+        .from('tryouts')
+        .select('id, name, version, status')
+        .eq('organization_id', route.organization.id)
+        .eq('id', tryoutId)
+        .maybeSingle(),
+    );
     if (fresh.error) {
       captureOperationalError(fresh.error, {
         actorId: route.userId,
@@ -145,7 +148,11 @@ export default async function TryoutSetupStepPage({
         tryoutId,
         operation: 'tryout_setup.save',
       });
-      return { status: 'form_error', message: 'Could not save this step' };
+      return {
+        status: 'form_error',
+        message: 'Could not save this step',
+        values: submittedValues,
+      };
     }
     if (!fresh.data || fresh.data.status !== 'draft') notFound();
     if (step === 'publish') {
@@ -192,7 +199,7 @@ export default async function TryoutSetupStepPage({
       return {
         status: 'form_error',
         message: 'Could not save this step',
-        values: result.values,
+        values: result.values ?? submittedValues,
       };
     await trackSupabaseWorkflowSafely(route.client, {
       name: 'workflow.completed',

@@ -354,6 +354,11 @@ export function RegistrationForm({
                       <Input
                         name={field.key}
                         aria-label={field.label}
+                        aria-describedby={
+                          field.kind === 'date'
+                            ? `public-registration-${field.key}-help`
+                            : undefined
+                        }
                         type={
                           field.kind === 'date' ? 'date' : field.kind === 'email' ? 'email' : 'text'
                         }
@@ -362,9 +367,16 @@ export function RegistrationForm({
                     )}
                   </>
                 )}
-                {field.helpText && (
+                {field.kind === 'date' ? (
+                  <small
+                    className="text-[var(--color-text-muted)]"
+                    id={`public-registration-${field.key}-help`}
+                  >
+                    {field.helpText ? `${field.helpText} ` : null}Example: September 15, 2012.
+                  </small>
+                ) : field.helpText ? (
                   <small className="text-[var(--color-text-muted)]">{field.helpText}</small>
-                )}
+                ) : null}
               </label>
             ))}
           {error && <p role="alert">{error}</p>}

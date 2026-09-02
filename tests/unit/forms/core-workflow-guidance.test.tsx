@@ -63,6 +63,13 @@ function currentOrganization() {
                         sortOrder: 0,
                         options: ['A', 'B'],
                       },
+                      {
+                        key: 'medical_clearance_date',
+                        label: 'Medical clearance date',
+                        kind: 'date',
+                        required: false,
+                        sortOrder: 1,
+                      },
                     ],
                   },
                 },
@@ -231,6 +238,15 @@ describe('core workflow field guidance', () => {
     );
     expect(screen.getByRole('option', { name: 'Select a division' })).toBeDisabled();
     expect(screen.getByRole('option', { name: 'Select playing level' })).toBeDisabled();
+    const staffDynamicDate = document.querySelector('[name="response.medical_clearance_date"]');
+    expect(staffDynamicDate).not.toBeNull();
+    expect(staffDynamicDate).toHaveAttribute(
+      'aria-describedby',
+      'staff-registration-response-medical_clearance_date-help',
+    );
+    expect(
+      document.getElementById('staff-registration-response-medical_clearance_date-help'),
+    ).toHaveTextContent('Example: September 15, 2012.');
     expect(
       screen.getByText('New athlete date of birth').closest('label')?.querySelector('input'),
     ).toHaveAttribute('aria-describedby', 'staff-registration-birth-date-help');
@@ -253,6 +269,13 @@ describe('core workflow field guidance', () => {
                     required: true,
                     sortOrder: 0,
                     options: ['A', 'B'],
+                  },
+                  {
+                    key: 'medical_clearance_date',
+                    label: 'Medical clearance date',
+                    kind: 'date',
+                    required: false,
+                    sortOrder: 1,
                   },
                 ],
               },
@@ -291,6 +314,14 @@ describe('core workflow field guidance', () => {
     );
     expect(screen.getByRole('option', { name: 'Select a division' })).toBeDisabled();
     expect(screen.getByRole('option', { name: 'Select playing level' })).toBeDisabled();
+    const publicDynamicDate = screen.getByLabelText('Medical clearance date');
+    expect(publicDynamicDate).toHaveAttribute(
+      'aria-describedby',
+      'public-registration-medical_clearance_date-help',
+    );
+    expect(
+      document.getElementById('public-registration-medical_clearance_date-help'),
+    ).toHaveTextContent('Example: September 15, 2012.');
     expect(screen.getByLabelText('Date of birth')).toHaveAttribute(
       'aria-describedby',
       'public-registration-birth-date-help',

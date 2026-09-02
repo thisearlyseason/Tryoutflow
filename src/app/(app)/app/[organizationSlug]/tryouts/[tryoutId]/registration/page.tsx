@@ -322,11 +322,24 @@ export default async function TryoutRegistrationPage({
                 </select>
               ) : (
                 <Input
+                  aria-describedby={
+                    field.kind === 'date'
+                      ? `staff-registration-response-${field.key}-help`
+                      : undefined
+                  }
                   name={`response.${field.key}`}
                   required={field.required}
                   type={field.kind === 'date' ? 'date' : field.kind === 'email' ? 'email' : 'text'}
                 />
               )}
+              {field.kind === 'date' ? (
+                <span
+                  className="mt-1 block text-sm text-[var(--color-text-muted)]"
+                  id={`staff-registration-response-${field.key}-help`}
+                >
+                  {field.helpText ? `${field.helpText} ` : null}Example: September 15, 2012.
+                </span>
+              ) : null}
             </label>
           ))}
           <Button type="submit">Create registration</Button>
