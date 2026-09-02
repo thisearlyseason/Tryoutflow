@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
+import { FIELD_EXAMPLES } from '@/components/forms/field-examples';
 import { Input } from '@/components/ui/input';
 import { getPublicAppOrigin } from '@/lib/env';
 import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
@@ -212,6 +213,7 @@ export default async function TryoutRegistrationPage({
               maxLength={80}
               minLength={2}
               name="q"
+              placeholder={`${FIELD_EXAMPLES.athleteGivenName} ${FIELD_EXAMPLES.athleteFamilyName}`}
             />
           </label>
           <Button type="submit">Search athletes</Button>
@@ -241,20 +243,46 @@ export default async function TryoutRegistrationPage({
           <div className="grid gap-4 sm:grid-cols-2">
             <label>
               New athlete first name
-              <Input maxLength={120} name="givenName" />
+              <Input
+                maxLength={120}
+                name="givenName"
+                placeholder={FIELD_EXAMPLES.athleteGivenName}
+              />
             </label>
             <label>
               New athlete last name
-              <Input maxLength={120} name="familyName" />
+              <Input
+                maxLength={120}
+                name="familyName"
+                placeholder={FIELD_EXAMPLES.athleteFamilyName}
+              />
             </label>
           </div>
           <label>
             New athlete date of birth
-            <Input name="birthDate" type="date" />
+            <Input
+              aria-describedby="staff-registration-birth-date-help"
+              name="birthDate"
+              type="date"
+            />
+            <span
+              className="mt-1 block text-sm text-[var(--color-text-muted)]"
+              id="staff-registration-birth-date-help"
+            >
+              Example: September 15, 2012.
+            </span>
           </label>
           <label>
             Division
-            <select className="min-h-11 w-full rounded border px-3" name="divisionId" required>
+            <select
+              className="min-h-11 w-full rounded border px-3"
+              defaultValue=""
+              name="divisionId"
+              required
+            >
+              <option disabled value="">
+                Select a division
+              </option>
               {configuration.divisions.map((division) => (
                 <option key={division.id} value={division.id}>
                   {division.name}
@@ -281,10 +309,13 @@ export default async function TryoutRegistrationPage({
               ) : field.kind === 'select' ? (
                 <select
                   className="min-h-11 w-full rounded border px-3"
+                  defaultValue=""
                   name={`response.${field.key}`}
                   required={field.required}
                 >
-                  <option value="">Select…</option>
+                  <option disabled={field.required} value="">
+                    Select {field.label.toLowerCase()}
+                  </option>
                   {field.options?.map((option) => (
                     <option key={option}>{option}</option>
                   ))}

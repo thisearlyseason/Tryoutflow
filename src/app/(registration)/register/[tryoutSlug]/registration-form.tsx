@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { Button } from '../../../../components/ui/button';
+import { FIELD_EXAMPLES } from '../../../../components/forms/field-examples';
 import { Input } from '../../../../components/ui/input';
 import {
   RegistrationFormSchema,
@@ -214,6 +215,7 @@ export function RegistrationForm({
               aria-label="Athlete first name"
               required
               autoComplete="given-name"
+              placeholder={FIELD_EXAMPLES.athleteGivenName}
             />{' '}
           </label>
           <label>
@@ -224,16 +226,35 @@ export function RegistrationForm({
               aria-label="Athlete last name"
               required
               autoComplete="family-name"
+              placeholder={FIELD_EXAMPLES.athleteFamilyName}
             />{' '}
           </label>
           <label>
             Guardian phone (optional){' '}
-            <Input name="guardianPhone" aria-label="Guardian phone" type="tel" autoComplete="tel" />
+            <Input
+              name="guardianPhone"
+              aria-label="Guardian phone"
+              type="tel"
+              autoComplete="tel"
+              placeholder={FIELD_EXAMPLES.guardianPhone}
+            />
           </label>
           <label>
             {' '}
             Date of birth{' '}
-            <Input name="birthDate" aria-label="Date of birth" type="date" required />{' '}
+            <Input
+              aria-describedby="public-registration-birth-date-help"
+              aria-label="Date of birth"
+              name="birthDate"
+              required
+              type="date"
+            />{' '}
+            <small
+              className="block text-[var(--color-text-muted)]"
+              id="public-registration-birth-date-help"
+            >
+              Example: September 15, 2012.
+            </small>
           </label>
           {tryout.divisions.length > 1 && (
             <label>
@@ -242,8 +263,12 @@ export function RegistrationForm({
                 className="min-h-[var(--target-mobile)] w-full rounded-[var(--radius-control)] border p-2"
                 name="divisionId"
                 aria-label="Division"
+                defaultValue=""
                 required
               >
+                <option disabled value="">
+                  Select a division
+                </option>
                 {tryout.divisions.map((division) => (
                   <option key={division.id} value={division.id}>
                     {division.name}
@@ -277,6 +302,7 @@ export function RegistrationForm({
               aria-label="Guardian name"
               required
               autoComplete="name"
+              placeholder={FIELD_EXAMPLES.guardianName}
             />{' '}
           </label>
           <label>
@@ -288,6 +314,7 @@ export function RegistrationForm({
               type="email"
               required
               autoComplete="email"
+              placeholder={FIELD_EXAMPLES.guardianEmail}
             />{' '}
           </label>
           {[...tryout.formSchema.fields]
@@ -312,10 +339,13 @@ export function RegistrationForm({
                       <select
                         name={field.key}
                         aria-label={field.label}
+                        defaultValue=""
                         required={field.required}
                         className="min-h-[var(--target-mobile)] rounded-[var(--radius-control)] border p-2"
                       >
-                        <option value="">Select…</option>
+                        <option disabled={field.required} value="">
+                          Select {field.label.toLowerCase()}
+                        </option>
                         {field.options?.map((option) => (
                           <option key={option}>{option}</option>
                         ))}

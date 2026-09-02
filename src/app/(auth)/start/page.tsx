@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { AuthShell } from '../../../components/layout/auth-shell';
+import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { Button } from '../../../components/ui/button';
 import { FormField } from '../../../components/ui/form-field';
 import { Input } from '../../../components/ui/input';
@@ -45,7 +46,13 @@ export default function StartPage() {
       <form action={submit}>
         <FormField htmlFor="name" label="Organization name" required>
           {({ describedBy }) => (
-            <Input aria-describedby={describedBy} id="name" name="name" required />
+            <Input
+              aria-describedby={describedBy}
+              id="name"
+              name="name"
+              placeholder={FIELD_EXAMPLES.organizationName}
+              required
+            />
           )}
         </FormField>
         <FormField
@@ -55,11 +62,17 @@ export default function StartPage() {
           required
         >
           {({ describedBy }) => (
-            <Input aria-describedby={describedBy} id="slug" name="slug" required />
+            <Input
+              aria-describedby={describedBy}
+              id="slug"
+              name="slug"
+              placeholder={FIELD_EXAMPLES.organizationName.toLowerCase().replaceAll(' ', '-')}
+              required
+            />
           )}
         </FormField>
         <FormField
-          description="Times and schedules use this IANA timezone."
+          description={`Example: ${FIELD_EXAMPLES.timezone}.`}
           htmlFor="timezone"
           label="Timezone"
           required
@@ -67,9 +80,9 @@ export default function StartPage() {
           {({ describedBy }) => (
             <Input
               aria-describedby={describedBy}
-              defaultValue="America/Edmonton"
               id="timezone"
               name="timezone"
+              placeholder={FIELD_EXAMPLES.timezone}
               required
             />
           )}

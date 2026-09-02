@@ -1,4 +1,5 @@
 import { BotChallenge } from '../../../modules/identity/ui/bot-challenge';
+import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { AuthShell } from '../../../components/layout/auth-shell';
 import { Button } from '../../../components/ui/button';
 import { FormField } from '../../../components/ui/form-field';
@@ -34,6 +35,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
               autoComplete="email"
               id="email"
               name="email"
+              placeholder={FIELD_EXAMPLES.guardianEmail}
               required
               type="email"
             />

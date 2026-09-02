@@ -1,12 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useActionState, useState } from 'react';
 
+import { FIELD_EXAMPLES } from '@/components/forms/field-examples';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 import type { TryoutSetupStep } from '../application/save-tryout-setup-step';
+import type { TryoutBasicsField, TryoutBasicsInput } from '../application/validate-tryout-basics';
 import type { TryoutBasicsValues } from './tryout-basics';
+
+export type TryoutWizardActionState =
+  | { status: 'idle' }
+  | {
+      status: 'field_error';
+      fieldErrors: Partial<Record<TryoutBasicsField, string>>;
+      values: TryoutBasicsInput;
+    }
+  | { status: 'form_error'; message: 'Could not save this step'; values?: TryoutBasicsInput };
+
+const initialState: TryoutWizardActionState = { status: 'idle' };
 
 const guidance: Record<TryoutSetupStep, { title: string; description: string }> = {
   basics: {
@@ -49,7 +62,10 @@ export function TryoutWizard({
   sessions = [],
   step,
 }: {
-  action: (formData: FormData) => void | Promise<void>;
+  action: (
+    previousState: TryoutWizardActionState,
+    formData: FormData,
+  ) => Promise<TryoutWizardActionState>;
   basics?: TryoutBasicsValues;
   blockers: string[];
   divisions?: { id: string; name: string }[];
@@ -58,17 +74,30 @@ export function TryoutWizard({
   sessions?: { id: string; name: string }[];
   step: TryoutSetupStep;
 }) {
+  const [state, formAction, pending] = useActionState(action, initialState);
   const [confirmation, setConfirmation] = useState('');
   const item = guidance[step];
   const publishing = step === 'publish';
+  const submittedValues = state.status === 'idle' ? undefined : state.values;
+  const basicsValues = submittedValues ?? basics;
+  const fieldErrors = state.status === 'field_error' ? state.fieldErrors : {};
   const errorMessage =
-    step === 'basics' && error === 'invalid_input'
-      ? 'Check the highlighted fields. Sport and timezone are required, and registration must close after it opens.'
-      : error === 'invalid_time_range'
-        ? 'Registration must close after it opens.'
-        : error
-          ? `Could not save this step: ${error.replaceAll('_', ' ')}. Your progress was not advanced.`
-          : null;
+    state.status === 'form_error' ? state.message : error ? 'Could not save this step' : null;
+  const fieldDescription = (field: TryoutBasicsField, helpId?: string) =>
+    [
+      helpId,
+      fieldErrors[field]
+        ? `tryout-basics-${field === 'registrationStartsAt' ? 'opens' : field === 'registrationEndsAt' ? 'closes' : field}-error`
+        : undefined,
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined;
+  const fieldError = (field: TryoutBasicsField, id: string) =>
+    fieldErrors[field] ? (
+      <span className="mt-1 block text-sm text-[var(--color-destructive)]" id={id}>
+        {fieldErrors[field]}
+      </span>
+    ) : null;
   return (
     <section
       aria-labelledby="wizard-step-heading"
@@ -95,7 +124,7 @@ export function TryoutWizard({
           </ul>
         </div>
       ) : null}
-      <form action={action} className="mt-6 space-y-4">
+      <form action={formAction} className="mt-6 space-y-4">
         <input name="step" type="hidden" value={step} />
         {publishing ? (
           <label className="block" htmlFor="publish-confirmation">
@@ -115,71 +144,111 @@ export function TryoutWizard({
             <label className="block" htmlFor="tryout-basics-name">
               Tryout name
               <Input
-                defaultValue={basics?.name ?? name}
+                aria-describedby={fieldDescription('name')}
+                aria-invalid={Boolean(fieldErrors.name) || undefined}
+                defaultValue={basicsValues?.name ?? name}
                 id="tryout-basics-name"
                 maxLength={160}
                 name="name"
+                placeholder={basicsValues?.name || name ? undefined : FIELD_EXAMPLES.tryoutName}
                 required
               />
+              {fieldError('name', 'tryout-basics-name-error')}
             </label>
             <label className="block" htmlFor="tryout-basics-sport">
               Sport
               <Input
-                defaultValue={basics?.sport}
+                aria-describedby={fieldDescription('sport')}
+                aria-invalid={Boolean(fieldErrors.sport) || undefined}
+                defaultValue={basicsValues?.sport}
                 id="tryout-basics-sport"
                 maxLength={80}
                 name="sport"
+                placeholder={basicsValues?.sport ? undefined : FIELD_EXAMPLES.sport}
                 required
               />
+              {fieldError('sport', 'tryout-basics-sport-error')}
             </label>
             <label className="block" htmlFor="tryout-basics-timezone">
               Timezone
               <Input
-                aria-describedby="tryout-basics-timezone-help"
-                defaultValue={basics?.timezone}
+                aria-describedby={fieldDescription('timezone', 'tryout-basics-timezone-help')}
+                aria-invalid={Boolean(fieldErrors.timezone) || undefined}
+                defaultValue={basicsValues?.timezone}
                 id="tryout-basics-timezone"
                 maxLength={100}
                 name="timezone"
+                placeholder={basicsValues?.timezone ? undefined : FIELD_EXAMPLES.timezone}
                 required
               />
               <span
                 className="mt-1 block text-sm text-[var(--color-text-muted)]"
                 id="tryout-basics-timezone-help"
               >
-                Use an IANA timezone such as America/Edmonton.
+                Example: {FIELD_EXAMPLES.timezone}. Use the organization timezone for local times.
               </span>
+              {fieldError('timezone', 'tryout-basics-timezone-error')}
             </label>
             <label className="block" htmlFor="tryout-basics-opens">
               Registration opens
               <Input
-                defaultValue={basics?.registrationStartsAt}
+                aria-describedby={fieldDescription(
+                  'registrationStartsAt',
+                  'tryout-basics-opens-help',
+                )}
+                aria-invalid={Boolean(fieldErrors.registrationStartsAt) || undefined}
+                defaultValue={basicsValues?.registrationStartsAt}
                 id="tryout-basics-opens"
                 name="registrationStartsAt"
                 required
                 type="datetime-local"
               />
+              <span
+                className="mt-1 block text-sm text-[var(--color-text-muted)]"
+                id="tryout-basics-opens-help"
+              >
+                Example: September 15, 2026 at 6:00 PM in{' '}
+                {basicsValues?.timezone || FIELD_EXAMPLES.timezone}.
+              </span>
+              {fieldError('registrationStartsAt', 'tryout-basics-opens-error')}
             </label>
             <label className="block" htmlFor="tryout-basics-closes">
               Registration closes
               <Input
-                defaultValue={basics?.registrationEndsAt}
+                aria-describedby={fieldDescription(
+                  'registrationEndsAt',
+                  'tryout-basics-closes-help',
+                )}
+                aria-invalid={Boolean(fieldErrors.registrationEndsAt) || undefined}
+                defaultValue={basicsValues?.registrationEndsAt}
                 id="tryout-basics-closes"
                 name="registrationEndsAt"
                 required
                 type="datetime-local"
               />
+              <span
+                className="mt-1 block text-sm text-[var(--color-text-muted)]"
+                id="tryout-basics-closes-help"
+              >
+                Example: September 30, 2026 at 6:00 PM in{' '}
+                {basicsValues?.timezone || FIELD_EXAMPLES.timezone}.
+              </span>
+              {fieldError('registrationEndsAt', 'tryout-basics-closes-error')}
             </label>
           </>
         ) : step === 'divisions' ? (
           <label className="block">
             Division name
-            <Input name="name" required />
+            <Input name="name" placeholder={FIELD_EXAMPLES.division} required />
           </label>
         ) : step === 'sessions' ? (
           <>
             <label className="block">
               Division
-              <select className="w-full" name="divisionId" required>
+              <select className="w-full" defaultValue="" name="divisionId" required>
+                <option disabled value="">
+                  Select a division
+                </option>
                 {divisions.map((division) => (
                   <option key={division.id} value={division.id}>
                     {division.name}
@@ -189,35 +258,60 @@ export function TryoutWizard({
             </label>
             <label className="block">
               Session name
-              <Input name="name" required />
+              <Input name="name" placeholder={FIELD_EXAMPLES.session} required />
             </label>
             <label className="block">
               Starts
-              <Input name="startsAt" required type="datetime-local" />
+              <Input
+                aria-describedby="tryout-session-starts-help"
+                name="startsAt"
+                required
+                type="datetime-local"
+              />
+              <span
+                className="mt-1 block text-sm text-[var(--color-text-muted)]"
+                id="tryout-session-starts-help"
+              >
+                Example: September 15, 2026 at 6:00 PM in {FIELD_EXAMPLES.timezone}.
+              </span>
             </label>
             <label className="block">
               Ends
-              <Input name="endsAt" required type="datetime-local" />
+              <Input
+                aria-describedby="tryout-session-ends-help"
+                name="endsAt"
+                required
+                type="datetime-local"
+              />
+              <span
+                className="mt-1 block text-sm text-[var(--color-text-muted)]"
+                id="tryout-session-ends-help"
+              >
+                Example: September 15, 2026 at 8:00 PM in {FIELD_EXAMPLES.timezone}.
+              </span>
             </label>
             <label className="block">
               Group (optional)
-              <Input name="groupName" />
+              <Input name="groupName" placeholder={FIELD_EXAMPLES.group} />
             </label>
             <label className="block">
               Position (optional)
-              <Input name="positionName" />
+              <Input name="positionName" placeholder={FIELD_EXAMPLES.position} />
             </label>
           </>
         ) : step === 'registration' ? (
           <label className="block">
             Form name
-            <Input name="name" required />
+            <Input name="name" placeholder={FIELD_EXAMPLES.registrationForm} required />
           </label>
         ) : step === 'rubrics' ? (
           <>
             <label className="block">
               Session
-              <select className="w-full" name="sessionId" required>
+              <select className="w-full" defaultValue="" name="sessionId" required>
+                <option disabled value="">
+                  Select a session
+                </option>
                 {sessions.map((session) => (
                   <option key={session.id} value={session.id}>
                     {session.name}
@@ -227,11 +321,15 @@ export function TryoutWizard({
             </label>
             <label className="block">
               Rubric name
-              <Input name="name" required />
+              <Input name="name" placeholder={FIELD_EXAMPLES.rubric} required />
             </label>
             <label className="block">
               Category name
-              <Input name="categoryName" required />
+              <Input
+                name="categoryName"
+                placeholder={FIELD_EXAMPLES.rubric.split(' and ')[0]}
+                required
+              />
             </label>
           </>
         ) : (
@@ -241,6 +339,7 @@ export function TryoutWizard({
         )}
         <Button
           disabled={
+            pending ||
             (publishing && (confirmation !== name || blockers.length > 0)) ||
             (!publishing && step === 'review' && blockers.length > 0)
           }

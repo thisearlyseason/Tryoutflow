@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TryoutWizard } from '../../../src/modules/tryouts/ui/tryout-wizard';
@@ -30,21 +31,45 @@ describe('tryout wizard basics', () => {
     expect(screen.getByLabelText(/registration closes/i)).toHaveValue('2026-09-30T18:30');
   });
 
-  it('explains an invalid basics submission with an actionable message', () => {
+  it('associates returned field errors and preserves bounded submitted values', async () => {
+    const user = userEvent.setup();
     render(
       <TryoutWizard
-        action={vi.fn()}
+        action={vi.fn(async () => ({
+          status: 'field_error' as const,
+          fieldErrors: {
+            sport: 'Enter a sport.',
+            registrationEndsAt: 'Registration must close after it opens.',
+          },
+          values: {
+            ...basics,
+            registrationEndsAt: '2026-09-01T09:00',
+          },
+        }))}
         basics={basics}
         blockers={[]}
-        error="invalid_input"
         name={basics.name}
         step="basics"
       />,
     );
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Check the highlighted fields. Sport and timezone are required, and registration must close after it opens.',
+    await user.clear(screen.getByLabelText(/registration closes/i));
+    await user.type(screen.getByLabelText(/registration closes/i), '2026-09-01T09:00');
+    await user.click(screen.getByRole('button', { name: 'Save and continue' }));
+
+    const sport = screen.getByRole('textbox', { name: /sport/i });
+    const closes = screen.getByLabelText(/registration closes/i);
+    expect(await screen.findByText('Enter a sport.')).toHaveAttribute(
+      'id',
+      'tryout-basics-sport-error',
     );
-    expect(screen.getByText('All fields are required.')).toBeVisible();
+    expect(sport).toHaveAttribute('aria-invalid', 'true');
+    expect(sport).toHaveAttribute('aria-describedby', 'tryout-basics-sport-error');
+    expect(closes).toHaveValue('2026-09-01T09:00');
+    expect(closes).toHaveAttribute('aria-invalid', 'true');
+    expect(closes).toHaveAttribute(
+      'aria-describedby',
+      'tryout-basics-closes-help tryout-basics-closes-error',
+    );
   });
 });

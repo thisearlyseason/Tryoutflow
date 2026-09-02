@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react';
 
+import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { BibBadge } from '../../../components/ui/bib-badge';
 import { StatusBadge } from '../../../components/ui/status-badge';
 
@@ -237,6 +238,7 @@ export function CheckinWorkspace({
             id="checkin-search"
             maxLength={120}
             onChange={(event) => setQuery(event.target.value)}
+            placeholder={`${FIELD_EXAMPLES.athleteGivenName} ${FIELD_EXAMPLES.athleteFamilyName}`}
             style={{ minHeight: 44 }}
             value={query}
           />

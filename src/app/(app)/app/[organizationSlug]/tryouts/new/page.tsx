@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { ErrorState } from '@/components/feedback/error-state';
+import { FIELD_EXAMPLES } from '@/components/forms/field-examples';
 import { trackSupabaseWorkflowSafely } from '@/infrastructure/analytics/supabase-analytics-provider';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
@@ -46,6 +47,7 @@ export default async function NewTryoutPage({
     );
   }
   const seasons = seasonsResult.data ?? [];
+  const defaultSport = current.organization.sportDefaults[0] ?? '';
   async function create(formData: FormData) {
     'use server';
     const route = await requireCurrentOrganization(organizationSlug);
@@ -78,14 +80,15 @@ export default async function NewTryoutPage({
       <form action={create} className="mt-6 space-y-4">
         <label className="block" htmlFor="name">
           <span className="font-bold">Tryout name</span>
-          <Input id="name" name="name" required />
+          <Input id="name" name="name" placeholder={FIELD_EXAMPLES.tryoutName} required />
         </label>
         <label className="block" htmlFor="sport">
           <span className="font-bold">Sport</span>
           <Input
-            defaultValue={current.organization.sportDefaults[0] ?? ''}
+            defaultValue={defaultSport}
             id="sport"
             name="sport"
+            placeholder={defaultSport ? undefined : FIELD_EXAMPLES.sport}
             required
           />
         </label>
@@ -104,7 +107,12 @@ export default async function NewTryoutPage({
           </label>
           <label className="block" htmlFor="newSeasonName">
             <span>New cycle name</span>
-            <Input id="newSeasonName" maxLength={120} name="newSeasonName" />
+            <Input
+              id="newSeasonName"
+              maxLength={120}
+              name="newSeasonName"
+              placeholder={FIELD_EXAMPLES.season}
+            />
           </label>
           <p className="text-sm text-[var(--color-text-muted)]">
             Choose an existing cycle, or leave it on “Create a new cycle” and enter a new name.
@@ -113,24 +121,50 @@ export default async function NewTryoutPage({
         <label className="block" htmlFor="timezone">
           <span className="font-bold">Timezone</span>
           <Input
+            aria-describedby="new-tryout-timezone-help"
             defaultValue={current.organization.timezone}
             id="timezone"
             name="timezone"
             required
           />
+          <span
+            className="mt-1 block text-sm text-[var(--color-text-muted)]"
+            id="new-tryout-timezone-help"
+          >
+            Times use the IANA timezone shown here. Example: {FIELD_EXAMPLES.timezone}.
+          </span>
         </label>
         <label className="block" htmlFor="registrationStartsAt">
           <span className="font-bold">Registration opens</span>
           <Input
+            aria-describedby="new-tryout-registration-opens-help"
             id="registrationStartsAt"
             name="registrationStartsAt"
             type="datetime-local"
             required
           />
+          <span
+            className="mt-1 block text-sm text-[var(--color-text-muted)]"
+            id="new-tryout-registration-opens-help"
+          >
+            Example: September 15, 2026 at 6:00 PM in {current.organization.timezone}.
+          </span>
         </label>
         <label className="block" htmlFor="registrationEndsAt">
           <span className="font-bold">Registration closes</span>
-          <Input id="registrationEndsAt" name="registrationEndsAt" type="datetime-local" required />
+          <Input
+            aria-describedby="new-tryout-registration-closes-help"
+            id="registrationEndsAt"
+            name="registrationEndsAt"
+            required
+            type="datetime-local"
+          />
+          <span
+            className="mt-1 block text-sm text-[var(--color-text-muted)]"
+            id="new-tryout-registration-closes-help"
+          >
+            Example: September 30, 2026 at 6:00 PM in {current.organization.timezone}.
+          </span>
         </label>
         <Button type="submit">Create draft</Button>
       </form>

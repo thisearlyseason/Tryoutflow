@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
+import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { Button } from '../../../components/ui/button';
 import type { RecipientPreview } from '../application/create-message-batch';
 import type { DecisionMessageKind } from '../application/render-message';
@@ -173,6 +174,9 @@ export function MessageComposer({
           className="min-h-36 rounded-[var(--radius-control)] border p-3"
           style={{ minHeight: '9rem' }}
           maxLength={4000}
+          placeholder={
+            editableText ? undefined : `Share next steps for ${FIELD_EXAMPLES.tryoutName}`
+          }
           value={editableText}
           onChange={(event) => {
             setEditableText(event.target.value);

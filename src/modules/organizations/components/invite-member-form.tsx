@@ -2,6 +2,7 @@
 
 import { useActionState } from 'react';
 
+import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { Button } from '../../../components/ui/button';
 
 export type InvitationFormState =
@@ -31,6 +32,7 @@ export function InviteMemberForm({ action }: InviteMemberFormProps) {
           className="min-h-11 rounded-[var(--radius-control)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 font-normal"
           id="email"
           name="email"
+          placeholder={FIELD_EXAMPLES.guardianEmail}
           required
           type="email"
         />

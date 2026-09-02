@@ -19,7 +19,7 @@ import {
   wizardPayload,
 } from '@/modules/tryouts/application/save-wizard-configuration';
 import { persistWizardStep } from '@/modules/tryouts/application/persist-wizard-step';
-import { TryoutWizard } from '@/modules/tryouts/ui/tryout-wizard';
+import { TryoutWizard, type TryoutWizardActionState } from '@/modules/tryouts/ui/tryout-wizard';
 import { parseTryoutBasics } from '@/modules/tryouts/ui/tryout-basics';
 import { WizardProgress } from '@/modules/tryouts/ui/wizard-progress';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
@@ -126,7 +126,10 @@ export default async function TryoutSetupStepPage({
   const divisions = divisionsResult.data;
   const sessions = sessionsResult.data;
   const blockers = validation.value.blockers;
-  async function save(formData: FormData) {
+  async function save(
+    _previousState: TryoutWizardActionState,
+    formData: FormData,
+  ): Promise<TryoutWizardActionState> {
     'use server';
     const route = await requireCurrentOrganization(organizationSlug);
     const fresh = await route.client
@@ -142,7 +145,7 @@ export default async function TryoutSetupStepPage({
         tryoutId,
         operation: 'tryout_setup.save',
       });
-      redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/${step}?error=unavailable`);
+      return { status: 'form_error', message: 'Could not save this step' };
     }
     if (!fresh.data || fresh.data.status !== 'draft') notFound();
     if (step === 'publish') {
@@ -179,10 +182,18 @@ export default async function TryoutSetupStepPage({
         saveProgress: (input) => saveTryoutSetupStep(input, { authorization: route.authorization }),
       },
     );
+    if (result.kind === 'field_error')
+      return {
+        status: 'field_error',
+        fieldErrors: result.fieldErrors,
+        values: result.values,
+      };
     if (result.kind === 'error')
-      redirect(
-        `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${step}?error=${encodeURIComponent(result.code)}`,
-      );
+      return {
+        status: 'form_error',
+        message: 'Could not save this step',
+        values: result.values,
+      };
     await trackSupabaseWorkflowSafely(route.client, {
       name: 'workflow.completed',
       workflow: 'tryout_setup',
