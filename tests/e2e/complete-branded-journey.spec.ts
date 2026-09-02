@@ -77,11 +77,15 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   expectCancellableServerAction(ownerMonitor, page, 'initial organization logo upload redirect');
   await page.getByRole('button', { name: 'Upload logo' }).click();
   await expect(page.getByRole('status')).toHaveText('Organization logo updated.');
-  await expect(
-    page.locator('.app-sidebar .app-organization').getByRole('img', {
-      name: `${scenario.organizationName} logo`,
-    }),
-  ).toBeVisible();
+  const settingsPreview = page
+    .getByRole('region', { name: 'Organization logo' })
+    .getByRole('img', { name: `${scenario.organizationName} logo` });
+  await expect(settingsPreview).toBeVisible();
+  await expect(settingsPreview).toHaveAttribute('src', /\/logo\?v=/u);
+  const initialSidebarLogo = page.locator('.app-sidebar .app-organization img');
+  await expect(initialSidebarLogo).toBeVisible();
+  await expect(initialSidebarLogo).toHaveAttribute('alt', '');
+  await expect(initialSidebarLogo).toHaveAttribute('aria-hidden', 'true');
   const initialLogoResponse = await page.request.get(
     `/api/organizations/${scenario.organizationSlug}/logo`,
   );
@@ -91,18 +95,14 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   const initialLogoProof = scenario.database.scalar(
     `select sha256||'|'||updated_at::text from private.organization_brand_assets where organization_id='${scenario.ids.organization}'`,
   );
-  const initialLogoSrc = await page
-    .locator('.app-sidebar .app-organization')
-    .getByRole('img', { name: `${scenario.organizationName} logo` })
-    .getAttribute('src');
+  const initialLogoSrc = await initialSidebarLogo.getAttribute('src');
   expect(initialLogoSrc).toContain('/api/organizations/');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(
-    page.locator('.mobile-navigation .mobile-organization').getByRole('img', {
-      name: `${scenario.organizationName} logo`,
-    }),
-  ).toBeVisible();
+  const mobileLogo = page.locator('.mobile-navigation .mobile-organization img');
+  await expect(mobileLogo).toBeVisible();
+  await expect(mobileLogo).toHaveAttribute('alt', '');
+  await expect(mobileLogo).toHaveAttribute('aria-hidden', 'true');
   await expectNoHorizontalOverflow(page, 'mobile organization settings');
 
   await page.setViewportSize({ width: 1366, height: 900 });
@@ -249,9 +249,10 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   try {
     await publicPage.goto(publicPath);
     await expect(publicPage.getByText(scenario.organizationName, { exact: true })).toBeVisible();
-    await expect(
-      publicPage.getByRole('img', { name: `${scenario.organizationName} logo` }),
-    ).toBeVisible();
+    const publicLogo = publicPage.locator('.registration-header img');
+    await expect(publicLogo).toBeVisible();
+    await expect(publicLogo).toHaveAttribute('alt', '');
+    await expect(publicLogo).toHaveAttribute('aria-hidden', 'true');
     await expect(
       publicPage.getByRole('heading', { name: `Register for ${tryoutName}` }),
     ).toBeVisible();
@@ -323,6 +324,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   );
   await page.getByRole('link', { name: 'Next: Open live dashboard' }).click();
   await expect(page.getByRole('heading', { name: 'Live dashboard' })).toBeVisible();
+  await completeAuthoredEvaluation();
   expectCancellableNextRscRequest(
     ownerMonitor,
     `${baseURL}/app/${scenario.organizationSlug}/tryouts/${authoredTryoutId}/rankings`,
@@ -330,6 +332,14 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   );
   await page.getByRole('link', { name: 'Next: Review rankings' }).click();
   await expect(page.getByRole('heading', { name: 'Rankings' })).toBeVisible();
+  const authoredRanking = page.locator(`[data-testid="ranking-card-${authoredRegistrationId}"]`);
+  await expect(
+    authoredRanking.getByRole('heading', { name: `Jordan ${familyName}` }),
+  ).toBeVisible();
+  await expect(
+    page.locator(`[data-testid="ranking-score-${authoredRegistrationId}"]`),
+  ).toContainText('100.0');
+  await expect(authoredRanking).toContainText('1 of 1 evaluations complete');
   expectCancellableNextRscRequest(
     ownerMonitor,
     `${baseURL}/app/${scenario.organizationSlug}/tryouts/${authoredTryoutId}/rosters`,
@@ -398,119 +408,125 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   await page.getByRole('link', { name: 'Next: Review reports' }).click();
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
 
-  const evaluationContext = await browser.newContext({
-    baseURL: String(baseURL),
-    locale: 'en-CA',
-    timezoneId: 'America/Edmonton',
-  });
-  const evaluationPage = await evaluationContext.newPage();
-  try {
-    const evaluationMonitor = monitorBrowserErrors(evaluationPage);
-    if (testInfo.project.name === 'firefox') {
-      expectCancellableImageRequest(
+  async function completeAuthoredEvaluation() {
+    const evaluationContext = await browser.newContext({
+      baseURL: String(baseURL),
+      locale: 'en-CA',
+      timezoneId: 'America/Edmonton',
+    });
+    const evaluationPage = await evaluationContext.newPage();
+    try {
+      const evaluationMonitor = monitorBrowserErrors(evaluationPage);
+      if (testInfo.project.name === 'firefox') {
+        expectCancellableImageRequest(
+          evaluationMonitor,
+          new URL(initialLogoSrc!, String(baseURL)).href,
+          'two versioned evaluator shell logo requests in Firefox responsive chrome',
+          2,
+        );
+      }
+      await signInAs(
+        evaluationPage,
+        scenario.users.evaluatorOne,
+        scenario.organizationSlug,
         evaluationMonitor,
-        new URL(initialLogoSrc!, String(baseURL)).href,
-        'two versioned evaluator shell logo requests in Firefox responsive chrome',
-        2,
+        (token) =>
+          scenario.database.trackAbuseAttempt({
+            scope: 'auth_sign_in',
+            action: 'sign_in',
+            subject: scenario.users.evaluatorOne.email,
+            address: task30AuthBrowserAddress,
+            token,
+          }),
       );
-    }
-    await signInAs(
-      evaluationPage,
-      scenario.users.evaluatorOne,
-      scenario.organizationSlug,
-      evaluationMonitor,
-      (token) =>
-        scenario.database.trackAbuseAttempt({
-          scope: 'auth_sign_in',
-          action: 'sign_in',
-          subject: scenario.users.evaluatorOne.email,
-          address: task30AuthBrowserAddress,
-          token,
-        }),
-    );
-    const evaluatorLogo = evaluationPage.getByRole('img', {
-      name: `${scenario.organizationName} logo`,
-    });
-    await expect(evaluatorLogo).toBeVisible();
-    await expect
-      .poll(() =>
-        evaluatorLogo.evaluate(
-          (element) =>
-            element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0,
+      const evaluatorLogo = evaluationPage.locator(
+        '.app-sidebar .app-organization img:visible, .mobile-navigation .mobile-organization img:visible',
+      );
+      await expect(evaluatorLogo).toBeVisible();
+      await expect(evaluatorLogo).toHaveAttribute('alt', '');
+      await expect(evaluatorLogo).toHaveAttribute('aria-hidden', 'true');
+      await expect
+        .poll(() =>
+          evaluatorLogo.evaluate(
+            (element) =>
+              element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0,
+          ),
+        )
+        .toBe(true);
+      expectCancellableNextRscRequest(
+        evaluationMonitor,
+        `${baseURL}/app/${scenario.organizationSlug}/evaluate`,
+        'evaluator workspace navigation RSC request',
+      );
+      await evaluationPage.getByRole('link', { name: 'Evaluate' }).click();
+      await expect(
+        evaluationPage.getByRole('heading', { name: 'Your assigned sessions' }),
+      ).toBeVisible();
+      await evaluationPage.waitForLoadState('networkidle');
+      const authoredSessionCard = evaluationPage
+        .getByRole('listitem')
+        .filter({ hasText: tryoutName })
+        .filter({ hasText: 'Skills Session 1' });
+      await expect(authoredSessionCard).toBeVisible();
+      expectCancellableNextRscRequest(
+        evaluationMonitor,
+        `${baseURL}/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}`,
+        'authored scoring session navigation RSC request',
+      );
+      await authoredSessionCard.getByRole('link', { name: 'Open scoring session' }).click();
+      await expect(evaluationPage.getByRole('heading', { name: 'Skills Session 1' })).toBeVisible();
+      await evaluationPage.waitForLoadState('networkidle');
+      expectCancellableNextRscRequest(
+        evaluationMonitor,
+        `${baseURL}/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}/athletes`,
+        'authored assigned-athlete navigation RSC request',
+      );
+      await evaluationPage.getByRole('link', { name: 'Assigned athletes' }).click();
+      await expect(
+        evaluationPage.getByRole('heading', { name: 'Assigned athletes' }),
+      ).toBeVisible();
+      const authoredParticipant = evaluationPage.getByRole('listitem').filter({
+        hasText: `Jordan ${familyName}`,
+      });
+      await expect(authoredParticipant).toBeVisible();
+      expectCancellableNextRscRequest(
+        evaluationMonitor,
+        `${baseURL}/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}/athletes/${authoredRegistrationId}`,
+        'authored participant evaluation navigation RSC request',
+      );
+      await authoredParticipant.getByRole('link', { name: 'Start evaluation' }).click();
+      await expect(
+        evaluationPage.getByRole('heading', { name: `Jordan ${familyName}` }),
+      ).toBeVisible();
+      const authoredScaleMaximum = scenario.database.scalar(
+        `select category.scale_max from public.rubric_categories category join public.rubric_versions version on version.id=category.rubric_version_id and version.organization_id=category.organization_id and version.tryout_id=category.tryout_id where category.organization_id='${scenario.ids.organization}' and category.tryout_id='${authoredTryoutId}' and category.name='Skating'`,
+      );
+      await evaluationPage
+        .getByRole('radio', {
+          name: `Skating score ${authoredScaleMaximum} of ${authoredScaleMaximum}`,
+        })
+        .click();
+      await evaluationPage.getByRole('button', { name: 'Save now' }).click();
+      await expect(evaluationPage.getByText('Saved on server', { exact: true })).toBeVisible();
+      expectCancellableServerAction(
+        evaluationMonitor,
+        evaluationPage,
+        'authored participant evaluation completion',
+      );
+      await evaluationPage.getByRole('button', { name: 'Complete evaluation' }).click();
+      await expect(
+        evaluationPage.getByRole('button', { name: 'Evaluation completed' }),
+      ).toBeDisabled();
+      await evaluationPage.waitForLoadState('networkidle');
+      expect(
+        scenario.database.scalar(
+          `select count(*) from public.evaluations where organization_id='${scenario.ids.organization}' and tryout_id='${authoredTryoutId}' and tryout_registration_id='${authoredRegistrationId}' and tryout_session_id='${authoredSessionId}' and evaluator_user_id='${scenario.users.evaluatorOne.id}' and state='completed'`,
         ),
-      )
-      .toBe(true);
-    expectCancellableNextRscRequest(
-      evaluationMonitor,
-      `${baseURL}/app/${scenario.organizationSlug}/evaluate`,
-      'evaluator workspace navigation RSC request',
-    );
-    await evaluationPage.getByRole('link', { name: 'Evaluate' }).click();
-    await expect(
-      evaluationPage.getByRole('heading', { name: 'Your assigned sessions' }),
-    ).toBeVisible();
-    await evaluationPage.waitForLoadState('networkidle');
-    const authoredSessionCard = evaluationPage
-      .getByRole('listitem')
-      .filter({ hasText: tryoutName })
-      .filter({ hasText: 'Skills Session 1' });
-    await expect(authoredSessionCard).toBeVisible();
-    expectCancellableNextRscRequest(
-      evaluationMonitor,
-      `${baseURL}/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}`,
-      'authored scoring session navigation RSC request',
-    );
-    await authoredSessionCard.getByRole('link', { name: 'Open scoring session' }).click();
-    await expect(evaluationPage.getByRole('heading', { name: 'Skills Session 1' })).toBeVisible();
-    await evaluationPage.waitForLoadState('networkidle');
-    expectCancellableNextRscRequest(
-      evaluationMonitor,
-      `${baseURL}/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}/athletes`,
-      'authored assigned-athlete navigation RSC request',
-    );
-    await evaluationPage.getByRole('link', { name: 'Assigned athletes' }).click();
-    await expect(evaluationPage.getByRole('heading', { name: 'Assigned athletes' })).toBeVisible();
-    const authoredParticipant = evaluationPage.getByRole('listitem').filter({
-      hasText: `Jordan ${familyName}`,
-    });
-    await expect(authoredParticipant).toBeVisible();
-    expectCancellableNextRscRequest(
-      evaluationMonitor,
-      `${baseURL}/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}/athletes/${authoredRegistrationId}`,
-      'authored participant evaluation navigation RSC request',
-    );
-    await authoredParticipant.getByRole('link', { name: 'Start evaluation' }).click();
-    await expect(
-      evaluationPage.getByRole('heading', { name: `Jordan ${familyName}` }),
-    ).toBeVisible();
-    const authoredScaleMaximum = scenario.database.scalar(
-      `select category.scale_max from public.rubric_categories category join public.rubric_versions version on version.id=category.rubric_version_id and version.organization_id=category.organization_id and version.tryout_id=category.tryout_id where category.organization_id='${scenario.ids.organization}' and category.tryout_id='${authoredTryoutId}' and category.name='Skating'`,
-    );
-    await evaluationPage
-      .getByRole('radio', {
-        name: `Skating score ${authoredScaleMaximum} of ${authoredScaleMaximum}`,
-      })
-      .click();
-    await evaluationPage.getByRole('button', { name: 'Save now' }).click();
-    await expect(evaluationPage.getByText('Saved on server', { exact: true })).toBeVisible();
-    expectCancellableServerAction(
-      evaluationMonitor,
-      evaluationPage,
-      'authored participant evaluation completion',
-    );
-    await evaluationPage.getByRole('button', { name: 'Complete evaluation' }).click();
-    await expect(
-      evaluationPage.getByRole('button', { name: 'Evaluation completed' }),
-    ).toBeDisabled();
-    await evaluationPage.waitForLoadState('networkidle');
-    expect(
-      scenario.database.scalar(
-        `select count(*) from public.evaluations where organization_id='${scenario.ids.organization}' and tryout_id='${authoredTryoutId}' and tryout_registration_id='${authoredRegistrationId}' and tryout_session_id='${authoredSessionId}' and evaluator_user_id='${scenario.users.evaluatorOne.id}' and state='completed'`,
-      ),
-    ).toBe('1');
-    evaluationMonitor.assertClean();
-  } finally {
-    await evaluationContext.close();
+      ).toBe('1');
+      evaluationMonitor.assertClean();
+    } finally {
+      await evaluationContext.close();
+    }
   }
 
   await page.goto(settingsPath);
@@ -529,10 +545,10 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   expect(replacementLogoResponse.status()).toBe(200);
   expect(replacementLogoResponse.headers().etag).toMatch(/^"[0-9a-f]{64}"$/u);
   expect(replacementLogoResponse.headers().etag).not.toBe(initialLogoEtag);
-  const replacementLogo = page
-    .locator('.app-sidebar .app-organization')
-    .getByRole('img', { name: `${scenario.organizationName} logo` });
+  const replacementLogo = page.locator('.app-sidebar .app-organization img');
   await expect(replacementLogo).toBeVisible();
+  await expect(replacementLogo).toHaveAttribute('alt', '');
+  await expect(replacementLogo).toHaveAttribute('aria-hidden', 'true');
   await expect.poll(() => replacementLogo.getAttribute('src')).not.toBe(initialLogoSrc);
   await expect
     .poll(() =>
@@ -546,16 +562,21 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   await page.getByRole('button', { name: 'Remove logo' }).click();
   await expect(page.getByRole('status')).toHaveText('Organization logo removed.');
   await expect(
-    page.locator('.app-sidebar .app-organization').getByRole('img', {
-      name: `${scenario.organizationName} logo fallback`,
-    }),
-  ).toBeVisible();
-  await page.setViewportSize({ width: 320, height: 844 });
-  await expect(
-    page.locator('.mobile-navigation .mobile-organization').getByRole('img', {
-      name: `${scenario.organizationName} logo fallback`,
-    }),
+    page
+      .getByRole('region', { name: 'Organization logo' })
+      .getByRole('img', { name: `${scenario.organizationName} logo` }),
   ).toHaveText('TF');
+  const sidebarFallback = page
+    .locator('.app-sidebar .app-organization span[aria-hidden="true"]')
+    .filter({ hasText: /^TF$/u });
+  await expect(sidebarFallback).toHaveText('TF');
+  await expect(sidebarFallback).not.toHaveAttribute('role');
+  await page.setViewportSize({ width: 320, height: 844 });
+  const mobileFallback = page
+    .locator('.mobile-navigation .mobile-organization span[aria-hidden="true"]')
+    .filter({ hasText: /^TF$/u });
+  await expect(mobileFallback).toHaveText('TF');
+  await expect(mobileFallback).not.toHaveAttribute('role');
   await expectNoHorizontalOverflow(page, '320px organization fallback');
 
   const fallbackContext = await browser.newContext({
@@ -568,11 +589,11 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   const fallbackMonitor = monitorBrowserErrors(fallbackPage);
   try {
     await fallbackPage.goto(publicPath);
-    await expect(
-      fallbackPage.getByRole('img', {
-        name: `${scenario.organizationName} logo fallback`,
-      }),
-    ).toHaveText('TF');
+    const publicFallback = fallbackPage
+      .locator('.registration-header span[aria-hidden="true"]')
+      .filter({ hasText: /^TF$/u });
+    await expect(publicFallback).toHaveText('TF');
+    await expect(publicFallback).not.toHaveAttribute('role');
     await expect(
       fallbackPage.getByRole('heading', { name: `Register for ${tryoutName}` }),
     ).toBeVisible();

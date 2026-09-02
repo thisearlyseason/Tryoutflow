@@ -7,6 +7,10 @@ import { loadTryoutJourney } from '../../../src/modules/tryouts/application/load
 const organizationId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as OrganizationId;
 const userId = '11111111-1111-4111-8111-111111111111' as UserId;
 const tryoutId = '22222222-2222-4222-8222-222222222222';
+const divisionAId = '77777777-7777-4777-8777-777777777771';
+const divisionBId = '77777777-7777-4777-8777-777777777772';
+const finalizedRosterAId = '44444444-4444-4444-8444-444444444441';
+const finalizedRosterBId = '44444444-4444-4444-8444-444444444442';
 
 type QueryResponse = { data: unknown; error: unknown; count?: number | null };
 type Fixture = {
@@ -16,11 +20,20 @@ type Fixture = {
   sessionCount?: number;
   checkinCount?: number;
   completedEvaluationCount?: number;
+  expectedEvaluationCount?: unknown;
   activeEvaluatorCount?: number;
   evaluatorAssignmentExists?: boolean;
   draftRoster?: boolean;
   finalizedRoster?: boolean;
   communicationStates?: string[];
+  divisionIds?: string[];
+  rosterVersions?: Array<{
+    id: string;
+    division_id: string;
+    state: 'draft' | 'finalized';
+    revision_number: number;
+  }>;
+  communicationMessages?: Array<{ source_roster_version_id: string; state: string }>;
 };
 
 type QueryLog = {
@@ -28,6 +41,7 @@ type QueryLog = {
   columns: string;
   options?: { count?: string; head?: boolean };
   filters: Array<[string, string, unknown]>;
+  orders: Array<{ column: string; ascending?: boolean }>;
   limit?: number;
 };
 
@@ -79,6 +93,10 @@ function fakeClient(fixture: Fixture, failures: Partial<Record<string, Error>> =
         return { data: null, error: null, count: fixture.participantCount ?? 0 };
       case 'tryout_sessions':
         return { data: null, error: null, count: fixture.sessionCount ?? 0 };
+      case 'tryout_divisions': {
+        const rows = (fixture.divisionIds ?? [divisionAId]).map((id) => ({ id }));
+        return { data: rows, error: null, count: rows.length };
+      }
       case 'checkins':
         return { data: null, error: null, count: fixture.checkinCount ?? 0 };
       case 'evaluations':
@@ -88,34 +106,59 @@ function fakeClient(fixture: Fixture, failures: Partial<Record<string, Error>> =
           count: fixture.completedEvaluationCount ?? 0,
         };
       case 'roster_versions': {
+        const rosterVersions = fixture.rosterVersions ?? [
+          ...(fixture.draftRoster
+            ? [
+                {
+                  id: '33333333-3333-4333-8333-333333333333',
+                  division_id: divisionAId,
+                  state: 'draft' as const,
+                  revision_number: 1,
+                },
+              ]
+            : []),
+          ...(fixture.finalizedRoster
+            ? [
+                {
+                  id: finalizedRosterAId,
+                  division_id: divisionAId,
+                  state: 'finalized' as const,
+                  revision_number: 1,
+                },
+              ]
+            : []),
+        ];
         const state = log.filters.find(
           (filter) => filter[0] === 'eq' && filter[1] === 'state',
         )?.[2];
-        const exists =
-          state === 'draft'
-            ? fixture.draftRoster
-            : state === 'finalized' && fixture.finalizedRoster;
+        const rows = rosterVersions.filter((row) => state === undefined || row.state === state);
         return {
-          data: exists
-            ? [
-                {
-                  id:
-                    state === 'draft'
-                      ? '33333333-3333-4333-8333-333333333333'
-                      : '44444444-4444-4444-8444-444444444444',
-                  state,
-                },
-              ]
-            : [],
+          data: log.limit === undefined ? rows : rows.slice(0, log.limit),
           error: null,
+          count: rows.length,
         };
       }
-      case 'communication_messages':
+      case 'communication_messages': {
+        const messages =
+          fixture.communicationMessages ??
+          (fixture.communicationStates ?? []).map((state) => ({
+            source_roster_version_id: finalizedRosterAId,
+            state,
+          }));
+        const sourceFilter = log.filters.find((filter) => filter[1] === 'source_roster_version_id');
+        const rows = sourceFilter
+          ? messages.filter((message) =>
+              sourceFilter[0] === 'in'
+                ? (sourceFilter[2] as string[]).includes(message.source_roster_version_id)
+                : message.source_roster_version_id === sourceFilter[2],
+            )
+          : messages;
         return {
-          data: (fixture.communicationStates ?? []).map((state) => ({ state })),
+          data: rows,
           error: null,
-          count: fixture.communicationStates?.length ?? 0,
+          count: rows.length,
         };
+      }
       default:
         throw new Error(`Unexpected journey table: ${table}`);
     }
@@ -142,7 +185,8 @@ function fakeClient(fixture: Fixture, failures: Partial<Record<string, Error>> =
                         fixture.activeEvaluatorCount ??
                         (fixture.evaluatorAssignmentExists === false ? 0 : 1),
                       completedEvaluations: fixture.completedEvaluationCount ?? 0,
-                      expectedEvaluations: fixture.completedEvaluationCount ?? 0,
+                      expectedEvaluations:
+                        fixture.expectedEvaluationCount ?? fixture.completedEvaluationCount ?? 0,
                       recordedSyncExceptions: 0,
                       generatedAt: '2026-09-01T12:00:00.000Z',
                     },
@@ -191,7 +235,7 @@ function fakeClient(fixture: Fixture, failures: Partial<Record<string, Error>> =
     from(table: string) {
       return {
         select(columns: string, options?: { count?: string; head?: boolean }) {
-          const log: QueryLog = { table, columns, options, filters: [] };
+          const log: QueryLog = { table, columns, options, filters: [], orders: [] };
           logs.push(log);
           const builder = {
             eq(column: string, value: unknown) {
@@ -202,7 +246,12 @@ function fakeClient(fixture: Fixture, failures: Partial<Record<string, Error>> =
               log.filters.push(['is', column, value]);
               return builder;
             },
-            order() {
+            in(column: string, value: unknown[]) {
+              log.filters.push(['in', column, value]);
+              return builder;
+            },
+            order(column: string, options?: { ascending?: boolean }) {
+              log.orders.push({ column, ascending: options?.ascending });
               return builder;
             },
             limit(value: number) {
@@ -503,6 +552,169 @@ describe('authoritative tryout journey projection', () => {
     });
   });
 
+  it('keeps partial evaluation coverage actionable with truthful expected counts', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 1,
+      expectedEvaluationCount: 2,
+      evaluatorAssignmentExists: true,
+    });
+
+    expect(journey.stages.find((stage) => stage.id === 'run')).toMatchObject({
+      status: 'in-progress',
+      supportingText: expect.stringContaining('1 of 2 evaluations complete'),
+      primaryAction: {
+        label: 'Open live dashboard',
+        href: `/app/badlands/tryouts/${tryoutId}/live`,
+      },
+    });
+    expect(journey).toMatchObject({
+      nextStage: 'run',
+      primaryAction: { label: 'Open live dashboard' },
+    });
+  });
+
+  it('fails the run stage closed when expected evaluation coverage is malformed', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 1,
+      expectedEvaluationCount: '2',
+      evaluatorAssignmentExists: true,
+    });
+
+    expect(journey.stages.find((stage) => stage.id === 'run')).toMatchObject({
+      status: 'unavailable',
+      supportingText: 'Operational counts unavailable',
+    });
+  });
+
+  it('requires the latest roster for every configured division before decisions complete', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 2,
+      divisionIds: [divisionAId, divisionBId],
+      rosterVersions: [
+        {
+          id: finalizedRosterAId,
+          division_id: divisionAId,
+          state: 'finalized',
+          revision_number: 2,
+        },
+        {
+          id: finalizedRosterBId,
+          division_id: divisionBId,
+          state: 'finalized',
+          revision_number: 2,
+        },
+        {
+          id: '33333333-3333-4333-8333-333333333332',
+          division_id: divisionBId,
+          state: 'draft',
+          revision_number: 3,
+        },
+      ],
+    });
+
+    expect(journey.stages.find((stage) => stage.id === 'decide')).toMatchObject({
+      status: 'in-progress',
+      supportingText: expect.stringContaining('1 of 2 divisions finalized'),
+      primaryAction: { label: 'Continue roster' },
+    });
+    expect(journey.stages.find((stage) => stage.id === 'complete')).toMatchObject({
+      status: 'in-progress',
+      supportingText: expect.stringContaining('1 of 2 divisions finalized'),
+      primaryAction: { label: 'Build rosters' },
+    });
+  });
+
+  it('keeps mixed multi-division communication evidence actionable', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 2,
+      divisionIds: [divisionAId, divisionBId],
+      rosterVersions: [
+        {
+          id: finalizedRosterAId,
+          division_id: divisionAId,
+          state: 'finalized',
+          revision_number: 2,
+        },
+        {
+          id: finalizedRosterBId,
+          division_id: divisionBId,
+          state: 'finalized',
+          revision_number: 4,
+        },
+      ],
+      communicationMessages: [
+        { source_roster_version_id: finalizedRosterAId, state: 'delivered' },
+        { source_roster_version_id: finalizedRosterBId, state: 'queued' },
+      ],
+    });
+    const complete = journey.stages.find((stage) => stage.id === 'complete');
+
+    expect(complete).toMatchObject({
+      status: 'in-progress',
+      supportingText: expect.stringContaining('2 finalized rosters ready'),
+      primaryAction: { label: 'Review communication' },
+    });
+    expect(complete?.supportingText).toContain('1 queued');
+    expect(complete?.supportingText).toContain('1 delivered');
+  });
+
+  it('completes multi-division communication only with delivered evidence for every roster', async () => {
+    const baseFixture: Fixture = {
+      status: 'published',
+      participantCount: 4,
+      sessionCount: 1,
+      completedEvaluationCount: 2,
+      divisionIds: [divisionAId, divisionBId],
+      rosterVersions: [
+        {
+          id: finalizedRosterAId,
+          division_id: divisionAId,
+          state: 'finalized',
+          revision_number: 2,
+        },
+        {
+          id: finalizedRosterBId,
+          division_id: divisionBId,
+          state: 'finalized',
+          revision_number: 4,
+        },
+      ],
+    };
+    const missingEvidence = await loadFixtureJourney({
+      ...baseFixture,
+      communicationMessages: [{ source_roster_version_id: finalizedRosterAId, state: 'delivered' }],
+    });
+    const delivered = await loadFixtureJourney({
+      ...baseFixture,
+      communicationMessages: [
+        { source_roster_version_id: finalizedRosterAId, state: 'delivered' },
+        { source_roster_version_id: finalizedRosterBId, state: 'delivered' },
+      ],
+    });
+
+    expect(missingEvidence.stages.find((stage) => stage.id === 'complete')).toMatchObject({
+      status: 'in-progress',
+      primaryAction: { label: 'Review communication' },
+    });
+    expect(delivered.stages.find((stage) => stage.id === 'complete')).toMatchObject({
+      status: 'complete',
+      supportingText: expect.stringContaining('2 finalized rosters ready'),
+      primaryAction: { label: 'Review reports' },
+    });
+  });
+
   it('keeps check-in reachable without duplicating the primary live action after evaluations complete', async () => {
     const journey = await loadFixtureJourney({
       status: 'published',
@@ -533,7 +745,7 @@ describe('authoritative tryout journey projection', () => {
     ]);
   });
 
-  it('uses exact head counts and limit-one state reads within both tenant keys', async () => {
+  it('uses exact counts plus deterministic bounded division and roster reads within both tenant keys', async () => {
     const { client, logs, rpcLogs } = fakeClient({
       status: 'published',
       participantCount: 2,
@@ -599,13 +811,41 @@ describe('authoritative tryout journey projection', () => {
     ).toBe(true);
     expect(
       logs
-        .filter((log) => !log.options?.head && log.table !== 'communication_messages')
+        .filter(
+          (log) =>
+            !log.options?.head &&
+            !['tryout_divisions', 'roster_versions', 'communication_messages'].includes(log.table),
+        )
         .every((log) => log.limit === 1),
     ).toBe(true);
-    expect(logs.find((log) => log.table === 'communication_messages')).toMatchObject({
-      columns: 'state',
+    expect(logs.find((log) => log.table === 'tryout_divisions')).toMatchObject({
+      columns: 'id',
+      options: { count: 'exact' },
+      limit: 100,
+      orders: [
+        { column: 'sort_order', ascending: true },
+        { column: 'id', ascending: true },
+      ],
+    });
+    expect(logs.find((log) => log.table === 'roster_versions')).toMatchObject({
+      columns: 'id,division_id,state,revision_number',
       options: { count: 'exact' },
       limit: 500,
+      orders: [
+        { column: 'division_id', ascending: true },
+        { column: 'revision_number', ascending: false },
+        { column: 'id', ascending: true },
+      ],
+    });
+    expect(logs.find((log) => log.table === 'communication_messages')).toMatchObject({
+      columns: 'source_roster_version_id,state',
+      options: { count: 'exact' },
+      limit: 500,
+      filters: expect.arrayContaining([['in', 'source_roster_version_id', [finalizedRosterAId]]]),
+      orders: [
+        { column: 'source_roster_version_id', ascending: true },
+        { column: 'id', ascending: true },
+      ],
     });
   });
 

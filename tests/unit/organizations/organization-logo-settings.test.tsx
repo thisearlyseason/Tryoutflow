@@ -5,22 +5,23 @@ import { OrganizationLogoSettings } from '../../../src/modules/organizations/com
 
 const uploadAction = vi.fn(async (_formData: FormData) => undefined);
 const removeAction = vi.fn(async (_formData: FormData) => undefined);
+const logoUrl = '/api/organizations/badlands-hockey-academy/logo?v=2026-09-01T17%3A00%3A00.000Z';
 
 describe('OrganizationLogoSettings', () => {
   it('shows a safe fallback and an explicit constrained upload form', () => {
     render(
       <OrganizationLogoSettings
         canManage
-        hasLogo={false}
         organizationName="Badlands Hockey Academy"
-        organizationSlug="badlands-hockey-academy"
         removeAction={removeAction}
         uploadAction={uploadAction}
       />,
     );
 
     expect(screen.getByRole('heading', { name: 'Organization logo' })).toBeVisible();
-    expect(screen.getByLabelText('Badlands Hockey Academy logo fallback')).toHaveTextContent('TF');
+    expect(screen.getByRole('img', { name: 'Badlands Hockey Academy logo' })).toHaveTextContent(
+      'TF',
+    );
     expect(screen.getByText(/PNG, JPEG, or WebP up to 2 MiB/i)).toBeVisible();
     expect(screen.getByText(/square image is recommended/i)).toBeVisible();
     const input = screen.getByLabelText('Choose logo');
@@ -38,9 +39,8 @@ describe('OrganizationLogoSettings', () => {
     render(
       <OrganizationLogoSettings
         canManage
-        hasLogo
+        logoUrl={logoUrl}
         organizationName="Badlands Hockey Academy"
-        organizationSlug="badlands-hockey-academy"
         removeAction={removeAction}
         uploadAction={uploadAction}
       />,
@@ -48,7 +48,7 @@ describe('OrganizationLogoSettings', () => {
 
     expect(screen.getByRole('img', { name: 'Badlands Hockey Academy logo' })).toHaveAttribute(
       'src',
-      expect.stringContaining('/api/organizations/badlands-hockey-academy/logo'),
+      expect.stringContaining(logoUrl),
     );
     const replace = screen.getByRole('button', { name: 'Replace logo' });
     const remove = screen.getByRole('button', { name: 'Remove logo' });
@@ -56,13 +56,12 @@ describe('OrganizationLogoSettings', () => {
     expect(remove.closest('form')).not.toBe(replace.closest('form'));
   });
 
-  it('replaces a failed current preview with the reusable TF fallback', () => {
-    render(
+  it('resets a failed preview for a new authoritative version and after removal', () => {
+    const { rerender } = render(
       <OrganizationLogoSettings
         canManage
-        hasLogo
+        logoUrl={logoUrl}
         organizationName="Badlands Hockey Academy"
-        organizationSlug="badlands-hockey-academy"
         removeAction={removeAction}
         uploadAction={uploadAction}
       />,
@@ -70,19 +69,46 @@ describe('OrganizationLogoSettings', () => {
 
     fireEvent.error(screen.getByRole('img', { name: 'Badlands Hockey Academy logo' }));
 
-    expect(
-      screen.getByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
-    ).toHaveTextContent('TF');
-    expect(screen.queryByRole('img', { name: 'Badlands Hockey Academy logo' })).toBeNull();
+    expect(screen.getByRole('img', { name: 'Badlands Hockey Academy logo' })).toHaveTextContent(
+      'TF',
+    );
+
+    const replacementUrl =
+      '/api/organizations/badlands-hockey-academy/logo?v=2026-09-02T08%3A30%3A00.000Z';
+    rerender(
+      <OrganizationLogoSettings
+        canManage
+        logoUrl={replacementUrl}
+        organizationName="Badlands Hockey Academy"
+        removeAction={removeAction}
+        uploadAction={uploadAction}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'Badlands Hockey Academy logo' })).toHaveAttribute(
+      'src',
+      expect.stringContaining(replacementUrl),
+    );
+
+    rerender(
+      <OrganizationLogoSettings
+        canManage
+        organizationName="Badlands Hockey Academy"
+        removeAction={removeAction}
+        uploadAction={uploadAction}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'Badlands Hockey Academy logo' })).toHaveTextContent(
+      'TF',
+    );
+    expect(screen.queryByRole('button', { name: 'Remove logo' })).not.toBeInTheDocument();
   });
 
   it('does not render mutation controls for a member without organization-update capability', () => {
     render(
       <OrganizationLogoSettings
         canManage={false}
-        hasLogo
+        logoUrl={logoUrl}
         organizationName="Badlands Hockey Academy"
-        organizationSlug="badlands-hockey-academy"
         removeAction={removeAction}
         uploadAction={uploadAction}
       />,
@@ -103,9 +129,8 @@ describe('OrganizationLogoSettings', () => {
     render(
       <OrganizationLogoSettings
         canManage
-        hasLogo
+        logoUrl={logoUrl}
         organizationName="Badlands Hockey Academy"
-        organizationSlug="badlands-hockey-academy"
         removeAction={removeAction}
         status={status}
         uploadAction={uploadAction}

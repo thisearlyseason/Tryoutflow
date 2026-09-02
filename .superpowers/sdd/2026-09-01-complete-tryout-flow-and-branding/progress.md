@@ -71,6 +71,12 @@ Task 7: complete (commits f09c25f..2ba38dc, all review findings closed; fresh fi
 
 Task 8: Ruling: stop only the exact pre-existing main-worktree Next server owning 127.0.0.1:3112 after revalidating its PID/cwd/command, so the canonical release gate can own the default port; restore the final merged application afterward — if wrong, the cost is a temporary interruption of the local demo server, with no persisted data deletion.
 
+Task 8: complete (commits 2ba38dc..387a364, independent release-evidence review clean)
+
+Final whole-branch review: Important — authenticated direct logo RPC bypasses Sharp normalization; Important — one completed evaluation falsely completes Run; Important — one arbitrary finalized division roster can complete a multi-division tryout; Important — branded E2E finalizes decisions before evaluation; Minor — logo accessible names repeat adjacent organization text; Minor — settings preview uses an unversioned URL. One final TDD fix wave authorized before scoped re-review.
+
+Final whole-branch fix wave: complete on exact base `387a3646cb6c11e0963ca14e1dc50dd58cad5ecf`. All six findings are closed with additive migration 101, owning focused regressions, full unit/pgTAP/twice-integration/contracts/static/build gates, exact five-project branded acceptance, audit/secret/diff checks, final unseeded reset, and zero-residue proof. Exact evidence and immutable hashes are recorded in `final-fix-report.md`.
+
 Task 7 review round 1 remediation: implemented in `6e53fb39872b4a228f3ea38ac602cc5c800adfae`; exact abuse/bot-key cleanup preserves sentinels, clock-relative timezone bounds persist, the authored tryout owns staffing/evaluation/decision/roster/message/report proof, and distinct replacement/fallback branding is verified; focused Chromium 1/1 and exact five-project matrix 5/5 pass with zero retries/skips on approved alternate 3217. Awaiting fresh scoped re-review; Task 8 must still prove canonical 3112 after PID 54263 is owner-stopped.
 
 Task 6 review round 1 remediation: implemented in `a05db5251ce5f02752d3fba3d3cdff4d51d58bf9`; all four findings have focused regressions and are awaiting fresh scoped re-review.

@@ -33,33 +33,43 @@ describe('public registration branding', () => {
   });
 
   it('renders the published organization identity before the tryout name', async () => {
-    render(<RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />);
+    const { container } = render(
+      <RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />,
+    );
 
     const organizationName = await screen.findByText('Badlands Hockey Academy');
     const tryoutHeading = screen.getByRole('heading', {
       name: 'Register for U15 Fall Evaluations',
     });
-    const mark = screen.getByRole('img', { name: 'Badlands Hockey Academy logo' });
+    const mark = container.querySelector<HTMLImageElement>('.registration-header img');
 
     expect(mark).toHaveAttribute(
       'src',
       expect.stringContaining('/api/organizations/badlands-hockey-academy/logo'),
     );
+    expect(mark).toHaveAttribute('alt', '');
+    expect(mark).toHaveAttribute('aria-hidden', 'true');
+    expect(screen.queryByRole('img', { name: /Badlands Hockey Academy/iu })).toBeNull();
     expect(
       organizationName.compareDocumentPosition(tryoutHeading) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
 
   it('replaces an unavailable public logo with the TF mark without retrying it', async () => {
-    render(<RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />);
+    const { container } = render(
+      <RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />,
+    );
 
-    const mark = await screen.findByRole('img', { name: 'Badlands Hockey Academy logo' });
+    await screen.findByText('Badlands Hockey Academy');
+    const mark = container.querySelector<HTMLImageElement>('.registration-header img');
+    if (!mark) throw new Error('expected decorative organization logo');
     fireEvent.error(mark);
 
-    expect(
-      screen.getByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
-    ).toHaveTextContent('TF');
-    expect(screen.queryByRole('img', { name: 'Badlands Hockey Academy logo' })).toBeNull();
+    const fallback = container.querySelector('.registration-header [aria-hidden="true"]');
+    expect(fallback).toHaveTextContent('TF');
+    expect(fallback).not.toHaveAttribute('role');
+    expect(container.querySelector('.registration-header img')).toBeNull();
+    expect(screen.queryByRole('img', { name: /Badlands Hockey Academy/iu })).toBeNull();
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -74,11 +84,14 @@ describe('public registration branding', () => {
       ),
     );
 
-    render(<RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />);
+    const { container } = render(
+      <RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />,
+    );
 
-    expect(
-      await screen.findByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
-    ).toHaveTextContent('TF');
-    expect(screen.queryByRole('img', { name: 'Badlands Hockey Academy logo' })).toBeNull();
+    await screen.findByText('Badlands Hockey Academy');
+    const fallback = container.querySelector('.registration-header [aria-hidden="true"]');
+    expect(fallback).toHaveTextContent('TF');
+    expect(fallback).not.toHaveAttribute('role');
+    expect(screen.queryByRole('img', { name: /Badlands Hockey Academy/iu })).toBeNull();
   });
 });

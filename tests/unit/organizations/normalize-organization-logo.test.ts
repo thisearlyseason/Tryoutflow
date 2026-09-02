@@ -152,6 +152,7 @@ describe('updateOrganizationLogo', () => {
         },
       });
       expect(logoGateway.upsert).toHaveBeenCalledWith({
+        actorUserId,
         organizationId,
         base64: expect.any(String),
         sha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
@@ -213,6 +214,7 @@ describe('updateOrganizationLogo', () => {
       value: { kind: 'updated', sha256: replacement.sha256, byteLength: 27 },
     });
     expect(logoGateway.upsert).toHaveBeenNthCalledWith(2, {
+      actorUserId,
       organizationId,
       base64: replacement.base64,
       sha256: replacement.sha256,

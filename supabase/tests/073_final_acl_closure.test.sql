@@ -236,7 +236,7 @@ select is(
     'save_tryout_wizard_configuration','search_checkin_registrations',
     'search_checkin_registrations_v2','select_tryout_registration_form_version',
     'sync_evaluation_mutation','transfer_organization_ownership','transition_tryout_lifecycle',
-    'upsert_organization_logo','validate_tryout_for_publish'
+    'validate_tryout_for_publish'
   ]::name[],
   'authenticated executes exactly the current production RPC allowlist'
 );
@@ -287,7 +287,7 @@ select is(
     'queue_invitation_communication_v2','queue_registration_confirmation_communication_v2',
     'read_organization_logo_service','record_outbox_job_delivery_uncertain_v2',
     'reissue_registration_confirmation_token','submit_public_registration_v2',
-    'validate_integration_outbox_execution'
+    'upsert_organization_logo_service','validate_integration_outbox_execution'
   ]::name[],
   'service role executes only the audited worker and public-route RPC set'
 );

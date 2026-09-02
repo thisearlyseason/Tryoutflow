@@ -6,8 +6,7 @@ export type OrganizationLogoSettingsStatus =
 
 type OrganizationLogoSettingsProps = {
   organizationName: string;
-  organizationSlug: string;
-  hasLogo: boolean;
+  logoUrl?: string;
   canManage: boolean;
   status?: OrganizationLogoSettingsStatus;
   uploadAction: (formData: FormData) => Promise<void>;
@@ -25,13 +24,13 @@ const statusMessages: Record<OrganizationLogoSettingsStatus, string> = {
 
 export function OrganizationLogoSettings({
   organizationName,
-  organizationSlug,
-  hasLogo,
+  logoUrl,
   canManage,
   status,
   uploadAction,
   removeAction,
 }: OrganizationLogoSettingsProps) {
+  const hasLogo = Boolean(logoUrl);
   return (
     <section aria-labelledby="organization-logo-heading" className="mt-8">
       <h2 id="organization-logo-heading">Organization logo</h2>
@@ -45,13 +44,7 @@ export function OrganizationLogoSettings({
         </p>
       ) : null}
       <div className="mt-4 flex min-h-32 w-48 items-center justify-center overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3">
-        <OrganizationMark
-          name={organizationName}
-          logoUrl={
-            hasLogo ? `/api/organizations/${encodeURIComponent(organizationSlug)}/logo` : undefined
-          }
-          size={112}
-        />
+        <OrganizationMark accessible name={organizationName} logoUrl={logoUrl} size={112} />
       </div>
       {canManage ? (
         <div className="mt-4 flex min-w-0 flex-wrap items-end gap-3">

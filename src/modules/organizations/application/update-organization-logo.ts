@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { createAdminSupabaseClient } from '../../../infrastructure/supabase/admin';
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
 import type { OrganizationId, UserId } from '../../../lib/ids';
 import { failure, success, type AppResult } from '../../../lib/result';
@@ -21,6 +22,7 @@ export type LogoError = Readonly<{
 export type OrganizationLogoGateway = {
   upsert(
     input: Readonly<{
+      actorUserId: UserId;
       organizationId: OrganizationId;
       base64: string;
       sha256: string;
@@ -39,11 +41,13 @@ type LogoDependencies = {
 const organizationIdSchema = z.uuid();
 
 async function defaultGateway(): Promise<OrganizationLogoGateway> {
-  const client = await createServerSupabaseClient();
+  const authenticatedClient = await createServerSupabaseClient();
+  const serviceClient = createAdminSupabaseClient();
   return {
     async upsert(input) {
-      const result = await client.rpc('upsert_organization_logo', {
+      const result = await serviceClient.rpc('upsert_organization_logo_service', {
         p_organization_id: input.organizationId,
+        p_actor_user_id: input.actorUserId,
         p_content_base64: input.base64,
         p_sha256: input.sha256,
       });
@@ -53,7 +57,7 @@ async function defaultGateway(): Promise<OrganizationLogoGateway> {
       return result.data;
     },
     async remove(input) {
-      const result = await client.rpc('remove_organization_logo', {
+      const result = await authenticatedClient.rpc('remove_organization_logo', {
         p_organization_id: input.organizationId,
       });
       if (result.error || typeof result.data !== 'string') {
@@ -102,6 +106,7 @@ export async function updateOrganizationLogo(
     if (!file) return failure({ code: 'invalid_file' });
     const normalized = await (dependencies.normalize ?? normalizeOrganizationLogo)(file);
     const outcome = await gateway.upsert({
+      actorUserId: actor.userId,
       organizationId,
       base64: normalized.base64,
       sha256: normalized.sha256,

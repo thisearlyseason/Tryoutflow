@@ -111,12 +111,12 @@ describe('role-aware application navigation', () => {
       'aria-current',
       'page',
     );
-    expect(
-      screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
-    ).toHaveLength(2);
-    expect(
-      screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo fallback' })[0],
-    ).toHaveTextContent('TF');
+    expect(screen.queryByRole('img', { name: /Badlands Hockey Academy/iu })).toBeNull();
+    const marks = document.querySelectorAll(
+      '.app-organization [aria-hidden="true"], .mobile-organization [aria-hidden="true"]',
+    );
+    expect(marks).toHaveLength(2);
+    for (const mark of marks) expect(mark).toHaveTextContent('TF');
   });
 
   it('renders the current organization logo in desktop and mobile navigation and falls back on failure', () => {
@@ -138,21 +138,28 @@ describe('role-aware application navigation', () => {
       </AppShell>,
     );
 
-    const logos = screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo' });
+    expect(screen.queryByRole('img', { name: /Badlands Hockey Academy/iu })).toBeNull();
+    const logos = document.querySelectorAll<HTMLImageElement>(
+      '.app-organization img, .mobile-organization img',
+    );
     expect(logos).toHaveLength(2);
     for (const logo of logos) {
       expect(logo).toHaveAttribute(
         'src',
         expect.stringContaining('/api/organizations/badlands/logo?v=2026-09-01T17%3A00%3A00.000Z'),
       );
+      expect(logo).toHaveAttribute('alt', '');
+      expect(logo).toHaveAttribute('aria-hidden', 'true');
     }
 
     fireEvent.error(logos[0]!);
 
     expect(
-      screen.getByRole('img', { name: 'Badlands Hockey Academy logo fallback' }),
-    ).toHaveTextContent('TF');
-    expect(screen.getAllByRole('img', { name: 'Badlands Hockey Academy logo' })).toHaveLength(1);
+      document.querySelectorAll('.app-organization img, .mobile-organization img'),
+    ).toHaveLength(1);
+    const fallback = document.querySelector('.app-organization [aria-hidden="true"]');
+    expect(fallback).toHaveTextContent('TF');
+    expect(fallback).not.toHaveAttribute('role');
   });
 
   it('groups secondary mobile destinations without presenting category numbers as workflow steps', async () => {

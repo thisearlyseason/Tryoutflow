@@ -37,13 +37,6 @@ export default async function SettingsPage({
   const { organizationSlug } = await params;
   const search = await searchParams;
   const current = await requireCurrentOrganization(organizationSlug);
-  const logoMetadata = await current.client.rpc('get_organization_logo_metadata', {
-    p_organization_id: current.organization.id,
-  });
-  const hasLogo =
-    !logoMetadata.error &&
-    logoMetadata.data?.length === 1 &&
-    logoMetadata.data[0]?.logo_exists === true;
   const canManageLogo = can(current.authorization, 'organization:update', {
     organizationId: current.organization.id,
   });
@@ -141,9 +134,8 @@ export default async function SettingsPage({
       </form>
       <OrganizationLogoSettings
         canManage={canManageLogo}
-        hasLogo={hasLogo}
+        logoUrl={current.organization.logoUrl}
         organizationName={current.organization.name}
-        organizationSlug={organizationSlug}
         removeAction={removeLogo}
         status={logoStatusFromSearchParams(search.logo, search.logoError)}
         uploadAction={uploadLogo}

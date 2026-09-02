@@ -51,12 +51,16 @@ function authorization(
 }
 
 function rpcGateway(actorUserId: UserId): OrganizationLogoGateway {
-  const call = async (sql: string) => {
+  const call = async (role: 'authenticated' | 'service_role', sql: string) => {
     const { stdout } = await psql(`
       begin;
-      set local role authenticated;
-      set local "request.jwt.claim.role"='authenticated';
-      set local "request.jwt.claim.sub"='${actorUserId}';
+      set local role ${role};
+      ${
+        role === 'authenticated'
+          ? `set local "request.jwt.claim.role"='authenticated';
+             set local "request.jwt.claim.sub"='${actorUserId}';`
+          : ''
+      }
       create temporary table organization_logo_rpc_result on commit preserve rows as ${sql};
       commit;
       table organization_logo_rpc_result;
@@ -64,10 +68,13 @@ function rpcGateway(actorUserId: UserId): OrganizationLogoGateway {
     return stdout.trim().split('\n').at(-1) ?? '';
   };
   return {
-    upsert: ({ organizationId, base64, sha256 }) =>
-      call(`select public.upsert_organization_logo('${organizationId}','${base64}','${sha256}')`),
+    upsert: ({ actorUserId: requestedActorUserId, organizationId, base64, sha256 }) =>
+      call(
+        'service_role',
+        `select public.upsert_organization_logo_service('${organizationId}','${requestedActorUserId}','${base64}','${sha256}')`,
+      ),
     remove: ({ organizationId }) =>
-      call(`select public.remove_organization_logo('${organizationId}')`),
+      call('authenticated', `select public.remove_organization_logo('${organizationId}')`),
   };
 }
 
@@ -202,11 +209,15 @@ describe('organization logo application boundary against PostgreSQL', () => {
         ).stdout.trim(),
       ).toBe(beforeFailure);
 
+      await psql(`
+        update public.organization_members set status='disabled'
+        where organization_id='${organizationId}' and user_id='${administratorId}'
+      `);
       await expect(
         updateOrganizationLogo(
           { organizationId, file: await logoFile({ r: 0, g: 0, b: 0 }) },
-          owner,
-          { gateway: rpcGateway(memberId) },
+          administrator,
+          { gateway: rpcGateway(administratorId) },
         ),
       ).resolves.toEqual({ ok: false, error: { code: 'forbidden' } });
       expect(
@@ -216,6 +227,10 @@ describe('organization logo application boundary against PostgreSQL', () => {
           )
         ).stdout.trim(),
       ).toBe(replaced.value.sha256);
+      await psql(`
+        update public.organization_members set status='active'
+        where organization_id='${organizationId}' and user_id='${administratorId}'
+      `);
 
       const auditBeforeRemoval = (
         await psql(`

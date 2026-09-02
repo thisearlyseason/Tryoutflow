@@ -81,7 +81,15 @@ const progressSchema = z
     last_step: z.enum(tryoutSetupSteps),
   })
   .strict();
-const rosterSchema = z.object({ id: z.uuid(), state: z.enum(['draft', 'finalized']) }).strict();
+const divisionSchema = z.object({ id: z.uuid() }).strict();
+const rosterRevisionSchema = z
+  .object({
+    id: z.uuid(),
+    division_id: z.uuid(),
+    state: z.enum(['draft', 'finalized']),
+    revision_number: z.number().int().positive().max(1_000_000_000),
+  })
+  .strict();
 const evaluatorAssignmentSchema = z
   .object({
     assignment_id: z.uuid(),
@@ -107,11 +115,23 @@ const communicationStates = [
   'suppressed',
   'complained',
 ] as const;
-const communicationStateSchema = z.object({ state: z.enum(communicationStates) }).strict();
+const communicationStateSchema = z
+  .object({
+    source_roster_version_id: z.uuid(),
+    state: z.enum(communicationStates),
+  })
+  .strict();
+const maximumJourneyDivisions = 100;
+const maximumJourneyRosterVersions = 500;
 const maximumJourneyCommunicationRows = 500;
 const countSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 type QueryResult = { data: unknown; error: unknown; count?: number | null };
+type RosterRevision = z.infer<typeof rosterRevisionSchema>;
+type RosterEvidence = {
+  divisionIds: string[];
+  latestByDivision: Map<string, RosterRevision>;
+};
 
 async function loadOperationalCounts(client: SupabaseClient<Database>, scope: TryoutJourneyScope) {
   const result = await new SupabaseLiveDashboardGateway(client).load({
@@ -143,16 +163,61 @@ function parseCount(result: QueryResult): number {
   return parsed.data;
 }
 
-function parseCommunicationStates(result: QueryResult) {
+function parseExactRows<T>(result: QueryResult, schema: z.ZodType<T>, maximumRows: number): T[] {
   if (result.error) throw new TryoutJourneyLoadError('unavailable');
-  const rows = z
-    .array(communicationStateSchema)
-    .max(maximumJourneyCommunicationRows)
-    .safeParse(result.data);
+  const rows = z.array(schema).max(maximumRows).safeParse(result.data);
   const count = countSchema.safeParse(result.count);
   if (!rows.success || !count.success || count.data !== rows.data.length)
     throw new TryoutJourneyLoadError('unavailable');
-  return rows.data.map((row) => row.state);
+  return rows.data;
+}
+
+async function loadRosterEvidence(
+  client: SupabaseClient<Database>,
+  scope: TryoutJourneyScope,
+): Promise<RosterEvidence> {
+  const [divisionsResult, rostersResult] = await Promise.all([
+    client
+      .from('tryout_divisions')
+      .select('id', { count: 'exact' })
+      .eq('organization_id', scope.organizationId)
+      .eq('tryout_id', scope.tryoutId)
+      .order('sort_order', { ascending: true })
+      .order('id', { ascending: true })
+      .limit(maximumJourneyDivisions),
+    client
+      .from('roster_versions')
+      .select('id,division_id,state,revision_number', { count: 'exact' })
+      .eq('organization_id', scope.organizationId)
+      .eq('tryout_id', scope.tryoutId)
+      .order('division_id', { ascending: true })
+      .order('revision_number', { ascending: false })
+      .order('id', { ascending: true })
+      .limit(maximumJourneyRosterVersions),
+  ]);
+  const divisions = parseExactRows(divisionsResult, divisionSchema, maximumJourneyDivisions);
+  const rosterVersions = parseExactRows(
+    rostersResult,
+    rosterRevisionSchema,
+    maximumJourneyRosterVersions,
+  );
+  const divisionIds = divisions.map((division) => division.id);
+  const divisionSet = new Set(divisionIds);
+  if (divisionSet.size !== divisionIds.length) throw new TryoutJourneyLoadError('unavailable');
+
+  const latestByDivision = new Map<string, RosterRevision>();
+  const seenRevisions = new Set<string>();
+  for (const roster of rosterVersions) {
+    if (!divisionSet.has(roster.division_id)) throw new TryoutJourneyLoadError('unavailable');
+    const revisionKey = `${roster.division_id}:${roster.revision_number}`;
+    if (seenRevisions.has(revisionKey)) throw new TryoutJourneyLoadError('unavailable');
+    seenRevisions.add(revisionKey);
+    const current = latestByDivision.get(roster.division_id);
+    if (!current || roster.revision_number > current.revision_number) {
+      latestByDivision.set(roster.division_id, roster);
+    }
+  }
+  return { divisionIds, latestByDivision };
 }
 
 function unavailableStage(
@@ -338,12 +403,13 @@ async function loadRunStage(
     const evaluatorAssignment = parseOne(evaluatorAssignmentsResult, evaluatorAssignmentSchema);
     const checkinCount = operations.checkedIn;
     const evaluationCount = operations.completedEvaluations;
+    const expectedEvaluationCount = operations.expectedEvaluations;
     const evaluatorText = operations.activeEvaluators
       ? plural(operations.activeEvaluators, 'active evaluator')
       : evaluatorAssignment
         ? 'Evaluator assigned'
         : 'No evaluator assigned';
-    const supportingText = `${plural(sessionCount, 'session')} · ${evaluatorText} · ${plural(checkinCount, 'check-in')} · ${plural(evaluationCount, 'completed evaluation')}`;
+    const supportingText = `${plural(sessionCount, 'session')} · ${evaluatorText} · ${plural(checkinCount, 'check-in')} · ${evaluationCount} of ${expectedEvaluationCount} evaluations complete`;
     if (participantCount === 0) {
       return {
         ...base,
@@ -374,18 +440,29 @@ async function loadRunStage(
         blocker: 'Assign at least one evaluator before running sessions.',
       };
     }
-    return evaluationCount === 0
-      ? { ...base, status: 'ready', supportingText }
-      : {
-          ...base,
-          status: 'complete',
-          supportingText,
-          primaryAction: { label: 'Open live dashboard', href: `${baseHref}/live` },
-          secondaryActions: [
-            { label: 'Open check-in', href: `${baseHref}/check-in` },
-            { label: 'Review sessions', href: `${baseHref}/sessions` },
-          ],
-        };
+    if (expectedEvaluationCount > 0 && evaluationCount >= expectedEvaluationCount) {
+      return {
+        ...base,
+        status: 'complete',
+        supportingText,
+        primaryAction: { label: 'Open live dashboard', href: `${baseHref}/live` },
+        secondaryActions: [
+          { label: 'Open check-in', href: `${baseHref}/check-in` },
+          { label: 'Review sessions', href: `${baseHref}/sessions` },
+        ],
+      };
+    }
+    if (evaluationCount === 0) return { ...base, status: 'ready', supportingText };
+    return {
+      ...base,
+      status: 'in-progress',
+      supportingText,
+      primaryAction: { label: 'Open live dashboard', href: `${baseHref}/live` },
+      secondaryActions: [
+        { label: 'Open check-in', href: `${baseHref}/check-in` },
+        { label: 'Review sessions', href: `${baseHref}/sessions` },
+      ],
+    };
   } catch {
     return unavailableStage(base, 'Operational counts unavailable');
   }
@@ -396,6 +473,7 @@ async function loadDecideStage(
   scope: TryoutJourneyScope,
   status: TryoutJourney['tryout']['status'],
   baseHref: string,
+  rosterEvidence: () => Promise<RosterEvidence>,
 ): Promise<JourneyStage> {
   const base = {
     id: 'decide' as const,
@@ -427,33 +505,27 @@ async function loadDecideStage(
     );
   }
   try {
-    const [operations, draftRosterResult, finalizedRosterResult] = await Promise.all([
+    const [operations, rosters] = await Promise.all([
       loadOperationalCounts(client, scope),
-      client
-        .from('roster_versions')
-        .select('id,state')
-        .eq('organization_id', scope.organizationId)
-        .eq('tryout_id', scope.tryoutId)
-        .eq('state', 'draft')
-        .order('revision_number', { ascending: false })
-        .limit(1),
-      client
-        .from('roster_versions')
-        .select('id,state')
-        .eq('organization_id', scope.organizationId)
-        .eq('tryout_id', scope.tryoutId)
-        .eq('state', 'finalized')
-        .order('revision_number', { ascending: false })
-        .limit(1),
+      rosterEvidence(),
     ]);
     const evaluationCount = operations.completedEvaluations;
-    const draftRoster = parseOne(draftRosterResult, rosterSchema);
-    const finalizedRoster = parseOne(finalizedRosterResult, rosterSchema);
-    if (finalizedRoster) {
+    const requiredDivisionCount = rosters.divisionIds.length;
+    if (requiredDivisionCount === 0) {
+      return unavailableStage(base, 'Decision division scope unavailable');
+    }
+    const latestRosters = rosters.divisionIds.flatMap((divisionId) => {
+      const roster = rosters.latestByDivision.get(divisionId);
+      return roster ? [roster] : [];
+    });
+    const finalizedCount = latestRosters.filter((roster) => roster.state === 'finalized').length;
+    const draftCount = latestRosters.filter((roster) => roster.state === 'draft').length;
+    const coverageText = `${finalizedCount} of ${requiredDivisionCount} divisions finalized`;
+    if (finalizedCount === requiredDivisionCount) {
       return {
         ...base,
         status: 'complete',
-        supportingText: `${plural(evaluationCount, 'completed evaluation')} · Finalized roster recorded`,
+        supportingText: `${plural(evaluationCount, 'completed evaluation')} · ${coverageText}`,
         primaryAction: { label: 'Review roster', href: `${baseHref}/rosters` },
       };
     }
@@ -465,18 +537,19 @@ async function loadDecideStage(
         blocker: 'Complete at least one evaluation before making decisions.',
       };
     }
-    return draftRoster
-      ? {
-          ...base,
-          status: 'in-progress',
-          supportingText: `${plural(evaluationCount, 'completed evaluation')} · Roster draft in progress`,
-          primaryAction: { label: 'Continue roster', href: `${baseHref}/rosters` },
-        }
-      : {
-          ...base,
-          status: 'ready',
-          supportingText: `${plural(evaluationCount, 'completed evaluation')} ready for review`,
-        };
+    if (latestRosters.length > 0) {
+      return {
+        ...base,
+        status: 'in-progress',
+        supportingText: `${plural(evaluationCount, 'completed evaluation')} · ${coverageText}${draftCount > 0 ? ` · ${plural(draftCount, 'roster draft')}` : ''}`,
+        primaryAction: { label: 'Continue roster', href: `${baseHref}/rosters` },
+      };
+    }
+    return {
+      ...base,
+      status: 'ready',
+      supportingText: `${plural(evaluationCount, 'completed evaluation')} ready for review · ${coverageText}`,
+    };
   } catch {
     return unavailableStage(base, 'Decision evidence unavailable');
   }
@@ -487,6 +560,7 @@ async function loadCompleteStage(
   scope: TryoutJourneyScope,
   status: TryoutJourney['tryout']['status'],
   baseHref: string,
+  rosterEvidence: () => Promise<RosterEvidence>,
 ): Promise<JourneyStage> {
   const base = {
     id: 'complete' as const,
@@ -521,16 +595,16 @@ async function loadCompleteStage(
     );
   }
   try {
-    const finalizedResult = await client
-      .from('roster_versions')
-      .select('id,state')
-      .eq('organization_id', scope.organizationId)
-      .eq('tryout_id', scope.tryoutId)
-      .eq('state', 'finalized')
-      .order('revision_number', { ascending: false })
-      .limit(1);
-    const finalizedRoster = parseOne(finalizedResult, rosterSchema);
-    if (!finalizedRoster) {
+    const rosters = await rosterEvidence();
+    const requiredDivisionCount = rosters.divisionIds.length;
+    if (requiredDivisionCount === 0) {
+      return unavailableStage(base, 'Final roster division scope unavailable');
+    }
+    const finalizedRosters = rosters.divisionIds.flatMap((divisionId) => {
+      const roster = rosters.latestByDivision.get(divisionId);
+      return roster?.state === 'finalized' ? [roster] : [];
+    });
+    if (finalizedRosters.length === 0) {
       return {
         ...base,
         status: 'not-started',
@@ -538,54 +612,85 @@ async function loadCompleteStage(
         blocker: 'Finalize a roster before communicating decisions.',
       };
     }
+    if (finalizedRosters.length < requiredDivisionCount) {
+      return {
+        ...base,
+        status: 'in-progress',
+        supportingText: `${finalizedRosters.length} of ${requiredDivisionCount} divisions finalized`,
+        blocker: 'Finalize every division roster before communicating decisions.',
+      };
+    }
+    const readyText =
+      finalizedRosters.length === 1
+        ? 'Finalized roster ready'
+        : `${finalizedRosters.length} finalized rosters ready`;
     if (!authorize(scope, 'roster:write')) {
       return {
         ...base,
         status: 'ready',
-        supportingText: 'Finalized roster ready',
+        supportingText: readyText,
         primaryAction: { label: 'Review reports', href: `${baseHref}/reports` },
         blocker: 'Your current role cannot send roster decision messages.',
       };
     }
-    let messageStates: Array<(typeof communicationStates)[number]>;
+    let messages: Array<z.infer<typeof communicationStateSchema>>;
     try {
+      const finalizedRosterIds = finalizedRosters.map((roster) => roster.id);
       const messagesResult = await client
         .from('communication_messages')
-        .select('state', { count: 'exact' })
+        .select('source_roster_version_id,state', { count: 'exact' })
         .eq('organization_id', scope.organizationId)
         .eq('source_kind', 'roster_decision')
-        .eq('source_roster_version_id', finalizedRoster.id)
+        .in('source_roster_version_id', finalizedRosterIds)
+        .order('source_roster_version_id', { ascending: true })
+        .order('id', { ascending: true })
         .limit(maximumJourneyCommunicationRows);
-      messageStates = parseCommunicationStates(messagesResult);
+      messages = parseExactRows(
+        messagesResult,
+        communicationStateSchema,
+        maximumJourneyCommunicationRows,
+      );
+      const finalizedRosterIdSet = new Set(finalizedRosterIds);
+      if (messages.some((message) => !finalizedRosterIdSet.has(message.source_roster_version_id))) {
+        throw new TryoutJourneyLoadError('unavailable');
+      }
     } catch {
       return unavailableStage(
         {
           ...base,
           primaryAction: { label: 'Review communication', href: `${baseHref}/messages` },
         },
-        'Finalized roster ready · Communication status unavailable',
+        `${readyText} · Communication status unavailable`,
       );
     }
-    if (messageStates.length === 0)
+    if (messages.length === 0)
       return {
         ...base,
         status: 'ready',
-        supportingText: 'Finalized roster ready · No decision messages queued',
+        supportingText: `${readyText} · No decision messages queued`,
         primaryAction: { label: 'Review communication', href: `${baseHref}/messages` },
       };
     const stateCounts = new Map(communicationStates.map((state) => [state, 0]));
-    for (const state of messageStates) stateCounts.set(state, (stateCounts.get(state) ?? 0) + 1);
+    const rosterIdsWithEvidence = new Set<string>();
+    for (const message of messages) {
+      stateCounts.set(message.state, (stateCounts.get(message.state) ?? 0) + 1);
+      rosterIdsWithEvidence.add(message.source_roster_version_id);
+    }
     const stateText = communicationStates
       .flatMap((state) => {
         const count = stateCounts.get(state) ?? 0;
         return count === 0 ? [] : [`${count} ${state.replaceAll('_', ' ')}`];
       })
       .join(' · ');
-    const allDelivered = stateCounts.get('delivered') === messageStates.length;
+    const allRostersHaveEvidence = rosterIdsWithEvidence.size === finalizedRosters.length;
+    const allDelivered = allRostersHaveEvidence && stateCounts.get('delivered') === messages.length;
+    const evidenceText = allRostersHaveEvidence
+      ? ''
+      : ` · Communication evidence for ${rosterIdsWithEvidence.size} of ${finalizedRosters.length} rosters`;
     return {
       ...base,
       status: allDelivered ? 'complete' : 'in-progress',
-      supportingText: `Finalized roster ready · ${stateText}`,
+      supportingText: `${readyText} · ${stateText}${evidenceText}`,
       primaryAction: allDelivered
         ? { label: 'Review reports', href: `${baseHref}/reports` }
         : { label: 'Review communication', href: `${baseHref}/messages` },
@@ -607,10 +712,10 @@ function recommendedStage(
   const complete = byId.get('complete')!;
   if (status === 'draft') return prepare;
   if (complete.status === 'ready' || complete.status === 'complete') return complete;
-  if (decide.status === 'ready' || decide.status === 'in-progress') return decide;
   if (participants.status === 'not-started' || participants.status === 'unavailable')
     return participants;
   if (run.status !== 'complete') return run;
+  if (decide.status === 'ready' || decide.status === 'in-progress') return decide;
   return decide.status === 'complete' ? complete : decide;
 }
 
@@ -640,12 +745,17 @@ export async function loadTryoutJourney(
   }
   if (!tryout) throw new TryoutJourneyLoadError('not_found');
   const baseHref = `/app/${scope.organizationSlug}/tryouts/${scope.tryoutId}`;
+  let rosterEvidencePromise: Promise<RosterEvidence> | undefined;
+  const rosterEvidence = () => {
+    rosterEvidencePromise ??= loadRosterEvidence(client, scope);
+    return rosterEvidencePromise;
+  };
   const stages = (await Promise.all([
     loadPrepareStage(client, scope, tryout.status, baseHref),
     loadParticipantsStage(client, scope, tryout.status, baseHref),
     loadRunStage(client, scope, tryout.status, baseHref),
-    loadDecideStage(client, scope, tryout.status, baseHref),
-    loadCompleteStage(client, scope, tryout.status, baseHref),
+    loadDecideStage(client, scope, tryout.status, baseHref, rosterEvidence),
+    loadCompleteStage(client, scope, tryout.status, baseHref, rosterEvidence),
   ])) as TryoutJourney['stages'];
   const next = recommendedStage(tryout.status, stages);
   return {

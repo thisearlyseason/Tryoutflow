@@ -30,7 +30,9 @@ select is(coalesce((select relrowsecurity from pg_catalog.pg_class
   'private brand assets retain defense-in-depth RLS');
 
 select has_function('public','upsert_organization_logo',array['uuid','text','text'],
-  'owner and administrator logo upserts use one guarded RPC');
+  'the legacy client byte-taking logo RPC remains catalogued but closed');
+select has_function('public','upsert_organization_logo_service',array['uuid','uuid','text','text'],
+  'trusted server logo upserts use one live-actor guarded RPC');
 select has_function('public','remove_organization_logo',array['uuid'],
   'owner and administrator logo removal uses one guarded RPC');
 select has_function('public','read_organization_logo_service',array['text'],
@@ -39,6 +41,8 @@ select has_function('public','get_organization_logo_metadata',array['uuid'],
   'authenticated layouts use one byte-free metadata RPC');
 select is(pg_catalog.pg_get_function_result(to_regprocedure('public.upsert_organization_logo(uuid,text,text)')),
   'text','logo upsert returns only a closed outcome');
+select is(pg_catalog.pg_get_function_result(to_regprocedure('public.upsert_organization_logo_service(uuid,uuid,text,text)')),
+  'text','trusted server logo upsert returns only a closed outcome');
 select is(pg_catalog.pg_get_function_result(to_regprocedure('public.remove_organization_logo(uuid)')),
   'text','logo removal returns only a closed outcome');
 select is(pg_catalog.pg_get_function_result(to_regprocedure('public.read_organization_logo_service(text)')),
@@ -55,7 +59,13 @@ select table_privs_are('private','organization_brand_assets','anon',array[]::tex
 select table_privs_are('private','organization_brand_assets','service_role',array[]::text[],
   'service delivery cannot bypass the logo read RPC');
 select function_privs_are('public','upsert_organization_logo',array['uuid','text','text'],
-  'authenticated',array['EXECUTE'],'authenticated uses the guarded mutation RPC');
+  'authenticated',array[]::text[],'authenticated clients cannot submit logo bytes directly');
+select function_privs_are('public','upsert_organization_logo_service',array['uuid','uuid','text','text'],
+  'service_role',array['EXECUTE'],'only the trusted server boundary can submit normalized bytes');
+select function_privs_are('public','upsert_organization_logo_service',array['uuid','uuid','text','text'],
+  'authenticated',array[]::text[],'authenticated clients cannot invoke the service mutation command');
+select function_privs_are('public','upsert_organization_logo_service',array['uuid','uuid','text','text'],
+  'anon',array[]::text[],'anonymous callers cannot invoke the service mutation command');
 select function_privs_are('public','remove_organization_logo',array['uuid'],
   'authenticated',array['EXECUTE'],'authenticated uses the guarded removal RPC');
 select function_privs_are('public','read_organization_logo_service',array['text'],
@@ -81,16 +91,17 @@ select function_privs_are('public','get_organization_logo_metadata',array['uuid'
 select is((select count(*) from pg_catalog.pg_proc routine
   where routine.oid in(
     to_regprocedure('public.upsert_organization_logo(uuid,text,text)'),
+    to_regprocedure('public.upsert_organization_logo_service(uuid,uuid,text,text)'),
     to_regprocedure('public.remove_organization_logo(uuid)'),
     to_regprocedure('public.read_organization_logo_service(text)'),
     to_regprocedure('public.get_organization_logo_metadata(uuid)')
-  ) and routine.prosecdef and routine.proconfig=array['search_path=""']::text[]),4::bigint,
+  ) and routine.prosecdef and routine.proconfig=array['search_path=""']::text[]),5::bigint,
   'all public logo boundaries are security definer with fixed empty search paths');
 select is((select count(*) from pg_catalog.pg_proc routine
   join pg_catalog.pg_namespace namespace on namespace.oid=routine.pronamespace
   cross join lateral pg_catalog.aclexplode(coalesce(routine.proacl,pg_catalog.acldefault('f',routine.proowner))) acl
   where namespace.nspname='public'
-    and routine.proname in('upsert_organization_logo','remove_organization_logo',
+    and routine.proname in('upsert_organization_logo','upsert_organization_logo_service','remove_organization_logo',
       'read_organization_logo_service','get_organization_logo_metadata')
     and acl.grantee=0),0::bigint,'PUBLIC receives no logo RPC execution privilege');
 
@@ -113,10 +124,27 @@ insert into public.organization_members(id,organization_id,user_id,role,status) 
 set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','79000000-0000-4000-8000-000000000001',true);
-select is(public.upsert_organization_logo(
+select throws_ok($$select public.upsert_organization_logo(
   '79100000-0000-4000-8000-000000000001','UklGRgQAAABXRUJQ',
   '3fe79651a92ea3850c3fc3dd9519a67c7f70b598fa238a3fd92042f6446e6452'
-),'updated','an owner can create the organization logo');
+)$$,'42501',null,'an authenticated owner cannot bypass normalization through the legacy byte RPC');
+select throws_ok($$select public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000001',
+  'UklGRgQAAABXRUJQ','3fe79651a92ea3850c3fc3dd9519a67c7f70b598fa238a3fd92042f6446e6452'
+)$$,'42501',null,'an authenticated owner cannot call the service mutation command directly');
+reset role;
+select is((select count(*) from private.organization_brand_assets
+  where organization_id='79100000-0000-4000-8000-000000000001'),0::bigint,
+  'direct authenticated pseudo-WebP attempts cannot store corrupt bytes');
+set local role service_role;
+select is(public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000001',
+  'UklGRgQAAABXRUJQ','3fe79651a92ea3850c3fc3dd9519a67c7f70b598fa238a3fd92042f6446e6452'
+),'updated','the trusted server command stores bytes for a currently active owner actor');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role','authenticated',true);
+select set_config('request.jwt.claim.sub','79000000-0000-4000-8000-000000000001',true);
 select throws_ok($$select * from private.organization_brand_assets$$,'42501',null,
   'authenticated clients cannot select logo bytes directly');
 select throws_ok($$insert into private.organization_brand_assets(
@@ -144,27 +172,31 @@ select is((select sha256 from public.get_organization_logo_metadata(
   '79100000-0000-4000-8000-000000000001')),
   '3fe79651a92ea3850c3fc3dd9519a67c7f70b598fa238a3fd92042f6446e6452',
   'an active ordinary member can load byte-free logo metadata');
-select is(public.upsert_organization_logo(
+select throws_ok($$select public.upsert_organization_logo(
   '79100000-0000-4000-8000-000000000001','UklGRgUAAABXRUJQAA==',
   '417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
-),'forbidden','an ordinary member cannot replace the logo');
+)$$,'42501',null,'an ordinary member cannot call the legacy logo byte RPC');
+select throws_ok($$select public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000003',
+  'UklGRgUAAABXRUJQAA==','417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
+)$$,'42501',null,'an ordinary member cannot call the service logo byte RPC');
 select is(public.remove_organization_logo('79100000-0000-4000-8000-000000000001'),
   'forbidden','an ordinary member cannot remove the logo');
 
 select set_config('request.jwt.claim.sub','79000000-0000-4000-8000-000000000004',true);
-select is(public.upsert_organization_logo(
+select throws_ok($$select public.upsert_organization_logo(
   '79100000-0000-4000-8000-000000000001','UklGRgUAAABXRUJQAA==',
   '417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
-),'forbidden','an offboarded administrator cannot replace the logo');
+)$$,'42501',null,'an offboarded administrator cannot call the legacy logo byte RPC');
 select throws_ok($$select * from public.get_organization_logo_metadata(
   '79100000-0000-4000-8000-000000000001')$$,'42501',null,
   'an offboarded member cannot read logo metadata');
 
 select set_config('request.jwt.claim.sub','79000000-0000-4000-8000-000000000005',true);
-select is(public.upsert_organization_logo(
+select throws_ok($$select public.upsert_organization_logo(
   '79100000-0000-4000-8000-000000000001','UklGRgUAAABXRUJQAA==',
   '417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
-),'forbidden','cross-tenant owners receive the same non-oracular mutation denial');
+)$$,'42501',null,'cross-tenant owners cannot call the legacy logo byte RPC');
 select throws_ok($$select * from public.get_organization_logo_metadata(
   '79100000-0000-4000-8000-000000000001')$$,'42501',null,
   'cross-tenant owners cannot read logo metadata');
@@ -176,22 +208,44 @@ select is((select logo_exists::text||':'||coalesce(sha256,'null')||':'||
 select set_config('request.jwt.claim.sub','79000000-0000-4000-8000-000000000002',true);
 select set_config('app.test.logo_first_updated_at',(select updated_at::text
   from public.get_organization_logo_metadata('79100000-0000-4000-8000-000000000001')),true);
-select is(public.upsert_organization_logo(
-  '79100000-0000-4000-8000-000000000001','UklGRgUAAABXRUJQAA==',
-  '417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
-),'updated','an administrator can atomically replace the organization logo');
-select throws_ok($$select public.upsert_organization_logo(
-  '79100000-0000-4000-8000-000000000001','not-base64',repeat('0',64)
+reset role;
+set local role service_role;
+select is(public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000002',
+  'UklGRgUAAABXRUJQAA==','417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
+),'updated','the trusted server command can atomically replace for a live administrator actor');
+select is(public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000004',
+  'UklGRgQAAABXRUJQAA==','417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
+),'forbidden','the trusted server command independently denies an offboarded actor');
+select is(public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000003',
+  'UklGRgQAAABXRUJQAA==','417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
+),'forbidden','the trusted server command independently denies an ordinary member actor');
+select is(public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000005',
+  'UklGRgQAAABXRUJQAA==','417118f1801e212f1e83d88f6f268e3570a9f1a72019d799931bb4a9976470d0'
+),'forbidden','the trusted server command independently denies a cross-tenant actor');
+select throws_ok($$select public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','not-a-uuid',
+  'UklGRgQAAABXRUJQ',repeat('0',64)
+)$$,'22P02',null,'an invalid actor UUID fails closed before byte processing');
+select throws_ok($$select public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000002',
+  'not-base64',repeat('0',64)
 )$$,'22023',null,'malformed base64 fails closed');
-select throws_ok($$select public.upsert_organization_logo(
-  '79100000-0000-4000-8000-000000000001','bm90IHdlYnA=',
+select throws_ok($$select public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000002',
+  'bm90IHdlYnA=',
   '58614bb635a7dfd6518d4d25aa5cafe381e253f5f62df05d2b5deac873b6b183'
 )$$,'22023',null,'decoded bytes without the RIFF WEBP header fail closed');
-select throws_ok($$select public.upsert_organization_logo(
-  '79100000-0000-4000-8000-000000000001','UklGRgQAAABXRUJQ',repeat('0',64)
+select throws_ok($$select public.upsert_organization_logo_service(
+  '79100000-0000-4000-8000-000000000001','79000000-0000-4000-8000-000000000002',
+  'UklGRgQAAABXRUJQ',repeat('0',64)
 )$$,'22023',null,'a digest that does not match the decoded bytes fails closed');
-select throws_ok($$select public.upsert_organization_logo(
+select throws_ok($$select public.upsert_organization_logo_service(
   '79100000-0000-4000-8000-000000000001',
+  '79000000-0000-4000-8000-000000000002',
   translate(encode(decode('524946460400000057454250','hex')||decode(repeat('00',349989),'hex'),'base64'),E'\n',''),
   encode(digest(decode('524946460400000057454250','hex')||decode(repeat('00',349989),'hex'),'sha256'),'hex')
 )$$,'22023',null,'decoded WebP bytes above 350000 bytes fail closed');

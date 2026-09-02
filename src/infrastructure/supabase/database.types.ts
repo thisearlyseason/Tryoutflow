@@ -5867,6 +5867,15 @@ export type Database = {
         };
         Returns: string;
       };
+      upsert_organization_logo_service: {
+        Args: {
+          p_actor_user_id: string;
+          p_content_base64: string;
+          p_organization_id: string;
+          p_sha256: string;
+        };
+        Returns: string;
+      };
       validate_integration_outbox_execution: {
         Args: {
           p_job_id: string;
