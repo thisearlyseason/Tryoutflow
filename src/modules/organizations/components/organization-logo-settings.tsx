@@ -48,7 +48,7 @@ export function OrganizationLogoSettings({
       </div>
       {canManage ? (
         <div className="mt-4 flex min-w-0 flex-wrap items-end gap-3">
-          <form action={uploadAction} className="min-w-0 max-w-full" encType="multipart/form-data">
+          <form action={uploadAction} className="min-w-0 max-w-full">
             <label
               className="grid min-w-0 max-w-full gap-1 font-bold"
               htmlFor="organization-logo-file"

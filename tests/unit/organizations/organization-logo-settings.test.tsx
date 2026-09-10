@@ -30,7 +30,7 @@ describe('OrganizationLogoSettings', () => {
     expect(input).toHaveAttribute('accept', 'image/png,image/jpeg,image/webp');
     expect(input).toBeRequired();
     const form = input.closest('form');
-    expect(form).toHaveAttribute('enctype', 'multipart/form-data');
+    expect(form).not.toHaveAttribute('encType');
     expect(within(form!).getByRole('button', { name: 'Upload logo' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Remove logo' })).not.toBeInTheDocument();
   });
@@ -52,7 +52,7 @@ describe('OrganizationLogoSettings', () => {
     );
     const replace = screen.getByRole('button', { name: 'Replace logo' });
     const remove = screen.getByRole('button', { name: 'Remove logo' });
-    expect(replace.closest('form')).toHaveAttribute('enctype', 'multipart/form-data');
+    expect(replace.closest('form')).not.toHaveAttribute('encType');
     expect(remove.closest('form')).not.toBe(replace.closest('form'));
   });
 
