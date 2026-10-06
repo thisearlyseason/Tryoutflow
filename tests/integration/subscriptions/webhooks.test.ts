@@ -17,7 +17,7 @@ const execFile = promisify(execFileCallback);
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
-  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
+  execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const sqlLiteral = (value: unknown) => {
   if (value === null || value === undefined) return 'null';
   const text = typeof value === 'string' ? value : JSON.stringify(value);
@@ -392,7 +392,7 @@ describe('verified Stripe subscription authority', () => {
 
   it('denies cross-organization owner billing lookup and conflicting customer mapping', async () => {
     const denied = await psql(
-      `set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false); select count(*) from public.get_owned_subscription_account('${ids.other}');`,
+      `set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}'; select count(*) from public.get_owned_subscription_account('${ids.other}');`,
     );
     expect(denied.stdout.trim()).toBe('0');
     const now = Math.floor(Date.now() / 1_000) + 20;

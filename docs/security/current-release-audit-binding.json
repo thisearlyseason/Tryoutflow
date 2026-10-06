@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "1acaf4432b49e0a0e68a187f3dd020d2da155c411db18c1b6b1e80788610e331",
+  "releaseManifestSHA256": "66ebba4359d7620cf63f2e058a54164e80fd4fc81ee30d7bfbeba173fac0c950",
   "files": [
     {
       "path": ".env.example",
@@ -6231,7 +6231,7 @@
     },
     {
       "path": "tests/integration/subscriptions/webhooks.test.ts",
-      "sha256": "069dfa428a9e5156e1b85f70a534763ae8ca871380c43db97369368886ad9287"
+      "sha256": "140dee5c59c5537587c13958fb5f487ffb66420d190289e0df91dcde533643d9"
     },
     {
       "path": "tests/integration/tryouts/configuration.test.ts",
@@ -6904,5 +6904,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed"
 }
