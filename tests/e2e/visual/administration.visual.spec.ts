@@ -16,7 +16,7 @@ test('owner sees unified organization administration', async ({ page }) => {
   await expectVisual(page, 'integrations-administration.png');
 
   await page.goto('/app/badlands-hockey-academy/organization/billing');
-  await expect(page.getByRole('heading', { name: 'Billing' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Billing', level: 1, exact: true })).toBeVisible();
   await expect(page.locator('.plan-card').first()).toBeVisible();
   await expectVisual(page, 'billing-administration.png');
 

@@ -25,3 +25,14 @@ jobs:
       - run: corepack npm@11.12.1 exec -- supabase start
       - name: Production readiness gate
         run: bash scripts/verify-production-readiness.sh
+      - name: Retain synthetic visual comparison evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tryoutflow-visual-comparison-${{ github.sha }}
+          retention-days: 1
+          if-no-files-found: ignore
+          path: |
+            output/playwright/visual-results/**/*-actual.png
+            output/playwright/visual-results/**/*-expected.png
+            output/playwright/visual-results/**/*-diff.png

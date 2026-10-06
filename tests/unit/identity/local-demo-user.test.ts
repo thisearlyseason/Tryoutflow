@@ -2,12 +2,28 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertLocalSupabaseUrl,
+  assertLocalVisualDatabaseUrl,
   DEMO_USER,
   requireLocalDemoPassword,
 } from '../../../scripts/ensure-local-demo-user.mjs';
 import { createLocalDemoEnvironment } from '../../../scripts/start-local-demo.mjs';
 
 describe('local demo identity bootstrap', () => {
+  it('limits timestamp stabilization to the two known local test database ports', () => {
+    for (const port of ['58322', '59322']) {
+      expect(
+        assertLocalVisualDatabaseUrl(`postgresql://postgres@127.0.0.1:${port}/postgres`).port,
+      ).toBe(port);
+    }
+    for (const url of [
+      'postgresql://postgres@project.supabase.co:58322/postgres',
+      'postgresql://postgres@127.0.0.1:54322/postgres',
+      'postgresql://postgres@127.0.0.1:58322/owner_database',
+      'https://127.0.0.1:58322/postgres',
+    ])
+      expect(() => assertLocalVisualDatabaseUrl(url)).toThrow('known local test database');
+  });
+
   it('accepts only loopback Supabase origins before provisioning', () => {
     expect(assertLocalSupabaseUrl('http://127.0.0.1:58321').hostname).toBe('127.0.0.1');
     expect(assertLocalSupabaseUrl('http://localhost:58321').hostname).toBe('localhost');

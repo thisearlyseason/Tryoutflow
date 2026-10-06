@@ -1,3 +1,4 @@
+import { liveSnapshotTime } from '@/modules/talent/application/live-snapshot-time';
 import Link from 'next/link';
 import { LiveRefresh } from '@/modules/talent/ui/live-refresh';
 import { ErrorState } from '@/components/feedback/error-state';
@@ -66,7 +67,7 @@ export default async function LivePage({
       >
         Open athlete × evaluator coverage
       </Link>
-      <LiveRefresh asOf={new Date().toISOString()} />
+      <LiveRefresh asOf={liveSnapshotTime()} />
       <Link
         prefetch={false}
         className="button-secondary"

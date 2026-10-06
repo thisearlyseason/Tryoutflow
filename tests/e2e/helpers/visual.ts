@@ -31,19 +31,32 @@ export async function openDemoTryout(page: Page) {
 
 export async function prepareVisualPage(page: Page) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForLoadState('networkidle');
+  // Background refresh/preload requests need not become idle. Require the
+  // rendered surface, completed user actions, fonts, and real image decoding.
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), undefined, {
+    timeout: 10_000,
+  });
   await page.addStyleTag({
     content:
       '*,*::before,*::after{animation-delay:0s!important;animation-duration:0s!important;caret-color:transparent!important;transition-delay:0s!important;transition-duration:0s!important}',
   });
   await page.evaluate(async () => {
     await document.fonts.ready;
+    await Promise.all(
+      Array.from(document.images, async (image) => {
+        // Full-page captures include below-the-fold assets too.
+        image.loading = 'eager';
+        await image.decode();
+      }),
+    );
   });
 }
 
 export async function expectVisual(page: Page, name: string) {
   await prepareVisualPage(page);
-  await expect(page).toHaveScreenshot(name, {
+  // Record every mismatch while retaining failure of the complete visual gate.
+  await expect.soft(page).toHaveScreenshot(name, {
     animations: 'disabled',
     caret: 'hide',
     fullPage: true,

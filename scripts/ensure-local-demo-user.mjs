@@ -31,6 +31,37 @@ export function requireLocalDemoPassword(environment) {
   return value;
 }
 
+export function assertLocalVisualDatabaseUrl(value) {
+  const parsed = new URL(value);
+  if (
+    parsed.protocol !== 'postgresql:' ||
+    !['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname) ||
+    !['58322', '59322'].includes(parsed.port) ||
+    parsed.pathname !== '/postgres'
+  ) {
+    throw new Error('Visual fixture preparation requires the known local test database.');
+  }
+  return parsed;
+}
+
+export function stabilizeLocalVisualFixtures() {
+  const { databaseUrl } = localStatus();
+  assertLocalVisualDatabaseUrl(databaseUrl);
+  execFileSync(
+    'psql',
+    [
+      '-X',
+      '-q',
+      '-v',
+      'ON_ERROR_STOP=1',
+      databaseUrl,
+      '-f',
+      resolve('scripts/stabilize-local-visual-fixtures.sql'),
+    ],
+    { stdio: 'pipe' },
+  );
+}
+
 function localStatus() {
   const raw = JSON.parse(
     execFileSync(resolve('node_modules/.bin/supabase'), ['status', '-o', 'json'], {
@@ -101,6 +132,7 @@ export async function ensureLocalDemoUser(environment = process.env) {
 
 async function main() {
   const result = await ensureLocalDemoUser();
+  if (process.argv.includes('--visual')) stabilizeLocalVisualFixtures();
   process.stdout.write(
     `Local demo owner ready: ${result.email}\nOrganization: badlands-hockey-academy\nPassword: value from TRYOUTFLOW_LOCAL_DEMO_PASSWORD\n`,
   );

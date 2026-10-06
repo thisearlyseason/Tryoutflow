@@ -47,6 +47,7 @@ export default defineConfig({
       NEXT_PUBLIC_APP_URL: 'https://task30.e2e.example.test',
       TRYOUTFLOW_BOT_PROTECTION_MODE: 'deterministic-test',
       TRYOUTFLOW_SERVER_TEST_ENV: 'task30-playwright',
+      TRYOUTFLOW_VISUAL_FIXED_NOW: '2026-08-28T18:05:00.000Z',
       TASK30_LOCAL_REQUEST_ORIGIN: origin,
       ABUSE_PROTECTION_HMAC_SECRET: 'visual-abuse-protection-secret'.padEnd(64, 'a'),
       PUBLIC_REGISTRATION_RATE_LIMIT_SECRET: 'visual-rate-limit-secret'.padEnd(64, 'r'),

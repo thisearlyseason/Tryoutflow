@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "66ebba4359d7620cf63f2e058a54164e80fd4fc81ee30d7bfbeba173fac0c950",
+  "releaseManifestSHA256": "d13801893fe96f3db5a870b97ed190a1a0933d3643384bf7b85b0e2bb0c5f729",
   "files": [
     {
       "path": ".env.example",
@@ -11,7 +11,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "f9ff91aded3440986e3f9dd67ca1694c16abaddc7bd85541f77283876e6f0618"
+      "sha256": "1e3fef61853ede8c0f89b917a6f6964dc9d9ac0a2127239302122434599bbfb6"
     },
     {
       "path": ".gitignore",
@@ -315,7 +315,7 @@
     },
     {
       "path": "docs/runbooks/frontend-visual-regression.md",
-      "sha256": "1851d1087fbbed541ecedb601b9c433ad4f34d45e315bccad2069cd0d649e9b9"
+      "sha256": "e11650654944df10b06cec44c4f820f826a5617e63999b229c0705dc2ce43d31"
     },
     {
       "path": "docs/security/2026-09-21-security-review.md",
@@ -427,7 +427,7 @@
     },
     {
       "path": "playwright.visual.config.ts",
-      "sha256": "4103663aefca76863159c579ceb8c4c59fbb4818072bd772fa78cc0cb8f5bc2b"
+      "sha256": "3e9e319232f67c72ecb02b84eaf811d90ec9fcae75a09478dfd1f3dfd6da394b"
     },
     {
       "path": "postcss.config.mjs",
@@ -995,11 +995,11 @@
     },
     {
       "path": "scripts/ensure-local-demo-user.d.mts",
-      "sha256": "b203c0bda9fe4f00c2004d7e1b7e283b758878a425a83d1f0d6830d2b89954e7"
+      "sha256": "3fdb794401414b024a8bfe26ad36b5f24c7a524ac9509cca8e1085b0705a6e35"
     },
     {
       "path": "scripts/ensure-local-demo-user.mjs",
-      "sha256": "0f2a37d292c33f4920f11631344d0db77d1dbf790441886ab781f6e3b909509e"
+      "sha256": "2947b562ed38604b922eba4f93837c7ae6a55385b391e8bce983d382bf272bdf"
     },
     {
       "path": "scripts/generate-email-previews.mjs",
@@ -1066,6 +1066,10 @@
       "sha256": "142c02470a9cf0912294a6daa3d32a7d060927200d9406d349b62ed3cd108af8"
     },
     {
+      "path": "scripts/stabilize-local-visual-fixtures.sql",
+      "sha256": "ef3a494e3b8512563f5c5463958652381cd800b9830e2527b039ac0155b11a20"
+    },
+    {
       "path": "scripts/start-local-demo.d.mts",
       "sha256": "7a40526e665bbbf05d98ae5a2e370bd27d533700423211e75e20bb48cb2ce6f8"
     },
@@ -1091,7 +1095,7 @@
     },
     {
       "path": "scripts/verify-production-readiness.sh",
-      "sha256": "92e664f634e9aaf61dfae2e603ded1053afd7f6d41d9c186a7c635ad5177a2ef"
+      "sha256": "f360de70b1f98dd382c24dcf495b456a4791bb76a4d98af967cef1d572b88472"
     },
     {
       "path": "scripts/verify-release-state.mjs",
@@ -1271,7 +1275,7 @@
     },
     {
       "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/live/page.tsx",
-      "sha256": "38271dd0a3950f7e9842289b740ddbe18f31a94bc864afdc3d081ac7267d089a"
+      "sha256": "60630186be9eba665dd631bfdd6c283e99a860486e78bc91a41a0ade46ec4720"
     },
     {
       "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/messages/page.tsx",
@@ -1687,7 +1691,7 @@
     },
     {
       "path": "src/app/product.css",
-      "sha256": "763172ab52999b27a4e06b8e304713f4aca152ea7b1242535fd14571c4beccb9"
+      "sha256": "032c8584c3abdef5451a19779648060ad0a3b2be6a45d210cd34e93382ccbb33"
     },
     {
       "path": "src/app/sports-workspace.css",
@@ -1727,7 +1731,7 @@
     },
     {
       "path": "src/components/layout/app-topbar.tsx",
-      "sha256": "2394be7fc643db995cb828d364aeac357a4366b21be37970f29c9361759d3e6c"
+      "sha256": "c5175eb30e020e774578c69eef77743ac4a4ccee73a9c383064ae7273dd5face"
     },
     {
       "path": "src/components/layout/auth-shell.tsx",
@@ -2988,6 +2992,10 @@
     {
       "path": "src/modules/talent/application/export-actions.ts",
       "sha256": "2836d99adafa2a3cfde1a375fdf0a18a00ebed62f91cb79c22a63894cd29d2ca"
+    },
+    {
+      "path": "src/modules/talent/application/live-snapshot-time.ts",
+      "sha256": "8af6415004e1a41549ad0158bd05bb80cb70dd2612bda9a16d0ad479a0d86822"
     },
     {
       "path": "src/modules/talent/application/notice-actions.ts",
@@ -4447,7 +4455,7 @@
     },
     {
       "path": "tests/e2e/helpers/visual.ts",
-      "sha256": "7a887e3c1d7d045dab8d1900d9d7cdc749f9342fa9aa06668515ab9a0f879738"
+      "sha256": "e111cba7351be21861fa6b5458afdc13affa0cd7e57fcf4b5aff1190dddf8225"
     },
     {
       "path": "tests/e2e/marketing.spec.ts",
@@ -4607,7 +4615,7 @@
     },
     {
       "path": "tests/e2e/visual/administration.visual.spec.ts",
-      "sha256": "542a83ac6541fd5389f70f08c9754d4a2334405f4392d1ceb60d99a179a03cf0"
+      "sha256": "fd79f9b3131f1e2715b4cf012bb01ef1cac319f64a8157c97df98887ef4d8663"
     },
     {
       "path": "tests/e2e/visual/application-shell.visual.spec.ts",
@@ -4623,7 +4631,7 @@
     },
     {
       "path": "tests/e2e/visual/game-day.visual.spec.ts",
-      "sha256": "010f714825a82b3a440e0a6d6d5b790a819340fd062e9bb3b6f38c8198fb8318"
+      "sha256": "b396d52e0124bb7e3bd9c54b3e87841257596eb1e992eebc85ea286f991aaf3a"
     },
     {
       "path": "tests/e2e/visual/tryout-administration.visual.spec.ts",
@@ -6439,7 +6447,7 @@
     },
     {
       "path": "tests/unit/identity/local-demo-user.test.ts",
-      "sha256": "5ffaf7d018e24b289d4c3998e63bb92e33f89ed858e69fee8d73e4cd327fa580"
+      "sha256": "6d27ffec1df768b6d2e3fc269eda26b2cfcbd48b4169cdd3fe35bc895b61fcd5"
     },
     {
       "path": "tests/unit/identity/native-workspace-bridge.test.tsx",
@@ -6806,6 +6814,10 @@
       "sha256": "096daf62d9c8c03aea7754d4ee15f7915f709850ec813c4f681b5757407132dd"
     },
     {
+      "path": "tests/unit/talent/live-snapshot-time.test.ts",
+      "sha256": "9f072066104db85f6cbae42f08c721069e26043d15f857b492ba2050f40678eb"
+    },
+    {
       "path": "tests/unit/tryouts/complete-single-tryout-action.test.ts",
       "sha256": "5c11946afd057a47b0f3e36ae086c6f2264c9d26fcdb25908995c1734de5dd74"
     },
@@ -6904,5 +6916,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence"
 }

@@ -7,9 +7,22 @@ TryoutFlow keeps canonical Chromium screenshots for the public authentication sh
 Provision the local deterministic demo account, then run:
 
 ```bash
-TRYOUTFLOW_LOCAL_DEMO_PASSWORD='<local demo password>' corepack npm run demo:local
+TRYOUTFLOW_LOCAL_DEMO_PASSWORD='<local demo password>' corepack npm run demo:local -- --visual
 TRYOUTFLOW_LOCAL_DEMO_PASSWORD='<local demo password>' corepack npm run test:visual
 ```
+
+The opt-in `--visual` preparation freezes only the two known synthetic tryout
+`updated_at` values. It rejects unknown or remote database origins and missing
+fixtures, runs in one bounded transaction, restores timestamp/version triggers,
+and proves every other tryout field is unchanged. Ordinary demo provisioning does
+not freeze dates.
+
+Screenshot comparisons record all image mismatches with soft assertions so later
+screens are available for review. Any mismatch still fails the test and gate; the
+120-pixel threshold, zero retries, and functional assertions remain unchanged.
+CI retains only synthetic expected/actual/diff PNGs for one day on failure, not
+browser traces, cookies, or credentials. Review Linux CI evidence before updating
+its canonical snapshots; a macOS rendering alone does not prove pixel parity.
 
 Comparison mode is the only mode used by the production-readiness controller. It must never modify tracked PNGs.
 

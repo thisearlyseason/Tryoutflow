@@ -9,3 +9,6 @@ export function requireLocalDemoPassword(environment: Record<string, string | un
 export function ensureLocalDemoUser(
   environment?: Record<string, string | undefined>,
 ): Promise<{ email: string; organizationId: string; userId: string }>;
+
+export function assertLocalVisualDatabaseUrl(value: string): URL;
+export function stabilizeLocalVisualFixtures(): void;
