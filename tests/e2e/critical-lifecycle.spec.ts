@@ -67,6 +67,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   page,
   task30Database,
 }, testInfo) => {
+  const scheduleYear = new Date().getUTCFullYear() + 1;
   const organizationSlug = `task30-onboarding-${newOwner.id.slice(0, 8)}`;
   const organizationName = `Task 30 Onboarding ${newOwner.id.slice(0, 8)}`;
   const tryoutName = `Task 30 Published ${newOwner.id.slice(0, 8)}`;
@@ -92,8 +93,8 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await page.getByLabel('Sport').fill('Hockey');
   await page.getByLabel('New cycle name').fill('2026 Fall Cycle');
   await page.getByLabel('Timezone').fill('America/Edmonton');
-  await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
-  await page.getByLabel('Registration closes').fill('2026-09-30T20:00');
+  await page.getByLabel('Registration opens').fill(`${scheduleYear}-09-01T08:00`);
+  await page.getByLabel('Registration closes').fill(`${scheduleYear}-09-30T20:00`);
   expectCancellableServerAction(monitor, page, 'draft tryout creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(/\/setup\/basics$/u);
@@ -101,8 +102,8 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await page.getByLabel('Name').fill(tryoutName);
   await page.getByLabel('Sport').fill('Hockey');
   await page.getByLabel('Timezone').fill('America/Edmonton');
-  await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
-  await page.getByLabel('Registration closes').fill('2026-09-30T20:00');
+  await page.getByLabel('Registration opens').fill(`${scheduleYear}-09-01T08:00`);
+  await page.getByLabel('Registration closes').fill(`${scheduleYear}-09-30T20:00`);
   expectCancellableServerAction(monitor, page, 'wizard basics redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await expect(page.getByLabel('Division name')).toBeVisible();
@@ -112,8 +113,8 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await expect(page.getByLabel('Session name')).toBeVisible();
   await page.getByLabel('Division').selectOption({ label: 'U15' });
   await page.getByLabel('Session name').fill('Skills session');
-  await page.getByLabel('Starts').fill('2026-10-01T16:00');
-  await page.getByLabel('Ends').fill('2026-10-01T18:00');
+  await page.getByLabel('Starts').fill(`${scheduleYear}-10-01T16:00`);
+  await page.getByLabel('Ends').fill(`${scheduleYear}-10-01T18:00`);
   await page.getByLabel('Position (optional)').fill('Forward');
   expectCancellableServerAction(monitor, page, 'wizard sessions redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
@@ -145,7 +146,9 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
     task30Database.scalar(
       `select to_char(tryout.registration_starts_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')||'|'||to_char(tryout.registration_ends_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')||'|'||to_char(session.starts_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"')||'|'||to_char(session.ends_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"') from public.tryouts tryout join public.tryout_sessions session on session.organization_id=tryout.organization_id and session.tryout_id=tryout.id join public.organizations organization on organization.id=tryout.organization_id where organization.slug='${organizationSlug}' and tryout.name='${tryoutName}' and session.name='Skills session'`,
     ),
-  ).toBe('2026-09-01T14:00:00Z|2026-10-01T02:00:00Z|2026-10-01T22:00:00Z|2026-10-02T00:00:00Z');
+  ).toBe(
+    `${scheduleYear}-09-01T14:00:00Z|${scheduleYear}-10-01T02:00:00Z|${scheduleYear}-10-01T22:00:00Z|${scheduleYear}-10-02T00:00:00Z`,
+  );
   monitor.assertClean();
 });
 
@@ -635,6 +638,7 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   );
   await page.goto(`/app/${scenario.organizationSlug}/organization/billing`);
   await expect(page.getByRole('status')).toContainText('Trial active');
+  await page.getByLabel('Billing country for Team').selectOption('CA');
   const [checkoutResponse] = await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -741,9 +745,9 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
     page.waitForEvent('download'),
     page.getByRole('link', { name: 'Download finalized roster CSV' }).click(),
   ]);
-  const path = await download.path();
-  expect(path).not.toBeNull();
-  const csv = await readFile(path!, 'utf8');
+  const path = testInfo.outputPath('finalized-roster.csv');
+  await download.saveAs(path);
+  const csv = await readFile(path, 'utf8');
   expect(csv).toContain('Athlete number,Preferred name,Decision,Team');
   expect(csv).toContain('Final,selected,Final Blue');
   expect(csv).not.toMatch(/guardian|email|phone|private note|evaluator/iu);

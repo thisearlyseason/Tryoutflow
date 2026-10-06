@@ -59,9 +59,17 @@ async function confirmationUrl(request: APIRequestContext, email: string) {
     .filter((value): value is string => typeof value === 'string')
     .join('\n');
   const links = content.match(/https?:\/\/[^\s"'<>]+/gu) ?? [];
-  const link = links.find((candidate) => candidate.includes('/auth/v1/verify?'));
-  expect(link, 'Supabase verification URL is present in the controlled local email').toBeTruthy();
-  return link!.replaceAll('&amp;', '&');
+  const link = links.find((candidate) => {
+    const url = new URL(candidate.replaceAll('&amp;', '&'));
+    return url.pathname === '/auth/confirm' && url.searchParams.get('type') === 'signup';
+  });
+  expect(link, 'App confirmation URL is present in the controlled local email').toBeTruthy();
+  const url = new URL(link!.replaceAll('&amp;', '&'));
+  expect(['127.0.0.1', 'localhost']).toContain(url.hostname);
+  // The local mail template uses SiteURL (port 3000). Exercise the same real app handler
+  // on this test's owned server; preserve its token and redirect parameters privately.
+  url.host = '127.0.0.1:3112';
+  return url.toString();
 }
 
 test('AC01 anonymous verified owner creates an organization and cycle-backed tryout', async ({

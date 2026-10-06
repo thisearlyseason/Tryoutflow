@@ -1,6 +1,11 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const preflight = vi.hoisted(() => vi.fn());
+vi.mock('../../src/modules/organizations/application/organization-route-preflight', () => ({
+  organizationRoutePreflight: preflight,
+}));
+
 const getUser = vi.hoisted(() => vi.fn());
 const createServerClient = vi.hoisted(() => vi.fn());
 
@@ -16,6 +21,7 @@ describe('proxy public marketing boundary', () => {
   beforeEach(() => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://tryoutflow.test.supabase.co';
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'publishable-test-key';
+    preflight.mockReset().mockResolvedValue(true);
     getUser.mockReset();
     createServerClient.mockReset();
     createServerClient.mockImplementation(() => ({ auth: { getUser } }));
@@ -95,6 +101,22 @@ describe('proxy public marketing boundary', () => {
     expect(publicResponse.headers.get('set-cookie')).toBeNull();
     expect(createServerClient).toHaveBeenCalledOnce();
     expect(getUser).toHaveBeenCalledOnce();
+  });
+
+  it('denies before streaming and preserves refresh cookies without leaking the route', async () => {
+    createServerClient.mockImplementation((_url, _key, options) => {
+      options.cookies.setAll([
+        { name: 'sb-session', value: 'refreshed-session', options: { httpOnly: true, path: '/' } },
+      ]);
+      return { auth: { getUser } };
+    });
+    getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+    preflight.mockResolvedValue(false);
+    const response = await proxy(requestFor('/app/other-tenant/tryouts/private/rosters'));
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('set-cookie')).toContain('sb-session=refreshed-session');
+    expect(await response.text()).toBe('Page not found.');
   });
 
   it('redirects anonymous platform administration requests to sign in', async () => {

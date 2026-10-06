@@ -81,6 +81,9 @@ export default defineConfig({
       MOCK_THE_SQUAD_FIXTURE: 'partial-failure',
       MOCK_THE_SQUAD_DYNAMIC_ROSTER: 'true',
       TRYOUTFLOW_FAKE_BILLING_PROVIDER: 'true',
+      // Only this exact local harness selects FakeBillingProvider; these are simulated declarations.
+      BILLING_CHECKOUT_ENABLED: 'true',
+      STRIPE_MANAGED_SELLER_COUNTRY: 'CA',
       TRYOUTFLOW_SERVER_TEST_ENV: 'task30-playwright',
       STRIPE_SECRET_KEY: `sk_test_${'x'.repeat(32)}`,
       STRIPE_WEBHOOK_SECRET: 'whsec_task30_local_contract_secret',

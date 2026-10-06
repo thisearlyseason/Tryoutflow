@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "abafae6667daebd9d3cc93f5921daffd80f4bdbe7e408a3528f98cb7f0f1caec",
+  "releaseManifestSHA256": "1d556285a2c2db5415fd8dfdf376a5cc297a16d1e9bb7d028bb340a044929464",
   "files": [
     {
       "path": ".env.example",
@@ -11,7 +11,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "1e3fef61853ede8c0f89b917a6f6964dc9d9ac0a2127239302122434599bbfb6"
+      "sha256": "470ee87e3c74265c600f9efcda09b8ee5fc748a67b333e3b6278983acb993c29"
     },
     {
       "path": ".gitignore",
@@ -391,7 +391,7 @@
     },
     {
       "path": "playwright.config.ts",
-      "sha256": "3e7bf5c06d032db5f67c1a2dc3275887b75c66743c7a679d883bb737d3854180"
+      "sha256": "e13225601375fc4b172cc08f7dc1357e8faf6b1ff1a70e66aa369e33b97e9bba"
     },
     {
       "path": "playwright.evaluation.config.ts",
@@ -987,7 +987,7 @@
     },
     {
       "path": "scripts/current-release-dependency-audit.mjs",
-      "sha256": "c79e21e48c9aae2d5cd94917e842c88fe91afd5bb11e0c9d8abcf93d1a4583eb"
+      "sha256": "002f8f4c3b7a1b3edc592e6b2092778ddbc80f5a5c5dffa2ef1ae9f77608cde1"
     },
     {
       "path": "scripts/current-release-native-audit.mjs",
@@ -1080,6 +1080,10 @@
     {
       "path": "scripts/tests/current-release-native-audit.test.mjs",
       "sha256": "1d8ca685224ed9a76696c776391274a7cccc3c11b821bb0b4e22c44ff744cabd"
+    },
+    {
+      "path": "scripts/tests/current-release-source-binding.test.mjs",
+      "sha256": "8de7edd67a9565c5449e2606bc2dd010cffa3d89152b190f9e898a8027144a55"
     },
     {
       "path": "scripts/verify-marketing-production.d.mts",
@@ -1731,7 +1735,7 @@
     },
     {
       "path": "src/components/layout/app-topbar.tsx",
-      "sha256": "c5175eb30e020e774578c69eef77743ac4a4ccee73a9c383064ae7273dd5face"
+      "sha256": "97e5b94d794c3521f1618c535bf5fa128ba88b1d1bcf5d44b739b3b6de5e6dab"
     },
     {
       "path": "src/components/layout/auth-shell.tsx",
@@ -2432,6 +2436,10 @@
     {
       "path": "src/modules/organizations/application/organization-route-context.ts",
       "sha256": "a6140da942f6cc49a7c51fd6e657e147714c55658bf2d9bc0b5c8f3cf0109e95"
+    },
+    {
+      "path": "src/modules/organizations/application/organization-route-preflight.ts",
+      "sha256": "eed66f205bd5f9ccb3a2f5fe1e30ece6cba17414305dc474ce23754823ade97c"
     },
     {
       "path": "src/modules/organizations/application/require-capability.ts",
@@ -3243,7 +3251,7 @@
     },
     {
       "path": "src/proxy.ts",
-      "sha256": "7292ae03c1da89ee5e60adb2c1d38eba0e4faad58a05aa49303e5a66182f8599"
+      "sha256": "131bf981d3358cc159739ea884bdfba5b8f300f36b84ce6c5b259acd0d715065"
     },
     {
       "path": "supabase/config.toml",
@@ -4407,7 +4415,7 @@
     },
     {
       "path": "tests/e2e/critical-lifecycle.spec.ts",
-      "sha256": "20b2b790d09823578d7117714ea735987ccfb9b8024a8209ab14cd1fc7e9a329"
+      "sha256": "43d4e31ae5f7a5b5fd283f9aef79fad79d74fc634b68362f701143aaa2c79fa0"
     },
     {
       "path": "tests/e2e/decision-messages.spec.ts",
@@ -4415,11 +4423,11 @@
     },
     {
       "path": "tests/e2e/error-states.spec.ts",
-      "sha256": "b56a763250c2f0f05e7d162f71f0fa01b9abe207746840689fb6ea6ce5885d4a"
+      "sha256": "164f2f6b3a9a676c34ee5d556cbcb69cf6d516f8aa3320cff35271101168cc19"
     },
     {
       "path": "tests/e2e/final-remediation.spec.ts",
-      "sha256": "c1e373a49faa8b9dc4aee844cead9af4c64b97dc07c84ae03933293af352c54f"
+      "sha256": "226838ebb0654669b092212a6d4198b418784b953fd7a2f762e3bdd11676f934"
     },
     {
       "path": "tests/e2e/global-database-lifecycle.ts",
@@ -4443,7 +4451,7 @@
     },
     {
       "path": "tests/e2e/helpers/fixtures.ts",
-      "sha256": "1f49d27512f4fdbca581808f074386731c8654a507976576d1e30c312a2564da"
+      "sha256": "c409ef2413b04971ee4f03189f097ac25ef62c1e3b6a59c0f435e19742fb4d35"
     },
     {
       "path": "tests/e2e/helpers/network.ts",
@@ -6626,6 +6634,10 @@
       "sha256": "1e48e89b20ee1d47b6d5eb5ca9c102b06bcd1f57fff2b1f09a560481c12170b2"
     },
     {
+      "path": "tests/unit/organizations/organization-route-preflight.test.ts",
+      "sha256": "da6615211acdf3f7f41cf17d96a4a9f0153eb26274cf513455d2feb2fe9dcfbe"
+    },
+    {
       "path": "tests/unit/organizations/team-workspaces.test.tsx",
       "sha256": "911fe12b40abf6c4e56c71a191c2433b2ca57b388c3e7a63ef3ece6acb8ad397"
     },
@@ -6635,7 +6647,7 @@
     },
     {
       "path": "tests/unit/proxy.test.ts",
-      "sha256": "cba6af8a7c10ec0fbb1de1010cccdf05e9a6098c8007e9a0e345be52013fa3c3"
+      "sha256": "c71959c9229e639791444bea057c824a8fa23150429d9203e24b3c8430676468"
     },
     {
       "path": "tests/unit/rankings/rankings-workspace.test.tsx",
@@ -6920,5 +6932,6 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged."
+  "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged.",
+  "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged."
 }

@@ -450,7 +450,7 @@ function seedScenarioSql(
       values('${users.platformAdministrator.id}','${users.owner.id}');
     insert into public.tryouts(id,organization_id,name,slug,sport,timezone,registration_starts_at,registration_ends_at,starts_at,ends_at)
       values('${ids.tryout}','${ids.organization}','${tryoutName}','${organizationSlug}-critical-flow','Hockey','America/Edmonton',
-        '2026-08-01T00:00:00Z','2026-09-30T23:59:59Z','2026-09-15T16:00:00Z','2026-09-16T22:00:00Z');
+        clock_timestamp()-interval '30 days',clock_timestamp()+interval '30 days',clock_timestamp()+interval '31 days',clock_timestamp()+interval '32 days');
     insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values
       ('${ids.division}','${ids.organization}','${ids.tryout}','U15 Scoring',0),
       ('${ids.rosterDivision}','${ids.organization}','${ids.tryout}','U16 Roster',1),

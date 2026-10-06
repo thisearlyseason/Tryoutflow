@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
-import { resolve, relative } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { readFileSync, lstatSync, mkdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { spawnSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const versions = {
@@ -69,28 +69,33 @@ export function verifyAudit(audit, lock, production) {
   }
 }
 
-export function verifyRelease(root, record) {
-  const excluded = new Set(['.git', '.next', 'node_modules']);
+/** Bind all tracked source (including tracked ignored files) and all non-ignored new source.
+ * Supabase/browser runtime output is ignored by Git and is not part of the release source.
+ */
+export function releaseSourceFiles(root) {
   const binding = 'docs/security/current-release-audit-binding.json';
-  const files = [];
-  function walk(directory) {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (excluded.has(entry.name)) continue;
-      const path = resolve(directory, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else {
-        const name = relative(root, path).split('\\').join('/');
-        if (name === binding) continue;
-        if (!entry.isFile()) throw new Error(`Unexpected source symlink: ${name}`);
-        files.push({
-          path: name,
-          sha256: createHash('sha256').update(readFileSync(path)).digest('hex'),
-        });
-      }
-    }
-  }
-  walk(root);
-  files.sort((a, b) => a.path.localeCompare(b.path, 'en'));
+  const paths = execFileSync(
+    'git',
+    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024,
+    },
+  )
+    .split('\0')
+    .filter((name) => name && name !== binding);
+  return [...new Set(paths)]
+    .map((name) => {
+      const path = resolve(root, name);
+      if (!lstatSync(path).isFile()) throw new Error(`Unexpected source symlink: ${name}`);
+      return { path: name, sha256: createHash('sha256').update(readFileSync(path)).digest('hex') };
+    })
+    .sort((a, b) => a.path.localeCompare(b.path, 'en'));
+}
+
+export function verifyRelease(root, record) {
+  const files = releaseSourceFiles(root);
   const hash = createHash('sha256').update(JSON.stringify(files)).digest('hex');
   if (
     record.releaseManifestSHA256 !== hash ||

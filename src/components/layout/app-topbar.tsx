@@ -77,6 +77,7 @@ export function AppTopbar({
       <div className="topbar-identity">
         <Link
           href={`/how-to?audience=${guideAudience}`}
+          prefetch={false}
           className="topbar-help-link inline-flex min-h-11 items-center gap-1 rounded px-2 text-xs font-bold"
           aria-label="How to use TryoutFlow"
         >

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { createProxySupabaseClient } from './infrastructure/supabase/server';
 import { trustedRequestUrl } from './lib/request-origin';
+import { organizationRoutePreflight } from './modules/organizations/application/organization-route-preflight';
 
 const publicMarketingPaths = new Set([
   '/',
@@ -51,6 +52,22 @@ export async function proxy(request: NextRequest) {
         redirectResponse.cookies.set(name, value, options);
       });
     return redirectResponse;
+  }
+
+  if (
+    user &&
+    request.nextUrl.pathname.startsWith('/app/') &&
+    !(await organizationRoutePreflight(proxyClient.supabase, user.id, request.nextUrl))
+  ) {
+    const denied = new NextResponse('Page not found.', { status: 404 });
+    denied.headers.set('Cache-Control', 'private, no-store');
+    proxyClient
+      .response()
+      .cookies.getAll()
+      .forEach(({ name, value, ...options }) => {
+        denied.cookies.set(name, value, options);
+      });
+    return denied;
   }
 
   return proxyClient.response();

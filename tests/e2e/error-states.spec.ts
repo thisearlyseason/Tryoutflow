@@ -156,13 +156,16 @@ test('failed checkout reports exact recovery copy, restores focus, and double-cl
     attempts += 1;
     await route.abort('failed');
   });
+  await page.getByLabel('Billing country for Team').selectOption('CA');
   const chooseTeam = page.getByRole('button', { name: 'Choose Team' });
   await chooseTeam.evaluate((button: HTMLButtonElement) => {
     button.click();
     button.click();
   });
   await expect(
-    page.getByText('Checkout could not be opened. Nothing was changed. Please try again.'),
+    page.getByText(
+      'Checkout could not be opened. Access has not been confirmed. Retry to resume any pending checkout.',
+    ),
   ).toBeVisible();
   await expect(chooseTeam).toBeEnabled();
   await expect(chooseTeam).toBeFocused();
