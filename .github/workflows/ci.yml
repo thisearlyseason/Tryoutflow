@@ -19,7 +19,8 @@ jobs:
       - name: Audit web and native dependencies
         run: |
           node scripts/current-release-dependency-audit.mjs
-          corepack npm@11.12.1 audit --prefix apps/mobile --audit-level=moderate
+          node --test scripts/tests/current-release-native-audit.test.mjs
+          node scripts/current-release-native-audit.mjs
       - run: corepack npm@11.12.1 exec -- playwright install --with-deps chromium firefox webkit
       - run: corepack npm@11.12.1 exec -- supabase start
       - name: Production readiness gate

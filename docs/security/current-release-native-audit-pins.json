@@ -1,0 +1,195 @@
+{
+  "ownerApprovalUTC": "2026-10-06T15:10:58Z",
+  "advisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
+  "futureRegenerationAuthorized": false,
+  "findings": {
+    "@expo/cli": {
+      "name": "@expo/cli",
+      "severity": "high",
+      "range": "<=0.0.0-canary-20231123-1b19f96-4 || >=0.0.1-canary-20231125-d600e44",
+      "nodes": ["node_modules/expo/node_modules/@expo/cli"],
+      "via": ["@expo/code-signing-certificates", "@expo/metro", "@expo/metro-config", "node-forge"],
+      "versions": {
+        "node_modules/expo/node_modules/@expo/cli": "57.0.27"
+      }
+    },
+    "@expo/code-signing-certificates": {
+      "name": "@expo/code-signing-certificates",
+      "severity": "high",
+      "range": "*",
+      "nodes": ["node_modules/@expo/code-signing-certificates"],
+      "via": ["node-forge"],
+      "versions": {
+        "node_modules/@expo/code-signing-certificates": "0.0.6"
+      }
+    },
+    "@expo/metro": {
+      "name": "@expo/metro",
+      "severity": "high",
+      "range": "*",
+      "nodes": ["node_modules/@expo/metro"],
+      "via": ["metro", "metro-config", "metro-file-map", "metro-transform-worker"],
+      "versions": {
+        "node_modules/@expo/metro": "56.0.2"
+      }
+    },
+    "@expo/metro-config": {
+      "name": "@expo/metro-config",
+      "severity": "high",
+      "range": ">=0.21.0-canary-20250630-547cd82",
+      "nodes": ["node_modules/expo/node_modules/@expo/metro-config"],
+      "via": ["@expo/metro"],
+      "versions": {
+        "node_modules/expo/node_modules/@expo/metro-config": "57.0.12"
+      }
+    },
+    "@expo/metro-file-map": {
+      "name": "@expo/metro-file-map",
+      "severity": "high",
+      "range": "<=57.0.3 || 58.0.0-canary-20260806-8c2d007 - 58.0.3",
+      "nodes": ["node_modules/@expo/metro-file-map"],
+      "via": ["micromatch"],
+      "versions": {
+        "node_modules/@expo/metro-file-map": "57.0.3"
+      }
+    },
+    "@react-native/community-cli-plugin": {
+      "name": "@react-native/community-cli-plugin",
+      "severity": "high",
+      "range": "*",
+      "nodes": ["node_modules/@react-native/community-cli-plugin"],
+      "via": ["metro", "metro-config"],
+      "versions": {
+        "node_modules/@react-native/community-cli-plugin": "0.86.3"
+      }
+    },
+    "@react-native/virtualized-lists": {
+      "name": "@react-native/virtualized-lists",
+      "severity": "high",
+      "range": ">=0.85.0-nightly-20260108-1236b6be4",
+      "nodes": ["node_modules/@react-native/virtualized-lists"],
+      "via": ["react-native"],
+      "versions": {
+        "node_modules/@react-native/virtualized-lists": "0.86.3"
+      }
+    },
+    "braces": {
+      "name": "braces",
+      "severity": "high",
+      "range": "*",
+      "nodes": ["node_modules/braces"],
+      "via": [
+        {
+          "source": 1240992,
+          "name": "braces",
+          "dependency": "braces",
+          "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+          "severity": "high",
+          "range": "<=3.0.3"
+        }
+      ],
+      "versions": {
+        "node_modules/braces": "3.0.3"
+      }
+    },
+    "expo": {
+      "name": "expo",
+      "severity": "high",
+      "range": ">=45.0.0-beta.1",
+      "nodes": ["node_modules/expo"],
+      "via": ["@expo/cli", "@expo/metro", "@expo/metro-config"],
+      "versions": {
+        "node_modules/expo": "57.0.25"
+      }
+    },
+    "metro": {
+      "name": "metro",
+      "severity": "high",
+      "range": ">=0.71.0",
+      "nodes": ["node_modules/metro"],
+      "via": ["metro-config", "metro-file-map", "metro-transform-worker"],
+      "versions": {
+        "node_modules/metro": "0.84.5"
+      }
+    },
+    "metro-config": {
+      "name": "metro-config",
+      "severity": "high",
+      "range": ">=0.71.0",
+      "nodes": ["node_modules/metro-config"],
+      "via": ["metro"],
+      "versions": {
+        "node_modules/metro-config": "0.84.5"
+      }
+    },
+    "metro-file-map": {
+      "name": "metro-file-map",
+      "severity": "high",
+      "range": "*",
+      "nodes": ["node_modules/metro-file-map"],
+      "via": ["micromatch"],
+      "versions": {
+        "node_modules/metro-file-map": "0.84.5"
+      }
+    },
+    "metro-transform-worker": {
+      "name": "metro-transform-worker",
+      "severity": "high",
+      "range": ">=0.71.0",
+      "nodes": ["node_modules/metro-transform-worker"],
+      "via": ["metro"],
+      "versions": {
+        "node_modules/metro-transform-worker": "0.84.5"
+      }
+    },
+    "micromatch": {
+      "name": "micromatch",
+      "severity": "high",
+      "range": ">=0.2.0",
+      "nodes": ["node_modules/micromatch"],
+      "via": ["braces"],
+      "versions": {
+        "node_modules/micromatch": "4.0.8"
+      }
+    },
+    "node-forge": {
+      "name": "node-forge",
+      "severity": "high",
+      "range": "*",
+      "nodes": ["node_modules/node-forge"],
+      "via": [
+        {
+          "source": 1240912,
+          "name": "node-forge",
+          "dependency": "node-forge",
+          "url": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
+          "severity": "high",
+          "range": "<=1.4.0"
+        }
+      ],
+      "versions": {
+        "node_modules/node-forge": "1.4.0"
+      }
+    },
+    "react-native": {
+      "name": "react-native",
+      "severity": "high",
+      "range": ">=0.73.0-nightly-20230506-1af868c52",
+      "nodes": ["node_modules/react-native"],
+      "via": ["@react-native/community-cli-plugin", "@react-native/virtualized-lists"],
+      "versions": {
+        "node_modules/react-native": "0.86.3"
+      }
+    },
+    "react-native-purchases": {
+      "name": "react-native-purchases",
+      "severity": "high",
+      "range": ">=9.0.0",
+      "nodes": ["node_modules/react-native-purchases"],
+      "via": ["react-native"],
+      "versions": {
+        "node_modules/react-native-purchases": "10.9.1"
+      }
+    }
+  }
+}
