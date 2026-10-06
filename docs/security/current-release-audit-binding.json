@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "d13801893fe96f3db5a870b97ed190a1a0933d3643384bf7b85b0e2bb0c5f729",
+  "releaseManifestSHA256": "8174b12764802fc9c1b06d46b0ac4dd3c02742309cd5f67848a423e8ce52bd38",
   "files": [
     {
       "path": ".env.example",
@@ -6575,7 +6575,7 @@
     },
     {
       "path": "tests/unit/operations/production-readiness.test.ts",
-      "sha256": "2c1ab29453d3449be1f0779daee9e6ed1b9fe6b78e917951bfaabed381c524cf"
+      "sha256": "1617846800386a923120472857071f367e95f45afc0d1d1e155ded120891541c"
     },
     {
       "path": "tests/unit/organizations/app-navigation.test.tsx",
@@ -6916,5 +6916,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation"
 }

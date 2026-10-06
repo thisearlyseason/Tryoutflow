@@ -220,7 +220,7 @@ describe('production readiness release gate', () => {
       'npm@11.12.1 run test:contract',
       'npm@11.12.1 run build',
       'npm@11.12.1 run test:marketing:production',
-      'npm@11.12.1 run demo:local',
+      'npm@11.12.1 run demo:local -- --visual',
       'npm@11.12.1 run test:visual',
       'npm@11.12.1 run test:e2e -- --retries=0',
       'node scripts/current-release-dependency-audit.mjs',
