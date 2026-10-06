@@ -11,7 +11,7 @@ const execFile = promisify(execFileCallback);
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
-  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
+  execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const owner = 'f1111111-1111-4111-8111-111111111111';
 const director = 'f1222222-2222-4222-8222-222222222222';
 const reviewer = 'f1333333-3333-4333-8333-333333333333';
@@ -42,9 +42,7 @@ const evaluationB = 'f2000000-0000-4000-8000-000000000008';
 const hiddenEvaluation = 'f2000000-0000-4000-8000-000000000009';
 
 const asUser = (userId: string, sql: string) =>
-  psql(
-    `set role authenticated; select set_config('request.jwt.claim.sub','${userId}',false); ${sql}`,
-  );
+  psql(`set role authenticated; set "request.jwt.claim.sub" = '${userId}'; ${sql}`);
 
 describe('real authorized ranking projection', () => {
   it('filters exact completed evidence, counts current assignment coverage, and denies unrelated roles', async () => {

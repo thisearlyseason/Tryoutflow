@@ -10,7 +10,7 @@ const execFile = promisify(execFileCallback);
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
-  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
+  execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const waitForBlockingEdge = async (blockedName: string, blockerName: string) => {
   for (let attempt = 0; attempt < 250; attempt += 1) {
     const result = await psql(`
@@ -117,11 +117,11 @@ describe('decision batches and provider evidence', () => {
       insert into public.tryout_registrations(id,organization_id,tryout_id,athlete_id,division_id,registration_form_version_id,responses,submission_key_digest,submission_digest) values('${ids.registration}','${ids.organization}','${ids.tryout}','${ids.athlete}','${ids.division}','${ids.formVersion}','{}',repeat('a',64),repeat('b',64));
       insert into public.roster_versions(id,organization_id,tryout_id,division_id,revision_number,state,version,created_by_user_id) values('${ids.roster}','${ids.organization}','${ids.tryout}','${ids.division}',1,'draft',6,'${ids.owner}');
       insert into public.roster_decisions(organization_id,tryout_id,division_id,roster_version_id,registration_id,status,changed_by_user_id,changed_at) values('${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${ids.registration}','selected','${ids.owner}',clock_timestamp());
-      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
       select public.finalize_roster_version('${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}',6,'FINALIZE ROSTER');
     `);
     const preview = await psql(`
-      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
       select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
         'Welcome to the program.','builtin:selected',1);
     `);
@@ -136,8 +136,8 @@ describe('decision batches and provider evidence', () => {
       recipients: [{ registrationId: ids.registration }],
     });
     const wrongActor = await psql(`
-      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000999',false);
+      set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '00000000-0000-4000-8000-000000000999';
       select outcome from public.create_decision_message_batch_v2(
         '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
     `);
@@ -146,7 +146,7 @@ describe('decision batches and provider evidence', () => {
       `update public.organizations set name='Changed after preview' where id='${ids.organization}'`,
     );
     const protectedFactConflict = await psql(`
-      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
       select outcome from public.create_decision_message_batch_v2(
         '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
     `);
@@ -158,8 +158,8 @@ describe('decision batches and provider evidence', () => {
       expires_at=clock_timestamp()-interval '10 minutes' where render_digest='${data.digest}'`);
     expect(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.owner}',false); select outcome from public.create_decision_message_batch_v2(
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.owner}'; select outcome from public.create_decision_message_batch_v2(
       '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH')`)
       ).stdout.trim(),
     ).toBe('preview_conflict');
@@ -167,14 +167,14 @@ describe('decision batches and provider evidence', () => {
       expires_at=clock_timestamp()+interval '10 minutes' where render_digest='${data.digest}'`);
     const createSql = `
       begin;
-      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
       select outcome||'|'||batch_id||'|'||queued_count from public.create_decision_message_batch_v2(
         '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
       reset role;
       update public.outbox_jobs set available_at='9999-01-01' where organization_id='${ids.organization}' and status='pending';
       commit;`;
     const created = await psql(createSql);
-    expect(created.stdout.trim()).toBe('COMMIT');
+    expect(created.stdout.trim()).toMatch(/^queued\|[0-9a-f-]{36}\|\d+$/u);
     const createdResult = (
       await psql(`select id||'|'||recipient_count from public.communication_batches
         where organization_id='${ids.organization}' and preview_digest='${data.digest}'`)
@@ -221,8 +221,8 @@ describe('decision batches and provider evidence', () => {
     });
     const savedTemplate = JSON.parse(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.owner}',false); select public.save_communication_template(
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.owner}'; select public.save_communication_template(
       '${ids.organization}','selected','Saved organization copy',0)`)
       ).stdout.trim(),
     ) as { outcome: string; version: number; templateId: string };
@@ -230,16 +230,16 @@ describe('decision batches and provider evidence', () => {
     expect(
       JSON.parse(
         (
-          await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.owner}',false); select public.save_communication_template(
+          await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.owner}'; select public.save_communication_template(
       '${ids.organization}','selected','Stale copy',0)`)
         ).stdout.trim(),
       ),
     ).toMatchObject({ outcome: 'version_conflict', version: 1 });
     const directorAccess = JSON.parse(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.director}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.director}';
       select jsonb_build_object('templates',(select jsonb_agg(row_to_json(template)) from
         public.list_communication_templates_for_notice('${ids.organization}','${ids.tryout}') template),
         'save',public.save_communication_template('${ids.organization}','selected','Director cannot save',1))`)
@@ -250,19 +250,19 @@ describe('decision batches and provider evidence', () => {
 
     const customPreview = JSON.parse(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.owner}';
       select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
         'Per-batch custom copy','${savedTemplate.templateId}',1)`)
       ).stdout.trim(),
     ) as { digest: string; previewToken: string };
-    await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.owner}',false); select public.save_communication_template(
+    await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.owner}'; select public.save_communication_template(
       '${ids.organization}','selected','Updated organization copy',1)`);
     expect(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.owner}',false); select outcome from public.create_decision_message_batch_v2(
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.owner}'; select outcome from public.create_decision_message_batch_v2(
       '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${customPreview.previewToken}',
       '${customPreview.digest}','SEND EXACT BATCH')`)
       ).stdout.trim(),
@@ -271,8 +271,8 @@ describe('decision batches and provider evidence', () => {
     const rateOutcomes: string[] = [];
     for (let attempt = 0; attempt < 10; attempt += 1) {
       const output =
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
           'Rate bounded ${attempt}','builtin:selected',1)->>'outcome'`);
       rateOutcomes.push(output.stdout.trim());
@@ -314,8 +314,8 @@ describe('decision batches and provider evidence', () => {
   it('serializes simultaneous exact preview confirmations into one queue and one truthful replay', async () => {
     const preview = JSON.parse(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+          set "request.jwt.claim.sub" = '${ids.owner}';
           select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
             'Concurrency-bound exact confirmation.','builtin:selected',1)`)
       ).stdout.trim(),
@@ -340,8 +340,8 @@ describe('decision batches and provider evidence', () => {
       const confirmSql = (applicationName: string) => `
         set application_name='${applicationName}';
         set role authenticated;
-        select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select outcome||'|'||coalesce(batch_id::text,'')||'|'||queued_count
         from public.create_decision_message_batch_v2(
           '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}',
@@ -383,8 +383,8 @@ describe('decision batches and provider evidence', () => {
   it('preserves one exact winner against concurrent mutated-digest and wrong-actor confirmations', async () => {
     const preview = JSON.parse(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+          set "request.jwt.claim.sub" = '${ids.owner}';
           select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
             'Concurrent mismatched callers stay non-oracular.','builtin:selected',1)`)
       ).stdout.trim(),
@@ -404,8 +404,8 @@ describe('decision batches and provider evidence', () => {
     );
     const confirmSql = (applicationName: string, actor: string, digest: string) => `
       set application_name='${applicationName}'; set statement_timeout='10s'; set role authenticated;
-      select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${actor}',false);
+      set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${actor}';
       select outcome||'|'||coalesce(batch_id::text,'')||'|'||queued_count
       from public.create_decision_message_batch_v2(
         '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}',
@@ -452,8 +452,8 @@ describe('decision batches and provider evidence', () => {
   it('serializes an expired token and lets neither simultaneous caller consume it', async () => {
     const preview = JSON.parse(
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+          set "request.jwt.claim.sub" = '${ids.owner}';
           select public.preview_decision_message_batch_v2('${ids.organization}','${ids.roster}','selected',
             'Expired simultaneous confirmation.','builtin:selected',1)`)
       ).stdout.trim(),
@@ -480,8 +480,8 @@ describe('decision batches and provider evidence', () => {
     );
     const confirmSql = (applicationName: string) => `
       set application_name='${applicationName}'; set statement_timeout='10s'; set role authenticated;
-      select set_config('request.jwt.claim.role','authenticated',false);
-      select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      set "request.jwt.claim.role" = 'authenticated';
+      set "request.jwt.claim.sub" = '${ids.owner}';
       select outcome from public.create_decision_message_batch_v2(
         '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}',
         '${preview.previewToken}','${preview.digest}','SEND EXACT BATCH');`;

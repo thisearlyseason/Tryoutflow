@@ -108,7 +108,7 @@ afterAll(() => {
   ).toBe('0');
 });
 const psql = (sql: string, applicationName = 'tryoutflow-roster-integration') =>
-  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
+  execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
     env: { ...process.env, PGAPPNAME: applicationName },
   });
 const startSession = (applicationName: string) =>
@@ -170,7 +170,7 @@ describe('real roster finalization concurrency', () => {
     const holder = startSession(holderName);
     const asOwner = (sql: string, applicationName: string) =>
       psql(
-        `begin; set local statement_timeout='10s'; set local role authenticated; select set_config('request.jwt.claim.sub','${owner}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select * from rpc_result;`,
+        `begin; set local statement_timeout='10s'; set local role authenticated; set local "request.jwt.claim.sub" = '${owner}'; create temporary table rpc_result on commit preserve rows as ${sql}; commit; select * from rpc_result;`,
         applicationName,
       );
 
@@ -213,7 +213,7 @@ describe('real roster finalization concurrency', () => {
       holder.stdin?.write(`select pg_advisory_lock(${gateKey}); select 'gate_ready';\n`);
       await waitForOutput(holder, 'gate_ready');
       const firstMove = psql(
-        `begin; set local statement_timeout='10s'; set local role authenticated; select set_config('request.jwt.claim.sub','${owner}',true); create temporary table rpc_result on commit preserve rows as select outcome||'|'||version from public.move_roster_athlete('${organization}','${tryout}','${division}','${rosterId}','${registrationA}','${teams[0]}',1); select pg_advisory_lock(${gateKey}); commit; select * from rpc_result;`,
+        `begin; set local statement_timeout='10s'; set local role authenticated; set local "request.jwt.claim.sub" = '${owner}'; create temporary table rpc_result on commit preserve rows as select outcome||'|'||version from public.move_roster_athlete('${organization}','${tryout}','${division}','${rosterId}','${registrationA}','${teams[0]}',1); select pg_advisory_lock(${gateKey}); commit; select * from rpc_result;`,
         firstMoveName,
       );
       expect(await waitForBlockingEdge(firstMoveName, holderName)).toMatch(/advisory/u);

@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FakeBillingProvider } from '../../../src/infrastructure/billing/fake-billing-provider';
 import type { BillingProvider } from '../../../src/infrastructure/billing/billing-provider';
@@ -15,6 +15,15 @@ import type { AuthorizationContext } from '../../../src/modules/organizations/ap
 import type { CheckoutIntentStore } from '../../../src/modules/subscriptions/application/checkout-intent';
 import { handleCheckoutRequest } from '../../../src/app/api/organizations/[organizationId]/billing/checkout/checkout-request';
 import { handlePortalRequest } from '../../../src/app/api/organizations/[organizationId]/billing/portal/portal-request';
+
+// Test-scoped eligibility for injected FakeBillingProvider simulations only.
+// No hosted setting, actual Stripe adapter, or credentials are used here.
+const managedCheckout = { checkoutProtocol: 'managed_v1' as const, billingCountry: 'CA' };
+beforeEach(() => {
+  vi.stubEnv('BILLING_CHECKOUT_ENABLED', 'true');
+  vi.stubEnv('STRIPE_MANAGED_SELLER_COUNTRY', 'CA');
+});
+afterEach(() => vi.unstubAllEnvs());
 
 const organizationId = parseOrganizationId('11111111-1111-4111-8111-111111111111');
 const otherOrganizationId = parseOrganizationId('22222222-2222-4222-8222-222222222222');
@@ -133,6 +142,47 @@ function dependencies(
 }
 
 describe('owner billing sessions', () => {
+  it.each([undefined, 'standard_tax_v1'] as const)(
+    'rejects unsupported checkout protocol %s before provider submission',
+    async (checkoutProtocol) => {
+      const provider = new FakeBillingProvider();
+      const result = await createCheckoutSession(
+        {
+          organizationId,
+          organizationSlug,
+          plan: 'team',
+          origin: 'https://app.tryoutflow.test',
+          clientAttemptId: checkoutAttemptId,
+          checkoutProtocol,
+          billingCountry: 'CA',
+        },
+        owner,
+        dependencies(trialAccount, provider),
+      );
+      expect(result).toEqual({ ok: false, error: { code: 'billing_unavailable' } });
+      expect(provider.submissions.size).toBe(0);
+    },
+  );
+
+  it('keeps the activation gate closed even for an otherwise eligible Managed fixture', async () => {
+    vi.stubEnv('BILLING_CHECKOUT_ENABLED', 'false');
+    const provider = new FakeBillingProvider();
+    const result = await createCheckoutSession(
+      {
+        ...managedCheckout,
+        organizationId,
+        organizationSlug,
+        plan: 'team',
+        origin: 'https://app.tryoutflow.test',
+        clientAttemptId: checkoutAttemptId,
+      },
+      owner,
+      dependencies(trialAccount, provider),
+    );
+    expect(result).toEqual({ ok: false, error: { code: 'billing_unavailable' } });
+    expect(provider.submissions.size).toBe(0);
+  });
+
   it('accepts PostgREST UTC-offset timestamptz values', () => {
     expect(
       subscriptionAccountRowSchema.parse({
@@ -158,6 +208,7 @@ describe('owner billing sessions', () => {
       {
         organizationId,
         organizationSlug,
+        ...managedCheckout,
         plan: 'team',
         origin: 'https://app.tryoutflow.test',
         clientAttemptId: checkoutAttemptId,
@@ -193,6 +244,7 @@ describe('owner billing sessions', () => {
         {
           organizationId,
           organizationSlug,
+          ...managedCheckout,
           plan: 'team',
           origin: 'https://app.tryoutflow.test',
           clientAttemptId: checkoutAttemptId,
@@ -221,6 +273,7 @@ describe('owner billing sessions', () => {
       {
         organizationId: otherOrganizationId,
         organizationSlug,
+        ...managedCheckout,
         plan: 'team',
         origin: 'https://app.tryoutflow.test',
         clientAttemptId: checkoutAttemptId,
@@ -237,6 +290,7 @@ describe('owner billing sessions', () => {
     const input = {
       organizationId,
       organizationSlug,
+      ...managedCheckout,
       plan: 'club' as const,
       origin: 'https://app.tryoutflow.test',
       clientAttemptId: checkoutAttemptId,
@@ -259,6 +313,7 @@ describe('owner billing sessions', () => {
       organizationId,
       plan: 'club',
       priceId: prices.club,
+      ...managedCheckout,
       successUrl:
         'https://app.tryoutflow.test/app/badlands-hockey-academy/organization/billing?checkout=complete',
       cancelUrl:
@@ -271,6 +326,7 @@ describe('owner billing sessions', () => {
     const checkoutInput = {
       organizationId,
       organizationSlug,
+      ...managedCheckout,
       plan: 'team' as const,
       origin: 'https://app.tryoutflow.test',
       clientAttemptId: checkoutAttemptId,
@@ -316,6 +372,7 @@ describe('owner billing sessions', () => {
         {
           organizationId,
           organizationSlug,
+          ...managedCheckout,
           plan: 'team',
           origin: 'https://app.tryoutflow.test',
           clientAttemptId: '11111111-1111-4111-8111-111111111120',
@@ -327,6 +384,7 @@ describe('owner billing sessions', () => {
         {
           organizationId,
           organizationSlug,
+          ...managedCheckout,
           plan: 'club',
           origin: 'https://app.tryoutflow.test',
           clientAttemptId: '11111111-1111-4111-8111-111111111121',
@@ -345,6 +403,7 @@ describe('owner billing sessions', () => {
       {
         organizationId,
         organizationSlug,
+        ...managedCheckout,
         plan: 'association',
         origin: 'https://app.tryoutflow.test',
         clientAttemptId: '11111111-1111-4111-8111-111111111122',
@@ -365,6 +424,7 @@ describe('owner billing sessions', () => {
     const rejectedInput = {
       organizationId,
       organizationSlug,
+      ...managedCheckout,
       plan: 'team' as const,
       origin: 'https://app.tryoutflow.test',
       clientAttemptId: '11111111-1111-4111-8111-111111111140',
@@ -429,6 +489,7 @@ describe('owner billing sessions', () => {
     const shared = {
       organizationId,
       organizationSlug,
+      ...managedCheckout,
       plan: 'team' as const,
       clientAttemptId: checkoutAttemptId,
     };
@@ -457,6 +518,7 @@ describe('owner billing sessions', () => {
       {
         organizationId,
         organizationSlug,
+        ...managedCheckout,
         plan: 'enterprise',
         origin: 'https://app.tryoutflow.test',
         clientAttemptId: checkoutAttemptId,
@@ -468,6 +530,7 @@ describe('owner billing sessions', () => {
       {
         organizationId,
         organizationSlug,
+        ...managedCheckout,
         plan: 'team',
         origin: 'https://app.tryoutflow.test/redirect',
         clientAttemptId: checkoutAttemptId,
@@ -479,6 +542,7 @@ describe('owner billing sessions', () => {
       {
         organizationId,
         organizationSlug,
+        ...managedCheckout,
         plan: 'team',
         origin: 'http://localhost:3000',
         clientAttemptId: checkoutAttemptId,
@@ -490,6 +554,7 @@ describe('owner billing sessions', () => {
       {
         organizationId,
         organizationSlug,
+        ...managedCheckout,
         plan: 'team',
         origin: 'https://app.tryoutflow.test',
         clientAttemptId: checkoutAttemptId,
@@ -568,7 +633,7 @@ describe('billing session HTTP boundary', () => {
       },
       body: JSON.stringify(
         typeof body === 'object' && body !== null
-          ? { clientAttemptId: checkoutAttemptId, ...body }
+          ? { ...managedCheckout, clientAttemptId: checkoutAttemptId, ...body }
           : body,
       ),
     });

@@ -10,7 +10,7 @@ const execFile = promisify(execFileCallback);
 const databaseUrl =
   process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string, applicationName = 'tryoutflow-checkin-integration') =>
-  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
+  execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
     env: { ...process.env, PGAPPNAME: applicationName },
   });
 
@@ -174,7 +174,7 @@ describe('concurrent number assignment and check-in', () => {
     const callAs = (actorId: string, sql: string, column = 'outcome', applicationName?: string) => {
       if (applicationName) trackedApplicationNames.add(applicationName);
       const pending = psql(
-        `begin; set local statement_timeout='10s'; set local role authenticated; select set_config('request.jwt.claim.sub','${actorId}',true); create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
+        `begin; set local statement_timeout='10s'; set local role authenticated; set local "request.jwt.claim.sub" = '${actorId}'; create temporary table rpc_result on commit preserve rows as ${sql}; commit; select ${column} from rpc_result;`,
         applicationName,
       );
       pendingCalls.add(pending);
@@ -297,7 +297,7 @@ describe('concurrent number assignment and check-in', () => {
         begin;
         set local statement_timeout='8s';
         set local role authenticated;
-        select set_config('request.jwt.claim.sub','${staffId}',true);
+        set local "request.jwt.claim.sub" = '${staffId}';
         select outcome||'|natural-scope-held' from public.check_in_registration_v2(
           '${organizationId}','${tryoutId}','${registrationIds[1]}','${sessionOneId}',
           '${siblingGroupId}','natural-holder-request-0001','group',31);

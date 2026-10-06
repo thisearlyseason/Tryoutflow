@@ -18,7 +18,7 @@ const databaseUrl = database.url;
 beforeAll(() => database.create());
 afterAll(() => database.drop());
 const psql = (sql: string) =>
-  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
+  execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const ids = {
   owner: randomUUID(),
   member: randomUUID(),
@@ -131,7 +131,7 @@ describe('transactional communication outbox', () => {
     `);
     expect(replay.stdout.trim()).toBe('replayed');
     const optional = await psql(`
-      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
       select outcome from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}','${ids.guardian}','registration_reminder','Reminder','Reminder body','${keyPrefix}-optional');
     `);
     expect(optional.stdout.trim()).toBe('suppressed');
@@ -217,7 +217,7 @@ describe('transactional communication outbox', () => {
     ).stdout.trim();
     await expect(
       psql(`
-        begin; set local role authenticated; select set_config('request.jwt.claim.role','authenticated',true); select set_config('request.jwt.claim.sub','${ids.owner}',true);
+        begin; set local role authenticated; set local "request.jwt.claim.role" = 'authenticated'; set local "request.jwt.claim.sub" = '${ids.owner}';
         select * from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}','${ids.guardian}','registration_reminder','Subject','Body','${keyPrefix}-rollback');
         update public.outbox_jobs set max_attempts=0 where business_idempotency_key='${keyPrefix}-rollback';
         commit;
@@ -235,7 +235,7 @@ describe('transactional communication outbox', () => {
   it('returns the same non-oracular denial for unauthorized real and unknown snapshots', async () => {
     const call = (registrationId: string) =>
       psql(
-        `set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.member}',false); select outcome from public.queue_registration_communication_v2('${ids.organization}','${registrationId}','${ids.guardian}','registration_reminder','Subject','Body','${keyPrefix}-${registrationId}')`,
+        `set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.member}'; select outcome from public.queue_registration_communication_v2('${ids.organization}','${registrationId}','${ids.guardian}','registration_reminder','Subject','Body','${keyPrefix}-${registrationId}')`,
       );
     expect((await call(ids.registration)).stdout.trim()).toBe('forbidden');
     expect((await call(randomUUID())).stdout.trim()).toBe('forbidden');
@@ -244,7 +244,7 @@ describe('transactional communication outbox', () => {
   it('claims concurrent bounded batches without duplicates and records retry/dead-letter truth', async () => {
     for (const [index, suffix] of ['race-a', 'race-b', 'retry', 'expiry'].entries()) {
       const queued = await psql(
-        `set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false); select outcome from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}','${ids.guardian}','registration_reminder','Subject ${suffix}','Body ${suffix}','${keyPrefix}-${suffix}')`,
+        `set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}'; select outcome from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}','${ids.guardian}','registration_reminder','Subject ${suffix}','Body ${suffix}','${keyPrefix}-${suffix}')`,
       );
       expect(queued.stdout.trim()).toBe('queued');
       await psql(
@@ -334,7 +334,7 @@ describe('transactional communication outbox', () => {
   it('blocks on source mutation locks, cancels revoked relationships, and fences rotated leased confirmations', async () => {
     const relationshipKey = `${keyPrefix}-relationship-race`;
     const queued = await psql(`
-      set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
       select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}','${ids.guardian}','registration_reminder','Reminder','Body','${relationshipKey}');
     `);
     const relationshipJob = queued.stdout.trim();
@@ -443,8 +443,8 @@ describe('transactional communication outbox', () => {
   it('cancels withdrawn, offboarded, superseded-roster, and revoked-invitation sources before payload release', async () => {
     const queueReminder = async (suffix: string) => {
       const result =
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}','${ids.guardian}','registration_reminder','Reminder','Body','${keyPrefix}-${suffix}')`);
       return result.stdout.trim();
     };
@@ -490,8 +490,8 @@ describe('transactional communication outbox', () => {
     await psql(`insert into public.organization_invitations(id,organization_id,email,role,token_digest,expires_at,created_by_user_id)
       values('${invitationId}','${ids.organization}','invitee@example.com','member','${invitationDigest}',clock_timestamp()+interval '1 day','${ids.owner}')`);
     const invitationJob = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false); select job_id from public.queue_invitation_communication_v2(
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}'; select job_id from public.queue_invitation_communication_v2(
         '${ids.organization}','${invitationId}','${invitationDigest}','Invitation','Body','${keyPrefix}-invitation-revoke')`)
     ).stdout.trim();
     await psql(`update public.organization_invitations set revoked_at=clock_timestamp() where id='${invitationId}';
@@ -555,8 +555,8 @@ describe('transactional communication outbox', () => {
 
   it('preserves uncertain handoff truth after source withdrawal and accepts an exact late completion', async () => {
     const queued = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
           '${ids.guardian}','registration_reminder','Uncertain subject','Uncertain body','${keyPrefix}-uncertain-withdraw')`)
     ).stdout.trim();
@@ -613,8 +613,8 @@ describe('transactional communication outbox', () => {
   it('marks offboarded and exhausted post-handoff work uncertain without automatic resend', async () => {
     const queue = async (suffix: string) =>
       (
-        await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-          select set_config('request.jwt.claim.sub','${ids.owner}',false);
+        await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+          set "request.jwt.claim.sub" = '${ids.owner}';
           select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
             '${ids.guardian}','registration_reminder','Attention ${suffix}','Body','${keyPrefix}-${suffix}')`)
       ).stdout.trim();
@@ -669,8 +669,8 @@ describe('transactional communication outbox', () => {
 
   it('does not invoke the provider when authorization consumes the safety budget and retries later', async () => {
     const queued = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
           '${ids.guardian}','registration_reminder','Delayed authorization','Body','${keyPrefix}-delayed-auth')`)
     ).stdout.trim();
@@ -747,8 +747,8 @@ describe('transactional communication outbox', () => {
 
   it('grants concurrent dispatch routines exactly one provider invocation', async () => {
     const queued = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
           '${ids.guardian}','registration_reminder','Exclusive dispatch','Body','${keyPrefix}-exclusive-dispatch')`)
     ).stdout.trim();
@@ -798,8 +798,8 @@ describe('transactional communication outbox', () => {
 
   it('retains exclusive truth when the authorization response is lost', async () => {
     const queued = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
           '${ids.guardian}','registration_reminder','Lost authorization','Body','${keyPrefix}-lost-authorization')`)
     ).stdout.trim();
@@ -849,8 +849,8 @@ describe('transactional communication outbox', () => {
 
   it('serializes a known-not-sent decline against lease reclaim without erasing another generation', async () => {
     const queued = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
           '${ids.guardian}','registration_reminder','Decline race','Body','${keyPrefix}-decline-race')`)
     ).stdout.trim();
@@ -903,8 +903,8 @@ describe('transactional communication outbox', () => {
 
   it('runs the FakeEmailProvider through claim, dispatch, and durable database completion', async () => {
     const queued = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
           '${ids.guardian}','registration_reminder','Fake contract','Fake body','${keyPrefix}-fake-dispatch')`)
     ).stdout.trim();
@@ -972,8 +972,8 @@ describe('transactional communication outbox', () => {
 
   it('records an ambiguous provider transport once without putting the job back on the queue', async () => {
     const queued = (
-      await psql(`set role authenticated; select set_config('request.jwt.claim.role','authenticated',false);
-        select set_config('request.jwt.claim.sub','${ids.owner}',false);
+      await psql(`set role authenticated; set "request.jwt.claim.role" = 'authenticated';
+        set "request.jwt.claim.sub" = '${ids.owner}';
         select job_id from public.queue_registration_communication_v2('${ids.organization}','${ids.registration}',
           '${ids.guardian}','registration_reminder','Uncertain contract','Body','${keyPrefix}-uncertain-dispatch')`)
     ).stdout.trim();

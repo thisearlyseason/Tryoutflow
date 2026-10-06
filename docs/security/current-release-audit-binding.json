@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "5a8f26105152e37ccbea04b554af8be5b478eb1ff99ed26cb66a47a3e11064af",
+  "releaseManifestSHA256": "1acaf4432b49e0a0e68a187f3dd020d2da155c411db18c1b6b1e80788610e331",
   "files": [
     {
       "path": ".env.example",
@@ -6111,15 +6111,15 @@
     },
     {
       "path": "tests/integration/checkin/concurrency.test.ts",
-      "sha256": "e843a0b953092f316d0d13357a15077c9f06e88a063f4035d31549b7f71354e9"
+      "sha256": "5778855d5ee0272540384f1f4b9fa933d50d51064dbe8777711d3e88ece7d661"
     },
     {
       "path": "tests/integration/communications/outbox.test.ts",
-      "sha256": "745ffa11333af47bae55007d3a1c0f03c0eed3979863dbea4b77852df8a7a484"
+      "sha256": "b144dcf8fd28e58d085c0ceaada0e92b9a924f7af24bb7994627fb109a3ee3d0"
     },
     {
       "path": "tests/integration/communications/provider-events.test.ts",
-      "sha256": "b51d72926677626720c836db407b38ab321c57c80da6c24a0cb33f2bcedb22e2"
+      "sha256": "4622b017440e1725b481d403e34eb7fb6a38afabf06cde3ce055fdc1f28fdb85"
     },
     {
       "path": "tests/integration/demo-seed.test.ts",
@@ -6183,7 +6183,7 @@
     },
     {
       "path": "tests/integration/rankings/rankings.test.ts",
-      "sha256": "316d7d0544942424dedec2047cd648a275ebf3d3daa5eb30fe563ef354cf3823"
+      "sha256": "509852160889be70d97f8fbdf35ab1ff8c6dec13a887d20884bfb17f2fd3ea77"
     },
     {
       "path": "tests/integration/registration/csv-import.test.ts",
@@ -6207,7 +6207,7 @@
     },
     {
       "path": "tests/integration/rosters/finalization.test.ts",
-      "sha256": "2960fbbc1e613dda566f7f1be87673ef55f75d1911352eb30dca98089bef69da"
+      "sha256": "1aeb0a0cdd69c7f0008a50bb1a053eda6c029fb32a47b10a076dd1bf6b20443d"
     },
     {
       "path": "tests/integration/rubrics/database-concurrency.test.ts",
@@ -6227,7 +6227,7 @@
     },
     {
       "path": "tests/integration/subscriptions/sessions.test.ts",
-      "sha256": "d531a3a74a9be2745b543ed448bbb0267142fe0ce0e6eb0ed9e2aacf5340a227"
+      "sha256": "05d00313d866794680e99731e7cb25c62c2a192158ec49137923e71797bd498f"
     },
     {
       "path": "tests/integration/subscriptions/webhooks.test.ts",
@@ -6899,10 +6899,10 @@
     },
     {
       "path": "vitest.integration.config.ts",
-      "sha256": "dd067d4d30df6b0460eec5ac61dd7116eff9d978250184e708e4cd3930f6b25b"
+      "sha256": "3b962ba4124f2cd3a1982aa64b8a24bc87f73f6fe7977b881bf599c0318e3be7"
     }
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL test closure; authoritative CI schema types through165 with nullable reconciliation return; validated local timezone detection and deterministic date-boundary coverage; four multi-supervisor acceptance cases use existing bounded30-second setup/cleanup budget with assertions unchanged; web exception scope unchanged"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged"
 }
