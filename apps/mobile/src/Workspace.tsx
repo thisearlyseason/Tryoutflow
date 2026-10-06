@@ -24,6 +24,7 @@ import {
 } from './workspace-session';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { cleanupTemporaryReports } from './temporary-reports';
 import { reportDownload, workspaceNavigation } from './workspace-navigation';
 const origin = new URL(process.env.EXPO_PUBLIC_API_URL ?? 'https://www.tryout.agency').origin;
 export default function Workspace() {
@@ -33,6 +34,7 @@ export default function Workspace() {
   const nonce = useRef(randomUUID());
   const reports = useRef(new Set<string>());
   const sharing = useRef(false);
+  const reportCleanup = useRef<Promise<void>>(Promise.resolve());
   const [sourceUri, setSourceUri] = useState(
     `${origin}/native?platform=${Platform.OS === 'ios' ? 'apple' : 'google'}`,
   );
@@ -40,9 +42,24 @@ export default function Workspace() {
   const [requestedSlug, setRequestedSlug] = useState('');
   const [billing, setBilling] = useState(false);
   const [back, setBack] = useState(false);
+  const [forward, setForward] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fileBusy, setFileBusy] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const cleanup = cleanupTemporaryReports(FileSystem);
+    reportCleanup.current = cleanup;
+    cleanup.catch(() => {
+      if (active)
+        setError(
+          'Temporary report cleanup could not finish. Restart the app before sharing another report.',
+        );
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   function clearSession() {
     setWorkspaceSession(null);
     setSession(null);
@@ -185,11 +202,15 @@ export default function Workspace() {
         setFileBusy(true);
         let file: string | undefined;
         try {
+          await reportCleanup.current;
           if (!(await Sharing.isAvailableAsync())) throw new Error();
           const result = await Print.printToFileAsync({ html: data.html });
           if (!FileSystem.cacheDirectory || !result.uri.startsWith(FileSystem.cacheDirectory))
             throw new Error();
           file = result.uri;
+          const reportFile = `${FileSystem.cacheDirectory}tryoutflow-report-${randomUUID()}.pdf`;
+          await FileSystem.moveAsync({ from: file, to: reportFile });
+          file = reportFile;
           if (getWorkspaceSession()?.user.id !== session.user.id) throw new Error();
           await Sharing.shareAsync(file, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf' });
           fileResult(data.requestId, 'PDF prepared. Share sheet closed.');
@@ -224,6 +245,7 @@ export default function Workspace() {
         const extension = data.mime === 'application/json' ? 'json' : 'csv';
         const file = `${FileSystem.cacheDirectory}tryoutflow-report-${randomUUID()}.${extension}`;
         try {
+          await reportCleanup.current;
           if (!FileSystem.cacheDirectory || !(await Sharing.isAvailableAsync())) throw new Error();
           await FileSystem.writeAsStringAsync(file, data.data, {
             encoding: FileSystem.EncodingType.Base64,
@@ -308,6 +330,12 @@ export default function Workspace() {
           ) : null}
         </>
       )}
+      {Platform.OS === 'ios' && !billing && (back || forward) ? (
+        <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingVertical: 4 }}>
+          <Action title="Back" disabled={!back} onPress={() => view.current?.goBack()} />
+          <Action title="Forward" disabled={!forward} onPress={() => view.current?.goForward()} />
+        </View>
+      ) : null}
       <WebView
         ref={view}
         style={styles.web}
@@ -357,6 +385,7 @@ export default function Workspace() {
         }}
         onNavigationStateChange={(state) => {
           setBack(state.canGoBack);
+          setForward(state.canGoForward);
           try {
             currentPath.current = new URL(state.url).pathname;
             if (currentPath.current === '/sign-in') clearSession();

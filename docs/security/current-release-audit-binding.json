@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "5ae3ab57974f27b411f02dfbe69bcbfe4845197d5fdcaefa4c4bf65e82cd25f2",
+  "releaseManifestSHA256": "6d27960fa7848cfddd531522ba303c4ab21cf521c99e87fbba0f1dee34807161",
   "files": [
     {
       "path": ".env.example",
@@ -191,7 +191,7 @@
     },
     {
       "path": "apps/mobile/src/Workspace.tsx",
-      "sha256": "710cfc25e3ae6a18d7cb0914dec70674269a1b4dbd48ee42117d4823c01fb3d8"
+      "sha256": "46f95f27d819abb934f4df181456dc58b0a28a7f2acae180dc163068a33e78d9"
     },
     {
       "path": "apps/mobile/tests/account-deletion.test.tsx",
