@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "fc63c299577ef0d0b777064f7f6ccad72a65e7bc9810d3b356e100c70077ef82",
+  "releaseManifestSHA256": "033eef5710a5224de13d7eebf49d9664de62711de92ed24fdd1447d0bf406647",
   "files": [
     {
       "path": ".env.example",
@@ -4247,7 +4247,7 @@
     },
     {
       "path": "supabase/tests/073_final_acl_closure.test.sql",
-      "sha256": "353fa92f14b284d1e85072865f5168456225ec541b0204e04af9a22d64829b4c"
+      "sha256": "c1582c98cade15e6885a9bb8e692de6c0bf9237a4e59fb4906baf6f474a83444"
     },
     {
       "path": "supabase/tests/074_membership_commands.test.sql",
@@ -4359,7 +4359,7 @@
     },
     {
       "path": "supabase/tests/163_account_deletion_requests.test.sql",
-      "sha256": "fdb0849463c6a86647c227e7abea5c348fec99653972d781d3269eaedcf0dadc"
+      "sha256": "248d3fb5d0112df06ab491d7f9a1546366e907ff6ba8ed704a753df9dad0d6f9"
     },
     {
       "path": "tests/contract/analytics-provider.contract.test.ts",
@@ -6900,5 +6900,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Explicit approved native tooling exception and supported shell-quote/sharp security updates; five-node web advisory scope unchanged"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; reviewed migration163 static ACL expectations and seven negative checks, with no grant or function changes; web exception scope unchanged"
 }

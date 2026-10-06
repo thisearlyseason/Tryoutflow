@@ -5,7 +5,8 @@ set local search_path=extensions,public;
 select plan(26);
 
 -- Exact allowlists include the reviewed talent, billing, and team-workspace grants
--- in migrations 119-158. Keep these static: unexpected future grants must fail.
+-- in migrations 119-163, including the scoped account-deletion request/worker RPCs.
+-- Keep these static: unexpected future grants must fail.
 
 select is(
   (
@@ -328,6 +329,7 @@ select is(
     'enqueue_analytics_event',
     'event_coverage',
     'finalize_roster_version',
+    'get_account_deletion_request',
     'get_billing_dashboard',
     'get_effective_entitlements',
     'get_organization_logo_metadata',
@@ -372,11 +374,13 @@ select is(
     'participant_schedule',
     'participant_workspace',
     'performance_export_status',
+    'platform_account_deletion_requests',
     'platform_health',
     'platform_list_audit_events',
     'platform_list_organizations',
     'platform_list_subscriptions',
     'platform_list_support_elevations',
+    'platform_update_account_deletion',
     'preview_decision_message_batch_v2',
     'preview_event_notice',
     'program_attendance',
@@ -394,6 +398,7 @@ select is(
     'release_tryout_number',
     'remove_organization_logo',
     'reopen_evaluation',
+    'request_account_deletion',
     'reserve_billing_purchase',
     'reserve_subscription_checkout_intent',
     'resolve_athlete_import_duplicate',
@@ -513,6 +518,7 @@ select is(
     'fail_outbox_job_v2',
     'fail_subscription_checkout_intent',
     'finish_billing_reconciliation',
+    'pending_account_deletion_notices',
     'public_registration_tryout_v2',
     'public_registration_tryout_v3',
     'public_registration_window',
@@ -523,6 +529,7 @@ select is(
     'queue_organizer_registration_notification',
     'queue_registration_confirmation_communication_v2',
     'read_organization_logo_service',
+    'record_account_deletion_notice',
     'record_billing_delivery',
     'record_outbox_job_delivery_uncertain_v2',
     'reissue_registration_confirmation_token',
