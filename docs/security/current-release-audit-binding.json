@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "f44fa880c918c88ace76a5a8d7afbfae264c5ffab54500ebb44d373c1fd50063",
+  "releaseManifestSHA256": "5a8f26105152e37ccbea04b554af8be5b478eb1ff99ed26cb66a47a3e11064af",
   "files": [
     {
       "path": ".env.example",
@@ -6467,7 +6467,7 @@
     },
     {
       "path": "tests/unit/infrastructure/integration-command-lock.test.ts",
-      "sha256": "acdeaafc30d21e4d9ef5a31ee6432e13982a800cb9d70e9da60239218dfd99b2"
+      "sha256": "8e86cbb85dd6849d37b020a1685086a68b94ba28b966dcbf8ea5caf3f8551dde"
     },
     {
       "path": "tests/unit/infrastructure/integration-reaper-policy.test.ts",
@@ -6904,5 +6904,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL test closure; authoritative CI schema types through165 with nullable reconciliation return; validated local timezone detection including UTC and deterministic guidance/date-boundary coverage; web exception scope unchanged"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL test closure; authoritative CI schema types through165 with nullable reconciliation return; validated local timezone detection and deterministic date-boundary coverage; four multi-supervisor acceptance cases use existing bounded30-second setup/cleanup budget with assertions unchanged; web exception scope unchanged"
 }

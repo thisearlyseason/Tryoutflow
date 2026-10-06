@@ -629,6 +629,8 @@ describe('full integration command database lock', () => {
     30_000,
   );
 
+  // These multi-run/recovery cases include real local database setup and cleanup.
+  // Use the same bounded 30-second harness budget as adjacent supervisor tests.
   it('serializes simultaneous processes instead of overlapping shared fixtures', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-lock-'));
     const output = join(directory, 'runs.jsonl');
@@ -647,7 +649,7 @@ describe('full integration command database lock', () => {
     expect(events[0]!.pid).toBe(events[1]!.pid);
     expect(events[2]!.pid).toBe(events[3]!.pid);
     expect(events[0]!.pid).not.toBe(events[2]!.pid);
-  });
+  }, 30_000);
 
   it('serializes localhost, numeric-loopback, credential-encoding, and query aliases', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-alias-'));
@@ -667,7 +669,7 @@ describe('full integration command database lock', () => {
         .split('\n')
         .map((line) => JSON.parse(line).event),
     ).toEqual(['start', 'end', 'start', 'end']);
-  });
+  }, 30_000);
 
   it('rejects a non-local endpoint before running commands or clearing local state', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'tryoutflow-integration-reject-'));
@@ -743,7 +745,7 @@ describe('full integration command database lock', () => {
         entry.startsWith(`${forgedRunId}.json.quarantine-`),
       ),
     ).toBe(true);
-  });
+  }, 30_000);
 
   it('recovers only exact resources named by a stale run manifest', async () => {
     const validated = resolveAndValidateLocalDatabase(databaseUrl);
@@ -809,7 +811,7 @@ describe('full integration command database lock', () => {
       ]);
       rmSync(manifest, { force: true });
     }
-  });
+  }, 30_000);
 
   it.each(['pre-spawn', 'spawned-unbound', 'post-spawn', 'active', 'cleanup'] as const)(
     'reaps the exact command group when the supervisor is directly killed during %s',
