@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "9ba37a6d92b79bc4cce0f29ac5723c783e98afb285faf67de8d690bf8dde4bdc",
+  "releaseManifestSHA256": "5ae3ab57974f27b411f02dfbe69bcbfe4845197d5fdcaefa4c4bf65e82cd25f2",
   "files": [
     {
       "path": ".env.example",
@@ -147,7 +147,7 @@
     },
     {
       "path": "apps/mobile/package-lock.json",
-      "sha256": "0d8426e012859bf3c8d04634e007ad894a7fd1f98dff0cbbeda6fb4f8e96cc4e"
+      "sha256": "9c18e1b47c5e47e8fac431b4560cdec0abf94809b5153f38f6881211923edfc5"
     },
     {
       "path": "apps/mobile/package.json",
