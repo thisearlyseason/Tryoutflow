@@ -32,7 +32,7 @@ const stripeWebhookEnvironmentSchema = z.object({
 export type StripeWebhookEnvironment = z.infer<typeof stripeWebhookEnvironmentSchema>;
 
 const billingEnvironmentSchema = z.object({
-  STRIPE_SECRET_KEY: z.string().regex(/^sk_(?:test|live)_[A-Za-z0-9]{20,300}$/u),
+  STRIPE_SECRET_KEY: z.string().regex(/^(?:sk|rk)_(?:test|live)_[A-Za-z0-9]{20,300}$/u),
 });
 export type BillingEnvironment = z.infer<typeof billingEnvironmentSchema>;
 

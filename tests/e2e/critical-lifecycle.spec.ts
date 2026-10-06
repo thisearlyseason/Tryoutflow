@@ -10,6 +10,10 @@ import {
   reconnect,
   setOffline,
 } from './helpers/network';
+import {
+  continuePublicRegistration,
+  reviewPublicRegistration,
+} from './helpers/public-registration';
 
 function scope(
   testInfo: import('@playwright/test').TestInfo,
@@ -120,7 +124,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   await expect(page.getByLabel('Rubric name')).toBeVisible();
   await page.getByLabel('Session').selectOption({ label: 'Skills session' });
   await page.getByLabel('Rubric name').fill('Skating rubric');
-  await page.getByLabel('Category name').fill('Skating');
+  await page.getByLabel('Category 1 name').fill('Skating');
   expectCancellableServerAction(monitor, page, 'wizard rubric redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await expect(page.getByRole('heading', { name: 'Review setup' })).toBeVisible();
@@ -163,9 +167,11 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   await page.getByLabel('Athlete last name').fill(familyName);
   await page.getByLabel('Date of birth').fill('2013-05-01');
   await page.getByLabel('Division').selectOption(scenario.ids.division);
+  await continuePublicRegistration(page);
   await page.getByLabel('Guardian name').fill('Task 30 Guardian');
   await page.getByLabel('Guardian email').fill(guardianEmail);
   await page.getByLabel('I consent').check();
+  await reviewPublicRegistration(page);
   const submitted = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
@@ -190,7 +196,9 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
   publicMonitor.stop();
   const monitor = await signInAs(page, scenario.users.administrator, scenario.organizationSlug);
   await page.goto(`/app/${scenario.organizationSlug}/athletes`);
-  await expect(page.getByRole('link', { name: `Browser ${familyName}` })).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: `Browser ${familyName}`, exact: true }),
+  ).toBeVisible();
 
   expect(
     scenario.database.scalar(`begin;
@@ -214,6 +222,14 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
       `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/check-in`,
     );
     await checkin.page.getByLabel('Search registrations').fill(familyName);
+    checkin.monitor.allowOptionalRequestFailure({
+      maxCount: 1,
+      errorText: ['net::ERR_ABORTED', 'NS_BINDING_ABORTED', 'NS_ERROR_ABORT', 'cancelled'],
+      headers: { 'next-action': /.+/u },
+      label: 'superseded check-in search action may be cancelled',
+      method: 'POST',
+      url: checkin.page.url(),
+    });
     await checkin.page.getByRole('button', { name: 'Search' }).click();
     await expect(
       checkin.page.getByRole('heading', { name: `Browser ${familyName}` }),
@@ -221,6 +237,14 @@ test('scenarios 2–3 — guardian confirmation is visible to the administrator 
     await checkin.page.waitForLoadState('networkidle');
     await checkin.page.getByLabel('Requested number (optional)').fill('77');
     expectCancellableServerAction(checkin.monitor, checkin.page, 'idempotent check-in action');
+    checkin.monitor.allowOptionalRequestFailure({
+      maxCount: 1,
+      errorText: ['net::ERR_ABORTED', 'NS_BINDING_ABORTED', 'NS_ERROR_ABORT', 'cancelled'],
+      headers: { 'next-action': /.+/u },
+      label: 'second double-clicked check-in action may be cancelled',
+      method: 'POST',
+      url: checkin.page.url(),
+    });
     await checkin.page.getByRole('button', { name: `Check in Browser ${familyName}` }).dblclick();
     await expect(checkin.page.getByRole('status')).toContainText(/checked in|already checked in/i);
     await expect(checkin.page.getByText('#77 · checked in')).toBeVisible();
@@ -258,7 +282,7 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
     }),
   );
   try {
-    for (const { page, monitor, control, expected } of sessions) {
+    for (const [index, { page, monitor, control, expected }] of sessions.entries()) {
       await page.goto(
         `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationA}`,
       );
@@ -279,7 +303,26 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
       for (const peer of ['82', '84', '86'].filter((score) => score !== expected)) {
         await expect(page.locator('body')).not.toContainText(`private ${peer}`);
       }
-      await expect(page.locator('body')).not.toContainText(/84\.0000|peer score/iu);
+      // The personal weighted total is now intentionally visible in the profile.
+      const profile = page.locator('.athlete-profile-panel');
+      await expect(profile.getByTestId('profile-overall')).toHaveAttribute(
+        'data-value',
+        `${expected}.0000`,
+      );
+      expectCancellableServerAction(monitor, page, 'load completed evaluator average');
+      await profile.getByRole('button', { name: 'Evaluator Average', exact: true }).click();
+      await expect(profile).toContainText(`${index + 1} completed evaluations`);
+      const controlRow = profile
+        .getByRole('row')
+        .filter({ has: page.getByRole('rowheader', { name: 'Control', exact: true }) });
+      await expect(controlRow).toContainText(`${index === 0 ? 1 : 2} / 10`);
+      await profile.getByRole('button', { name: 'My Evaluation', exact: true }).click();
+      await page.reload();
+      await expect(profile.getByTestId('profile-overall')).toHaveAttribute(
+        'data-value',
+        `${expected}.0000`,
+      );
+      await expect(page.getByLabel('Private evaluator note')).toHaveValue(`private ${expected}`);
       monitor.assertClean();
     }
     const director = await openAuthenticatedContext({
@@ -292,7 +335,9 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
       await director.page.goto(
         `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rankings`,
       );
-      const row = director.page.getByRole('listitem').filter({ hasText: 'Exact Aggregate' });
+      const row = director.page.getByRole('row').filter({
+        has: director.page.getByRole('heading', { name: 'Exact Aggregate', exact: true }),
+      });
       await expect(row).toContainText('84.0');
       await expect(row).toContainText('3 of 3 evaluations complete');
       await expect(row).toContainText('82.0–86.0');
@@ -513,6 +558,7 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/messages`,
   );
   await messagesPage.getByLabel('Finalized roster').selectOption(scenario.ids.finalRoster);
+  expectCancellableServerAction(messagesMonitor, messagesPage, 'exact recipient preview action');
   await messagesPage.getByRole('button', { name: 'Preview exact recipients' }).click();
   await expect(
     messagesPage.getByRole('heading', { name: 'Exact recipient preview · 1' }),

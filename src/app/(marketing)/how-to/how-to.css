@@ -1,0 +1,730 @@
+.howto {
+  --guide-ink: #12243a;
+  --guide-blue: #234be8;
+  --guide-muted: #526174;
+  --guide-line: #dce3ec;
+  background: #f5f7fb;
+  color: var(--guide-ink);
+}
+.howto-hero {
+  background: #102238;
+  color: white;
+  border-bottom: 5px solid #d9f46b;
+  padding: 64px 24px 42px;
+}
+.howto-hero-inner,
+.howto-shell {
+  max-width: 1380px;
+  margin: 0 auto;
+}
+.howto-eyebrow {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  line-height: 1.5;
+}
+.howto-hero .howto-eyebrow {
+  color: #d9f46b;
+}
+.howto-hero h1 {
+  color: white;
+  font-size: clamp(36px, 5vw, 64px);
+  line-height: 1.08;
+  letter-spacing: -0.045em;
+  font-weight: 850;
+  margin: 22px 0;
+  max-width: 1000px;
+}
+.howto-hero h1 span {
+  color: #d9f46b;
+}
+.howto-intro {
+  color: #d8e2ef;
+  max-width: 730px;
+  font-size: 18px;
+  line-height: 1.7;
+}
+.howto-audiences {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  max-width: 1120px;
+  margin-top: 30px;
+}
+.howto-audiences a {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 20px 54px 20px 22px;
+  border: 1px solid #48607a;
+  border-radius: 14px;
+  text-decoration: none;
+  color: white;
+  background: #1c324b;
+  min-height: 92px;
+}
+.howto-audiences a:hover {
+  border-color: #d9f46b;
+}
+.howto-audiences a.is-selected {
+  background: #d9f46b;
+  border-color: #d9f46b;
+  color: #14243a;
+}
+.howto-audiences span {
+  font-size: 19px;
+  font-weight: 800;
+}
+.howto-audiences small {
+  font-size: 13px;
+}
+.howto-audiences svg {
+  position: absolute;
+  right: 22px;
+  top: 32px;
+}
+.howto-shell {
+  padding: 44px 24px 72px;
+}
+.howto-introduction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.howto-introduction h2 {
+  font-size: 32px;
+  letter-spacing: -0.03em;
+  font-weight: 800;
+  margin: 8px 0;
+}
+.howto-introduction p:not(.howto-eyebrow) {
+  color: var(--guide-muted);
+  line-height: 1.6;
+}
+.howto-print {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: white;
+  border: 1px solid var(--guide-line);
+  padding: 12px 16px;
+  border-radius: 9px;
+  font-weight: 700;
+  min-height: 44px;
+}
+.howto-demo-note {
+  padding: 16px 20px;
+  margin: 24px 0 34px;
+  background: #eaf0fb;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #344b67;
+}
+.howto-layout {
+  display: grid;
+  grid-template-columns: 235px minmax(0, 1fr);
+  gap: 38px;
+}
+.howto-sidebar {
+  position: sticky;
+  top: 20px;
+  align-self: start;
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: 2px 4px 8px 0;
+}
+.howto-search > span:first-child {
+  display: block;
+  font-weight: 750;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+.howto-search-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #bdc9dc;
+  background: white;
+  border-radius: 8px;
+  padding: 0 10px;
+}
+.howto-search-input input {
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--guide-ink);
+}
+.howto-search-input:focus-within {
+  outline: 3px solid #345bff;
+  outline-offset: 2px;
+}
+.howto-search-status {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--guide-muted);
+  margin: 10px 0 16px;
+}
+.howto-clear {
+  font-weight: 700;
+  color: var(--guide-blue);
+  font-size: 13px;
+  margin-bottom: 12px;
+  min-height: 40px;
+}
+.howto-sidebar nav {
+  display: grid;
+  gap: 4px;
+}
+.howto-sidebar nav a {
+  display: grid;
+  grid-template-columns: 24px 1fr 15px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px 6px;
+  min-height: 48px;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.howto-sidebar nav a:hover {
+  background: #e4eafb;
+  color: var(--guide-blue);
+}
+.howto-sidebar nav a span {
+  font-size: 11px;
+  color: #566a88;
+}
+.howto-help {
+  border-top: 1px solid var(--guide-line);
+  margin-top: 22px;
+  padding-top: 22px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.howto-help p {
+  color: var(--guide-muted);
+  margin: 8px 0 12px;
+}
+.howto-help a {
+  color: var(--guide-blue);
+  font-weight: 700;
+}
+.howto-help svg {
+  display: inline;
+  vertical-align: middle;
+}
+.howto-chapters {
+  min-width: 0;
+}
+.howto-chapter {
+  scroll-margin-top: 24px;
+  margin-bottom: 46px;
+}
+.howto-chapter-header {
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--guide-line);
+  padding-bottom: 22px;
+}
+.howto-chapter-header .howto-eyebrow {
+  color: var(--guide-blue);
+}
+.howto-chapter-header h3 {
+  font-size: 27px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  margin: 7px 0;
+}
+.howto-chapter-header > p:last-child {
+  color: var(--guide-muted);
+  line-height: 1.6;
+  font-size: 15px;
+}
+.howto-step {
+  scroll-margin-top: 22px;
+  background: white;
+  border: 1px solid var(--guide-line);
+  border-radius: 15px;
+  margin-bottom: 24px;
+  padding: 26px;
+  box-shadow: 0 3px 12px #17345304;
+  min-width: 0;
+}
+.howto-step-heading {
+  display: flex;
+  align-items: start;
+  gap: 15px;
+  margin-bottom: 24px;
+}
+.howto-step-number {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: #ecf1ff;
+  color: var(--guide-blue);
+  font-weight: 850;
+  font-size: 18px;
+  text-decoration: none;
+}
+.howto-where {
+  font-size: 11px;
+  font-weight: 700;
+  color: #536882;
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+.howto-step h4 {
+  font-size: 21px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+}
+.howto-step-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 25px;
+  align-items: start;
+}
+.howto-instructions ol {
+  list-style: decimal;
+  padding-left: 19px;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #36465a;
+  margin: 0;
+}
+.howto-instructions li {
+  padding-left: 4px;
+  margin-bottom: 10px;
+}
+.howto-instructions li::marker {
+  color: var(--guide-blue);
+  font-weight: 800;
+}
+.howto-result {
+  display: flex;
+  gap: 9px;
+  background: #f1f7e7;
+  border-radius: 9px;
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  margin-top: 18px;
+  color: #294129;
+}
+.howto-result > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.howto-result strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+.howto-note {
+  font-size: 12px;
+  line-height: 1.75;
+  border-left: 3px solid #bfd0ff;
+  padding-left: 12px;
+  color: #536174;
+  margin-top: 14px;
+}
+.howto-shot {
+  min-width: 0;
+  border: 1px solid #d7dfeb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f7f9fd;
+}
+.howto-shot-button {
+  display: block;
+  width: 100%;
+  position: relative;
+  text-align: left;
+  background: #edf1f8;
+  cursor: zoom-in;
+}
+.howto-shot-button > img {
+  width: 100%;
+  height: auto;
+  max-height: 350px;
+  object-fit: cover;
+  object-position: top;
+  display: block;
+}
+.howto-enlarge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 750;
+  padding: 11px;
+  background: #13283f;
+  color: white;
+  min-height: 44px;
+}
+.howto-shot figcaption {
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  color: #4e627d;
+  overflow-wrap: anywhere;
+}
+.howto-back {
+  display: inline-block;
+  font-size: 11px;
+  color: #596b82;
+  margin-top: 20px;
+  text-decoration: underline;
+  min-height: 32px;
+  padding-top: 8px;
+}
+.howto-closing {
+  padding: 32px;
+  border-radius: 16px;
+  background: #142940;
+  color: white;
+  line-height: 1.7;
+}
+.howto-closing > svg {
+  color: #d9f46b;
+}
+.howto-closing h3 {
+  color: white;
+  font-size: 27px;
+  font-weight: 800;
+  margin: 12px 0;
+}
+.howto-closing p {
+  color: #d9e4ef;
+  max-width: 640px;
+}
+.howto-closing a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #d9f46b;
+  font-weight: 750;
+  margin-top: 18px;
+  min-height: 44px;
+}
+.howto-empty {
+  padding: 36px;
+  background: white;
+  border: 1px solid var(--guide-line);
+  border-radius: 12px;
+  line-height: 1.8;
+}
+.howto-empty h3 {
+  font-size: 23px;
+  font-weight: 800;
+}
+.howto-empty button {
+  color: var(--guide-blue);
+  font-weight: 750;
+  margin-top: 14px;
+  min-height: 44px;
+}
+.howto a:focus-visible,
+.howto button:focus-visible,
+.howto-dialog a:focus-visible,
+.howto-dialog button:focus-visible {
+  outline: 3px solid #486eff;
+  outline-offset: 4px;
+}
+.howto-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #071423db;
+}
+.howto-dialog {
+  position: fixed;
+  inset: 3dvh 3vw;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  color: #142940;
+  border-radius: 14px;
+  box-shadow: 0 20px 100px #0006;
+  overflow: hidden;
+}
+.howto-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #dce3ec;
+  flex: none;
+}
+.howto-dialog-header h2 {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+.howto-dialog-header p {
+  font-size: 12px;
+  margin-top: 5px;
+  line-height: 1.5;
+  color: #526174;
+}
+.howto-icon-button {
+  display: grid;
+  place-items: center;
+  flex: none;
+  align-self: start;
+  min-width: 44px;
+  min-height: 44px;
+  background: #edf1f8;
+  border-radius: 8px;
+}
+.howto-dialog-image {
+  overflow: auto;
+  background: #e9eef5;
+  flex: 1;
+  min-height: 0;
+}
+.howto-dialog-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 1600px;
+  margin: auto;
+}
+.howto-original {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px;
+  font-size: 13px;
+  font-weight: 750;
+  color: #234be8;
+  min-height: 44px;
+  border-top: 1px solid #dce3ec;
+}
+@media (min-width: 1500px) {
+  .howto-step-body {
+    grid-template-columns: 1fr 1.15fr;
+  }
+}
+@media (max-width: 1100px) {
+  .howto-layout {
+    grid-template-columns: 210px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .howto-step-body {
+    grid-template-columns: 1fr;
+  }
+  .howto-shot-button > img {
+    max-height: 380px;
+  }
+  .howto-step {
+    padding: 23px;
+  }
+}
+@media (max-width: 700px) {
+  .howto-hero {
+    padding: 34px 18px 27px;
+  }
+  .howto-hero h1 {
+    font-size: 38px;
+  }
+  .howto-intro {
+    font-size: 16px;
+  }
+  .howto-audiences {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .howto-audiences a {
+    min-height: 78px;
+    padding: 15px 47px 15px 17px;
+  }
+  .howto-audiences svg {
+    top: 27px;
+    right: 17px;
+  }
+  .howto-shell {
+    padding: 28px 16px 42px;
+  }
+  .howto-introduction {
+    align-items: start;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .howto-introduction h2 {
+    font-size: 28px;
+  }
+  .howto-demo-note {
+    padding: 14px;
+    font-size: 13px;
+    margin-bottom: 23px;
+  }
+  .howto-layout {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+  .howto-sidebar {
+    position: static;
+    max-height: none;
+    padding: 0;
+  }
+  .howto-search-input input {
+    font-size: 16px;
+  }
+  .howto-sidebar nav {
+    grid-template-columns: 1fr 1fr;
+  }
+  .howto-sidebar nav a {
+    font-size: 12px;
+    grid-template-columns: 20px 1fr;
+    gap: 5px;
+    border: 1px solid var(--guide-line);
+    padding: 10px;
+    align-items: start;
+  }
+  .howto-sidebar nav svg {
+    display: none;
+  }
+  .howto-help {
+    display: none;
+  }
+  .howto-step {
+    padding: 18px 15px;
+    border-radius: 12px;
+  }
+  .howto-step-heading {
+    gap: 10px;
+  }
+  .howto-step-number {
+    width: 36px;
+    height: 38px;
+    font-size: 16px;
+  }
+  .howto-step h4 {
+    font-size: 20px;
+  }
+  .howto-where {
+    font-size: 11px;
+  }
+  .howto-chapter-header h3 {
+    font-size: 24px;
+  }
+  .howto-shot-button > img {
+    max-height: 300px;
+  }
+  .howto-dialog {
+    inset: 12px 8px;
+  }
+  .howto-dialog-header {
+    padding: 13px;
+  }
+  .howto-dialog-header h2 {
+    font-size: 16px;
+  }
+  .howto-closing {
+    padding: 24px;
+  }
+  .howto-print {
+    font-size: 13px;
+  }
+  .howto-instructions ol {
+    font-size: 15px;
+  }
+  .howto-back {
+    min-height: 40px;
+  }
+}
+@media print {
+  body {
+    background: white !important;
+  }
+  .howto-hero {
+    background: white;
+    color: #12243a;
+    padding: 0;
+    border-bottom: 2px solid #12243a;
+  }
+  .howto-hero h1 {
+    font-size: 30px;
+  }
+  .howto-hero h1 span,
+  .howto-hero h1,
+  .howto-hero .howto-eyebrow,
+  .howto-intro {
+    color: #12243a;
+  }
+  .howto-audiences,
+  .howto-sidebar,
+  .howto-print,
+  .howto-back,
+  .howto-closing,
+  .howto-enlarge,
+  body > div > header,
+  body > div > footer {
+    display: none !important;
+  }
+  .howto-shell {
+    padding: 15px 0;
+  }
+  .howto-layout {
+    display: block;
+  }
+  .howto-step-body {
+    display: block;
+  }
+  .howto-step {
+    break-inside: avoid;
+    box-shadow: none;
+    padding: 14px;
+    margin: 15px 0;
+  }
+  .howto-shot {
+    margin-top: 16px;
+    max-width: 650px;
+  }
+  .howto-shot-button > img {
+    max-height: 440px;
+    object-fit: contain;
+  }
+  .howto-instructions ol {
+    font-size: 11px;
+  }
+  .howto-step h4 {
+    font-size: 18px;
+  }
+  .howto-demo-note {
+    font-size: 10px;
+    margin: 10px 0;
+  }
+  .howto-result {
+    font-size: 10px;
+  }
+  .howto-chapter-header {
+    break-after: avoid;
+  }
+  .howto {
+    background: white;
+  }
+  .howto-shot-button {
+    cursor: default;
+  }
+}

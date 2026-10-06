@@ -1,3 +1,4 @@
+import { loadWorkspaceNavigation } from '@/modules/organizations/application/team-workspaces';
 import { randomUUID } from 'node:crypto';
 
 import { redirect } from 'next/navigation';
@@ -18,6 +19,7 @@ import {
   InviteMemberForm,
   type InvitationFormState,
 } from '@/modules/organizations/components/invite-member-form';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function MembersPage({
   params,
@@ -26,14 +28,23 @@ export default async function MembersPage({
 }) {
   const { organizationSlug } = await params;
   const context = await requireCurrentOrganization(organizationSlug);
+  const workspace = await loadWorkspaceNavigation(context.client, context.organization.id);
+  const managesParent = workspace.parent?.canManage === true;
   const canManageMembers = ['owner', 'administrator'].includes(
     context.authorization.organizationRole,
   );
   const membersResult = await context.client
     .from('organization_members')
-    .select('id,user_id,role,status,version,created_at')
+    .select('id,user_id,role,status,version,created_at,inherited_from_organization_id')
     .eq('organization_id', context.organization.id)
     .order('created_at');
+  const invitationsResult = canManageMembers
+    ? await context.client.rpc('list_organization_invitations', {
+        p_organization_id: context.organization.id,
+        p_limit: 25,
+        p_offset: 0,
+      })
+    : { data: null, error: null };
   const actorMember = membersResult.data?.find((member) => member.user_id === context.userId);
   if (membersResult.error)
     captureOperationalError(membersResult.error, {
@@ -120,8 +131,19 @@ export default async function MembersPage({
     );
   }
   return (
-    <section aria-labelledby="members-heading" className="grid gap-8">
-      <h2 id="members-heading">Members</h2>
+    <section aria-labelledby="members-heading" className="workspace-stack">
+      <PageHeader
+        description="Invite teammates and control exactly what each person can access."
+        eyebrow="Organization"
+        title="Members & permissions"
+      />
+      {workspace.isTeam ? (
+        <p className="workspace-card">
+          Invite a coach as an Administrator to manage this team, or a Member for assigned
+          evaluation and event duties. Invitations grant access to this team only. Organization
+          administrators inherit access and are managed in the organization workspace.
+        </p>
+      ) : null}
       <section aria-labelledby="member-list-heading">
         <h3 id="member-list-heading">Organization access</h3>
         <p className="mt-2 text-[var(--color-text-muted)]">
@@ -132,22 +154,31 @@ export default async function MembersPage({
             Member access is temporarily unavailable. Refresh before making changes.
           </p>
         ) : membersResult.data?.length ? (
-          <ul className="mt-4 grid gap-3">
+          <ul className="workspace-card-grid mt-4">
             {membersResult.data.map((member) => {
               const isCurrent = member.user_id === context.userId;
               const actorCanChange =
                 canManageMembers &&
                 !isCurrent &&
+                !member.inherited_from_organization_id &&
                 member.role !== 'owner' &&
-                (context.authorization.organizationRole === 'owner' || member.role === 'member');
+                (context.authorization.organizationRole === 'owner' ||
+                  managesParent ||
+                  member.role === 'member');
               return (
-                <li className="card grid gap-3 p-4 lg:grid-cols-[1fr_auto]" key={member.id}>
+                <li className="workspace-card grid gap-3" key={member.id}>
                   <div className="min-w-0">
                     <p className="font-semibold">
                       {isCurrent ? 'Your account' : `Member …${member.user_id.slice(-8)}`}
                     </p>
                     <p className="text-sm text-[var(--color-text-muted)]">
-                      {member.role} · {member.status}
+                      {workspace.isTeam &&
+                      member.role === 'administrator' &&
+                      !member.inherited_from_organization_id
+                        ? 'Team coach'
+                        : member.role}{' '}
+                      · {member.status}
+                      {member.inherited_from_organization_id ? ' · Managed by organization' : ''}
                     </p>
                   </div>
                   {actorCanChange ? (
@@ -164,7 +195,7 @@ export default async function MembersPage({
                             name="role"
                           >
                             <option value="member">Member</option>
-                            {context.authorization.organizationRole === 'owner' ? (
+                            {context.authorization.organizationRole === 'owner' || managesParent ? (
                               <option value="administrator">Administrator</option>
                             ) : null}
                           </select>
@@ -182,7 +213,8 @@ export default async function MembersPage({
                         </label>
                         <Button type="submit">Save access</Button>
                       </form>
-                      {context.authorization.organizationRole === 'owner' &&
+                      {!workspace.isTeam &&
+                      context.authorization.organizationRole === 'owner' &&
                       member.status === 'active' &&
                       actorMember ? (
                         <form action={transferOwnership}>
@@ -208,6 +240,60 @@ export default async function MembersPage({
         )}
       </section>
       <section aria-labelledby="invite-heading" className="card p-5">
+        {canManageMembers ? (
+          <section aria-labelledby="pending-invitations-heading" className="mb-6">
+            <h3 id="pending-invitations-heading">Invitations</h3>
+            <p className="mt-2 text-[var(--color-text-muted)]">
+              Recent invitations stay visible here so you can confirm whether access is still
+              pending.
+            </p>
+            {invitationsResult.error ? (
+              <p className="mt-4" role="status">
+                Invitation history is temporarily unavailable.
+              </p>
+            ) : invitationsResult.data?.length ? (
+              <ul aria-label="Organization invitations" className="mt-4 grid gap-3">
+                {invitationsResult.data.map((invitation) => {
+                  const accepted = Boolean(invitation.accepted_at);
+                  const expired =
+                    !accepted && new Date(invitation.expires_at).getTime() <= Date.now();
+                  return (
+                    <li
+                      className="rounded-[var(--radius-control)] border border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3"
+                      key={invitation.id}
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="break-all font-semibold">{invitation.email}</p>
+                        <span className="text-sm text-[var(--color-text-muted)]">
+                          {accepted
+                            ? 'Accepted'
+                            : invitation.revoked_at
+                              ? 'Revoked'
+                              : expired
+                                ? 'Expired'
+                                : 'Pending'}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+                        {invitation.role} · Expires{' '}
+                        <time dateTime={invitation.expires_at}>
+                          {new Intl.DateTimeFormat('en-CA', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          }).format(new Date(invitation.expires_at))}
+                        </time>
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="mt-4" role="status">
+                No invitations have been created yet.
+              </p>
+            )}
+          </section>
+        ) : null}
         <h3 id="invite-heading">Invite a member</h3>
         <p>Invite a staff member with only the role they need.</p>
         {canManageMembers ? (

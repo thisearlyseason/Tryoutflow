@@ -18,6 +18,8 @@ export type RankingFilters = Readonly<{
   completion?: 'all' | 'complete' | 'incomplete' | 'unscored';
   minimumEvaluators?: number;
   search?: string;
+  category?: string;
+  sort?: 'overall' | 'category' | 'coverage' | 'spread';
 }>;
 
 export type RankingCategory = Readonly<{
@@ -105,6 +107,7 @@ export type RankingGateway = {
 };
 
 export type RankingPage = Readonly<{
+  categoryOptions?: readonly { id: string; name: string }[];
   filterOptions: RankingFilterOptions;
   rows: readonly RankingRow[];
   page: number;
@@ -124,6 +127,8 @@ const inputSchema = z.strictObject({
   completion: z.enum(['all', 'complete', 'incomplete', 'unscored']).default('all'),
   minimumEvaluators: z.number().int().min(0).max(1000).default(0),
   search: z.string().trim().max(120).default(''),
+  category: z.uuid().optional(),
+  sort: z.enum(['overall', 'category', 'coverage', 'spread']).default('overall'),
   page: z.number().int().min(1).max(10000).default(1),
   pageSize: z.number().int().min(1).max(100).default(25),
 });
@@ -320,9 +325,46 @@ export async function listRankings(
         String(row.tryoutNumber ?? '').includes(search)
       );
     });
+    const sort = parsed.data.sort,
+      category = parsed.data.category;
+    if (sort !== 'overall')
+      rows.sort((a, b) => {
+        const value = (row: RankingRow): number | null =>
+          sort === 'coverage'
+            ? row.completionPercent
+            : sort === 'spread'
+              ? row.scoreRange
+                ? Number(row.scoreRange[1]) - Number(row.scoreRange[0])
+                : null
+              : Number.isFinite(
+                    Number(
+                      row.categories.find((c) => c.categoryId === category)?.normalizedAverage,
+                    ),
+                  )
+                ? Number(row.categories.find((c) => c.categoryId === category)?.normalizedAverage)
+                : null;
+        const left = value(a),
+          right = value(b);
+        return left === null
+          ? right === null
+            ? a.registrationId.localeCompare(b.registrationId)
+            : 1
+          : right === null
+            ? -1
+            : (sort === 'coverage' ? left - right : right - left) ||
+              a.registrationId.localeCompare(b.registrationId);
+      });
+    const categoryOptions = [
+      ...new Map(
+        loaded.snapshot.registrations.flatMap((r) =>
+          r.categoryNames.map((c) => [c.id, { id: c.id, name: c.name }] as const),
+        ),
+      ).values(),
+    ];
     const total = rows.length;
     const start = (parsed.data.page - 1) * parsed.data.pageSize;
     return success({
+      categoryOptions,
       filterOptions: loaded.snapshot.filterOptions,
       rows: rows.slice(start, start + parsed.data.pageSize),
       page: parsed.data.page,

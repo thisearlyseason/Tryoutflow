@@ -11,6 +11,10 @@ import {
   expectCancellableServerAction,
   monitorBrowserErrors,
 } from './helpers/network';
+import {
+  continuePublicRegistration,
+  reviewPublicRegistration,
+} from './helpers/public-registration';
 
 const logoFixture = resolve('tests/fixtures/branding/organization-logo.png');
 const replacementLogoFixture = resolve('tests/fixtures/branding/organization-logo-replacement.png');
@@ -183,7 +187,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   );
   await page.getByLabel('Session').selectOption({ label: 'Skills Session 1' });
   await page.getByLabel('Rubric name').fill('Skating and Game Sense');
-  await page.getByLabel('Category name').fill('Skating');
+  await page.getByLabel('Category 1 name').fill('Skating');
   expectCancellableServerAction(ownerMonitor, page, 'guided rubric persistence redirect');
   await page.getByRole('button', { name: 'Save and continue' }).click();
 
@@ -199,7 +203,9 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   ).toBe(`${sessionStarts}|${sessionEnds}`);
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${authoredTryoutId}/staff`);
-  await expect(page.getByRole('heading', { name: `${tryoutName} evaluators` })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: `${tryoutName} evaluators`, level: 1 }),
+  ).toBeVisible();
   await page.locator('select[name="evaluatorUserId"]').selectOption(scenario.users.evaluatorOne.id);
   await page.locator('select[name="scope"]').selectOption(`tryout:${authoredTryoutId}`);
   expectCancellableServerAction(ownerMonitor, page, 'authored tryout evaluator assignment');
@@ -260,8 +266,11 @@ test('isolated owner completes the branded tryout journey and removes the logo c
     await publicPage.getByLabel('Athlete first name').fill('Jordan');
     await publicPage.getByLabel('Athlete last name').fill(familyName);
     await publicPage.getByLabel('Date of birth').fill('2012-09-15');
+    await continuePublicRegistration(publicPage);
     await publicPage.getByLabel('Guardian name').fill('Taylor Lee');
     await publicPage.getByLabel('Guardian email').fill(`guardian-${suffix}@example.test`);
+    await publicPage.getByRole('checkbox', { name: 'Waiver and consent' }).check();
+    await reviewPublicRegistration(publicPage);
     scenario.database.trackAbuseAttempt({
       scope: 'public_registration',
       action: 'public_registration',
@@ -460,7 +469,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
       );
       await evaluationPage.getByRole('link', { name: 'Evaluate' }).click();
       await expect(
-        evaluationPage.getByRole('heading', { name: 'Your assigned sessions' }),
+        evaluationPage.getByRole('heading', { name: 'Your assigned sessions', level: 1 }),
       ).toBeVisible();
       await evaluationPage.waitForLoadState('networkidle');
       const authoredSessionCard = evaluationPage

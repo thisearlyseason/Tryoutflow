@@ -11,7 +11,7 @@ select function_privs_are('public','consume_abuse_rate_limit',array['text','text
 select function_privs_are('public','consume_bot_token_once',array['text','text','integer'],'service_role',array['EXECUTE'],'service routes record bot-token replay through one narrow RPC');
 select function_privs_are('public','enqueue_analytics_event',array['uuid','text','text','text'],'authenticated',array['EXECUTE'],'authenticated workflows enqueue closed analytics events');
 select function_privs_are('public','create_tryout_draft_with_cycle',array['uuid','uuid','text','text','text','text','text','timestamp with time zone','timestamp with time zone'],'authenticated',array['EXECUTE'],'tryout creation resolves a cycle atomically');
-select function_privs_are('public','create_staff_registration',array['uuid','uuid','uuid','uuid','uuid','text','text','date','jsonb','text'],'authenticated',array['EXECUTE'],'manual and returning registrations use a guarded command');
+select function_privs_are('public','create_staff_registration_v2',array['uuid','uuid','uuid','uuid','uuid','text','text','date','jsonb','text','jsonb'],'authenticated',array['EXECUTE'],'manual and returning registrations use a guarded command');
 select function_privs_are('public','list_returning_athletes',array['uuid','uuid','text','integer'],'authenticated',array['EXECUTE'],'returning-athlete lookup is guarded and bounded');
 select function_privs_are('public','load_staff_registration_configuration',array['uuid','uuid'],'authenticated',array['EXECUTE'],'staff registration configuration uses one guarded projection');
 
@@ -53,8 +53,8 @@ select is((select outcome from public.enqueue_analytics_event('94100000-0000-400
 select throws_ok($$select * from public.analytics_outbox_events$$,'42501',null,'analytics outbox has no direct client read path');
 select throws_ok($$select * from public.enqueue_analytics_event('94100000-0000-4000-8000-000000000001','raw_score','evaluation','corr-123')$$,'22023',null,'unapproved analytics event names fail closed');
 reset role;
-select is((select count(*) from public.analytics_outbox_events where event_name='workflow.completed'),1::bigint,'analytics evidence is durable after successful enqueue');
-select ok((select payload = '{}'::jsonb from public.analytics_outbox_events where event_name='workflow.completed'),'analytics rows cannot contain tenant content');
+select is((select count(*) from public.analytics_outbox_events where event_name='workflow.completed' and organization_id='94100000-0000-4000-8000-000000000001'),1::bigint,'analytics evidence is durable after successful enqueue');
+select ok((select payload = '{}'::jsonb from public.analytics_outbox_events where event_name='workflow.completed' and organization_id='94100000-0000-4000-8000-000000000001'),'analytics rows cannot contain tenant content');
 select is((select count(*) from public.audit_logs where action='tryout.created' and organization_id='94100000-0000-4000-8000-000000000001'),1::bigint,'cycle-aware tryout creation keeps immutable audit evidence');
 
 select * from finish();

@@ -76,14 +76,24 @@ export async function guardAuthFormRequest(
       names.some((name) => !allowed.has(name)) ||
       new Set(names).size !== names.length ||
       names.length > allowed.size
-    )
+    ) {
+      console.error('auth.recovery.guard_fields_rejected', { names });
       return { ok: false, status: 400 };
-    const trusted = getTrustedAuthRequestContext(request.headers).networkAddress;
+    }
+    const trusted = getTrustedAuthRequestContext(request.headers, process.env).networkAddress;
     const networkAddress = trusted ?? exactTestAddress(request);
-    if (!networkAddress || networkAddress.length > 128 || /[\r\n|]/u.test(networkAddress))
+    if (!networkAddress || networkAddress.length > 128 || /[\r\n|]/u.test(networkAddress)) {
+      console.error('auth.recovery.guard_network_context_missing', {
+        hasTrustedForwardedFor: request.headers.has('x-vercel-forwarded-for'),
+        hasForwardedFor: request.headers.has('x-forwarded-for'),
+        hasRealIp: request.headers.has('x-real-ip'),
+        hostname: request.nextUrl.hostname,
+      });
       return { ok: false, status: 400 };
+    }
     return { ok: true, fields, requestContext: { networkAddress } };
   } catch {
+    console.error('auth.recovery.guard_body_rejected');
     return { ok: false, status: 400 };
   }
 }

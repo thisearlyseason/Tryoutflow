@@ -43,7 +43,10 @@ async function readBodyWithinLimit(request: NextRequest) {
     const next = await reader.read();
     if (next.done) break;
     bytes += next.value.byteLength;
-    if (bytes > MAX_PUBLIC_REGISTRATION_BODY_BYTES) return null;
+    if (bytes > MAX_PUBLIC_REGISTRATION_BODY_BYTES) {
+      await reader.cancel();
+      return null;
+    }
     chunks.push(next.value);
   }
   const combined = new Uint8Array(bytes);

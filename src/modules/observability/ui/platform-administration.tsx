@@ -51,12 +51,21 @@ function Timestamp({ value }: { value: string }) {
   return <time dateTime={value}>{new Date(value).toLocaleString('en-CA')}</time>;
 }
 
+function auditActionLabel(action: string) {
+  return action
+    .split(/[._-]+/u)
+    .filter(Boolean)
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(' ');
+}
+
 export function PlatformNavigation() {
   const links = [
     ['Organizations', '/platform/organizations'],
     ['Subscriptions', '/platform/subscriptions'],
     ['System health', '/platform/health'],
     ['Support', '/platform/support'],
+    ['Account deletion', '/platform/deletions'],
     ['Audit', '/platform/audit'],
   ] as const;
   return (
@@ -163,14 +172,25 @@ export function AuditEventList({ events }: { events: readonly VisibleAuditEvent[
       {events.map((event) => (
         <li className={card} key={event.id}>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="break-all font-black">{event.action}</h3>
+            <div className="min-w-0">
+              <h3 className="break-words font-black">{auditActionLabel(event.action)}</h3>
+              <p className="mt-1 break-all font-mono text-xs uppercase tracking-[0.08em] text-[var(--color-text-muted)]">
+                {event.action}
+              </p>
+            </div>
             <Timestamp value={event.occurredAt} />
           </div>
-          <p className="mt-2 break-all text-sm text-[var(--color-text-muted)]">
-            {event.organizationSlug ? `${event.organizationSlug} · ` : ''}
-            {event.entityType} · {event.entityId}
-          </p>
-          <p className="mt-1 break-all text-sm">Actor: {event.actorId ?? 'System'}</p>
+          <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm">
+            <dt className="text-[var(--color-text-muted)]">Organization</dt>
+            <dd className="break-all">{event.organizationSlug ?? event.organizationId}</dd>
+            <dt className="text-[var(--color-text-muted)]">Record</dt>
+            <dd className="break-all">
+              {event.entityType} <span className="text-[var(--color-text-muted)]">·</span>{' '}
+              {event.entityId}
+            </dd>
+            <dt className="text-[var(--color-text-muted)]">Actor</dt>
+            <dd className="break-all">{event.actorId ?? 'System'}</dd>
+          </dl>
         </li>
       ))}
     </ol>

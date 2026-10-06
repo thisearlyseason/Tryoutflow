@@ -32,9 +32,9 @@ vi.mock('next/headers', () => ({
 }));
 
 import { GET as callback } from '../../../src/app/(auth)/auth/callback/route';
-import { handlePasswordRecovery } from '../../../src/app/(auth)/auth/recovery/route';
-import { handleSignUp } from '../../../src/app/(auth)/auth/sign-up/route';
-import { handleEmailVerification } from '../../../src/app/(auth)/auth/verification/route';
+import { handlePasswordRecovery } from '../../../src/app/(auth)/auth/recovery/request-handler';
+import { handleSignUp } from '../../../src/app/(auth)/auth/sign-up/request-handler';
+import { handleEmailVerification } from '../../../src/app/(auth)/auth/verification/request-handler';
 import InvitePage from '../../../src/app/(auth)/invite/[token]/page';
 import { createOwnerAccount } from '../../../src/modules/identity/application/create-account';
 import { requestEmailVerification } from '../../../src/modules/identity/application/request-email-verification';
@@ -337,26 +337,47 @@ describe('authentication session boundaries', () => {
     const response = await handleSignUp(
       authFormRequest('/auth/sign-up', {
         email: 'new-owner@example.com',
-        password: 'correct horse battery staple',
-        confirmPassword: 'correct horse battery staple',
+        password: 'Correct horse battery 7!',
+        confirmPassword: 'Correct horse battery 7!',
       }),
       { abuseProtection: allowAuthProtection },
     );
 
     expect(auth.signUp).toHaveBeenCalledWith({
       email: 'new-owner@example.com',
-      password: 'correct horse battery staple',
+      password: 'Correct horse battery 7!',
       options: { emailRedirectTo: 'http://localhost/auth/callback?next=%2Fstart' },
     });
     expect(response.headers.get('location')).toBe('http://localhost/verify-email?signup=1');
+  });
+
+  it('routes participant account verification to the family portal without creating an organization', async () => {
+    auth.signUp.mockResolvedValue({ data: { user: { id: 'participant-user' } }, error: null });
+    const response = await handleSignUp(
+      authFormRequest('/auth/sign-up', {
+        email: 'participant@example.test',
+        password: 'Correct horse battery 7!',
+        confirmPassword: 'Correct horse battery 7!',
+        purpose: 'participant',
+      }),
+      { abuseProtection: allowAuthProtection },
+    );
+    expect(auth.signUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: { emailRedirectTo: 'http://localhost/auth/callback?next=%2Fparticipant' },
+      }),
+    );
+    expect(response.headers.get('location')).toBe(
+      'http://localhost/verify-email?signup=1&purpose=participant',
+    );
   });
 
   it('does not create an account when bot verification fails', async () => {
     const response = await handleSignUp(
       authFormRequest('/auth/sign-up', {
         email: 'new-owner@example.com',
-        password: 'correct horse battery staple',
-        confirmPassword: 'correct horse battery staple',
+        password: 'Correct horse battery 7!',
+        confirmPassword: 'Correct horse battery 7!',
       }),
       {
         abuseProtection: {
@@ -376,7 +397,7 @@ describe('authentication session boundaries', () => {
     await expect(
       createOwnerAccount({
         email: 'existing@example.com',
-        password: 'correct horse battery staple',
+        password: 'Correct horse battery 7!',
         emailRedirectTo: 'http://localhost/auth/callback?next=%2Fstart',
       }),
     ).resolves.toEqual({ ok: true, value: undefined });

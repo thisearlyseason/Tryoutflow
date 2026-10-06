@@ -137,6 +137,18 @@ export class SupabaseIntegrationGateway
 {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
+  async disconnectConnection(organizationId: string, connectionId: string) {
+    const { data, error } = await this.client.rpc(
+      'disconnect_integration_connection' as never,
+      {
+        p_organization_id: organizationId,
+        p_connection_id: connectionId,
+      } as never,
+    );
+    if (error) throw error;
+    return String(data);
+  }
+
   async saveConnection(input: Parameters<DemoConnectionGateway['saveConnection']>[0]) {
     const { data, error } = await this.client.rpc('save_integration_connection', {
       p_organization_id: input.organizationId,

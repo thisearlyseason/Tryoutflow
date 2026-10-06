@@ -1,0 +1,987 @@
+/* Athletic workspace. Scope the shared treatment to signed-in product surfaces. */
+.ranking-search-bar {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+}
+.ranking-search-bar > label {
+  flex: 1;
+  min-width: 0;
+}
+.ranking-search-bar input {
+  width: 100%;
+  background: var(--color-surface);
+}
+.app-frame {
+  --color-canvas: #f3f4ef;
+  --color-border: #e0e3da;
+  --color-primary: #294df2;
+  --color-focus: #294df2;
+  --radius-surface: 18px;
+  --radius-control: 10px;
+  --shadow-surface: 0 2px 4px rgb(14 27 43 / 3%), 0 12px 30px -18px rgb(14 27 43 / 18%);
+  background: var(--color-canvas);
+}
+.app-frame.theme-game-day {
+  --color-canvas: #0d1725;
+  --color-surface: #142236;
+  --color-surface-muted: #1c3047;
+  --color-border: #34445a;
+  --color-primary: #a8c1ff;
+  --color-focus: #bafa49;
+}
+.app-frame .app-sidebar {
+  background: #111e2c;
+  border-right: 1px solid #34414a;
+}
+.app-frame .app-sidebar-brand {
+  padding-block: 0.35rem 1rem;
+}
+.app-frame .app-organization {
+  background: #1c2b38;
+  border: 1px solid #394750;
+  border-radius: 12px;
+  margin-top: 0.5rem;
+  padding: 0.85rem;
+}
+.app-frame .app-navigation {
+  gap: 1.3rem;
+}
+.app-frame .app-nav-group h2 {
+  color: #aab8c5;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+}
+.app-frame .app-nav-link {
+  min-height: 44px;
+  border-radius: 9px;
+  font-weight: 600;
+  transition:
+    background 160ms,
+    transform 160ms;
+}
+.app-frame .app-nav-link-active {
+  background: #c7f866;
+  color: #142030;
+  box-shadow: none;
+}
+.app-frame .app-nav-link-active:hover {
+  background: #d7ff91;
+}
+.app-frame .app-nav-link-active .app-nav-icon {
+  color: #142030;
+}
+.app-frame .app-topbar {
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-border);
+}
+.app-frame .workspace-search {
+  background: var(--color-surface);
+  border-radius: 10px;
+}
+.app-frame .page-header {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 1.4rem;
+  margin-bottom: 0.5rem;
+}
+.app-frame .page-header h1 {
+  font-size: clamp(2rem, 3.8vw, 3.15rem);
+  font-weight: 850;
+  letter-spacing: -0.055em;
+  line-height: 1.05;
+}
+.app-frame .page-header .eyebrow {
+  color: var(--color-primary);
+  font-weight: 800;
+  font-size: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+.app-frame .button-primary {
+  font-weight: 750;
+  box-shadow: 0 3px 0 rgb(14 27 43 / 14%);
+}
+.app-frame .button-secondary {
+  font-weight: 700;
+}
+.app-frame .card {
+  border-radius: 16px;
+}
+.app-frame .metric-card {
+  position: relative;
+  min-height: 146px;
+  border-radius: 16px;
+  padding: 1.15rem;
+  align-items: flex-start;
+  border-color: var(--color-border);
+  box-shadow: none;
+}
+.app-frame .metric-card::after {
+  content: '';
+  position: absolute;
+  inset: auto 1.15rem 0.7rem;
+  height: 3px;
+  background: #294df2;
+  border-radius: 3px;
+  opacity: 0.85;
+}
+.app-frame .metric-card[data-tone='green']::after {
+  background: #398653;
+}
+.app-frame .metric-card[data-tone='orange']::after {
+  background: #e17928;
+}
+.app-frame .metric-value {
+  font-size: clamp(2.25rem, 4vw, 3.2rem);
+  font-weight: 850;
+  letter-spacing: -0.055em;
+  line-height: 1;
+  margin-block: 0.5rem;
+}
+.app-frame .metric-icon {
+  width: 35px;
+  height: 35px;
+  border-radius: 10px;
+}
+.app-frame .metric-label {
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.app-frame .dashboard-actions {
+  border-top: 4px solid #294df2;
+}
+.app-frame .dashboard-actions a {
+  min-height: 58px;
+  background: var(--color-canvas);
+  border-radius: 10px;
+  border: 0;
+}
+.app-frame .dashboard-actions a:hover {
+  background: var(--color-selection);
+  transform: translateX(2px);
+}
+.app-frame .dashboard-team-note {
+  background: #d4eeac;
+  color: #152b24;
+  border: 0;
+  border-radius: 16px;
+}
+.app-frame .app-main .dashboard-team-note h2 {
+  color: #152b24;
+  font-size: 2rem;
+  font-weight: 850;
+  letter-spacing: -0.055em;
+}
+.app-frame .dashboard-team-note h2 span,
+.app-frame .dashboard-team-note .eyebrow,
+.app-frame .dashboard-team-note p,
+.app-frame .dashboard-team-note a {
+  color: #244e37;
+}
+.arena-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  min-width: 0;
+  overflow: hidden;
+  background: #142539;
+  color: #fff;
+  border-radius: 20px;
+  isolation: isolate;
+}
+.arena-hero-copy {
+  position: relative;
+  padding: 2.25rem;
+  z-index: 1;
+}
+.arena-overline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #d5e1e9;
+}
+.arena-overline > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c7f866;
+}
+.arena-hero h1 {
+  color: #fff;
+  font-size: clamp(2.7rem, 4.7vw, 4.5rem);
+  line-height: 0.98;
+  font-weight: 850;
+  letter-spacing: -0.06em;
+  margin: 1.2rem 0 0.8rem;
+}
+.arena-hero h1 em {
+  color: #c7f866;
+  font-style: normal;
+}
+.arena-hero p {
+  max-width: 25rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: #cad6e1;
+  margin-bottom: 1.3rem;
+}
+.arena-hero .button-primary {
+  background: #c7f866;
+  color: #142030;
+  border-color: #c7f866;
+}
+.arena-hero .button-primary:hover {
+  background: #d7ff91;
+}
+.arena-hero-art {
+  position: relative;
+  min-height: 340px;
+  margin: 12px 12px 12px 0;
+  border-radius: 12px;
+  background: #233fdb;
+  overflow: hidden;
+}
+.arena-hero-photo {
+  object-fit: cover;
+  object-position: 53% 65%;
+}
+.arena-photo-tag {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  right: 1rem;
+  width: fit-content;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: #c7f866;
+  color: #142030;
+  font-size: 0.55rem;
+  font-weight: 850;
+  letter-spacing: 0.1em;
+}
+/* A shared card system for program operations, scouting and athlete dossiers. */
+@media screen {
+  .app-frame :is(.card, .tryout-card, .talent-card, .talent-summary, .talent-editor) {
+    border-radius: 18px;
+    box-shadow: var(--shadow-surface);
+  }
+  .app-frame .app-topbar {
+    background: color-mix(in srgb, var(--color-canvas) 90%, transparent);
+    backdrop-filter: blur(14px);
+  }
+  .app-frame .dashboard-workspace .metric-card:first-child {
+    background: #294df2;
+    color: #fff;
+    border-color: #294df2;
+  }
+  .app-frame
+    .dashboard-workspace
+    .metric-card:first-child
+    :is(.metric-label, .metric-value, .metric-detail) {
+    color: #fff;
+  }
+  .app-frame .dashboard-workspace .metric-card:first-child .metric-icon {
+    background: #203bbd;
+    color: #fff;
+  }
+  .app-frame .dashboard-workspace .metric-card:first-child::after {
+    background: #c7f866;
+  }
+  .app-frame .tryout-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  }
+  .app-frame .tryout-card {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    height: 100%;
+    padding: 1.5rem;
+    border-top: 5px solid #294df2;
+    transition:
+      transform 180ms ease,
+      box-shadow 180ms ease;
+  }
+  .app-frame .tryout-card[data-status='draft'] {
+    border-top-color: #82919f;
+  }
+  .app-frame .tryout-card[data-status='finalized'] {
+    border-top-color: #4c8751;
+  }
+  .app-frame .tryout-card-status {
+    gap: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .app-frame .tryout-card time {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.65rem;
+  }
+  .app-frame .tryout-card h2 {
+    margin-block: 0.4rem 0.55rem;
+    font-size: clamp(1.3rem, 2vw, 1.65rem);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 1.15;
+  }
+  .app-frame .tryout-sport-label {
+    color: var(--color-primary);
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .app-frame .tryout-card-actions {
+    border-top: 1px solid var(--color-border);
+    padding-top: 1rem;
+    margin-top: auto;
+  }
+  .app-frame .talent-card > h2 {
+    margin: 0 0 0.6rem;
+    font-size: 1.05rem;
+    font-weight: 750;
+  }
+  .app-frame .talent-identity {
+    position: relative;
+    padding: 2rem;
+    gap: 1.35rem;
+    background: #142539;
+    color: #fff;
+    border-color: #142539;
+    border-right: 7px solid #c7f866;
+    overflow: hidden;
+  }
+  .app-frame .talent-identity h1 {
+    color: #fff;
+    font-size: clamp(1.8rem, 3.8vw, 3.3rem);
+    font-weight: 850;
+    letter-spacing: -0.055em;
+    line-height: 1.1;
+  }
+  .app-frame .talent-identity .eyebrow {
+    color: #c7f866;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+  }
+  .app-frame .talent-identity .talent-meta {
+    color: #cad6e1;
+  }
+  .app-frame .talent-identity .talent-tag {
+    color: #e4edfa;
+    background: #2c4259;
+    border: 1px solid #51647a;
+  }
+  .app-frame .talent-identity .athlete-avatar {
+    width: 84px;
+    height: 84px;
+    color: #c7f866;
+    background: #263c50;
+    box-shadow: 0 0 0 5px #1e3448;
+    border: 1px solid #587086;
+    font-size: 1.8rem;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  .app-frame .talent-identity .athlete-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 0 !important;
+  }
+  .app-frame .talent-tabs {
+    padding: 0.4rem;
+    gap: 0.3rem;
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-surface);
+  }
+  .app-frame .talent-tabs a {
+    min-height: 44px;
+    padding: 0.65rem 1rem;
+    border: 0;
+    border-radius: 9px;
+    font-weight: 700;
+    transition:
+      background 150ms ease,
+      color 150ms ease;
+  }
+  .app-frame .talent-tabs a:hover {
+    background: var(--color-surface-muted);
+  }
+  .app-frame .talent-tabs a[aria-current='page'] {
+    background: #294df2;
+    color: #fff;
+  }
+  .app-frame .talent-tabs [aria-current='page'] .talent-tab-count {
+    background: #203bbd;
+    color: #fff;
+  }
+  .app-frame .talent-stats {
+    border-radius: 16px;
+    box-shadow: var(--shadow-surface);
+  }
+  .app-frame .talent-stats strong {
+    font-size: 2rem;
+    font-weight: 850;
+    letter-spacing: -0.05em;
+  }
+  .app-frame .talent-editor > summary {
+    min-height: 44px;
+    align-content: center;
+  }
+  .app-frame .talent-action-list a {
+    min-height: 44px;
+    align-content: center;
+    font-weight: 700;
+  }
+  .app-frame .talent-action-list p {
+    padding-block: 0.15rem;
+  }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .app-frame .tryout-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px -12px rgb(14 27 43 / 22%);
+  }
+  .app-frame :is(.button-primary, .button-secondary):active {
+    transform: translateY(1px);
+  }
+}
+@media screen and (max-width: 639px) {
+  .app-frame .tryout-card {
+    padding: 1.15rem;
+  }
+  .app-frame .talent-identity {
+    padding: 1.3rem 1.1rem;
+    gap: 0.85rem;
+  }
+  .app-frame .talent-identity .athlete-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+    font-size: 1.1rem;
+  }
+  .app-frame .talent-tabs a {
+    padding-inline: 0.8rem;
+  }
+}
+
+/* Evaluation studio */
+.sport-day-workspace {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 0 2rem;
+  gap: 1.4rem;
+}
+.sport-day-workspace .game-day-athlete-identity {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border: 0;
+  border-radius: 18px;
+  background: #142539;
+  color: #fff;
+  padding: 1.65rem;
+}
+.sport-day-workspace .game-day-athlete-identity::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 300px;
+  height: 300px;
+  border: 1px solid #435a70;
+  border-radius: 50%;
+  right: -100px;
+  top: -170px;
+  box-shadow:
+    0 0 0 35px #21364b,
+    0 0 0 36px #435a70,
+    0 0 0 72px #21364b;
+  opacity: 0.5;
+}
+.sport-day-workspace .game-day-athlete-identity .eyebrow {
+  color: #c7f866;
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+}
+.sport-day-workspace .game-day-athlete-identity #athlete-heading {
+  color: #fff;
+  font-size: clamp(2rem, 3.8vw, 3.5rem);
+  font-weight: 850;
+  line-height: 1.05;
+  letter-spacing: -0.055em;
+  margin-block: 0.55rem;
+}
+.sport-day-workspace .game-day-athlete-identity > p {
+  color: #c6d4e2;
+}
+.sport-day-workspace .game-day-athlete-identity > div > p {
+  background: #c7f866;
+  color: #142030;
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 850;
+  font-style: italic;
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  transform: rotate(3deg);
+}
+.evaluation-progress-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #435569;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  font-size: 0.7rem;
+  color: #dce6ed;
+}
+.evaluation-progress-row > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+.evaluation-progress-row progress {
+  appearance: none;
+  border: 0;
+  width: 100%;
+  height: 5px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #3d4f63;
+  color: #c7f866;
+}
+.evaluation-progress-row progress::-webkit-progress-bar {
+  background: #3d4f63;
+}
+.evaluation-progress-row progress::-webkit-progress-value {
+  background: #c7f866;
+  transition: width 200ms ease;
+}
+.evaluation-progress-row progress::-moz-progress-bar {
+  background: #c7f866;
+}
+.score-section-heading {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.1rem 0.65rem;
+  align-items: center;
+}
+.score-section-heading h2 {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.score-section-heading > p {
+  grid-column: 2;
+  font-size: 0.75rem;
+}
+.section-index {
+  display: grid;
+  place-items: center;
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
+  background: var(--color-text);
+  color: var(--color-canvas);
+  border-radius: 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.evaluation-criterion {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 0.85rem 1rem 1rem;
+  margin: 0;
+  transition:
+    border-color 180ms,
+    box-shadow 180ms;
+}
+.evaluation-criterion[data-scored='true'] {
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-border));
+  box-shadow: inset 3px 0 var(--color-primary);
+}
+.criterion-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding-inline: 0.35rem;
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 800;
+  color: var(--color-text);
+}
+.criterion-number {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+.criterion-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.66rem;
+  color: var(--color-text-muted);
+}
+.criterion-current {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--color-primary);
+  font-weight: 750;
+}
+.sport-day-workspace [role='radiogroup'] {
+  gap: 0.4rem;
+  padding: 0.35rem 0 0;
+  border: 0;
+}
+.sport-day-workspace [role='radiogroup'] label {
+  border-radius: 9px;
+  min-height: 48px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  transition:
+    background 130ms,
+    box-shadow 130ms,
+    transform 130ms;
+}
+.sport-day-workspace [role='radiogroup'] label:has(input:checked) {
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--color-primary) 55%, #101d32);
+  transform: translateY(-2px);
+}
+.sport-day-workspace [role='radiogroup'] label:hover:not(:has(input:disabled)) {
+  border-color: var(--color-primary);
+}
+.evaluation-notes {
+  padding: 1.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-surface);
+}
+.evaluation-notes h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.evaluation-notes textarea {
+  background: var(--color-canvas);
+}
+.sport-day-workspace .evaluation-save-dock {
+  margin: 0;
+  padding: 0.8rem 1rem max(0.8rem, env(safe-area-inset-bottom));
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  box-shadow: 0 -4px 25px rgb(10 25 45 / 9%);
+  bottom: 0.75rem;
+}
+.evaluation-save-dock button {
+  border-radius: 10px;
+  font-size: 0.78rem;
+  min-height: 46px;
+}
+.evaluation-save-dock .evaluation-complete-button {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-weight: 750;
+}
+.evaluation-save-dock [role='status'] > p:first-child {
+  font-size: 0.78rem;
+}
+.evaluation-save-dock [role='status'] > p:last-child {
+  font-size: 0.68rem;
+}
+
+/* Player-card profile, with a self-contained dark palette in both workspace themes. */
+.athlete-profile-panel {
+  --color-surface: #142539;
+  --color-surface-muted: #20374c;
+  --color-border: #395166;
+  --color-primary: #c7f866;
+  --color-text: #f5f8fc;
+  --color-text-muted: #bdcddb;
+  --color-selection: #c7f866;
+  --color-selection-foreground: #142030;
+  color-scheme: dark;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid #344d62;
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgb(10 27 47 / 8%);
+  overflow: hidden;
+}
+.profile-disclosure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  list-style: none;
+  min-height: 56px;
+  padding: 1rem 1.2rem;
+  cursor: pointer;
+  border-bottom: 1px solid #395166;
+}
+.profile-disclosure::-webkit-details-marker {
+  display: none;
+}
+.profile-title {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.profile-title svg {
+  color: #c7f866;
+}
+.profile-disclosure-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: #bdcddb;
+}
+.athlete-profile-panel details[open] .profile-disclosure-meta svg {
+  transform: rotate(180deg);
+}
+.athlete-profile-content {
+  padding: 1.15rem;
+}
+.profile-athlete {
+  margin-bottom: 1rem;
+}
+.profile-athlete > p {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  margin-top: 0.3rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.profile-kicker {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: #bdcddb;
+}
+.profile-switch {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: #0c1c2c;
+  border: 1px solid #395166;
+  border-radius: 11px;
+  margin-bottom: 1.2rem;
+}
+.profile-switch-button {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.4rem;
+  border: 0;
+  border-radius: 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #dce6ef;
+  cursor: pointer;
+}
+.profile-switch-button[aria-pressed='true'] {
+  background: #c7f866;
+  color: #142030;
+}
+.profile-switch-button:focus-visible,
+.profile-refresh:focus-visible,
+.profile-disclosure:focus-visible {
+  outline: 2px solid #c7f866;
+  outline-offset: 3px;
+}
+.profile-scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.profile-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin-top: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.profile-total strong {
+  font-size: clamp(2.5rem, 4vw, 3.9rem);
+  line-height: 1;
+  letter-spacing: -0.075em;
+  color: #fff;
+  font-weight: 850;
+}
+.profile-total > span {
+  font-size: 0.72rem;
+  color: #bdcddb;
+}
+.profile-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #5c7544;
+  border-radius: 99px;
+  background: #293e31;
+  color: #d2f99a;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.profile-explainer {
+  margin-top: 0.55rem;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: #bdcddb;
+}
+.profile-plot {
+  margin-block: 0.15rem 0.3rem;
+}
+.profile-empty {
+  display: grid;
+  min-height: 110px;
+  place-items: center;
+  text-align: center;
+  padding: 1.2rem;
+  margin-block: 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  background: var(--color-surface-muted);
+}
+.profile-score-table th,
+.profile-score-table td {
+  font-size: 0.73rem;
+}
+.profile-score-table thead th {
+  text-transform: uppercase;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  color: var(--color-text-muted);
+  padding-bottom: 0.6rem;
+}
+.profile-score-table tbody th {
+  font-weight: 600;
+}
+.profile-score-table td {
+  font-weight: 700;
+}
+.criterion-meter {
+  display: block;
+  width: 58px;
+  height: 3px;
+  margin: 0.3rem 0 0 auto;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--color-border);
+}
+.criterion-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: inherit;
+  transition: width 250ms ease;
+}
+.profile-notes {
+  padding: 1rem;
+  margin-top: 1.1rem;
+  background: #20374c;
+  border-radius: 10px;
+}
+.profile-notes h3 {
+  color: #c7f866;
+  font-size: 0.72rem;
+}
+.profile-notes p {
+  color: #e0e9ef;
+  font-size: 0.8rem;
+}
+.profile-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  margin-top: 0.85rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #6a8194;
+  border-radius: 9px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+@media (min-width: 1024px) {
+  .profile-disclosure {
+    pointer-events: none;
+  }
+  .profile-disclosure-meta svg {
+    display: none;
+  }
+}
+@media (min-width: 640px) and (max-width: 1279px) {
+  .sport-day-workspace [role='radiogroup']:has(label:nth-child(10)) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+@media (max-width: 639px) {
+  .arena-hero {
+    grid-template-columns: 1fr;
+  }
+  .arena-hero-copy {
+    padding: 1.5rem;
+  }
+  .arena-hero-art {
+    min-height: 220px;
+    margin: 0 12px 12px;
+  }
+  .app-frame .metric-card {
+    min-height: 130px;
+  }
+  .app-frame .metric-value {
+    font-size: 2.5rem;
+  }
+  .sport-day-workspace .game-day-athlete-identity {
+    padding: 1.1rem;
+  }
+  .sport-day-workspace .evaluation-save-dock {
+    bottom: 0.35rem;
+    padding: 0.65rem;
+  }
+  .sport-day-workspace .evaluation-save-dock > div {
+    gap: 0.4rem;
+  }
+  .athlete-profile-content {
+    padding: 1rem;
+  }
+  .criterion-meta {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-frame *,
+  .sport-day-workspace *,
+  .athlete-profile-panel * {
+    transition: none !important;
+  }
+}
+
+/* Keep the evaluation note readable without iOS focus zoom; pinch zoom stays available. */
+@media (max-width: 767px) {
+  .sport-day-workspace .evaluation-notes[aria-labelledby='notes-heading'] textarea {
+    font-size: max(1rem, 16px);
+  }
+}

@@ -31,15 +31,15 @@ export function PageHero({
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             className={`${marketingLinkClassName} bg-[var(--color-primary)] px-5 text-[var(--color-primary-foreground)] hover:no-underline`}
-            href="/start"
+            href="/demo"
           >
-            Start a tryout
+            Try the demo
           </Link>
           <Link
             className={`${marketingLinkClassName} border border-[var(--color-border)] bg-[var(--color-surface)] px-5`}
-            href="/demo"
+            href="/pricing"
           >
-            View product walkthrough
+            View Pro plans
           </Link>
         </div>
       </div>

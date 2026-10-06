@@ -267,7 +267,7 @@ select throws_ok(
 );
 select function_privs_are(
   'public','submit_public_registration_v2',array['text','jsonb','text','text'],
-  'service_role',array['EXECUTE'],'service role retains the canonical route'
+  'service_role',array[]::text[],'service must use atomic notification registration route'
 );
 select function_privs_are(
   'public','submit_public_registration_with_phone',array['text','jsonb','text','text'],

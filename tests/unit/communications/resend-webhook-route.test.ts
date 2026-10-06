@@ -9,7 +9,11 @@ vi.mock('../../../src/infrastructure/supabase/admin', () => ({
   createAdminSupabaseClient: () => ({ rpc }),
 }));
 
-import { GET, POST, readBoundedRawBody } from '../../../src/app/api/webhooks/resend/route';
+import {
+  GET,
+  POST,
+  readBoundedRawBody,
+} from '../../../src/app/api/webhooks/resend/request-handler';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -94,5 +98,40 @@ describe('Resend webhook boundary', () => {
         p_message_id: '22222222-2222-4222-8222-222222222222',
       }),
     );
+  });
+
+  it('acknowledges a signed email from another product without touching TryoutFlow data', async () => {
+    const secretBytes = Buffer.from('task23-webhook-secret-material-32!');
+    const secret = `whsec_${secretBytes.toString('base64')}`;
+    const id = 'msg_task23foreign001';
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const payload = JSON.stringify({
+      type: 'email.delivered',
+      created_at: new Date().toISOString(),
+      data: {
+        email_id: '11111111-1111-4111-8111-111111111111',
+        tags: { category: 'another_product' },
+      },
+    });
+    const signature = createHmac('sha256', secretBytes)
+      .update(`${id}.${timestamp}.${payload}`)
+      .digest('base64');
+    vi.stubEnv('RESEND_API_KEY', `re_${'x'.repeat(30)}`);
+    vi.stubEnv('RESEND_WEBHOOK_SECRET', secret);
+    const response = await POST(
+      new Request('https://tryoutflow.example/api/webhooks/resend', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'svix-id': id,
+          'svix-timestamp': timestamp,
+          'svix-signature': `v1,${signature}`,
+        },
+        body: payload,
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ outcome: 'ignored' });
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

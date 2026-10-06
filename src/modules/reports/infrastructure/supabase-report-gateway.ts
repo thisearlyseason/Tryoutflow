@@ -146,6 +146,7 @@ export class SupabaseReportGateway implements ReportExportGateway {
     });
     if (signal) request = request.abortSignal(signal);
     const { data, error } = await request;
+    if (error?.code === '42501') return { outcome: 'forbidden' };
     if (error || !Array.isArray(data) || data.length !== 1)
       throw error ?? new Error('Invalid report projection');
     return parseReportExportProjection(data[0]?.result);

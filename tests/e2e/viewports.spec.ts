@@ -2,7 +2,11 @@ import type { Page } from '@playwright/test';
 
 import { signInAs } from './helpers/auth';
 import { expect, test } from './helpers/fixtures';
-import { expectCancellableServerAction, monitorBrowserErrors } from './helpers/network';
+import {
+  expectCancellableServerAction,
+  monitorBrowserErrors,
+  type BrowserErrorMonitor,
+} from './helpers/network';
 
 const viewportMatrix = [
   { name: 'phone 375', width: 375, height: 812 },
@@ -42,6 +46,7 @@ async function prepareIntegrationReview(
   organizationSlug: string,
   tryoutId: string,
   rosterVersionId: string,
+  monitor: BrowserErrorMonitor,
 ) {
   await page.getByRole('button', { name: 'Connect demo provider' }).click();
   await expect(page.getByText(/demo\/mock connection is ready/i)).toBeVisible();
@@ -51,6 +56,7 @@ async function prepareIntegrationReview(
   await page.getByLabel('First name').check();
   await page.getByLabel('Last name').check();
   await page.getByLabel('Team name').check();
+  expectCancellableServerAction(monitor, page, 'roster export preview action');
   await page.getByRole('button', { name: 'Preview export' }).click();
   await expect(page.getByRole('heading', { name: 'Review 2 athletes' })).toBeVisible();
 }
@@ -68,7 +74,7 @@ test('registration and sign-in stay overflow-free from 375px through large deskt
   await expectOverflowFreeAtEveryViewport(page, 'registration');
 
   await page.goto('/sign-in');
-  await expect(page.getByRole('heading', { name: 'Sign in to your organization' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
   await expectOverflowFreeAtEveryViewport(page, 'sign-in');
   monitor.assertClean();
 });
@@ -161,6 +167,7 @@ test('billing and integration review stay overflow-free across phone, tablet, an
     scenario.organizationSlug,
     scenario.ids.tryout,
     scenario.ids.finalRoster,
+    monitor,
   );
   await expectOverflowFreeAtEveryViewport(page, 'integration review');
   monitor.assertClean();

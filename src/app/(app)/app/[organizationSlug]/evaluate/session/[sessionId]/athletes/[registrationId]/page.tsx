@@ -1,4 +1,6 @@
+import { billingUpgradePrompt } from '@/modules/subscriptions/ui/server-feature-gate';
 import { z } from 'zod';
+import { loadAthleteProfileAverage } from '@/modules/evaluations/infrastructure/athlete-profile-loader';
 
 import { completeEvaluationRecord } from '@/modules/evaluations/application/complete-evaluation';
 import { issueAuthoritativeSnapshotProof } from '@/modules/evaluations/application/issue-authoritative-snapshot-proof';
@@ -32,6 +34,12 @@ export default async function AthleteEvaluationPage({
       />
     );
   }
+  const profileUpgrade = await billingUpgradePrompt(
+    loaded.value.current.organization.id,
+    organizationSlug,
+    'radar_charts',
+    loaded.value.session.tryoutId,
+  );
   const athleteIndex = loaded.value.athletes.findIndex(
     (athlete) => athlete.registrationId === registrationId,
   );
@@ -45,7 +53,7 @@ export default async function AthleteEvaluationPage({
     tryoutId: loaded.value.session.tryoutId,
     sessionId,
     registrationId,
-    rubricVersionId: loaded.value.rubricVersionId,
+    rubricVersionId: ownDraft.rubricVersionId,
   };
   const serverDraft = {
     scores: ownDraft.draft.scores,
@@ -62,6 +70,15 @@ export default async function AthleteEvaluationPage({
           draft: serverDraft,
         })
       : undefined;
+
+  async function loadAverage() {
+    'use server';
+    const scoped = await loadEvaluatorSession(organizationSlug, sessionId);
+    if (scoped.outcome !== 'ready') return null;
+    const own = await loadOwnEvaluationDraft(scoped.value, registrationId);
+    if (own.outcome !== 'ready') return null;
+    return loadAthleteProfileAverage(scoped.value, registrationId, own.rubricVersionId);
+  }
 
   async function onComplete(input: unknown) {
     'use server';
@@ -108,7 +125,7 @@ export default async function AthleteEvaluationPage({
   }
 
   return (
-    <section aria-labelledby="athlete-heading" className="mx-auto grid min-w-0 max-w-3xl gap-5">
+    <section aria-labelledby="athlete-heading" className="mx-auto grid min-w-0 max-w-6xl gap-5">
       <AthletePager
         ariaLabel="Athlete navigation above scoring"
         currentIndex={athleteIndex}
@@ -117,6 +134,7 @@ export default async function AthleteEvaluationPage({
         total={loaded.value.athletes.length}
       />
       <SynchronizedEvaluationForm
+        profileUpgrade={profileUpgrade}
         athlete={{
           registrationId: ownDraft.athlete.registrationId,
           displayName: ownDraft.athlete.displayName,
@@ -126,11 +144,12 @@ export default async function AthleteEvaluationPage({
           sessionName: ownDraft.athlete.sessionName,
           groupName: ownDraft.athlete.groupName,
         }}
-        categories={loaded.value.categories}
-        draftCacheKey={`${loaded.value.current.userId}:${loaded.value.current.organization.id}:${loaded.value.session.tryoutId}:${sessionId}:${registrationId}:${loaded.value.rubricVersionId}`}
+        categories={ownDraft.categories}
+        draftCacheKey={`${loaded.value.current.userId}:${loaded.value.current.organization.id}:${loaded.value.session.tryoutId}:${sessionId}:${registrationId}:${ownDraft.rubricVersionId}`}
         initialDraft={ownDraft.draft}
         noteTags={loaded.value.noteTags}
         onComplete={onComplete}
+        loadAverage={loadAverage}
         serverSnapshotToken={serverSnapshotProof?.renderNonce ?? 'no-authoritative-snapshot'}
         serverSnapshotProof={serverSnapshotProof}
         storageScope={storageScope}

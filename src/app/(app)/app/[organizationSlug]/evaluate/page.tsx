@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { loadEvaluatorDestinations } from '@/modules/evaluations/infrastructure/evaluator-session-loader';
 import { EvaluationRouteMessage } from '@/modules/evaluations/ui/session-state';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function EvaluatorLandingPage({
   params,
@@ -14,20 +15,26 @@ export default async function EvaluatorLandingPage({
   const { destinations } = loaded.value;
   return (
     <section aria-labelledby="evaluation-landing-heading" className="grid min-w-0 gap-5">
-      <header>
-        <p className="eyebrow">Evaluator workspace</p>
+      <PageHeader
+        description="Only active evaluator assignments are listed. Athlete details stay inside each assigned session."
+        eyebrow="Evaluator workspace"
+        title="Your assigned sessions"
+        actions={
+          <Link
+            className="button-secondary inline-flex min-h-11 items-center"
+            href={`/app/${organizationSlug}/evaluate/profile`}
+            prefetch={false}
+          >
+            View evaluator profile
+          </Link>
+        }
+      />
+      <header className="sr-only">
         <h2 id="evaluation-landing-heading">Your assigned sessions</h2>
-        <p className="mt-2 text-[var(--color-text-muted)]">
+        <p>
           Only active evaluator assignments are listed. Athlete details stay inside each assigned
           session.
         </p>
-        <Link
-          className="button-secondary mt-4 inline-flex min-h-11 items-center"
-          href={`/app/${organizationSlug}/evaluate/profile`}
-          prefetch={false}
-        >
-          View evaluator profile
-        </Link>
       </header>
       {destinations.length === 0 ? (
         <EvaluationRouteMessage outcome="empty_assignments" />

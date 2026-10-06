@@ -15,6 +15,7 @@ export const MARKETING_PATHS = [
   '/for/associations',
   '/pricing',
   '/demo',
+  '/how-to',
   '/privacy',
   '/terms',
 ];

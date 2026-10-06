@@ -1,82 +1,91 @@
 import Link from 'next/link';
+import { ArrowUpRight, Check, Flag, Sparkles, Zap } from 'lucide-react';
+import { FEATURE_CATALOG } from '../../subscriptions/domain/feature-catalog';
+import { PUBLIC_PLANS, formatPublicPrice } from '../content/pricing';
 
-import { marketingLinkClassName } from '../../../components/layout/marketing-shell';
-import { PLAN_CATALOG } from '../../subscriptions/domain/plan-catalog';
-import type { PaidPlanKey } from '../../subscriptions/domain/plans';
-
-const details: Record<PaidPlanKey, { audience: string; points: readonly string[] }> = {
-  team: {
-    audience: 'For one team running a focused tryout.',
-    points: [
-      'Registration and check-in',
-      'Independent evaluator scoring',
-      'Rankings, roster, and messages',
-    ],
-  },
-  club: {
-    audience: 'For clubs coordinating multiple teams.',
-    points: ['Everything in Team', 'Multi-team tryout operations', 'Shared club workflow'],
-  },
-  association: {
-    audience: 'For association-wide tryout programs.',
-    points: [
-      'Everything in Club',
-      'Association-scale coordination',
-      'Centralized operational oversight',
-    ],
-  },
+const icons = { pro: Zap, organization: Sparkles, single_tryout_pro: Flag };
+const labels = {
+  pro: 'Your next-level toolkit',
+  organization: 'Big team energy',
+  single_tryout_pro: 'One event. All in.',
 };
 
-const paidPlanKeys = ['team', 'club', 'association'] as const satisfies readonly PaidPlanKey[];
-
 export function PricingTable() {
+  const purchasesAvailable = process.env.BILLING_CHECKOUT_ENABLED !== 'false';
   return (
-    <div className="grid min-w-0 gap-5 lg:grid-cols-3">
-      {paidPlanKeys.map((key) => {
-        const plan = PLAN_CATALOG[key];
-        const detail = details[key];
+    <div className="pricing-grid">
+      {PUBLIC_PLANS.map((plan) => {
+        const Icon = icons[plan.key];
         return (
           <article
-            className={`flex min-w-0 flex-col rounded-[var(--radius-surface)] border bg-[var(--color-surface)] p-6 shadow-[var(--shadow-surface)] ${
-              key === 'club'
-                ? 'border-2 border-[var(--color-primary)]'
-                : 'border-[var(--color-border)]'
-            }`}
-            key={key}
+            aria-labelledby={`plan-${plan.key}`}
+            className={`pricing-card pricing-card-${plan.key}`}
+            key={plan.key}
           >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-black">{plan.name}</h2>
-                <p className="mt-2 text-sm text-[var(--color-text-muted)]">{detail.audience}</p>
-              </div>
-              {key === 'club' ? (
-                <span className="rounded-full bg-[var(--color-performance)] px-3 py-2 text-xs font-black uppercase tracking-wide">
-                  Multi-team
-                </span>
-              ) : null}
-            </div>
-            <p className="mt-7 flex flex-wrap items-baseline gap-x-2">
-              <span className="font-[family-name:var(--font-score)] text-5xl font-black">
-                ${plan.monthlyPriceCad}
+            <div className="pricing-card-top">
+              <span className="pricing-plan-icon">
+                <Icon size={25} aria-hidden="true" />
               </span>
-              <span className="text-sm font-bold text-[var(--color-text-muted)]">CAD / month</span>
-            </p>
-            <ul className="my-7 flex-1 space-y-3 border-y border-[var(--color-border)] py-6 text-sm">
-              {detail.points.map((point) => (
-                <li className="flex gap-3" key={point}>
-                  <span aria-hidden="true" className="font-black text-[var(--color-primary)]">
-                    ✓
-                  </span>
-                  <span>{point}</span>
-                </li>
-              ))}
-            </ul>
-            <Link
-              className={`${marketingLinkClassName} bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:no-underline`}
-              href="/start"
-            >
-              Start with {plan.name}
+              <span>{labels[plan.key]}</span>
+            </div>
+            <div className="pricing-card-title">
+              <p className="pricing-brand">TRYOUTFLOW</p>
+              <h2 id={`plan-${plan.key}`}>
+                {plan.key === 'pro'
+                  ? 'Pro'
+                  : plan.key === 'organization'
+                    ? 'Organization'
+                    : 'Single Tryout Pro'}
+              </h2>
+              <p>{plan.audience}</p>
+            </div>
+            <div className="pricing-price-block">
+              <p className="pricing-price">
+                <strong>{formatPublicPrice(plan.priceUsd)}</strong>
+                <span>
+                  {plan.key === 'pro' ? 'Pro Monthly · ' : ''}USD {plan.cadence}
+                </span>
+              </p>
+              {plan.annualPriceUsd !== null ? (
+                <p className="pricing-annual">
+                  {plan.key === 'pro' ? 'Pro Annual · ' : 'or '}
+                  {formatPublicPrice(plan.annualPriceUsd)} USD / year <span>· billed annually</span>
+                </p>
+              ) : (
+                <p className="pricing-annual">One payment. One selected tryout.</p>
+              )}
+            </div>
+            {plan.key === 'pro' ? (
+              <div className="pricing-trial">
+                <Sparkles size={17} aria-hidden="true" />
+                <strong>Your first 7 days are free</strong>
+              </div>
+            ) : (
+              <div className="pricing-plan-caption">
+                {plan.key === 'organization'
+                  ? 'Everything in Pro, made for your program.'
+                  : 'Go Pro for the event that matters.'}
+              </div>
+            )}
+            <Link className="pricing-cta" href={plan.key === 'pro' ? '/start?plan=pro' : '/start'}>
+              {!purchasesAvailable && plan.key !== 'pro' ? 'Create your workspace' : plan.cta}
+              <ArrowUpRight size={20} aria-hidden="true" />
             </Link>
+            <p className="pricing-note">
+              {plan.note}
+              {!purchasesAvailable ? ' Paid checkout is coming soon.' : ''}
+            </p>
+            <div className="pricing-features">
+              <h3>{plan.included ?? 'Pro tools for your selected tryout'}</h3>
+              <ul>
+                {plan.features.map((feature) => (
+                  <li key={feature}>
+                    <Check size={17} aria-hidden="true" />
+                    <span>{FEATURE_CATALOG[feature].name}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </article>
         );
       })}

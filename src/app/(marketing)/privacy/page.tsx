@@ -1,160 +1,140 @@
 import type { Metadata } from 'next';
-
+import Link from 'next/link';
 import { marketingMetadata } from '../../../modules/marketing/content/metadata';
-import { LegalDraftStatus } from '../../../modules/marketing/ui/legal-draft-status';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/privacy',
-  title: 'Privacy Draft | TryoutFlow',
+  title: 'Privacy | TryoutFlow',
   description:
-    'Review the prelaunch TryoutFlow privacy draft and its unresolved legal approval items.',
+    'How GameDay Technologies handles information in TryoutFlow and how to contact support about your data.',
 });
 
 export default function PrivacyPage() {
   return (
-    <article className="mx-auto max-w-5xl px-4 py-16 sm:px-6 lg:px-8">
-      <p className="text-sm font-black uppercase tracking-[0.18em] text-[var(--color-primary)]">
-        Policy review copy · August 30, 2026
+    <article className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
+      <p className="eyebrow">Updated September 28, 2026</p>
+      <h1 className="mt-4 text-4xl font-black">Privacy at TryoutFlow</h1>
+      <p className="mt-6 text-lg leading-8">
+        TryoutFlow is operated by GameDay Technologies. For privacy, access, correction, or deletion
+        requests, contact our monitored email at{' '}
+        <a className="underline break-all" href="mailto:gamedaysportstech@gmail.com">
+          gamedaysportstech@gmail.com
+        </a>
+        .
       </p>
-      <h1 className="mt-4 text-[clamp(2.75rem,7vw,5.5rem)] font-black leading-[0.94] tracking-[-0.055em]">
-        Privacy at TryoutFlow
-      </h1>
-      <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--color-text-muted)]">
-        This draft explains how the planned TryoutFlow service would handle information for
-        organizations, staff, guardians, and minor athletes.
-      </p>
-      <LegalDraftStatus />
-
-      <div className="mt-12 grid gap-x-12 gap-y-10 md:grid-cols-2 [&_h2]:text-2xl [&_h2]:font-black [&_p]:mt-3 [&_p]:leading-7 [&_p]:text-[var(--color-text-muted)] [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5 [&_ul]:text-[var(--color-text-muted)]">
+      <div className="mt-10 grid gap-8 [&_h2]:text-2xl [&_h2]:font-bold [&_p]:mt-3 [&_p]:leading-7 [&_ul]:mt-3 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5">
         <section>
-          <h2>Scope and roles</h2>
-          <p>
-            TryoutFlow is intended to process tryout information for the subscribing sports
-            organization. The organization determines why athlete and guardian information is
-            collected and who on its staff may use it. TryoutFlow acts as service provider or
-            processor for that organization, while handling account, billing, security, and
-            service-operation information for its own stated purposes.
-          </p>
-        </section>
-        <section>
-          <h2>Information we expect to process</h2>
+          <h2>Information the service handles</h2>
           <ul>
-            <li>Organization, membership, role, and account details.</li>
             <li>
-              Guardian contact information and athlete registration details selected by the
-              organization.
+              Account email, authentication credentials handled by our authentication provider,
+              profile name, organization membership, roles, and invitations.
             </li>
             <li>
-              Check-in status, assigned number, evaluator assignments, scores, completion state,
-              notes, flags, rankings, decisions, and rosters.
+              Athlete and guardian registration information, contact details, waivers, and
+              organization-configured registration fields.
             </li>
             <li>
-              Message delivery, subscription, audit, security, and privacy-safe operational events.
+              Tryout schedules, attendance, athlete numbers, evaluator assignments, scores, notes,
+              rankings, roster decisions, scouting and performance records, and reports.
+            </li>
+            <li>
+              Messages, delivery events, exports, support correspondence, and security and audit
+              records.
+            </li>
+            <li>
+              Subscription and purchase identifiers, products, status, and entitlement records.
+              Payment details are processed by Stripe for web purchases and Apple or Google for
+              native purchases; the app does not receive your full payment-card number.
             </li>
           </ul>
+        </section>
+        <section>
+          <h2>Why information is used</h2>
           <p>
-            Organizations should collect only information needed to run the tryout. Emergency or
-            eligibility fields should be optional and organization-controlled.
+            We process information to run accounts and organization workspaces, register and
+            evaluate athletes, support staff decisions, communicate with participants, generate
+            reports and exports, reconcile purchases, prevent abuse, troubleshoot problems, and
+            respond to support requests. Sports organizations decide what registration information
+            to collect and which authorized staff may access their records.
           </p>
         </section>
         <section>
-          <h2>How information is used</h2>
+          <h2>Who receives information</h2>
           <p>
-            Information is intended to publish and administer tryouts, accept registrations, check
-            athletes in, support independent evaluation, calculate transparent aggregates, build
-            rosters, communicate with participants, provide confirmed exports, secure accounts, bill
-            organizations, and maintain an audit trail. Private evaluation content must not be used
-            in third-party advertising or general product analytics.
+            Authorized organization members receive information according to their roles and
+            assignments. Organizations may send messages or export records to recipients they
+            select. Hosting uses Vercel; database, authentication, and storage use Supabase;
+            transactional email uses Resend; web billing uses Stripe; native billing integrates
+            RevenueCat with Apple and Google. These providers process information needed for their
+            functions. RevenueCat receives an account identifier and purchase information to
+            reconcile access across devices. Disclosure may also be necessary to comply with law or
+            protect the service.
           </p>
         </section>
         <section>
-          <h2>Children and minor athletes</h2>
+          <h2>Minor athletes</h2>
           <p>
-            Most athlete records may concern minors. Registration is designed to be completed by a
-            guardian or authorized adult; athletes do not need their own account. Organizations are
-            responsible for authority to collect and use minor-athlete information, notices to
-            families, and any consent required in their jurisdiction. The required age, consent,
-            parental-access, and child-privacy language remains an unresolved legal-review item.
+            Sports organizations may keep records about minor athletes. Registration is designed for
+            a guardian or authorized adult aged 18 or older; account holders must be aged 18 or
+            older. An athlete does not need a separate account. The collecting organization is
+            responsible for its notices, permissions, registration fields, and staff access. Contact
+            that organization about athlete records or roster decisions. GameDay Technologies can
+            help route a privacy request.
           </p>
         </section>
         <section>
-          <h2>Access, sharing, and disclosure</h2>
+          <h2>Device storage and security</h2>
           <p>
-            Role and assignment boundaries are intended to limit access: for example, check-in staff
-            should not see rankings, and evaluators should not see peer scores during live
-            evaluation by default. Information may be disclosed when instructed by the subscribing
-            organization, required by law, needed to protect the service, or provided to approved
-            subprocessors under appropriate terms.
+            The website uses authentication cookies and browser storage. Offline evaluation features
+            can store assigned evaluation information on a device for later synchronization. The
+            native app stores session credentials in secure device storage and purchase-attempt
+            identifiers to recover interrupted purchases. Access controls, database row-level
+            policies, encrypted connections, and authenticated provider callbacks help protect
+            information. Shared-device users should sign out after use.
           </p>
         </section>
         <section>
-          <h2>Service providers and subprocessors</h2>
+          <h2>Retention and deletion</h2>
           <p>
-            Planned processor categories include cloud hosting, database/authentication and private
-            storage, subscription billing, transactional email, error monitoring, and privacy-safe
-            product analytics. Current technical vendors include Vercel, Supabase, Stripe, and
-            Resend, but the final subprocessor list, locations, transfer terms, and change-notice
-            process must be verified before production launch.
+            Account, organization, evaluation, billing, and audit records have different purposes.
+            Ending a subscription or uninstalling the app does not delete account or organization
+            records. We have not adopted a single fixed retention period for all record categories
+            and do not promise immediate removal from backups. We complete verified account-deletion
+            requests within seven days and confirm completion by email. We review ownership and
+            organization-controlled records, arrange any agreed ownership transfer, and explain any
+            specific legal retention requirement. Backup handling is explained separately; the
+            seven-day commitment does not mean every backup expires within seven days.
+          </p>
+          <p>
+            <Link className="underline" href="/delete-account">
+              Request account or personal-data deletion
+            </Link>
+            . Cancel Apple or Google subscriptions through the relevant store. We coordinate web
+            billing cancellation when handling your request. You can request deletion before a
+            subscription expires.
           </p>
         </section>
         <section>
-          <h2>Cross-border processing and residency</h2>
+          <h2>Access, correction, and international processing</h2>
           <p>
-            Service providers may process information outside the organization’s province or
-            country, where it may be subject to local law. Canadian-only data residency is not
-            promised. Exact hosting regions, international transfer safeguards,
-            customer-jurisdiction requirements, and any Canadian public-sector restrictions remain
-            unresolved and require written approval.
+            Contact your sports organization for access to or correction of the athlete information
+            it controls. Contact GameDay Technologies for account information or help with a
+            request. We may need to verify your identity and authority before disclosing or changing
+            records. Service providers may process data outside your province or country.
+            Canadian-only data residency is not promised.
           </p>
         </section>
         <section>
-          <h2>Retention, deletion, and correction</h2>
+          <h2>Changes and contact</h2>
           <p>
-            Organizations need tools and procedures to export, correct, and delete information,
-            subject to lawful recordkeeping and audit needs. Exact retention periods for
-            registrations, scores, notes, rosters, messages, audit logs, backups, and support
-            records have not been approved. Production onboarding must not begin until a retention
-            schedule, deletion workflow, backup-expiry rule, and post-termination handling process
-            are adopted.
-          </p>
-        </section>
-        <section>
-          <h2>Security and incidents</h2>
-          <p>
-            Planned safeguards include tenant isolation, row-level database policies, role-based
-            authorization, private storage, encrypted transport, protected credentials, verified
-            webhook signatures, audit events, and privacy-safe logs. No system is risk-free. A
-            security contact, incident-response procedure, notification assessment, support-access
-            policy, and breach timeline must be approved before launch.
-          </p>
-        </section>
-        <section>
-          <h2>Individual and guardian requests</h2>
-          <p>
-            Requests to access, correct, export, or delete information should normally be directed
-            to the sports organization that collected it. TryoutFlow would assist the organization
-            as required by contract and law. Identity verification, authorized-agent handling,
-            appeal rights, response timelines, and direct-request routing remain subject to legal
-            review.
-          </p>
-        </section>
-        <section>
-          <h2>Changes to this notice</h2>
-          <p>
-            An approved notice would identify its effective date and material changes. Organizations
-            would receive notice through an approved channel when required. This draft has no
-            effective date because it is not yet operative.
-          </p>
-        </section>
-        <section>
-          <h2>Contact and unresolved owner</h2>
-          <p>
-            <strong className="text-[var(--color-text)]">
-              Privacy contact: to be confirmed before launch.
-            </strong>{' '}
-            The approved version must provide a monitored email or postal address, the accountable
-            privacy role, and escalation details. Do not send athlete or guardian information to an
-            unconfirmed contact.
+            This page describes the current implementation, including native billing integrations
+            being prepared for launch. We update it as the service changes. Questions can be sent to
+            GameDay Technologies at{' '}
+            <a className="underline break-all" href="mailto:gamedaysportstech@gmail.com">
+              gamedaysportstech@gmail.com
+            </a>
+            . Do not include passwords, payment-card numbers, or unnecessary athlete information.
           </p>
         </section>
       </div>

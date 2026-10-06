@@ -23,6 +23,10 @@ export async function RegistrationShare({
     >
       <h2 id="registration-share-heading">Registration link</h2>
       <p className="mt-2 break-all text-sm text-[var(--color-text-muted)]">{url}</p>
+      <p className="mt-3 text-sm text-[var(--color-text-muted)]">
+        Registration follows the opening and closing dates set in Basics. The tryout must also have
+        a configured form and be published.
+      </p>
       <a
         className="mt-3 inline-flex min-h-[var(--target-mobile)] items-center font-bold text-[var(--color-primary)] underline"
         href={url}

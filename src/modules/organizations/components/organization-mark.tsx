@@ -26,7 +26,7 @@ export function OrganizationMark({
       <span
         aria-hidden={accessible ? undefined : true}
         aria-label={accessibleLabel}
-        className="inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--color-performance)] font-[var(--font-bib)] text-xs font-black text-[#07182b]"
+        className="inline-grid shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--color-info-surface)] font-[var(--font-bib)] text-xs font-black text-[#07182b]"
         role={accessible ? 'img' : undefined}
         style={dimensions}
       >

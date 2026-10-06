@@ -1,6 +1,9 @@
 begin;
 select plan(8);
 
+create temporary table mutation_count_before as
+select count(*) as receipt_count from public.evaluation_mutations;
+
 select throws_ok(
   $$select E'{"note":"\\u0000"}'::jsonb$$,
   '22P05',
@@ -43,7 +46,7 @@ select is(
 );
 select is(
   (select count(*) from public.evaluation_mutations),
-  0::bigint,
+  (select receipt_count from mutation_count_before),
   'parser-rejected strings create no evaluation mutation receipt'
 );
 

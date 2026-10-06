@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
 import type { APIRequestContext } from '@playwright/test';
@@ -24,11 +25,19 @@ function recipientMatches(message: MailpitMessage, email: string) {
 }
 
 async function confirmationUrl(request: APIRequestContext, email: string) {
+  const local = JSON.parse(
+    execFileSync('./node_modules/.bin/supabase', ['status', '-o', 'json'], { encoding: 'utf8' }),
+  ) as { MAILPIT_URL?: string; INBUCKET_URL?: string };
+  const mailpitUrl = new URL(local.MAILPIT_URL ?? local.INBUCKET_URL ?? '');
+  if (mailpitUrl.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(mailpitUrl.hostname))
+    throw new Error('Email verification tests require local Mailpit.');
   let messageId = '';
   await expect
     .poll(
       async () => {
-        const response = await request.get('http://127.0.0.1:54324/api/v1/messages?limit=100');
+        const response = await request.get(
+          new URL('/api/v1/messages?limit=100', mailpitUrl).toString(),
+        );
         if (!response.ok()) return false;
         const payload = (await response.json()) as { messages?: unknown };
         const messages = Array.isArray(payload.messages)
@@ -42,7 +51,7 @@ async function confirmationUrl(request: APIRequestContext, email: string) {
     )
     .toBe(true);
   const response = await request.get(
-    `http://127.0.0.1:54324/api/v1/message/${encodeURIComponent(messageId)}`,
+    new URL(`/api/v1/message/${encodeURIComponent(messageId)}`, mailpitUrl).toString(),
   );
   expect(response.ok(), 'Mailpit message details are available').toBe(true);
   const message = (await response.json()) as { HTML?: unknown; Text?: unknown };

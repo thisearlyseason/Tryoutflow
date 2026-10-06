@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 const execFile = promisify(execFileCallback);
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 
 type AdvisoryKey = Readonly<{
   classId: number;

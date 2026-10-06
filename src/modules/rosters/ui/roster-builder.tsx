@@ -13,6 +13,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '../../../components/ui/button';
+import { Metric } from '../../../components/ui/metric';
 import type { RosterMemberRankingEvidence } from '../application/load-roster-workspace';
 import type { DecisionStatus } from '../domain/roster';
 import { AthletePool } from './athlete-pool';
@@ -202,9 +203,9 @@ export function RosterDraftSetup({
     >
       <div>
         <p className="eyebrow">{divisionName}</p>
-        <h3 id="create-roster-heading" className="text-xl font-bold">
+        <h2 id="create-roster-heading" className="text-xl font-bold">
           Create a draft roster
-        </h3>
+        </h2>
         <p className="mt-1 text-sm text-[var(--color-text-muted)]">
           Teams and targets guide human review. Creating a draft does not assign, select, release,
           message, or export any athlete.
@@ -567,14 +568,35 @@ export function RosterBuilder({
       sensors={sensors}
     >
       <div className="min-w-0 space-y-5">
+        <div className="metric-grid" aria-label="Selection summary">
+          <Metric
+            label="Selected"
+            value={snapshot.athletes.filter((athlete) => athlete.decision === 'selected').length}
+            tone="green"
+          />
+          <Metric
+            label="Waitlisted"
+            value={snapshot.athletes.filter((athlete) => athlete.decision === 'waitlisted').length}
+            tone="orange"
+          />
+          <Metric
+            label="Undecided"
+            value={snapshot.athletes.filter((athlete) => athlete.decision === 'undecided').length}
+          />
+          <Metric
+            label="Released"
+            value={snapshot.athletes.filter((athlete) => athlete.decision === 'released').length}
+            tone="navy"
+          />
+        </div>
         <header className="flex min-w-0 flex-wrap items-start justify-between gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
           <div className="min-w-0">
             <p className="eyebrow">Roster revision {snapshot.revisionNumber}</p>
-            <h3 className="break-words text-xl font-bold">
+            <h2 className="break-words text-xl font-bold">
               {snapshot.state === 'finalized'
                 ? 'Finalized roster · immutable'
                 : `Draft roster · version ${snapshot.version}`}
-            </h3>
+            </h2>
             <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-muted)]">
               Scores, coverage, and flags are decision evidence. Placement and decision status are
               separate human choices; rankings never select athletes automatically.

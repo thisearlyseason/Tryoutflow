@@ -1,0 +1,9 @@
+node_modules
+.next
+tests/unit
+tests/stubs
+tests/setup.ts
+vitest.config.ts
+AGENTS.md
+*.tsbuildinfo
+.env*

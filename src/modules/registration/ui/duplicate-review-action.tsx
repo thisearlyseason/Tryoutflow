@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -45,14 +47,15 @@ export function DuplicateReviewAction({
   }
   return (
     <div className="mt-3">
-      <button
+      <FeedbackButton
+        busy={busy}
         className="min-h-[var(--target-mobile)] rounded-[var(--radius-control)] border border-[var(--color-border)] px-4 font-bold"
         type="button"
         disabled={busy}
         onClick={resolve}
       >
         {busy ? 'Recording…' : label}
-      </button>
+      </FeedbackButton>
       {message ? (
         <p className="mt-2 text-sm" role="status">
           {message}

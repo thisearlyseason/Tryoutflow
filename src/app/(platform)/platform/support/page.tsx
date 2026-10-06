@@ -1,3 +1,4 @@
+import { FeedbackButton } from '@/components/ui/button';
 import { redirect } from 'next/navigation';
 
 import { SystemClock } from '@/lib/clock';
@@ -105,9 +106,9 @@ export default async function PlatformSupportPage({
           <option value="120">2 hours</option>
           <option value="240">4 hours</option>
         </select>
-        <button className="min-h-11" disabled={organizations.length === 0} type="submit">
+        <FeedbackButton className="min-h-11" disabled={organizations.length === 0} type="submit">
           Begin audited support elevation
-        </button>
+        </FeedbackButton>
       </form>
       <h2 className="mb-4 mt-8 text-2xl font-black">Recent support evidence</h2>
       <SupportElevationList elevations={elevations} />

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { RankingsWorkspace } from '../../../src/modules/rankings/ui/rankings-workspace';
@@ -49,19 +49,28 @@ describe('rankings workspace', () => {
       />,
     );
     expect(screen.getByText('Tied at rank 1')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '1 athletes · current authorized snapshot',
-    );
+    expect(screen.getByRole('status')).toHaveTextContent('1 athletes · updated results');
     expect(screen.getByText(/evaluations complete/)).toHaveTextContent(
       '2 of 3 evaluations complete',
     );
     expect(screen.getByTestId('ranking-card-r')).toHaveClass('ranking-card');
     expect(screen.getByTestId('ranking-rank-r')).toHaveTextContent('Rank 1');
     expect(screen.getByTestId('ranking-score-r')).toHaveTextContent('84.0');
-    expect(screen.getByText('Confidence evidence')).toBeInTheDocument();
+    expect(screen.getAllByText('Evaluation coverage')).toHaveLength(2);
+    expect(screen.getByLabelText('Search athletes')).toBeVisible();
+    const search = screen.getByLabelText<HTMLInputElement>('Search athletes');
+    expect(search.form).not.toBeNull();
+    const submittedFilters = new FormData(search.form!);
+    expect(submittedFilters.get('search')).toBe('Athlete');
+    expect(submittedFilters.get('division')).toBe('d');
+    fireEvent.click(screen.getByText(/Filter rankings/));
     expect(screen.getByLabelText('Search athletes')).toHaveClass('min-h-11');
     expect(screen.getByLabelText('Search athletes')).toHaveValue('Athlete');
     expect(screen.getByLabelText('Division')).toHaveValue('d');
+    fireEvent.click(screen.getByLabelText('Score and evidence'));
+    expect(screen.getByTestId('ranking-score-r')).toHaveStyle({ display: 'none' });
+    fireEvent.click(screen.getByLabelText('Score and evidence'));
+    expect(screen.getByTestId('ranking-score-r')).not.toHaveStyle({ display: 'none' });
     expect(screen.getByRole('link', { name: 'Next page' })).toHaveAttribute(
       'href',
       expect.stringContaining('page=2'),
@@ -115,7 +124,9 @@ describe('rankings workspace', () => {
       />,
     );
     expect(screen.getByTestId('ranking-score-r')).toHaveTextContent('Unranked');
-    expect(screen.getByTestId('ranking-score-r')).not.toHaveTextContent('0');
+    expect(screen.getByTestId('ranking-score-r').querySelector('summary strong')).toHaveTextContent(
+      /^Unranked$/,
+    );
   });
 
   it('keeps independently authorized filters and reset action visible with zero rows', () => {

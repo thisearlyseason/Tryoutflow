@@ -60,7 +60,7 @@ test('registration and sign-in expose critical-screen semantics without critical
   await expect(page.getByLabel('Guardian email')).toHaveAttribute('autocomplete', 'email');
 
   await page.goto('/sign-in');
-  await auditHeading(page, 'Sign in to your organization');
+  await auditHeading(page, 'Sign in to your account');
   await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
   await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
   monitor.assertClean();

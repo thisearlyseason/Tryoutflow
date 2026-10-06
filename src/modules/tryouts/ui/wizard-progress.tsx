@@ -22,7 +22,7 @@ export function WizardProgress({
   hrefBase: string;
 }) {
   return (
-    <nav aria-label="Tryout setup progress" className="overflow-x-auto pb-2">
+    <nav aria-label="Tryout setup progress" className="wizard-progress overflow-x-auto pb-2">
       <ol className="flex min-w-max gap-2">
         {tryoutSetupSteps.map((step, index) => {
           const complete = completedSteps.includes(step);
@@ -31,11 +31,11 @@ export function WizardProgress({
             <li key={step}>
               <Link
                 aria-current={current ? 'step' : undefined}
-                className={`inline-flex min-h-[var(--target-mobile)] items-center gap-2 rounded-full px-3 text-sm font-bold ${
+                className={`inline-flex min-h-[var(--target-mobile)] items-center gap-2 rounded-[var(--radius-control)] px-3 text-sm font-bold ${
                   current
                     ? 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]'
                     : complete
-                      ? 'bg-[var(--color-performance)] text-[var(--color-performance-foreground)]'
+                      ? 'bg-[var(--color-success-surface)] text-[var(--color-success)]'
                       : 'bg-[var(--color-surface-muted)] text-[var(--color-text)]'
                 }`}
                 href={`${hrefBase}/${step}`}

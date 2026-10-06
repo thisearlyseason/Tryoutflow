@@ -1,66 +1,54 @@
 import Link from 'next/link';
-
-import { ErrorState } from '@/components/feedback/error-state';
-import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
-
+import { RecordForm } from '@/modules/talent/ui/record-form';
+import { evaluatorDefaults, evaluatorFields, pickValues } from '@/modules/talent/ui/fields';
 export default async function EvaluatorProfilePage({
   params,
 }: {
   params: Promise<{ organizationSlug: string }>;
 }) {
-  const { organizationSlug } = await params;
-  const current = await requireCurrentOrganization(organizationSlug);
-  const profile = await current.client
-    .from('profiles')
-    .select('display_name,updated_at')
-    .eq('id', current.userId)
+  const { organizationSlug: slug } = await params;
+  const c = await requireCurrentOrganization(slug);
+  const result = await c.client
+    .from('evaluator_sport_profiles')
+    .select('*')
+    .eq('organization_id', c.organization.id)
+    .eq('user_id', c.userId)
     .maybeSingle();
-
-  if (profile.error) {
-    captureOperationalError(profile.error, {
-      actorId: current.userId,
-      organizationId: current.organization.id,
-      operation: 'profile.load',
-    });
-    return (
-      <ErrorState
-        action={
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/evaluate/profile`}
-            prefetch={false}
-          >
-            Retry profile
-          </Link>
-        }
-        description="No profile data was changed. Retry or return to your assigned sessions."
-        title="Evaluator profile temporarily unavailable"
-      />
-    );
-  }
-
+  if (result.error)
+    return <p role="alert">Your evaluator profile could not load. Refresh and retry.</p>;
+  const p = result.data;
   return (
-    <section aria-labelledby="evaluator-profile-heading" className="grid min-w-0 gap-5">
+    <section className="talent-stack">
+      <Link
+        prefetch={false}
+        className="button-secondary"
+        href={`/app/${slug}/evaluate/calibration`}
+      >
+        Evaluator calibration →
+      </Link>
       <header>
         <p className="eyebrow">Evaluator workspace</p>
-        <h2 id="evaluator-profile-heading">Evaluator profile</h2>
-        <p className="mt-2 text-[var(--color-text-muted)]">
-          This global display preference is visible only through your signed-in account boundary.
-        </p>
+        <h1>Evaluator profile</h1>
+        <p>Help organizers match your experience and availability to the right assignment.</p>
       </header>
-      <dl className="card grid gap-3 p-5 sm:grid-cols-[minmax(8rem,auto)_1fr]">
-        <dt className="font-semibold">Display name</dt>
-        <dd>{profile.data?.display_name ?? 'No display name configured'}</dd>
-        <dt className="font-semibold">Current organization</dt>
-        <dd>{current.organization.name}</dd>
+      <dl className="workspace-card">
+        <dt className="eyebrow">Organization</dt>
+        <dd>{c.organization.name}</dd>
       </dl>
-      <Link
-        className="button-secondary inline-flex min-h-11 w-fit items-center"
-        href={`/app/${organizationSlug}/evaluate`}
-        prefetch={false}
-      >
-        Return to assigned sessions
+      <RecordForm
+        key={p?.version ?? 0}
+        slug={slug}
+        table="evaluator_sport_profiles"
+        title="Your background and readiness"
+        id={p?.id}
+        version={p?.version ?? 0}
+        defaults={{ ...evaluatorDefaults, user_id: c.userId }}
+        initial={p ? pickValues(p, { ...evaluatorDefaults, user_id: c.userId }) : undefined}
+        fields={evaluatorFields}
+      />
+      <Link prefetch={false} href={`/app/${slug}/evaluate`}>
+        Return to assigned sessions →
       </Link>
     </section>
   );

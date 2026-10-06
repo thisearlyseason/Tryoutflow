@@ -68,19 +68,19 @@ export default function FeaturesPage() {
       <section className="border-y border-[var(--color-border)] bg-[var(--color-text)] px-4 py-14 text-white">
         <div className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-3">
           <div>
-            <p className="text-3xl font-black text-[#c7f000]">Explicit</p>
+            <p className="text-3xl font-black text-[#b9d4ff]">Explicit</p>
             <p className="mt-2 text-sm text-[#d8dee6]">
               Publish, finalize, notify, and export remain separate confirmed actions.
             </p>
           </div>
           <div>
-            <p className="text-3xl font-black text-[#c7f000]">Human</p>
+            <p className="text-3xl font-black text-[#b9d4ff]">Human</p>
             <p className="mt-2 text-sm text-[#d8dee6]">
               Rankings inform coaching judgment; they do not choose a roster.
             </p>
           </div>
           <div>
-            <p className="text-3xl font-black text-[#c7f000]">Privacy-aware</p>
+            <p className="text-3xl font-black text-[#b9d4ff]">Privacy-aware</p>
             <p className="mt-2 text-sm text-[#d8dee6]">
               Roles limit who can see rankings, notes, contact details, and roster work.
             </p>

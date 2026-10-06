@@ -10,7 +10,7 @@ import { dumpLocalSupabaseSchemas } from '../../../scripts/lib/local-supabase-da
 
 const execFile = promisify(execFileCallback);
 const primaryDatabaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const integrationRunId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
 if (!integrationRunId || !/^[0-9a-f]{16}$/u.test(integrationRunId)) {
   throw new Error('roster integration requires a validated run ID');

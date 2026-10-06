@@ -243,14 +243,14 @@ async function loadPrepareStage(
     title: 'Prepare',
     purpose: 'Configure and publish the tryout.',
     primaryAction: { label: 'Continue setup', href: `${baseHref}/setup/basics` },
-    secondaryActions: [{ label: 'Review setup', href: `${baseHref}/setup/review` }],
+    secondaryActions: [{ label: 'Review setup', href: `${baseHref}/overview#setup` }],
   };
   if (status !== 'draft') {
     return {
       ...base,
       status: 'complete',
       supportingText: 'Tryout published',
-      primaryAction: { label: 'Review setup', href: `${baseHref}/setup/review` },
+      primaryAction: { label: 'Open setup workspace', href: `${baseHref}/setup/registration` },
       secondaryActions: [],
     };
   }

@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { GripVertical } from 'lucide-react';
 
@@ -50,7 +52,7 @@ export function RosterAthleteCard({
           </div>
         </div>
         {!disabled ? (
-          <button
+          <FeedbackButton
             {...draggable.attributes}
             {...draggable.listeners}
             aria-label={`Drag ${athlete.displayName}`}
@@ -58,7 +60,7 @@ export function RosterAthleteCard({
             type="button"
           >
             <GripVertical aria-hidden="true" size={20} />
-          </button>
+          </FeedbackButton>
         ) : null}
       </div>
       <div className="grid gap-1 border-y border-[var(--color-border)] bg-[var(--color-surface-muted)] p-3 text-sm">

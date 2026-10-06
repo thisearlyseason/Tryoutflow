@@ -12,7 +12,12 @@ import {
 import { createCheckoutSession } from '../../../../../../modules/subscriptions/application/create-checkout-session';
 
 const bodySchema = z
-  .object({ plan: z.enum(['team', 'club', 'association']), clientAttemptId: z.uuid() })
+  .object({
+    plan: z.enum(['team', 'club', 'association']),
+    clientAttemptId: z.uuid(),
+    checkoutProtocol: z.enum(['standard_tax_v1', 'managed_v1']).optional(),
+    billingCountry: z.unknown().optional(),
+  })
   .strict();
 
 export async function handleCheckoutRequest(
@@ -31,6 +36,8 @@ export async function handleCheckoutRequest(
         organizationSlug: authenticated.organizationSlug,
         plan: body.data.plan,
         clientAttemptId: body.data.clientAttemptId,
+        checkoutProtocol: body.data.checkoutProtocol,
+        billingCountry: body.data.billingCountry,
         origin: dependencies.providerReturnOrigin ?? dependencies.canonicalOrigin,
       },
       authenticated.actor,

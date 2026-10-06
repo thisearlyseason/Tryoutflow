@@ -1,0 +1,506 @@
+{
+  "coach-sign-up": {
+    "width": 1309,
+    "height": 909
+  },
+  "verify-email": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-organization": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-dashboard": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-settings": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-members": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-create-tryout": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-basics": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-divisions": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-sessions": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-registration-form": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-waiver": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-rubrics": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-review": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-publish": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-share": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-registrations": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-athlete-profile": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-staff": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-evaluator-profile": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-participant-access": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-eligibility": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-stations": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-check-in": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-evaluator-sessions": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-score-athlete": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-complete-evaluation": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-average": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-live": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-performance": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-rankings": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-comparison": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-rosters": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-finalize": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-scenarios": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-messages": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-message-preview": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-event-updates": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-feedback": {
+    "width": 1309,
+    "height": 909
+  },
+  "coach-reports": {
+    "width": 1309,
+    "height": 1120
+  },
+  "coach-duplicate": {
+    "width": 1309,
+    "height": 1120
+  },
+  "parent-registration": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-athlete-details": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-guardian-consent": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-review": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-confirmed": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-sign-up": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-link-pending": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-portal": {
+    "width": 1309,
+    "height": 1120
+  },
+  "parent-schedule": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-fees": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-feedback": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-offer": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-correction": {
+    "width": 1309,
+    "height": 909
+  },
+  "parent-returning": {
+    "width": 1309,
+    "height": 909
+  },
+  "evaluator-athletes": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-calibration": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-completed": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-invitation": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-notes": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-offline": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-progress": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-readiness": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-saved": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-session": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-sessions": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-sign-in": {
+    "width": 1164,
+    "height": 655
+  },
+  "evaluator-sign-out": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-confirmed": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-conflict": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-empty": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-number-result": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-placement": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-repeat": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-search": {
+    "width": 1164,
+    "height": 655
+  },
+  "checkin-workspace": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-comparison": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-correction": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-filters": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-import-complete": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-import-preview": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-import": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-lab": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-measurement": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-metric": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-protocol": {
+    "width": 1164,
+    "height": 655
+  },
+  "performance-source": {
+    "width": 1164,
+    "height": 655
+  },
+  "reviewer-comparison": {
+    "width": 1164,
+    "height": 655
+  },
+  "reviewer-filters": {
+    "width": 1164,
+    "height": 655
+  },
+  "reviewer-rankings-access": {
+    "width": 1164,
+    "height": 655
+  },
+  "reviewer-rankings": {
+    "width": 1164,
+    "height": 655
+  },
+  "reviewer-report": {
+    "width": 1164,
+    "height": 655
+  },
+  "reviewer-roster-unavailable": {
+    "width": 1164,
+    "height": 655
+  },
+  "reviewer-workspace": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-development": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-feedback-report": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-followup": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-pipeline": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-profile-editor": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-report-context": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-report-review": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-report-saved": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-staff-report": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-stage": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-unsaved": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-video": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-watchlist": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-workspace": {
+    "width": 1164,
+    "height": 655
+  },
+  "scout-assessment": {
+    "width": 1164,
+    "height": 655
+  },
+  "org-coach-workspace": {
+    "width": 1440,
+    "height": 1100
+  },
+  "org-create-team": {
+    "width": 1440,
+    "height": 1100
+  },
+  "org-inherited-defaults": {
+    "width": 1440,
+    "height": 1100
+  },
+  "org-shared-defaults": {
+    "width": 1440,
+    "height": 1100
+  },
+  "org-team-billing": {
+    "width": 1440,
+    "height": 1100
+  },
+  "org-team-coaches": {
+    "width": 1440,
+    "height": 1100
+  },
+  "org-team-directory": {
+    "width": 1440,
+    "height": 1100
+  },
+  "org-team-home": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-complete": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-draft": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-locked": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-new-event": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-plan": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-publish": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-results": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-sealed": {
+    "width": 1440,
+    "height": 1100
+  },
+  "single-sessions": {
+    "width": 1440,
+    "height": 1100
+  }
+}

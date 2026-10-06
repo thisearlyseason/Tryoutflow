@@ -1,3 +1,6 @@
+import { launchManagedCoverage } from '@/modules/subscriptions/providers/stripe-managed-coverage';
+import { taxCalculationComplete } from '@/modules/subscriptions/providers/stripe-tax';
+import { stripeBillingClient } from '@/modules/subscriptions/providers/stripe';
 import { createHash } from 'node:crypto';
 
 import Stripe from 'stripe';
@@ -123,6 +126,53 @@ export async function handleStripeWebhook(
     );
   } catch {
     return Response.json({ error: 'invalid_webhook' }, { status: 400 });
+  }
+  // New-catalog subscriptions have a separate verified handler and must not mutate legacy accounts.
+  if (
+    verified.type.startsWith('customer.subscription.') &&
+    (verified.data.object as Stripe.Subscription).metadata?.billing_version === '2'
+  ) {
+    return Response.json({ outcome: 'new_catalog_subscription' });
+  }
+  // Tax-enabled legacy subscriptions must not grant access from status alone.
+  const legacySub = verified.data.object as Stripe.Subscription;
+  if (
+    verified.type.startsWith('customer.subscription.') &&
+    ['active', 'trialing'].includes(legacySub.status) &&
+    (legacySub.automatic_tax?.enabled ||
+      ['standard_tax_v1', 'managed_v1'].includes(legacySub.metadata?.tax_protocol ?? ''))
+  ) {
+    try {
+      if (
+        legacySub.metadata?.tax_protocol === 'managed_v1' &&
+        legacySub.managed_payments?.enabled !== true
+      )
+        throw new Error('managed_subscription_not_verified');
+      const id =
+        typeof legacySub.latest_invoice === 'string'
+          ? legacySub.latest_invoice
+          : legacySub.latest_invoice?.id;
+      if (!id) throw new Error('missing_tax_invoice');
+      const invoice = await stripeBillingClient().invoices.retrieve(id);
+      if (
+        legacySub.metadata?.tax_protocol === 'managed_v1' &&
+        !launchManagedCoverage(
+          legacySub.metadata.managed_seller_country,
+          invoice.customer_address?.country,
+        )
+      )
+        throw new Error('managed_coverage_not_verified');
+      const invoiceSub = invoice.parent?.subscription_details?.subscription;
+      if (
+        invoice.livemode !== verified.livemode ||
+        (typeof invoiceSub === 'string' ? invoiceSub : invoiceSub?.id) !== legacySub.id ||
+        invoice.status !== 'paid' ||
+        !taxCalculationComplete(invoice.automatic_tax, true)
+      )
+        throw new Error('unverified_tax_invoice');
+    } catch {
+      return Response.json({ error: 'tax_verification_pending' }, { status: 503 });
+    }
   }
   let parsed: ReturnType<typeof parseStripeSubscriptionEvent>;
   try {

@@ -2,10 +2,23 @@
 
 import { execFileSync } from 'node:child_process';
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { isolatedDatabase } from './helpers/isolated-database';
 
-const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const database = isolatedDatabase();
+const databaseUrl = database.url;
+
+beforeAll(() => {
+  database.create();
+  // The schema-only clone omits migration-owned singleton data. Match a freshly migrated
+  // local deployment before exercising seed.sql; a missing billing configuration fails closed.
+  psql(`insert into private.billing_configuration(singleton,environment,enabled,access_enabled)
+    values(true,'sandbox',false,false)`);
+  execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', databaseUrl, '-f', 'supabase/seed.sql'], {
+    stdio: 'pipe',
+  });
+});
+afterAll(() => database.drop());
 
 function psql(sql: string): string {
   return execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {

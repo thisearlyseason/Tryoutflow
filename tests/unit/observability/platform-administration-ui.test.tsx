@@ -14,7 +14,7 @@ describe('platform administration surfaces', () => {
   it('provides a labelled, keyboard-reachable platform navigation', () => {
     render(<PlatformNavigation />);
     const navigation = screen.getByRole('navigation', { name: 'Platform administration' });
-    expect(within(navigation).getAllByRole('link')).toHaveLength(5);
+    expect(within(navigation).getAllByRole('link')).toHaveLength(6);
     expect(within(navigation).getByRole('link', { name: 'System health' })).toHaveAttribute(
       'href',
       '/platform/health',

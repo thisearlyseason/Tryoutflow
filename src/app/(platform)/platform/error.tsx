@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 export default function PlatformError({ reset }: { error: Error; reset: () => void }) {
   return (
     <section aria-labelledby="platform-error-title" className="mx-auto max-w-2xl p-6">
@@ -8,9 +10,9 @@ export default function PlatformError({ reset }: { error: Error; reset: () => vo
         No operational details were exposed. Retry, then follow the incident runbook if the problem
         continues.
       </p>
-      <button className="mt-4" onClick={reset} type="button">
+      <FeedbackButton className="mt-4" onClick={reset} type="button">
         Retry platform tools
-      </button>
+      </FeedbackButton>
     </section>
   );
 }

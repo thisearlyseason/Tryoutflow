@@ -81,24 +81,24 @@ export function ReportsPage({
           />
         </div>
       ) : (
-        <dl className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[var(--radius-surface)] bg-[var(--color-surface)] p-4">
+        <dl className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="workspace-card min-h-0">
             <dt>Athletes</dt>
             <dd className="text-xl font-bold">{manager.athleteCount} athletes</dd>
           </div>
-          <div className="rounded-[var(--radius-surface)] bg-[var(--color-surface)] p-4">
+          <div className="workspace-card min-h-0">
             <dt>Complete</dt>
             <dd className="text-xl font-bold">
               {manager.completedEvaluationCount} completed evaluations
             </dd>
           </div>
-          <div className="rounded-[var(--radius-surface)] bg-[var(--color-surface)] p-4">
+          <div className="workspace-card min-h-0">
             <dt>Incomplete</dt>
             <dd className="text-xl font-bold">
               {manager.incompleteEvaluationCount} incomplete evaluations
             </dd>
           </div>
-          <div className="rounded-[var(--radius-surface)] bg-[var(--color-surface)] p-4">
+          <div className="workspace-card min-h-0">
             <dt>Final rosters</dt>
             <dd className="text-xl font-bold">{manager.finalizedRosterCount}</dd>
           </div>

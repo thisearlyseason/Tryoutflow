@@ -1,3 +1,6 @@
+import { managedBillingCountryAllowed } from '../providers/managed-billing-country';
+import { managedPrePaymentEnforcementAvailable } from '../providers/stripe-managed-coverage';
+import { stripeCheckoutIdentity } from '../providers/stripe-checkout-identity';
 import { z } from 'zod';
 
 import {
@@ -24,6 +27,8 @@ type CheckoutInput = Readonly<{
   organizationSlug: string;
   plan: unknown;
   clientAttemptId: unknown;
+  checkoutProtocol?: 'standard_tax_v1' | 'managed_v1';
+  billingCountry?: unknown;
   origin: string;
 }>;
 
@@ -54,6 +59,10 @@ export async function createCheckoutSession(
   )
     return failure({ code: 'invalid_return_url' });
   if (!currentOwnerMatches(actor, input.organizationId)) return failure({ code: 'forbidden' });
+  // The legacy endpoint must enforce the same new-purchase boundary as v2.
+  if (input.checkoutProtocol !== 'managed_v1') return failure({ code: 'billing_unavailable' });
+  if (process.env.BILLING_CHECKOUT_ENABLED !== 'true')
+    return failure({ code: 'billing_unavailable' });
   let account: SubscriptionAccount | null;
   try {
     account = await dependencies.loadOwnedAccount(input.organizationId, actor.userId);
@@ -69,12 +78,24 @@ export async function createCheckoutSession(
     return failure({ code: 'subscription_exists' });
   const priceId = dependencies.prices[plan.data];
   if (!priceId) return failure({ code: 'invalid_plan' });
+  if (
+    input.checkoutProtocol === 'managed_v1' &&
+    !managedBillingCountryAllowed(input.billingCountry)
+  )
+    return failure({ code: 'billing_unavailable' });
+  if (input.checkoutProtocol === 'managed_v1' && !managedPrePaymentEnforcementAvailable())
+    return failure({ code: 'billing_unavailable' });
+  const identity = stripeCheckoutIdentity(
+    attempt.data,
+    input.checkoutProtocol,
+    input.billingCountry,
+  );
   let reservation;
   try {
     reservation = await dependencies.checkoutIntents.reserve({
       organizationId: input.organizationId,
       initiatingOwnerUserId: actor.userId,
-      clientAttemptId: attempt.data,
+      clientAttemptId: identity.intentId,
       plan: plan.data,
     });
   } catch {
@@ -100,6 +121,10 @@ export async function createCheckoutSession(
         organizationId: input.organizationId,
         plan: plan.data,
         priceId,
+        ...(input.checkoutProtocol ? { checkoutProtocol: input.checkoutProtocol } : {}),
+        ...(input.checkoutProtocol === 'managed_v1'
+          ? { billingCountry: input.billingCountry }
+          : {}),
         successUrl: billingPageUrl(origin, input.organizationSlug, 'checkout=complete'),
         cancelUrl: billingPageUrl(origin, input.organizationSlug, 'checkout=cancelled'),
         ...(account.providerCustomerId ? { customerId: account.providerCustomerId } : {}),
@@ -110,7 +135,7 @@ export async function createCheckoutSession(
     if (!parsed.success) return failure({ code: 'billing_unavailable' });
     const settled = await dependencies.checkoutIntents.complete({
       organizationId: input.organizationId,
-      clientAttemptId: attempt.data,
+      clientAttemptId: identity.intentId,
       sessionId: parsed.data.sessionId,
       resultUrl: parsed.data.url,
     });
@@ -125,7 +150,7 @@ export async function createCheckoutSession(
       try {
         await dependencies.checkoutIntents.fail({
           organizationId: input.organizationId,
-          clientAttemptId: attempt.data,
+          clientAttemptId: identity.intentId,
         });
       } catch {
         // The provider failed permanently; a failed cleanup remains fail-closed until expiry.

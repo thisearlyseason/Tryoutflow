@@ -136,4 +136,13 @@ nullableFunctionArgs('apply_stripe_subscription_event', {
   p_trial_end: 'string',
 });
 
+nullableFunctionArgs('save_prospect_identity', {
+  p_birth_date: 'string',
+  p_expected_updated_at: 'string',
+});
+nullableFunctionArgs('save_athlete_contact', {
+  p_guardian_id: 'string',
+  p_expected_updated_at: 'string',
+});
+
 await writeFile(path, source);

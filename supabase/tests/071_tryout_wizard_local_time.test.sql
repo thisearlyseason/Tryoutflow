@@ -1,5 +1,5 @@
 begin;
-select plan(5);
+select plan(10);
 
 insert into auth.users(id) values('71000000-0000-4000-8000-000000000001');
 insert into public.organizations(id,name,slug,timezone) values
@@ -48,6 +48,33 @@ select is(
   (select ends_at from public.tryout_sessions where organization_id='71000000-0000-4000-8000-000000000002'),
   '2026-10-02 00:00:00+00'::timestamptz,
   'the session end is interpreted in the persisted tryout timezone'
+);
+
+select is(
+  (select outcome from public.save_tryout_wizard_configuration(
+    '71000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000003','basics',
+    '{"name":"Wizard Local Tryout","sport":"Hockey","timezone":"America/Edmonton","registrationStartsAt":"2026-09-01T08:00:00-06:00","registrationEndsAt":"2026-09-30T20:00:00-06:00"}'::jsonb
+  )), 'saved', 'explicit timezone offsets remain valid'
+);
+select is(
+  (select registration_starts_at from public.tryouts where id='71000000-0000-4000-8000-000000000003'),
+  '2026-09-01 14:00:00+00'::timestamptz, 'explicit offsets are not converted twice'
+);
+select is(
+  (select outcome from public.save_tryout_wizard_configuration(
+    '71000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000003','sessions',
+    '{"divisionId":"71000000-0000-4000-8000-000000000004","name":"Nonexistent local time","startsAt":"2027-03-14T02:30","endsAt":"2027-03-14T04:30"}'::jsonb
+  )), 'invalid_input', 'a local time in the daylight saving gap is rejected'
+);
+select is(
+  (select count(*) from public.tryout_sessions where organization_id='71000000-0000-4000-8000-000000000002'),
+  1::bigint, 'invalid local times do not create a session'
+);
+select is(
+  (select outcome from public.save_tryout_wizard_configuration(
+    '71000000-0000-4000-8000-000000000002','71000000-0000-4000-8000-000000000003','basics',
+    '{"name":"Wizard Local Tryout","sport":"Hockey","timezone":"Unknown/Zone","registrationStartsAt":"2026-09-01T08:00","registrationEndsAt":"2026-09-30T20:00"}'::jsonb
+  )), 'invalid_input', 'unrecognized timezones fail validation before a write'
 );
 
 select * from finish();

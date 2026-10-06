@@ -37,6 +37,8 @@ export type CheckoutSessionInput = Readonly<{
   successUrl: string;
   cancelUrl: string;
   customerId?: string;
+  checkoutProtocol?: 'standard_tax_v1' | 'managed_v1';
+  billingCountry?: unknown;
 }>;
 
 export type PortalSessionInput = Readonly<{

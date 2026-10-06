@@ -20,11 +20,12 @@ let apiKeys: ReturnType<typeof localApiKeys>;
 let directCanonicalRateKey = 'c'.repeat(64);
 
 const origin = 'http://localhost';
+const initialFormVersionId = 'f1101010-1010-4010-8010-101010101010';
 const brandingUserId = 'a5101010-1010-4010-8010-101010101010';
 const brandingOrganizationId = 'a1101010-1010-4010-8010-101010101010';
 const brandingDigest = '3fe79651a92ea3850c3fc3dd9519a67c7f70b598fa238a3fd92042f6446e6452';
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const validSubmission = {
   givenName: 'Ava',
   familyName: 'Smith',
@@ -85,6 +86,14 @@ function jsonRequest(path: string, body: unknown, headers: Record<string, string
     protectedPaths.has(path) && body && typeof body === 'object' && !Array.isArray(body)
       ? {
           ...body,
+          ...(path === '/api/public/registrations'
+            ? {
+                formVersionId:
+                  'formVersionId' in body
+                    ? (body as { formVersionId?: unknown }).formVersionId
+                    : initialFormVersionId,
+              }
+            : {}),
           botVerificationToken:
             'botVerificationToken' in body
               ? (body as { botVerificationToken?: unknown }).botVerificationToken
@@ -106,12 +115,14 @@ function jsonRequest(path: string, body: unknown, headers: Record<string, string
 beforeAll(async () => {
   const keys = localApiKeys();
   apiKeys = keys;
-  process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
+  process.env.NEXT_PUBLIC_SUPABASE_URL = JSON.parse(
+    execFileSync('./node_modules/.bin/supabase', ['status', '-o', 'json'], { encoding: 'utf8' }),
+  ).API_URL;
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
   process.env.ABUSE_PROTECTION_HMAC_SECRET = recordIntegrationRateKey('a'.repeat(64));
-  process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
+  process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3112';
   directCanonicalRateKey = recordIntegrationRateKey(directCanonicalRateKey);
   execFileSync(
     'psql',
@@ -185,7 +196,7 @@ describe('real public registration route with local Supabase', () => {
       'content-type': 'application/json',
     };
     const legacy = await fetch(
-      'http://127.0.0.1:54321/rest/v1/rpc/submit_public_registration_with_phone',
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/submit_public_registration_with_phone`,
       {
         method: 'POST',
         headers,
@@ -200,8 +211,25 @@ describe('real public registration route with local Supabase', () => {
     expect(legacy.ok).toBe(false);
     expect([401, 403, 404]).toContain(legacy.status);
 
+    const unversioned = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/submit_public_registration_with_notification`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          p_tryout_slug: 'http-registration-camp',
+          p_submission: validSubmission,
+          p_idempotency_key: `unversioned-denied-${randomUUID()}`,
+          p_rate_key_hash: directCanonicalRateKey,
+          p_app_origin: 'http://localhost:3112',
+        }),
+      },
+    );
+    expect(unversioned.ok).toBe(false);
+    expect([401, 403, 404]).toContain(unversioned.status);
+
     const canonical = await fetch(
-      'http://127.0.0.1:54321/rest/v1/rpc/submit_public_registration_v2',
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/submit_public_registration_with_notification_v2`,
       {
         method: 'POST',
         headers,
@@ -214,6 +242,8 @@ describe('real public registration route with local Supabase', () => {
           },
           p_idempotency_key: `canonical-${randomUUID()}`,
           p_rate_key_hash: directCanonicalRateKey,
+          p_app_origin: 'http://localhost:3112',
+          p_expected_form_version_id: initialFormVersionId,
         }),
       },
     );
@@ -946,5 +976,248 @@ describe('real public registration route with local Supabase', () => {
       statuses.push(response.status);
     }
     expect(statuses).toEqual([200, 200, 200, 200, 429, 429]);
+  });
+
+  it('honors configured fields and validates accepted retries against their original version', async () => {
+    const { GET: loadRegistration } =
+      await import('../../../src/app/api/public/registrations/route');
+    const configuredVersionId = randomUUID();
+    const laterVersionId = randomUUID();
+    const acceptedKey = `configured-fields-${randomUUID()}`;
+    const submission = {
+      givenName: `Configured-${randomUUID()}`,
+      familyName: 'Fields',
+      guardianEmail: `configured-fields-${randomUUID()}@example.com`,
+      responses: {},
+    };
+    const builtInFields = [
+      { key: 'givenName', label: 'First name', enabled: true, required: true, sortOrder: 0 },
+      { key: 'familyName', label: 'Last name', enabled: true, required: true, sortOrder: 1 },
+      { key: 'guardianEmail', label: 'Contact email', enabled: true, required: true, sortOrder: 2 },
+    ];
+    const configuredSchema = {
+      builtInFields,
+      fields: [
+        {
+          key: 'consent',
+          label: 'Disabled consent',
+          kind: 'consent',
+          enabled: false,
+          required: true,
+          sortOrder: 3,
+          waiverText: 'This disabled waiver must not require an answer.',
+        },
+      ],
+    };
+    const selectionWhere = `organization_id='${brandingOrganizationId}' and tryout_id='b1101010-1010-4010-8010-101010101010'`;
+    const originalSelection = psql(`
+      select registration_form_version_id from public.tryout_registration_form_selections
+      where ${selectionWhere}
+    `);
+    const publish = (versionId: string, schema: unknown) => {
+      const serializedSchema = JSON.stringify(schema).replace(/'/gu, "''");
+      psql(`
+        insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at)
+        select '${versionId}',organization_id,tryout_id,registration_form_id,
+          (select max(version_number)+1 from public.registration_form_versions where registration_form_id=original.registration_form_id),
+          '${serializedSchema}'::jsonb,'published',clock_timestamp()
+        from public.registration_form_versions original where id='${initialFormVersionId}';
+        update public.tryout_registration_form_selections set registration_form_version_id='${versionId}'
+        where ${selectionWhere};
+      `);
+    };
+    const submit = (
+      currentSubmission: unknown,
+      formVersionId = configuredVersionId,
+      idempotencyKey = `configured-attempt-${randomUUID()}`,
+    ) =>
+      submitRegistration(
+        jsonRequest(
+          '/api/public/registrations',
+          {
+            tryoutSlug: 'http-registration-camp',
+            formVersionId,
+            idempotencyKey,
+            submission: currentSubmission,
+          },
+          { 'x-forwarded-for': '203.0.113.76' },
+        ),
+      );
+    const persistedRegistration = () =>
+      JSON.parse(
+        psql(`
+          select jsonb_build_object(
+            'count',count(*),
+            'version',min(registration.registration_form_version_id::text),
+            'birthDate',min(athlete.birth_date),
+            'guardianName',min(guardian.name),
+            'responses',jsonb_agg(registration.responses)
+          )
+          from public.tryout_registrations registration
+          join public.athletes athlete on athlete.organization_id=registration.organization_id and athlete.id=registration.athlete_id
+          join public.athlete_guardians link on link.organization_id=athlete.organization_id and link.athlete_id=athlete.id
+          join public.guardians guardian on guardian.organization_id=link.organization_id and guardian.id=link.guardian_id
+          where registration.organization_id='${brandingOrganizationId}'
+            and athlete.given_name='${submission.givenName}'
+            and guardian.normalized_email='${submission.guardianEmail}'
+        `),
+      ) as unknown;
+
+    try {
+      publish(configuredVersionId, configuredSchema);
+      const loaded = await loadRegistration(
+        new NextRequest(`${origin}/api/public/registrations?tryoutSlug=http-registration-camp`),
+      );
+      expect(loaded.status).toBe(200);
+      expect(await loaded.json()).toMatchObject({
+        tryout: { formVersionId: configuredVersionId, formSchema: configuredSchema },
+      });
+
+      const accepted = await submit(submission, configuredVersionId, acceptedKey);
+      expect(accepted.status).toBe(200);
+      expect(await accepted.json()).toMatchObject({ ok: true });
+      const acceptedRecord = {
+        count: 1,
+        version: configuredVersionId,
+        birthDate: null,
+        guardianName: null,
+        responses: [{}],
+      };
+      expect(persistedRegistration()).toEqual(acceptedRecord);
+
+      expect((await submit({ ...submission, birthDate: '2013-05-01' })).status).toBe(400);
+      expect((await submit({ ...submission, responses: { consent: true } })).status).toBe(400);
+      for (const requiredKey of ['givenName', 'familyName', 'guardianEmail'] as const) {
+        const incomplete: Record<string, unknown> = { ...submission };
+        delete incomplete[requiredKey];
+        expect((await submit(incomplete)).status).toBe(400);
+      }
+      expect(persistedRegistration()).toEqual(acceptedRecord);
+
+      publish(laterVersionId, {
+        builtInFields: [
+          ...builtInFields,
+          { key: 'birthDate', label: 'Date of birth', enabled: true, required: true, sortOrder: 3 },
+        ],
+        fields: [],
+      });
+      expect((await submit(submission, laterVersionId)).status).toBe(400);
+      const staleFreshSubmission = await submit(submission);
+      expect(staleFreshSubmission.status).toBe(409);
+      expect(await staleFreshSubmission.json()).toMatchObject({ outcome: 'form_changed' });
+
+      const replayed = await submit(submission, configuredVersionId, acceptedKey);
+      expect(replayed.status).toBe(200);
+      expect(await replayed.json()).toMatchObject({ ok: true });
+      expect(persistedRegistration()).toEqual(acceptedRecord);
+    } finally {
+      psql(`
+        update public.tryout_registration_form_selections set registration_form_version_id='${originalSelection}'
+        where ${selectionWhere}
+      `);
+    }
+  });
+
+  it('requires reviewed waiver versions and keeps accepted registrations pinned across revisions', async () => {
+    const { GET: loadRegistration } =
+      await import('../../../src/app/api/public/registrations/route');
+    const revisedVersionId = randomUUID();
+    const originalKey = `waiver-original-${randomUUID()}`;
+    const revisedKey = `waiver-revised-${randomUUID()}`;
+    const originalSubmission = {
+      ...validSubmission,
+      givenName: 'WaiverOriginal',
+      guardianEmail: `waiver-original-${randomUUID()}@example.com`,
+    };
+    const revisedSubmission = {
+      ...validSubmission,
+      givenName: 'WaiverRevised',
+      guardianEmail: `waiver-revised-${randomUUID()}@example.com`,
+    };
+    const headers = { 'x-forwarded-for': '203.0.113.75' };
+    const load = () =>
+      loadRegistration(
+        new NextRequest(`${origin}/api/public/registrations?tryoutSlug=http-registration-camp`),
+      );
+    const submit = (
+      idempotencyKey: string,
+      submission: unknown,
+      formVersionId: string | undefined,
+    ) =>
+      submitRegistration(
+        jsonRequest(
+          '/api/public/registrations',
+          {
+            tryoutSlug: 'http-registration-camp',
+            idempotencyKey,
+            submission,
+            formVersionId,
+          },
+          headers,
+        ),
+      );
+    const registrationVersion = (givenName: string) =>
+      psql(`
+      select registration.registration_form_version_id
+      from public.tryout_registrations registration join public.athletes athlete on athlete.id=registration.athlete_id
+      where registration.organization_id='${brandingOrganizationId}' and athlete.given_name='${givenName}'
+    `);
+
+    const initiallyLoaded = await load();
+    expect(initiallyLoaded.status).toBe(200);
+    expect(initiallyLoaded.headers.get('Cache-Control')).toBe('no-store');
+    expect(await initiallyLoaded.json()).toMatchObject({
+      tryout: { formVersionId: initialFormVersionId },
+    });
+    expect((await submit(originalKey, originalSubmission, initialFormVersionId)).status).toBe(200);
+    expect(registrationVersion('WaiverOriginal')).toBe(initialFormVersionId);
+
+    try {
+      psql(`
+        insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at)
+        select '${revisedVersionId}',organization_id,tryout_id,registration_form_id,
+          (select max(version_number)+1 from public.registration_form_versions where registration_form_id=original.registration_form_id),
+          jsonb_set(schema,'{fields,5,waiverText}',to_jsonb('Updated waiver terms for this registration.'::text)),
+          'published',clock_timestamp()
+        from public.registration_form_versions original where id='${initialFormVersionId}';
+        update public.tryout_registration_form_selections set registration_form_version_id='${revisedVersionId}'
+        where organization_id='${brandingOrganizationId}' and tryout_id='b1101010-1010-4010-8010-101010101010';
+      `);
+      const stale = await submit(revisedKey, revisedSubmission, initialFormVersionId);
+      expect(stale.status).toBe(409);
+      expect(await stale.json()).toMatchObject({
+        outcome: 'form_changed',
+        message: expect.stringMatching(/reload.*review/iu),
+      });
+      expect(registrationVersion('WaiverRevised')).toBe('');
+      const missing = await submit(revisedKey, revisedSubmission, undefined);
+      expect(missing.status).toBe(409);
+      expect(registrationVersion('WaiverRevised')).toBe('');
+
+      const refreshed = await load();
+      expect(refreshed.status).toBe(200);
+      expect(await refreshed.json()).toMatchObject({
+        tryout: {
+          formVersionId: revisedVersionId,
+          formSchema: {
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                kind: 'consent',
+                waiverText: 'Updated waiver terms for this registration.',
+              }),
+            ]),
+          },
+        },
+      });
+      expect((await submit(revisedKey, revisedSubmission, revisedVersionId)).status).toBe(200);
+      expect(registrationVersion('WaiverRevised')).toBe(revisedVersionId);
+      expect((await submit(originalKey, originalSubmission, initialFormVersionId)).status).toBe(
+        200,
+      );
+      expect(registrationVersion('WaiverOriginal')).toBe(initialFormVersionId);
+    } finally {
+      psql(`update public.tryout_registration_form_selections set registration_form_version_id='${initialFormVersionId}'
+        where organization_id='${brandingOrganizationId}' and tryout_id='b1101010-1010-4010-8010-101010101010'`);
+    }
   });
 });

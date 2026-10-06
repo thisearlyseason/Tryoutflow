@@ -58,72 +58,72 @@ set local role authenticated;
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claim.sub','95000000-0000-4000-8000-000000000001',true);
 
-select is((select outcome from public.create_staff_registration(
+select is((select outcome from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',
   '95600000-0000-4000-8000-000000000001','95300000-0000-4000-8000-000000000001',null,
   null,null,null,
   '{"consent":true,"position":"Goalie","email":"legacy@example.test","phone":"+1 403 555 0100","date":"2026-08-31"}'::jsonb,repeat('9',64)
-)),'idempotency_conflict','upgraded staff rows without canonical request evidence fail closed on replay');
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))),'idempotency_conflict','upgraded staff rows without canonical request evidence fail closed on replay');
 
-select is((select outcome from public.create_staff_registration(
+select is((select outcome from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'  Ada  ','  Lovelace  ','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31","note":"  Ready  "}'::jsonb,repeat('a',64)
-)),'created','a valid canonical staff registration is created');
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))),'created','a valid canonical staff registration is created');
 
-select is((select outcome from public.create_staff_registration(
+select is((select outcome from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Ada','Lovelace','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31","note":"Ready"}'::jsonb,repeat('a',64)
-)),'replayed','canonical-equivalent content replays byte-stably');
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))),'replayed','canonical-equivalent content replays byte-stably');
 
-select is((select outcome from public.create_staff_registration(
+select is((select outcome from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Ada','Lovelace','2014-01-02',
   '{"consent":true,"position":"Skater","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31","note":"Ready"}'::jsonb,repeat('a',64)
-)),'idempotency_conflict','the same key with changed responses conflicts before mutation');
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))),'idempotency_conflict','the same key with changed responses conflicts before mutation');
 
-select is((select outcome from public.create_staff_registration(
+select is((select outcome from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Grace','Hopper','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31","note":"Ready"}'::jsonb,repeat('a',64)
-)),'idempotency_conflict','the same key with changed identity conflicts before mutation');
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))),'idempotency_conflict','the same key with changed identity conflicts before mutation');
 
-select throws_ok($$select * from public.create_staff_registration(
+select throws_ok($$select * from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Invalid','Consent','2014-01-02',
   '{"consent":false,"position":"Goalie","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31"}'::jsonb,repeat('b',64)
-)$$,'22023',null,'required consent must be true');
-select throws_ok($$select * from public.create_staff_registration(
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))$$,'22023',null,'required consent must be true');
+select throws_ok($$select * from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Invalid','Select','2014-01-02',
   '{"consent":true,"position":"Forward","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31"}'::jsonb,repeat('c',64)
-)$$,'22023',null,'select answers must exactly match immutable options');
-select throws_ok($$select * from public.create_staff_registration(
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))$$,'22023',null,'select answers must exactly match immutable options');
+select throws_ok($$select * from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Invalid','Email','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"raw guardian secret","phone":"+1 403 555 0100","date":"2026-08-31"}'::jsonb,repeat('d',64)
-)$$,'22023',null,'email answers use the authoritative registration validator');
-select throws_ok($$select * from public.create_staff_registration(
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))$$,'22023',null,'email answers use the authoritative registration validator');
+select throws_ok($$select * from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Invalid','Phone','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"player@example.test","phone":"123","date":"2026-08-31"}'::jsonb,repeat('e',64)
-)$$,'22023',null,'phone answers use the authoritative registration validator');
-select throws_ok($$select * from public.create_staff_registration(
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))$$,'22023',null,'phone answers use the authoritative registration validator');
+select throws_ok($$select * from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Invalid','Date','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-02-30"}'::jsonb,repeat('f',64)
-)$$,'22023',null,'date answers use the authoritative calendar validator');
-select throws_ok($$select * from public.create_staff_registration(
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))$$,'22023',null,'date answers use the authoritative calendar validator');
+select throws_ok($$select * from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Invalid','Type','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31","note":42}'::jsonb,repeat('1',64)
-)$$,'22023',null,'text answers reject invalid JSON types');
-select throws_ok($$select * from public.create_staff_registration(
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))$$,'22023',null,'text answers reject invalid JSON types');
+select throws_ok($$select * from public.create_staff_registration_v2(
   '95100000-0000-4000-8000-000000000001','95200000-0000-4000-8000-000000000001',null,
   '95300000-0000-4000-8000-000000000001',null,'Invalid','Unknown','2014-01-02',
   '{"consent":true,"position":"Goalie","email":"player@example.test","phone":"+1 403 555 0100","date":"2026-08-31","role":"owner"}'::jsonb,repeat('2',64)
-)$$,'22023',null,'unknown response keys fail closed');
+,(select schema from public.registration_form_versions where id='95500000-0000-4000-8000-000000000001'))$$,'22023',null,'unknown response keys fail closed');
 
 reset role;
 select throws_ok($$update public.tryout_registrations set staff_request_digest=repeat('7',64)

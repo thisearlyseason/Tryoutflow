@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { billingUpgradePrompt } from '@/modules/subscriptions/ui/server-feature-gate';
 import { redirect } from 'next/navigation';
 
 import { ErrorState } from '@/components/feedback/error-state';
@@ -11,13 +12,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { createTryout } from '@/modules/tryouts/application/create-tryout';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function NewTryoutPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ organizationSlug: string }>;
+  searchParams?: Promise<{ error?: string }>;
 }) {
   const { organizationSlug } = await params;
+  const query = (await searchParams) ?? {};
   const current = await requireCurrentOrganization(organizationSlug);
   const seasonsResult = await current.client
     .from('seasons')
@@ -47,7 +52,12 @@ export default async function NewTryoutPage({
     );
   }
   const seasons = seasonsResult.data ?? [];
-  const defaultSport = current.organization.sportDefaults[0] ?? '';
+  const defaultsUpgrade = await billingUpgradePrompt(
+    current.organization.id,
+    organizationSlug,
+    'organization_management',
+  );
+  const defaultSport = defaultsUpgrade ? '' : (current.organization.sportDefaults[0] ?? '');
   async function create(formData: FormData) {
     'use server';
     const route = await requireCurrentOrganization(organizationSlug);
@@ -73,11 +83,39 @@ export default async function NewTryoutPage({
     });
     redirect(`/app/${organizationSlug}/tryouts/${result.value.id}/setup/basics`);
   }
+  const errorMessage =
+    query.error === 'slug_conflict'
+      ? 'A tryout with that name already exists. Choose a different name.'
+      : query.error === 'invalid_time_range'
+        ? 'Registration close time must be after the open time.'
+        : query.error === 'invalid_input'
+          ? 'Enter a tryout name, sport, and exactly one cycle before creating the draft.'
+          : query.error
+            ? 'We could not create the tryout. Please try again.'
+            : undefined;
   return (
-    <section aria-labelledby="new-tryout-heading" className="max-w-xl">
-      <p className="eyebrow">Tryout setup</p>
-      <h2 id="new-tryout-heading">Create a draft</h2>
-      <form action={create} className="mt-6 space-y-4">
+    <section aria-labelledby="new-tryout-heading" className="workspace-stack">
+      <PageHeader
+        description="Create a draft, then configure registration, evaluations, staff, and publishing from the tryout workspace."
+        eyebrow="Tryout setup"
+        title="Create a tryout"
+      />
+      {errorMessage ? (
+        <p className="auth-alert" role="alert">
+          {errorMessage}
+        </p>
+      ) : null}
+      <form action={create} className="workspace-card grid gap-5">
+        <div>
+          <p className="eyebrow">Basics</p>
+          <h2 id="new-tryout-heading" className="workspace-card-title">
+            Start with the essentials
+          </h2>
+          <p>
+            Name your event, choose its sport, and set the registration window. You can finish the
+            rest after creating the draft.
+          </p>
+        </div>
         <label className="block" htmlFor="name">
           <span className="font-bold">Tryout name</span>
           <Input id="name" name="name" placeholder={FIELD_EXAMPLES.tryoutName} required />
@@ -96,7 +134,12 @@ export default async function NewTryoutPage({
           <legend className="font-bold">Cycle or season</legend>
           <label className="block" htmlFor="seasonId">
             <span>Use an existing cycle</span>
-            <select className="min-h-11 w-full rounded border px-3" id="seasonId" name="seasonId">
+            <select
+              className="min-h-11 w-full rounded border px-3"
+              defaultValue={seasons[0]?.id ?? ''}
+              id="seasonId"
+              name="seasonId"
+            >
               <option value="">Create a new cycle</option>
               {seasons.map((season) => (
                 <option key={season.id} value={season.id}>
@@ -111,6 +154,7 @@ export default async function NewTryoutPage({
               id="newSeasonName"
               maxLength={120}
               name="newSeasonName"
+              defaultValue={seasons.length ? undefined : `Fall ${new Date().getFullYear()}`}
               placeholder={FIELD_EXAMPLES.season}
             />
           </label>
@@ -134,6 +178,13 @@ export default async function NewTryoutPage({
             Times use the IANA timezone shown here. Example: {FIELD_EXAMPLES.timezone}.
           </span>
         </label>
+        <div className="rounded-lg bg-[var(--color-surface-muted)] p-3">
+          <h3>Registration window</h3>
+          <p>
+            These dates control when athletes can register. Set the actual tryout event dates in
+            Sessions after creating the draft.
+          </p>
+        </div>
         <label className="block" htmlFor="registrationStartsAt">
           <span className="font-bold">Registration opens</span>
           <Input
@@ -141,7 +192,6 @@ export default async function NewTryoutPage({
             id="registrationStartsAt"
             name="registrationStartsAt"
             type="datetime-local"
-            required
           />
           <span
             className="mt-1 block text-sm text-[var(--color-text-muted)]"
@@ -156,7 +206,6 @@ export default async function NewTryoutPage({
             aria-describedby="new-tryout-registration-closes-help"
             id="registrationEndsAt"
             name="registrationEndsAt"
-            required
             type="datetime-local"
           />
           <span

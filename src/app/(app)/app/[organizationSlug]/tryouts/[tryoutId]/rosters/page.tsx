@@ -359,7 +359,7 @@ export default async function RostersPage({
     <section aria-labelledby="roster-heading" className="min-w-0">
       {journeyNavigation}
       <p className="eyebrow">Human decisions</p>
-      <h2 id="roster-heading">{tryout.name} rosters</h2>
+      <h1 id="roster-heading">{tryout.name} rosters</h1>
       <p className="mb-4 mt-2 max-w-3xl text-[var(--color-text-muted)]">
         Build and confirm one division roster at a time. Finalizing preserves history and does not
         communicate or export anything.

@@ -17,7 +17,7 @@ import {
 
 const execFile = promisify(execFileCallback);
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 
@@ -30,7 +30,9 @@ beforeAll(() => {
   const serviceKey = config.match(/sb_secret_[A-Za-z0-9_-]+/u)?.[0];
   const publishableKey = config.match(/sb_publishable_[A-Za-z0-9_-]+/u)?.[0];
   if (!serviceKey || !publishableKey) throw new Error('local Supabase API keys unavailable');
-  process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://127.0.0.1:54321';
+  process.env.NEXT_PUBLIC_SUPABASE_URL = JSON.parse(
+    execFileSync('./node_modules/.bin/supabase', ['status', '-o', 'json'], { encoding: 'utf8' }),
+  ).API_URL;
   process.env.SUPABASE_SERVICE_ROLE_KEY = serviceKey;
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = publishableKey;
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = 'organization-logo-route-integration-secret';

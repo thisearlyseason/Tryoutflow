@@ -16,7 +16,7 @@ export function ProductProof() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-black uppercase tracking-[0.18em] text-[var(--color-primary)]">
-            Product proof, not promises
+            From registration to final roster
           </p>
           <h2
             className="mt-2 max-w-3xl text-3xl font-black tracking-tight sm:text-5xl"
@@ -26,8 +26,7 @@ export function ProductProof() {
           </h2>
         </div>
         <p className="max-w-md text-sm text-[var(--color-text-muted)]">
-          Synthetic labels show real workflow states without displaying athlete or guardian
-          identity.
+          Explore an example workflow, from the first registration to your final team.
         </p>
       </div>
 
@@ -55,17 +54,17 @@ export function ProductProof() {
         <article className="min-w-0 overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-text)] p-5 text-white shadow-[var(--shadow-surface)] sm:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/20 pb-5">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#c7f000]">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#b9d4ff]">
                 Evaluator view
               </p>
-              <h3 className="mt-1 text-2xl font-black">Session 02 · Group Blue</h3>
+              <h3 className="mt-1 text-2xl font-black text-white">Session 02 · Group Blue</h3>
             </div>
-            <span className="rounded-full bg-[#c7f000] px-3 py-2 text-sm font-black text-[var(--color-performance-foreground)]">
+            <span className="rounded-full bg-[#b9d4ff] px-3 py-2 text-sm font-black text-[var(--color-performance-foreground)]">
               Synced
             </span>
           </div>
           <div className="grid gap-6 py-6 sm:grid-cols-[8rem_1fr] sm:items-center">
-            <div className="flex aspect-square max-w-32 items-center justify-center rounded-full border-4 border-[#c7f000] font-[family-name:var(--font-bib)] text-5xl">
+            <div className="flex aspect-square max-w-32 items-center justify-center rounded-full border-4 border-[#b9d4ff] font-[family-name:var(--font-bib)] text-5xl">
               18
             </div>
             <div>
@@ -75,7 +74,7 @@ export function ProductProof() {
                   <span
                     className={`flex aspect-square items-center justify-center rounded-[var(--radius-control)] border font-[family-name:var(--font-score)] font-black ${
                       score === 4
-                        ? 'border-[#c7f000] bg-[#c7f000] text-[var(--color-performance-foreground)]'
+                        ? 'border-[#b9d4ff] bg-[#b9d4ff] text-[var(--color-performance-foreground)]'
                         : 'border-white/35'
                     }`}
                     key={score}

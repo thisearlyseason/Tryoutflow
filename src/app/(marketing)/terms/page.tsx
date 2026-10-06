@@ -20,8 +20,9 @@ export default function TermsPage() {
         Terms for using TryoutFlow
       </h1>
       <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--color-text-muted)]">
-        This draft describes the intended service relationship among TryoutFlow, subscribing sports
-        organizations, authorized staff, and public registrants.
+        TryoutFlow is operated by GameDay Technologies. This draft describes the intended service
+        relationship among TryoutFlow, subscribing sports organizations, authorized staff, and
+        public registrants.
       </p>
       <LegalDraftStatus />
 
@@ -29,11 +30,11 @@ export default function TermsPage() {
         <section>
           <h2>Organizations and authorized users</h2>
           <p>
-            A subscribing organization must be legally able to enter the agreement and appoint an
-            owner. The organization is responsible for its staff accounts, role assignments,
-            evaluator scopes, registration instructions, lawful authority over submitted
-            information, and activity performed by its authorized users. Credentials may not be
-            shared.
+            Account holders must be aged 18 or older. A subscribing organization must be legally
+            able to enter the agreement and appoint an owner. The organization is responsible for
+            its staff accounts, role assignments, evaluator scopes, registration instructions,
+            lawful authority over submitted information, and activity performed by its authorized
+            users. Credentials may not be shared.
           </p>
         </section>
         <section>
@@ -79,11 +80,12 @@ export default function TermsPage() {
         <section>
           <h2>Subscription and payment</h2>
           <p>
-            Published plan amounts are in Canadian dollars per month unless stated otherwise. Final
-            billing cycle, tax treatment, trial rules, renewal, price-change notice, cancellation
-            timing, refunds, payment failure, and restoration terms must be approved before
-            accepting production subscriptions. A checkout return does not itself activate access;
-            verified provider state is authoritative.
+            Web plan amounts are displayed in US dollars unless stated otherwise. Native stores
+            display localized prices and currencies before purchase. Final billing cycle, tax
+            treatment, trial rules, renewal, price-change notice, cancellation timing, refunds,
+            payment failure, and restoration terms must be approved before accepting production
+            subscriptions. A checkout return does not itself activate access; verified provider
+            state is authoritative.
           </p>
         </section>
         <section>
@@ -140,9 +142,14 @@ export default function TermsPage() {
             Governing law, venue, dispute escalation, notice addresses, assignment, force majeure,
             severability, waiver, and entire-agreement terms remain unresolved.{' '}
             <strong className="text-[var(--color-text)]">
-              Support contact: to be confirmed before launch.
+              Support: GameDay Technologies, gamedaysportstech@gmail.com.
             </strong>{' '}
-            The approved version must identify a monitored support channel and legal-notice address.
+            Contact our monitored support email at{' '}
+            {/* Public support is distinct from a legal-notice address. */}
+            <a className="underline" href="mailto:gamedaysportstech@gmail.com">
+              gamedaysportstech@gmail.com
+            </a>
+            . A legal-notice address and the remaining agreement terms still require approval.
           </p>
         </section>
       </div>

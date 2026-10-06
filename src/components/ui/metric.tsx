@@ -2,20 +2,29 @@ import type { ReactNode } from 'react';
 
 export function Metric({
   detail,
+  icon,
   label,
   value,
+  tone = 'blue',
 }: {
   detail?: string;
+  icon?: ReactNode;
   label: string;
   value: ReactNode;
+  tone?: 'blue' | 'green' | 'orange' | 'navy';
 }) {
   return (
-    <dl className="metric-card">
-      <dd className="score-value m-0 text-3xl text-[var(--color-text)]">{value}</dd>
-      <dt className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-[var(--color-text-muted)]">
-        {label}
-      </dt>
-      {detail ? <dd className="metric-detail">{detail}</dd> : null}
+    <dl className="metric-card" data-tone={tone}>
+      {icon && (
+        <div aria-hidden="true" className="metric-icon">
+          {icon}
+        </div>
+      )}
+      <div className="metric-copy">
+        <dt className="metric-label">{label}</dt>
+        <dd className="metric-value score-value">{value}</dd>
+        {detail ? <dd className="metric-detail">{detail}</dd> : null}
+      </div>
     </dl>
   );
 }

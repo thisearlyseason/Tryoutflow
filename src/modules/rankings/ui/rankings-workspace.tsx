@@ -1,10 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
 
 import { EmptyState } from '../../../components/feedback/empty-state';
 import { BibBadge } from '../../../components/ui/bib-badge';
+import { Button } from '../../../components/ui/button';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import type { RankingPage } from '../application/list-rankings';
 
@@ -16,18 +17,33 @@ type RankingFilterValues = Readonly<{
   completion?: 'all' | 'complete' | 'incomplete' | 'unscored';
   minimumEvaluators?: number;
   search?: string;
+  category?: string;
+  columns?: string;
+  sort?: 'overall' | 'category' | 'coverage' | 'spread';
 }>;
 
 export function RankingsWorkspace({
   initial,
   compareHref = './compare',
   filters = {},
+  savedViews,
 }: {
   initial: RankingPage;
   compareHref?: string;
   filters?: RankingFilterValues;
+  savedViews?: ReactNode;
 }) {
+  const filterFormId = useId();
   const [selected, setSelected] = useState<string[]>([]);
+  const [columns, setColumns] = useState(
+    () =>
+      new Set(
+        (filters.columns ?? 'score,coverage,range')
+          .split(',')
+          .filter((c) => ['score', 'coverage', 'range'].includes(c)),
+      ),
+  );
+  const visible = (column: string) => ({ display: columns.has(column) ? undefined : 'none' });
   const comparisonHref = useMemo(
     () => `${compareHref}?athletes=${selected.join(',')}`,
     [compareHref, selected],
@@ -47,6 +63,9 @@ export function RankingsWorkspace({
     filterQuery.set('minimumEvaluators', String(filters.minimumEvaluators));
   }
   if (filters.search) filterQuery.set('search', filters.search);
+  if (filters.sort && filters.sort !== 'overall') filterQuery.set('sort', filters.sort);
+  if (filters.category) filterQuery.set('category', filters.category);
+  if (filters.columns !== undefined) filterQuery.set('columns', filters.columns);
   filterQuery.set('pageSize', String(initial.pageSize));
   const pageHref = (page: number) => {
     const query = new URLSearchParams(filterQuery);
@@ -55,82 +74,151 @@ export function RankingsWorkspace({
   };
   return (
     <div className="min-w-0 space-y-5">
-      <form className="grid gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)] sm:grid-cols-2 lg:grid-cols-4">
-        <input name="pageSize" type="hidden" value={initial.pageSize} />
+      <div className="ranking-search-bar">
         <label className="grid gap-1 text-sm font-medium">
           Search athletes
           <input
             className="min-h-11 rounded-[var(--radius-control)] border border-[var(--color-border)] px-3"
             defaultValue={filters.search ?? ''}
+            form={filterFormId}
             name="search"
+            placeholder="Find an athlete by name or number"
             type="search"
           />
         </label>
-        {[
-          ['Division', 'division', divisions],
-          ['Position', 'position', positions],
-          ['Session', 'session', sessions],
-          ['Group', 'group', groups],
-        ].map(([label, name, options]) => (
-          <label className="grid gap-1 text-sm font-medium" key={name as string}>
-            {label as string}
+        <Button type="submit" form={filterFormId}>
+          Search
+        </Button>
+      </div>
+      <details className="ranking-filters">
+        <summary>
+          Filter rankings {filterQuery.size > 1 ? `(${filterQuery.size - 1} active)` : ''}
+        </summary>
+        {savedViews}
+        <form
+          id={filterFormId}
+          className="grid gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-[var(--shadow-surface)] sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <input name="pageSize" type="hidden" value={initial.pageSize} />
+          {[
+            ['Division', 'division', divisions],
+            ['Position', 'position', positions],
+            ['Session', 'session', sessions],
+            ['Group', 'group', groups],
+          ].map(([label, name, options]) => (
+            <label className="grid gap-1 text-sm font-medium" key={name as string}>
+              {label as string}
+              <select
+                className="min-h-11 rounded-[var(--radius-control)] border border-[var(--color-border)] px-3"
+                name={name as string}
+                defaultValue={
+                  name === 'division'
+                    ? filters.divisionId
+                    : name === 'position'
+                      ? filters.positionId
+                      : name === 'session'
+                        ? filters.sessionId
+                        : filters.groupId
+                }
+              >
+                <option value="">All</option>
+                {(options as [string, string][]).map(([id, optionLabel]) => (
+                  <option key={id} value={id}>
+                    {optionLabel}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+          <label className="grid gap-1 text-sm font-medium">
+            Completion
             <select
               className="min-h-11 rounded-[var(--radius-control)] border border-[var(--color-border)] px-3"
-              name={name as string}
-              defaultValue={
-                name === 'division'
-                  ? filters.divisionId
-                  : name === 'position'
-                    ? filters.positionId
-                    : name === 'session'
-                      ? filters.sessionId
-                      : filters.groupId
-              }
+              defaultValue={filters.completion ?? 'all'}
+              name="completion"
             >
-              <option value="">All</option>
-              {(options as [string, string][]).map(([id, optionLabel]) => (
-                <option key={id} value={id}>
-                  {optionLabel}
+              <option value="all">All coverage</option>
+              <option value="complete">Complete</option>
+              <option value="incomplete">Partially complete</option>
+              <option value="unscored">No completed evaluations</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium">
+            Minimum completed evaluations
+            <input
+              className="min-h-11 rounded-[var(--radius-control)] border border-[var(--color-border)] px-3"
+              defaultValue={String(filters.minimumEvaluators ?? 0)}
+              max="1000"
+              min="0"
+              name="minimumEvaluators"
+              type="number"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium">
+            Sort results
+            <select
+              className="min-h-11 rounded-lg border px-3"
+              name="sort"
+              defaultValue={filters.sort || 'overall'}
+            >
+              <option value="overall">Overall rank</option>
+              <option value="category">Category: highest first</option>
+              <option value="coverage">Coverage: lowest first</option>
+              <option value="spread">Evaluator spread: widest first</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium">
+            Category
+            <select
+              className="min-h-11 rounded-lg border px-3"
+              name="category"
+              defaultValue={filters.category || ''}
+            >
+              <option value="">Choose a category</option>
+              {initial.categoryOptions?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
                 </option>
               ))}
             </select>
           </label>
-        ))}
-        <label className="grid gap-1 text-sm font-medium">
-          Completion
-          <select
-            className="min-h-11 rounded-[var(--radius-control)] border border-[var(--color-border)] px-3"
-            defaultValue={filters.completion ?? 'all'}
-            name="completion"
+          <fieldset className="col-span-full flex flex-wrap gap-4">
+            <legend className="font-bold">Display columns</legend>
+            {[
+              ['score', 'Score and evidence'],
+              ['coverage', 'Coverage'],
+              ['range', 'Evaluator range'],
+            ].map(([key, label]) => (
+              <label className="inline-flex items-center gap-2" key={key}>
+                <input
+                  type="checkbox"
+                  checked={columns.has(key!)}
+                  onChange={(e) =>
+                    setColumns((current) => {
+                      const next = new Set(current);
+                      if (e.target.checked) next.add(key!);
+                      else next.delete(key!);
+                      return next;
+                    })
+                  }
+                />
+                {label}
+              </label>
+            ))}
+            <input type="hidden" name="columns" value={[...columns].join(',')} />
+          </fieldset>
+          <Button className="self-end" type="submit">
+            Apply filters
+          </Button>
+          <Link
+            className="inline-flex min-h-11 items-center self-end font-bold"
+            href={`?pageSize=${initial.pageSize}`}
+            prefetch={false}
           >
-            <option value="all">All coverage</option>
-            <option value="complete">Complete</option>
-            <option value="incomplete">Partially complete</option>
-            <option value="unscored">No completed evaluations</option>
-          </select>
-        </label>
-        <label className="grid gap-1 text-sm font-medium">
-          Minimum completed evaluations
-          <input
-            className="min-h-11 rounded-[var(--radius-control)] border border-[var(--color-border)] px-3"
-            defaultValue={String(filters.minimumEvaluators ?? 0)}
-            max="1000"
-            min="0"
-            name="minimumEvaluators"
-            type="number"
-          />
-        </label>
-        <button className="min-h-11 self-end rounded-[var(--radius-control)] bg-[var(--color-primary)] px-4 font-bold text-white">
-          Apply filters
-        </button>
-        <Link
-          className="inline-flex min-h-11 items-center self-end font-bold"
-          href={`?pageSize=${initial.pageSize}`}
-          prefetch={false}
-        >
-          Clear filters
-        </Link>
-      </form>
+            Clear filters
+          </Link>
+        </form>
+      </details>
 
       {initial.rows.length === 0 ? (
         <EmptyState
@@ -142,7 +230,7 @@ export function RankingsWorkspace({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-[var(--color-text-muted)]" role="status">
               {initial.total} athletes ·{' '}
-              <span title={`Generated ${initial.generatedAt}`}>current authorized snapshot</span>
+              <span title={`Generated ${initial.generatedAt}`}>updated results</span>
             </p>
             <Link
               aria-disabled={selected.length < 2}
@@ -154,86 +242,140 @@ export function RankingsWorkspace({
             </Link>
           </div>
 
-          <ol className="grid gap-3">
-            {initial.rows.map((row) => {
-              const checked = selected.includes(row.athleteId);
-              return (
-                <li
-                  className="ranking-card min-w-0 overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-surface)]"
-                  data-testid={`ranking-card-${row.registrationId}`}
-                  key={row.registrationId}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--color-border)] p-4">
-                    <div className="flex min-w-0 gap-3">
-                      <BibBadge number={row.tryoutNumber} />
-                      <div className="min-w-0">
-                        <h2 className="truncate text-lg font-bold">{row.displayName}</h2>
-                        <p className="text-sm text-[var(--color-text-muted)]">
-                          {row.divisionName}
-                          {row.positionName ? ` · ${row.positionName}` : ''}
-                        </p>
+          <div className="card overflow-x-auto">
+            <table
+              aria-label="Player rankings"
+              className="ranking-responsive-table w-full min-w-[760px] text-left"
+            >
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <span className="sr-only">Compare</span>
+                  </th>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Athlete</th>
+                  <th scope="col" style={visible('score')}>
+                    Score
+                  </th>
+                  <th scope="col" style={visible('coverage')}>
+                    Evaluation coverage
+                  </th>
+                  <th scope="col" style={visible('range')}>
+                    Score range
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {initial.rows.map((row) => {
+                  const checked = selected.includes(row.athleteId);
+                  return (
+                    <tr
+                      className="ranking-card"
+                      data-testid={`ranking-card-${row.registrationId}`}
+                      key={row.registrationId}
+                    >
+                      <td>
+                        <label className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                          <input
+                            checked={checked}
+                            disabled={!checked && selected.length === 4}
+                            onChange={() =>
+                              setSelected((current) =>
+                                checked
+                                  ? current.filter((id) => id !== row.athleteId)
+                                  : [...current, row.athleteId],
+                              )
+                            }
+                            type="checkbox"
+                          />
+                          <span className="sr-only">Select {row.displayName} for comparison</span>
+                        </label>
+                      </td>
+                      <td data-testid={`ranking-rank-${row.registrationId}`}>
+                        <strong>{row.rank === null ? 'Unranked' : `Rank ${row.rank}`}</strong>
                         {row.isTied && row.rank ? (
-                          <p className="mt-1 text-sm font-bold text-[var(--color-primary)]">
+                          <small className="block text-[var(--color-primary)]">
                             Tied at rank {row.rank}
-                          </p>
+                          </small>
                         ) : null}
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-6 text-right">
-                      <div data-testid={`ranking-rank-${row.registrationId}`}>
-                        <p className="eyebrow mb-1">Rank</p>
-                        <p className="font-[var(--font-bib)] text-2xl tabular-nums">
-                          {row.rank === null ? 'Unranked' : `Rank ${row.rank}`}
-                        </p>
-                      </div>
-                      <div data-testid={`ranking-score-${row.registrationId}`}>
-                        <p className="eyebrow mb-1">Score</p>
-                        <p className="font-[var(--font-bib)] text-3xl tabular-nums">
-                          {row.overall ?? 'Unranked'}
-                        </p>
-                        <p className="text-xs text-[var(--color-text-muted)]">
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <BibBadge number={row.tryoutNumber} />
+                          <div>
+                            <h2 className="ranking-athlete-name">{row.displayName}</h2>
+                            <p className="m-0 text-xs text-[var(--color-text-muted)]">
+                              {row.divisionName}
+                              {row.positionName ? ` · ${row.positionName}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td
+                        style={visible('score')}
+                        data-label="Score"
+                        data-testid={`ranking-score-${row.registrationId}`}
+                      >
+                        <details>
+                          <summary className="cursor-pointer">
+                            <strong className="text-base">{row.overall ?? 'Unranked'}</strong>
+                            <span className="sr-only"> — score evidence for {row.displayName}</span>
+                          </summary>
+                          <p className="text-xs">
+                            Weighted overall from completed evaluations. Category values are
+                            normalized to 100; each retains its rubric category.
+                          </p>
+                          <dl>
+                            {row.categories.map((c) => (
+                              <div key={c.categoryId}>
+                                <dt>{c.name}</dt>
+                                <dd>{c.normalizedAverage} / 100</dd>
+                              </div>
+                            ))}
+                          </dl>
+                          {!row.categories.length && <p>No completed category scores.</p>}
+                          <p className="text-xs">
+                            Select a second athlete to compare session evidence.
+                          </p>
+                        </details>
+                        {filters.category && (
+                          <p className="text-xs">
+                            Selected category:{' '}
+                            {row.categories.find((c) => c.categoryId === filters.category)
+                              ?.normalizedAverage ?? 'Not observed'}{' '}
+                            / 100
+                          </p>
+                        )}
+                        <small className="block text-[var(--color-text-muted)]">
                           {row.overall === null ? 'No completed score' : 'overall / 100'}
+                        </small>
+                      </td>
+                      <td style={visible('coverage')}>
+                        <StatusBadge
+                          status={row.completionPercent === 100 ? 'complete' : 'warning'}
+                        >
+                          Evaluation coverage
+                        </StatusBadge>
+                        <p className="mt-2 mb-0 text-xs">
+                          <strong>
+                            {row.completedEvaluators} of {row.expectedEvaluators}
+                          </strong>{' '}
+                          evaluations complete
                         </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-3 bg-[var(--color-surface-muted)] p-4 text-sm sm:grid-cols-[auto_1fr_1fr_1fr] sm:items-center">
-                    <StatusBadge status={row.completionPercent === 100 ? 'complete' : 'warning'}>
-                      Confidence evidence
-                    </StatusBadge>
-                    <p>
-                      <strong>
-                        {row.completedEvaluators} of {row.expectedEvaluators}
-                      </strong>{' '}
-                      evaluations complete
-                    </p>
-                    <p>
-                      Coverage <strong>{row.completionPercent}%</strong>
-                    </p>
-                    <p>
-                      Range{' '}
-                      <strong>{row.scoreRange ? row.scoreRange.join('–') : 'Not available'}</strong>
-                    </p>
-                  </div>
-                  <label className="m-3 inline-flex min-h-11 cursor-pointer items-center gap-2 font-medium">
-                    <input
-                      checked={checked}
-                      disabled={!checked && selected.length === 4}
-                      onChange={() =>
-                        setSelected((current) =>
-                          checked
-                            ? current.filter((id) => id !== row.athleteId)
-                            : [...current, row.athleteId],
-                        )
-                      }
-                      type="checkbox"
-                    />
-                    Select {row.displayName} for comparison
-                  </label>
-                </li>
-              );
-            })}
-          </ol>
+                        <small className="text-[var(--color-text-muted)]">
+                          Coverage <strong>{row.completionPercent}%</strong>
+                        </small>
+                      </td>
+                      <td style={visible('range')} data-label="Score range">
+                        {row.scoreRange ? row.scoreRange.join('–') : 'Not available'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
           {initial.totalPages > 1 ? (
             <nav aria-label="Ranking pages" className="flex items-center justify-between gap-3">
               {initial.page > 1 ? (

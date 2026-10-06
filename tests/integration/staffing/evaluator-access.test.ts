@@ -18,7 +18,7 @@ const tryoutId = '33333333-3333-4333-8333-333333333333';
 const divisionId = '44444444-4444-4444-8444-444444444444';
 const execFile = promisify(execFileCallback);
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 

@@ -174,7 +174,10 @@ export default async function DuplicateReviewPage({
                     href={`/app/${organizationSlug}/athletes/${athlete.id}`}
                     key={id}
                   >
-                    {athlete.given_name} {athlete.family_name} · born {athlete.birth_date}
+                    {athlete.given_name} {athlete.family_name} ·{' '}
+                    {athlete.birth_date
+                      ? `born ${athlete.birth_date}`
+                      : 'date of birth not provided'}
                   </Link>
                 ) : (
                   <span className="block text-sm" key={id}>
@@ -215,7 +218,7 @@ export default async function DuplicateReviewPage({
               <p className="font-bold">
                 Registration athlete:{' '}
                 {incoming
-                  ? `${incoming.given_name} ${incoming.family_name} · born ${incoming.birth_date}`
+                  ? `${incoming.given_name} ${incoming.family_name} · ${incoming.birth_date ? `born ${incoming.birth_date}` : 'date of birth not provided'}`
                   : 'Unavailable'}
               </p>
               <p className="mt-2">
@@ -225,7 +228,10 @@ export default async function DuplicateReviewPage({
                     className="text-[var(--color-primary)] underline"
                     href={`/app/${organizationSlug}/athletes/${existing.id}`}
                   >
-                    {existing.given_name} {existing.family_name} · born {existing.birth_date}
+                    {existing.given_name} {existing.family_name} ·{' '}
+                    {existing.birth_date
+                      ? `born ${existing.birth_date}`
+                      : 'date of birth not provided'}
                   </Link>
                 ) : (
                   'Unavailable'

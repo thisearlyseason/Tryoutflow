@@ -11,8 +11,10 @@ const publicMarketingPaths = new Set([
   '/for/associations',
   '/pricing',
   '/demo',
+  '/how-to',
   '/privacy',
   '/terms',
+  '/fonts/manrope/Manrope-Variable.ttf',
 ]);
 
 function isPublicMarketingPathname(pathname: string): boolean {

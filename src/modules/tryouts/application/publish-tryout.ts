@@ -20,7 +20,8 @@ export type PublishBlocker =
   | 'session_missing'
   | 'registration_form_missing'
   | 'registration_closed'
-  | 'rubric_invalid';
+  | 'rubric_invalid'
+  | 'single_tryout_schedule_invalid';
 
 export type PublishTryoutError = {
   code:
@@ -59,7 +60,7 @@ export interface ValidateTryoutForPublishGateway {
 
 type RpcRow = { outcome?: unknown; public_slug?: unknown };
 type ValidationRpcRow = { blocker?: unknown };
-type RpcError = { code?: unknown } | null;
+type RpcError = { code?: unknown; message?: unknown } | null;
 
 function isPublishBlocker(value: unknown): value is PublishBlocker {
   return (
@@ -72,6 +73,8 @@ function isPublishBlocker(value: unknown): value is PublishBlocker {
 }
 
 export function mapPublishTryoutResponse(data: unknown, error: RpcError): PublishTryoutOutcome {
+  if (error?.message === 'single_tryout_schedule_invalid')
+    return { kind: 'single_tryout_schedule_invalid' };
   if (error?.code === '42501') return { kind: 'forbidden' };
   if (
     error ||

@@ -1,3 +1,5 @@
+import { billingUpgradePrompt } from '@/modules/subscriptions/ui/server-feature-gate';
+import Link from 'next/link';
 import { ErrorState } from '@/components/feedback/error-state';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
@@ -13,6 +15,13 @@ export default async function TryoutReportsPage({
 }) {
   const { organizationSlug, tryoutId } = await params;
   const current = await requireOrganizationRouteContext(organizationSlug);
+  const upgrade = await billingUpgradePrompt(
+    current.organization.id,
+    organizationSlug,
+    'export_reports',
+    tryoutId,
+  );
+  if (upgrade) return upgrade;
   const auditAction = requireCapability(current.authorization, 'audit:read', {
     organizationId: current.organization.id,
   }).ok
@@ -35,6 +44,15 @@ export default async function TryoutReportsPage({
     return (
       <section className="min-w-0">
         {journeyNavigation}
+        {['owner', 'administrator'].includes(current.authorization.organizationRole) && (
+          <Link
+            className="button-secondary"
+            prefetch={false}
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/reports/decision-packet`}
+          >
+            Open director decision packet
+          </Link>
+        )}
         {summary ? (
           <ReportsPage
             organizationId={current.organization.id}

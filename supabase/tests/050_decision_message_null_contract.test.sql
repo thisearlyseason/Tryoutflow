@@ -1,5 +1,7 @@
 begin;
 select plan(52);
+create temporary table task23_tombstone_baseline as
+select count(*)::integer as count from public.communication_preview_tombstones;
 
 select has_function('public','create_decision_message_batch_v2',array[
   'uuid','uuid','uuid','uuid','text','text','text'
@@ -174,7 +176,8 @@ select is((select count(*)::text||'|'||
   (select count(*) from public.outbox_jobs where organization_id='50000000-0000-4000-8000-000000000002')||'|'||
   (select count(*) from public.communication_preview_tombstones)
   from public.communication_preview_proofs where organization_id='50000000-0000-4000-8000-000000000002'),
-  '8|0|0|0|0','all rejected live calls preserve every proof and create no communication state');
+  '8|0|0|0|'||(select count from task23_tombstone_baseline),
+  'all rejected live calls preserve every proof and create no communication state');
 
 set local role authenticated;
 select is((pg_temp.task23_confirm(
@@ -250,7 +253,8 @@ select is((select
   (select count(*) from public.communication_messages where organization_id='50000000-0000-4000-8000-000000000002')||'|'||
   (select count(*) from public.outbox_jobs where organization_id='50000000-0000-4000-8000-000000000002')||'|'||
   (select count(*) from public.communication_preview_tombstones)),
-  '1|1|1|1','rejected consumed calls create no duplicate batch, message, job, or tombstone');
+  '1|1|1|'||(select count+1 from task23_tombstone_baseline),
+  'rejected consumed calls create no duplicate batch, message, job, or tombstone');
 
 select set_config('request.jwt.claim.sub','',true);
 set local role service_role;

@@ -4,6 +4,7 @@ type IntegrationCardProps = Readonly<{
   connected?: boolean;
   connectionLabel?: string;
   connectAction?: () => Promise<void>;
+  disconnectAction?: () => Promise<void>;
   notice?: string;
 }>;
 
@@ -13,6 +14,7 @@ export function IntegrationCard({
   connected = false,
   connectionLabel,
   connectAction,
+  disconnectAction,
   notice,
 }: IntegrationCardProps) {
   return (
@@ -43,9 +45,18 @@ export function IntegrationCard({
           Disabled by default. An administrator must enable the server-side demo flag.
         </p>
       ) : connected ? (
-        <p className="mt-5 rounded-[var(--radius-control)] border border-[var(--color-success)] bg-[var(--color-success-surface)] p-4 font-semibold text-[var(--color-success)]">
-          Connected to {connectionLabel ?? providerName} for this administrator’s demo session.
-        </p>
+        <div className="mt-5 grid gap-3">
+          <p className="rounded-[var(--radius-control)] border border-[var(--color-success)] bg-[var(--color-success-surface)] p-4 font-semibold text-[var(--color-success)]">
+            Connected to {connectionLabel ?? providerName} for this organization.
+          </p>
+          {disconnectAction ? (
+            <form action={disconnectAction}>
+              <Button variant="secondary" type="submit">
+                Disconnect
+              </Button>
+            </form>
+          ) : null}
+        </div>
       ) : connectAction ? (
         <form action={connectAction} className="mt-5">
           <Button type="submit">Connect demo provider</Button>

@@ -8,6 +8,7 @@ import { connectDemoProvider } from '@/modules/integrations/application/connect-
 import { SupabaseIntegrationGateway } from '@/modules/integrations/infrastructure/supabase-integration-gateway';
 import { IntegrationCard } from '@/modules/integrations/ui/integration-card';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function IntegrationsPage({
   params,
@@ -28,6 +29,8 @@ export default async function IntegrationsPage({
     .eq('created_by_user_id', scoped.userId)
     .eq('provider_key', 'the-squad')
     .maybeSingle();
+  // Capture a nullable scalar: Next evaluates action closure bindings during render.
+  const connectionId = connection?.id;
 
   async function connectAction() {
     'use server';
@@ -50,6 +53,17 @@ export default async function IntegrationsPage({
       `/app/${organizationSlug}/organization/integrations?connection=${encodeURIComponent(result.outcome)}`,
     );
   }
+  async function disconnectAction() {
+    'use server';
+    const current = await requireOrganizationRouteContext(organizationSlug);
+    if (!connectionId) return;
+    const result = await new SupabaseIntegrationGateway(current.client).disconnectConnection(
+      current.organization.id,
+      connectionId,
+    );
+    revalidatePath(`/app/${organizationSlug}/organization/integrations`);
+    redirect(`/app/${organizationSlug}/organization/integrations?connection=${result}`);
+  }
 
   const notice = connectionError
     ? 'Connection status is temporarily unavailable. Try again.'
@@ -60,22 +74,21 @@ export default async function IntegrationsPage({
         : undefined;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
-      <header>
-        <p className="text-sm font-bold uppercase tracking-[0.18em] text-blue-700">
-          Organization settings
-        </p>
-        <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950">Integrations</h1>
-        <p className="mt-3 max-w-2xl text-slate-700">
-          Connections, reviewed mappings, and synchronization history are stored per organization.
-        </p>
-      </header>
+    <div className="workspace-stack">
+      <PageHeader
+        description="Connections, reviewed mappings, and synchronization history are stored per organization."
+        eyebrow="Organization"
+        title="Integrations"
+      />
       <IntegrationCard
         providerName="The Squad (demo/mock)"
         enabled={descriptor !== undefined}
         connected={connection?.state === 'connected' && connection.mock_data}
         connectionLabel={connection?.display_name}
         connectAction={descriptor ? connectAction : undefined}
+        disconnectAction={
+          connection?.state === 'connected' && connection.mock_data ? disconnectAction : undefined
+        }
         notice={notice}
       />
     </div>

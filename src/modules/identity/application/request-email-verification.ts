@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
 import { failure, success, type AppResult } from '../../../lib/result';
 
+import { isNeutralAuthOutcome } from './non-enumerating-auth-outcome';
+
 const verificationInputSchema = z.object({
   email: z.email(),
   redirectTo: z.url(),
@@ -26,7 +28,7 @@ export async function requestEmailVerification(
     type: 'signup',
   });
 
-  if (error) {
+  if (error && !isNeutralAuthOutcome(error, 'resend')) {
     return failure('verification_request_failed');
   }
 

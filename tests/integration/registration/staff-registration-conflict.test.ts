@@ -16,7 +16,7 @@ import type { RegistrationFormSchema } from '../../../src/modules/registration/d
 
 const execFile = promisify(execFileCallback);
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const sqlText = (value: string) => value.replaceAll("'", "''");
@@ -60,12 +60,12 @@ describe('staff registration application/database conflict boundary', () => {
           set local "request.jwt.claim.role"='authenticated';
           set local "request.jwt.claim.sub"='${userId}';
           create temporary table staff_registration_result on commit preserve rows as
-            select * from public.create_staff_registration(
+            select * from public.create_staff_registration_v2(
               '${input.organizationId}','${input.tryoutId}',
               ${optional(input.existingAthleteId, '::uuid')},'${input.divisionId}',
               ${optional(input.positionId, '::uuid')},${optional(input.givenName)},
               ${optional(input.familyName)},${optional(input.birthDate, '::date')},
-              '${responses}'::jsonb,'${input.submissionKeyDigest}'
+              '${responses}'::jsonb,'${input.submissionKeyDigest}','${sqlText(JSON.stringify(input.expectedFormSchema))}'::jsonb
             );
           commit;
           select outcome||'|'||coalesce(registration_id::text,'')||'|'||coalesce(athlete_id::text,'')

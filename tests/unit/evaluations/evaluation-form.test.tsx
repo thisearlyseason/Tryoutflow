@@ -306,7 +306,7 @@ describe('EvaluationForm', () => {
       />,
     );
     expect(screen.getByText('#42')).toHaveClass('font-[var(--font-bib)]');
-    expect(screen.getByTestId('evaluation-game-day')).toHaveClass('theme-game-day');
+    expect(screen.getByTestId('evaluation-game-day')).toHaveClass('sport-day-workspace');
     expect(screen.getByTestId('evaluation-athlete-identity')).toHaveClass(
       'game-day-athlete-identity',
     );

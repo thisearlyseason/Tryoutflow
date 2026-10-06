@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import { useState, useTransition } from 'react';
 
 type ActionOutcome = {
@@ -90,13 +92,14 @@ export function AssignmentWorkspace({
               type="email"
             />
           </label>
-          <button
+          <FeedbackButton
+            busy={pending}
             className="button-primary min-h-11 w-full sm:w-auto"
             disabled={pending}
             type="submit"
           >
             Create invitation link
-          </button>
+          </FeedbackButton>
           {shareUrl ? (
             <section className="grid gap-3 rounded-lg border border-[var(--color-border)] p-4">
               <p className="font-semibold">One-time invitation link</p>
@@ -127,7 +130,7 @@ export function AssignmentWorkspace({
                 </p>
               ) : null}
               <div className="flex flex-wrap gap-2">
-                <button
+                <FeedbackButton
                   className="button-secondary min-h-11"
                   onClick={() => {
                     void (async () => {
@@ -143,7 +146,7 @@ export function AssignmentWorkspace({
                   type="button"
                 >
                   Copy invitation link
-                </button>
+                </FeedbackButton>
                 <a
                   className="button-secondary inline-flex min-h-11 items-center"
                   href={shareUrl}
@@ -239,13 +242,14 @@ export function AssignmentWorkspace({
             ))}
           </select>
         </label>
-        <button
+        <FeedbackButton
+          busy={pending}
           className="button-primary min-h-11 w-full sm:w-auto"
           disabled={pending}
           type="submit"
         >
           Assign evaluator
-        </button>
+        </FeedbackButton>
       </form>
       <section className="card min-w-0 p-5 xl:col-span-2" aria-labelledby="active-grants-heading">
         <p className="eyebrow">Current access</p>
@@ -267,7 +271,8 @@ export function AssignmentWorkspace({
                   <p className="truncate font-semibold">{assignment.evaluatorName}</p>
                   <p className="text-sm text-[var(--color-text-muted)]">{assignment.scopeLabel}</p>
                 </div>
-                <button
+                <FeedbackButton
+                  busy={pending}
                   aria-label={`Revoke ${assignment.evaluatorName} from ${assignment.scopeLabel}`}
                   className="button-secondary min-h-11"
                   disabled={pending}
@@ -296,7 +301,7 @@ export function AssignmentWorkspace({
                   type="button"
                 >
                   Revoke access
-                </button>
+                </FeedbackButton>
               </li>
             ))}
           </ul>

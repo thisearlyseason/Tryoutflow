@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -39,6 +41,7 @@ export function MobileNav({
   }
   if (!groups || !organization || !roleLabel) return null;
   const items = flattenNavigation(groups);
+  const billingItem = items.find(({ href }) => href.endsWith('/organization/billing'));
   const primaryItems = items.slice(0, 3);
   const primaryHrefs = new Set(primaryItems.map(({ href }) => href));
   const moreGroups = groups
@@ -52,10 +55,15 @@ export function MobileNav({
     <nav aria-label="Mobile navigation" className="mobile-navigation">
       <div className="mobile-organization">
         <OrganizationMark name={organization.name} logoUrl={organization.logoUrl} />
-        <span>
+        <span className="mobile-workspace-identity">
           <strong>{organization.name}</strong>
           <small>{roleLabel}</small>
         </span>
+        {billingItem ? (
+          <Link className="mobile-upgrade-link" href={billingItem.href} prefetch={false}>
+            Upgrade &amp; billing
+          </Link>
+        ) : null}
       </div>
       <div className="mobile-nav-bar">
         {primaryItems.map((item) => (
@@ -63,7 +71,7 @@ export function MobileNav({
         ))}
         {moreGroups.length ? (
           <div className="mobile-more">
-            <button
+            <FeedbackButton
               aria-controls="mobile-more-panel"
               aria-expanded={moreOpen}
               aria-label="More navigation"
@@ -72,19 +80,19 @@ export function MobileNav({
               type="button"
             >
               More
-            </button>
+            </FeedbackButton>
             {moreOpen ? (
               <div className="mobile-more-panel" id="mobile-more-panel" onClickCapture={close}>
                 <div className="mobile-more-heading">
                   <strong>More</strong>
-                  <button
+                  <FeedbackButton
                     aria-label="Close navigation"
                     className="mobile-more-close"
                     onClick={close}
                     type="button"
                   >
                     ×
-                  </button>
+                  </FeedbackButton>
                 </div>
                 {moreGroups.map((group) => (
                   <section
@@ -99,9 +107,9 @@ export function MobileNav({
                   </section>
                 ))}
                 <form action="/auth/sign-out" method="post">
-                  <button className="button-quiet" type="submit">
+                  <FeedbackButton className="button-quiet" type="submit">
                     Sign out
-                  </button>
+                  </FeedbackButton>
                 </form>
               </div>
             ) : null}

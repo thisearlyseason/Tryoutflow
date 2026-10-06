@@ -26,9 +26,10 @@ import { describe, expect, it } from 'vitest';
 
 import { resolveAndValidateLocalDatabase } from '../../../scripts/lib/local-supabase-database.mjs';
 import { createSupervisorStateStore } from '../../../scripts/lib/integration-supervisor-state.mjs';
+import { withOwnedTestProcess } from '../../fixtures/integration-lock/owned-test-process';
 
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const runner = resolve('scripts/run-integration-tests.mjs');
 const fixture = resolve('tests/fixtures/integration-lock/record-run.mjs');
 type TestSupervisorStateOptions = Parameters<typeof createSupervisorStateStore>[0] & {
@@ -594,27 +595,29 @@ describe('full integration command database lock', () => {
           hookFile: hooks,
           pausePhase: phaseName,
         });
-        await waitForFile(hooks, new RegExp(`"phase":"${phaseName}"`, 'u'), 10_000);
-        const hook = readFileSync(hooks, 'utf8')
-          .trim()
-          .split('\n')
-          .map((line) => JSON.parse(line) as { phase: string; runId: string })
-          .find((entry) => entry.phase === phaseName)!;
-        phaseRunId = hook.runId;
-        child.kill(signal);
-        const result = await completion(child);
-        if (signal === 'SIGTERM') expect(result.code).toBe(143);
-        else expect(result.signal).toBe('SIGKILL');
+        await withOwnedTestProcess(child, async () => {
+          await waitForFile(hooks, new RegExp(`"phase":"${phaseName}"`, 'u'), 10_000);
+          const hook = readFileSync(hooks, 'utf8')
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line) as { phase: string; runId: string })
+            .find((entry) => entry.phase === phaseName)!;
+          phaseRunId = hook.runId;
+          child.kill(signal);
+          const result = await completion(child);
+          if (signal === 'SIGTERM') expect(result.code).toBe(143);
+          else expect(result.signal).toBe('SIGKILL');
 
-        const recovery = await completion(start(join(directory, 'recovery.jsonl'), 0));
-        expect(recovery.code).toBe(0);
-        const persistedCounter = supervisedCounterKey(hook.runId, fixtureCounter);
-        const expectedCounterCount = existsSync(output) ? '1' : '0';
-        expect(supervisorResidue(hook.runId, persistedCounter)).toBe(
-          `0|${expectedCounterCount}|0|0|0`,
-        );
-        expect(residue('tryoutflow_fixture_never_', unrelatedCounter)).toBe('0|1');
-        if (phaseName !== 'cleanup') expect(existsSync(output)).toBe(false);
+          const recovery = await completion(start(join(directory, 'recovery.jsonl'), 0));
+          expect(recovery.code).toBe(0);
+          const persistedCounter = supervisedCounterKey(hook.runId, fixtureCounter);
+          const expectedCounterCount = existsSync(output) ? '1' : '0';
+          expect(supervisorResidue(hook.runId, persistedCounter)).toBe(
+            `0|${expectedCounterCount}|0|0|0`,
+          );
+          expect(residue('tryoutflow_fixture_never_', unrelatedCounter)).toBe('0|1');
+          if (phaseName !== 'cleanup') expect(existsSync(output)).toBe(false);
+        });
       } finally {
         execFileSync('psql', [
           databaseUrl,

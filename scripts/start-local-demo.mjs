@@ -25,7 +25,7 @@ export function createLocalDemoEnvironment(status, environment = process.env) {
   const api = assertLocalSupabaseUrl(status.apiUrl);
   if (!['127.0.0.1', 'localhost'].includes(api.hostname))
     throw new Error('Local demo requires Supabase on 127.0.0.1 or localhost.');
-  if (api.port !== '54321') throw new Error('Local demo requires Supabase API port 54321.');
+  if (api.port !== '58321') throw new Error('Local demo requires Supabase API port 58321.');
   if (!status.publishableKey || !status.serviceRoleKey)
     throw new Error('Local Supabase status is missing API keys.');
   if (environment.NEXT_PUBLIC_APP_URL && environment.NEXT_PUBLIC_APP_URL !== LOCAL_DEMO_ORIGIN)

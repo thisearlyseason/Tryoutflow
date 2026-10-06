@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import {
   BarChart3,
   ClipboardList,
@@ -12,6 +14,7 @@ import {
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { Brand } from '../ui/brand';
 import { MobileNav } from './mobile-nav';
 import { OrganizationMark } from '../../modules/organizations/components/organization-mark';
 import type {
@@ -66,10 +69,7 @@ export function AppNavigation({
     <>
       <aside className="app-sidebar">
         <Link className="app-sidebar-brand" href="/" prefetch={false}>
-          <span aria-hidden="true" className="app-sidebar-mark">
-            TF
-          </span>
-          <span>TryoutFlow</span>
+          <Brand />
         </Link>
         <div className="app-organization">
           <OrganizationMark name={organization.name} logoUrl={organization.logoUrl} />
@@ -91,9 +91,16 @@ export function AppNavigation({
           ))}
         </nav>
         <form action="/auth/sign-out" className="app-sign-out" method="post">
-          <button className="button-quiet" type="submit">
+          <Link
+            className="button-quiet"
+            href={`/app/${organization.slug}/account`}
+            prefetch={false}
+          >
+            Account
+          </Link>
+          <FeedbackButton className="button-quiet" type="submit">
             Sign out
-          </button>
+          </FeedbackButton>
         </form>
       </aside>
       <MobileNav

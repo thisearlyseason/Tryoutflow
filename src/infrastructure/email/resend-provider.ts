@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { z } from 'zod';
+import { renderBrandedEmail } from './brand-template';
 
 import {
   providerMessageIdSchema,
@@ -50,11 +51,12 @@ export class ResendEmailProvider implements EmailProvider {
           'idempotency-key': idempotencyKey,
         },
         body: JSON.stringify({
-          from: this.from,
+          from: `TryoutFlow <${this.from}>`,
           to: message.to,
+          reply_to: 'gamedaysportstech@gmail.com',
           subject: message.subject,
           text: message.text,
-          ...(message.html ? { html: message.html } : {}),
+          html: renderBrandedEmail(message),
           ...(message.messageId
             ? { tags: [{ name: 'message_id', value: message.messageId }] }
             : {}),
@@ -62,6 +64,7 @@ export class ResendEmailProvider implements EmailProvider {
         signal,
       });
       if (!response.ok) {
+        console.warn('Resend email request rejected', { status: response.status });
         const retryable = response.status === 429 || response.status >= 500;
         throw {
           code: retryable ? 'provider_temporary' : 'provider_rejected',

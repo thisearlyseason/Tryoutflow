@@ -146,6 +146,7 @@ describe('Turnstile bot protection', () => {
       { ...exactLocalDemo, NEXT_PUBLIC_APP_URL: 'http://localhost:3113' },
       { ...exactLocalDemo, NEXT_PUBLIC_APP_URL: 'https://tryoutflow.example' },
       { ...exactLocalDemo, NEXT_PUBLIC_SUPABASE_URL: 'https://project.supabase.co' },
+      { ...exactLocalDemo, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:58321' },
     ]) {
       expect(isExactDeterministicBotTestEnvironment(environment)).toBe(false);
       expect(() => createBotProtectionFromEnvironment(environment)).toThrow(/not configured/u);
@@ -370,6 +371,13 @@ describe('bounded same-origin auth form requests', () => {
     ).toEqual({
       networkAddress: undefined,
     });
+    expect(
+      getTrustedAuthRequestContext(new Headers({ 'x-forwarded-for': '198.51.100.10' }), {
+        VERCEL: '1',
+      }),
+    ).toEqual({
+      networkAddress: '198.51.100.10',
+    });
   });
 
   it.each([
@@ -425,6 +433,12 @@ describe('production request origin', () => {
       NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
     };
     expect(getTrustedRequestOrigin(request, exact)).toBe('http://127.0.0.1:3112');
+    expect(isExactDeterministicBotTestEnvironment(exact)).toBe(true);
+    const previousProject = { ...exact, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:58321' };
+    expect(isExactDeterministicBotTestEnvironment(previousProject)).toBe(false);
+    expect(getTrustedRequestOrigin(request, previousProject)).toBe(
+      'https://task30.e2e.example.test',
+    );
     expect(
       getTrustedRequestOrigin(request, { ...exact, TRYOUTFLOW_SERVER_TEST_ENV: 'other' }),
     ).toBe('https://task30.e2e.example.test');

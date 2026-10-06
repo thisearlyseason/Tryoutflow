@@ -8,7 +8,7 @@ import { createReaperRetryPolicy } from './lib/integration-reaper-policy.mjs';
 import { createSupervisorStateStore } from './lib/integration-supervisor-state.mjs';
 
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 
 function commandToRun() {
   if (process.env.TRYOUTFLOW_INTEGRATION_TEST_COMMAND) {

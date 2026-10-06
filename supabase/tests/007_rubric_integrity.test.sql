@@ -80,7 +80,7 @@ select set_config('request.jwt.claim.sub', '70707070-7070-4070-8070-707070707070
 select lives_ok($$select * from public.create_rubric_revision('72727272-7272-4272-8272-727272727272', '88888888-8888-4888-8888-888888888888', '89898989-8989-4989-8989-898989898989')$$, 'a revision snapshots a new draft version');
 reset role;
 select is((select count(*) from public.rubric_versions where rubric_id = '88888888-8888-4888-8888-888888888888'), 2::bigint, 'a revision creates a new version instead of mutating a published one');
-select is((select count(*) from public.rubric_categories where rubric_version_id <> '89898989-8989-4989-8989-898989898989'), 2::bigint, 'revision categories are copied in deterministic order');
+select is((select count(*) from public.rubric_categories where organization_id='72727272-7272-4272-8272-727272727272' and rubric_version_id <> '89898989-8989-4989-8989-898989898989'), 2::bigint, 'revision categories are copied in deterministic order');
 
 select throws_ok(
   $$insert into public.session_rubrics (organization_id, tryout_id, session_id, rubric_version_id) values ('72727272-7272-4272-8272-727272727272', '73737373-7373-4373-8373-737373737373', '75757575-7575-4575-8575-757575757575', '77777777-7777-4777-8777-777777777777')$$,

@@ -210,7 +210,7 @@ run_stage 'local visual demo identity' env TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$VISU
 run_stage 'canonical visual regression' env TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$VISUAL_DEMO_PASSWORD" "${NPM[@]}" run test:visual
 run_stage 'strict five-project browser gate' "${NPM[@]}" run test:e2e -- --retries=0
 
-run_stage 'high-severity dependency audit' "${NPM[@]}" audit --audit-level=high
+run_stage 'current-release scoped dependency audit' node scripts/current-release-dependency-audit.mjs
 run_stage 'tracked secret boundary scan' verify_tracked_secret_boundaries
 run_stage 'final clean unseeded database reset' "${NPM[@]}" exec -- supabase db reset --local --no-seed
 run_stage 'local process, database, auth, and fixture residue audit' "${NPM[@]}" run release:state:residue

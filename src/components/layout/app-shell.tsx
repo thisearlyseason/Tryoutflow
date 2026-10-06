@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { AppTopbar } from './app-topbar';
 import { AppNavigation } from './app-navigation';
 import type { NavigationGroup } from '../../modules/organizations/components/app-navigation-model';
 
@@ -34,9 +35,12 @@ export function AppShell({
   return (
     <div className={mode === 'game-day' ? 'app-frame theme-game-day' : 'app-frame'}>
       <AppNavigation groups={groupedNavigation} organization={organization} roleLabel={roleLabel} />
-      <main className="app-main" id="main-content">
-        {children}
-      </main>
+      <div className="app-content">
+        <AppTopbar groups={groupedNavigation} organization={organization} roleLabel={roleLabel} />
+        <main className="app-main" id="main-content">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

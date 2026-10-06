@@ -6,6 +6,7 @@ import { SupabaseAuditEventListGateway } from '@/modules/audit/infrastructure/su
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
 import { SupabaseMembershipRepository } from '@/modules/organizations/infrastructure/membership-repository';
 import { AuditEventList } from '@/modules/observability/ui/platform-administration';
+import { PageHeader } from '@/components/layout/page-header';
 
 export default async function OrganizationAuditPage({
   params,
@@ -28,15 +29,15 @@ export default async function OrganizationAuditPage({
   );
   if (!result.ok) notFound();
   return (
-    <section aria-labelledby="organization-audit-heading">
-      <h2 className="text-3xl font-black" id="organization-audit-heading">
-        Organization audit
-      </h2>
-      <p className="mb-6 mt-2 max-w-3xl text-[var(--color-text-muted)]">
-        Immutable operational actions for this organization. Private evaluation and guardian data
-        are not shown.
-      </p>
-      <AuditEventList events={result.value} />
+    <section aria-label="Organization audit history" className="workspace-stack">
+      <PageHeader
+        description="Immutable operational actions for this organization. Private evaluation and guardian data are not shown."
+        eyebrow="Organization"
+        title="Audit history"
+      />
+      <div className="workspace-card">
+        <AuditEventList events={result.value} />
+      </div>
     </section>
   );
 }

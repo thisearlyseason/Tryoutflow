@@ -120,7 +120,7 @@ reset role;
 select is((select role from public.organization_members where id='93200000-0000-4000-8000-000000000001'),'administrator','former owner is demoted atomically');
 select is((select role from public.organization_members where id='93200000-0000-4000-8000-000000000003'),'owner','target member becomes owner atomically');
 select is((select version from public.organization_members where id='93200000-0000-4000-8000-000000000003'),1::bigint,'membership version advances exactly once');
-select is((select count(*) from public.audit_logs where action in('organization.member.role_changed','organization.member.status_changed','organization.ownership.transferred')),2::bigint,'only successful unique commands append role or status audit evidence');
+select is((select count(*) from public.audit_logs where organization_id='93100000-0000-4000-8000-000000000001' and action in('organization.member.role_changed','organization.member.status_changed','organization.ownership.transferred')),2::bigint,'only successful unique commands append role or status audit evidence for this organization');
 select ok((select (to_jsonb(receipt)->'result_snapshot') @> '{"outcome":"updated","member_id":"93200000-0000-4000-8000-000000000004","role":"member","status":"disabled","version":1}'::jsonb
   from private.membership_command_receipts receipt
   where receipt.idempotency_key='93400000-0000-4000-8000-000000000003'),'successful membership receipts retain the exact immutable result');

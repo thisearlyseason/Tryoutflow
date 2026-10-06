@@ -1,5 +1,7 @@
 @import './theme.css';
 @import 'tailwindcss';
+/* Shared components must also be scanned when a nested browser fixture builds this stylesheet. */
+@source '../';
 
 *,
 *::before,
@@ -18,8 +20,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100dvh;
-  background:
-    radial-gradient(circle at 12% 0%, rgb(199 240 0 / 9%), transparent 25rem), var(--color-canvas);
+  background: var(--color-canvas);
   color: var(--color-text);
   font-family: var(--font-body);
   line-height: 1.55;
@@ -47,18 +48,18 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(2rem, 4vw, 3.75rem);
-  font-weight: 900;
+  font-size: clamp(2rem, 2.8vw, 2.5rem);
+  font-weight: 700;
 }
 
 h2 {
-  font-size: clamp(1.5rem, 2.8vw, 2.5rem);
-  font-weight: 850;
+  font-size: clamp(1.375rem, 2vw, 1.75rem);
+  font-weight: 700;
 }
 
 h3 {
-  font-size: clamp(1.125rem, 2vw, 1.5rem);
-  font-weight: 800;
+  font-size: clamp(1rem, 1.6vw, 1.25rem);
+  font-weight: 650;
 }
 
 a {
@@ -77,7 +78,7 @@ textarea {
   margin: 0 0 var(--space-2);
   color: var(--color-primary);
   font-size: 0.75rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0.14em;
   line-height: 1.2;
   text-transform: uppercase;
@@ -95,9 +96,7 @@ textarea {
   min-height: 100dvh;
   place-items: center;
   padding: clamp(1rem, 4vw, 3rem);
-  background:
-    linear-gradient(135deg, rgb(0 87 255 / 8%), transparent 48%),
-    radial-gradient(circle at 88% 12%, rgb(199 240 0 / 24%), transparent 18rem), var(--color-canvas);
+  background: var(--color-canvas);
 }
 
 .auth-layout {
@@ -115,9 +114,7 @@ textarea {
   min-height: auto;
   align-items: center;
   padding: clamp(1.5rem, 4vw, 3rem);
-  background:
-    linear-gradient(145deg, rgb(0 87 255 / 18%), transparent 50%),
-    radial-gradient(circle at 80% 85%, rgb(199 240 0 / 22%), transparent 16rem), #07182b;
+  background: #0b1b30;
   color: #f8fbff;
 }
 
@@ -130,7 +127,7 @@ textarea {
   max-width: 11em;
   color: #f8fbff;
   font-size: clamp(2.25rem, 4vw, 4.5rem);
-  font-weight: 950;
+  font-weight: 750;
   letter-spacing: -0.055em;
 }
 
@@ -139,7 +136,7 @@ textarea {
   min-height: var(--target-mobile);
   align-items: center;
   gap: var(--space-3);
-  font-weight: 950;
+  font-weight: 750;
   text-decoration: none;
 }
 
@@ -159,7 +156,7 @@ textarea {
   margin-bottom: var(--space-3);
   color: var(--color-performance);
   font-size: 0.75rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -286,6 +283,13 @@ textarea {
   gap: var(--space-6);
 }
 
+.registration-card [aria-invalid='true'],
+.registration-card [data-invalid='true'] {
+  border-color: var(--color-destructive);
+  outline: 2px solid var(--color-destructive);
+  outline-offset: 2px;
+}
+
 .workspace-actions {
   display: flex;
   flex-wrap: wrap;
@@ -313,6 +317,11 @@ textarea {
 
 .workspace-card {
   display: grid;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-surface);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
   min-height: 12rem;
   align-content: start;
   gap: var(--space-3);
@@ -326,7 +335,7 @@ textarea {
 .workspace-card-title {
   color: var(--color-text);
   font-size: 1.35rem;
-  font-weight: 950;
+  font-weight: 750;
   line-height: 1.15;
   text-decoration-color: var(--color-primary);
   text-decoration-thickness: 0.125rem;
@@ -408,7 +417,7 @@ textarea {
 
 .tryout-plan-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
   gap: var(--space-3);
   margin: 0;
   padding: 0;
@@ -416,15 +425,26 @@ textarea {
 }
 
 .tryout-plan-card {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   align-content: start;
   gap: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-surface);
   background: var(--color-surface);
-  padding: var(--space-4);
+  padding: var(--space-5);
   box-shadow: var(--shadow-card);
+}
+
+.tryout-plan-card > .button-secondary {
+  margin-top: auto;
+  justify-content: center;
+}
+
+.tryout-plan-links {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
 }
 
 .tryout-plan-card h3,
@@ -506,7 +526,7 @@ textarea {
   background: #07182b;
   color: #f8fbff;
   font-family: var(--font-bib);
-  font-weight: 950;
+  font-weight: 750;
 }
 
 .tryout-plan-links {
@@ -520,7 +540,7 @@ textarea {
   min-height: var(--target-mobile);
   align-items: center;
   color: var(--color-primary);
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .participant-workspace-header {
@@ -564,14 +584,6 @@ textarea {
   box-shadow: var(--shadow-card);
 }
 
-.metric-card::before {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 0.25rem;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-performance));
-  content: '';
-}
-
 .metric-detail {
   margin: var(--space-3) 0 0;
   color: var(--color-text-muted);
@@ -607,7 +619,7 @@ textarea {
 .onboarding-progress > div {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-performance));
+  background: var(--color-primary);
 }
 
 .onboarding-summary {
@@ -625,7 +637,7 @@ textarea {
   min-height: var(--target-mobile);
   cursor: pointer;
   color: var(--color-primary);
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .onboarding-list {
@@ -669,7 +681,7 @@ textarea {
 .onboarding-next small {
   color: var(--color-performance);
   font-size: 0.6875rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -718,7 +730,7 @@ textarea {
   padding: var(--space-3);
   color: var(--color-text-muted);
   font-size: 0.8125rem;
-  font-weight: 850;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -752,9 +764,7 @@ textarea {
   min-height: 100dvh;
   place-items: start center;
   padding: clamp(var(--space-4), 4vw, var(--space-8));
-  background:
-    linear-gradient(150deg, rgb(0 87 255 / 10%), transparent 45%),
-    radial-gradient(circle at 90% 5%, rgb(199 240 0 / 24%), transparent 20rem), var(--color-canvas);
+  background: var(--color-canvas);
 }
 
 .registration-card {
@@ -787,7 +797,7 @@ textarea {
 .registration-card label {
   display: grid;
   gap: var(--space-1);
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .auth-card input,
@@ -813,7 +823,7 @@ textarea {
   border-radius: var(--radius-control);
   padding: 0.65rem 1rem;
   font-size: 0.875rem;
-  font-weight: 800;
+  font-weight: 650;
   line-height: 1.2;
   text-decoration: none;
 }
@@ -849,7 +859,7 @@ textarea {
 
 .field-label {
   font-size: 0.875rem;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .field-label[data-required='true']::after {
@@ -890,7 +900,7 @@ textarea {
 .score-value {
   font-family: var(--font-score);
   font-variant-numeric: tabular-nums;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: -0.04em;
 }
 
@@ -909,9 +919,7 @@ textarea {
 
 .app-sidebar {
   display: none;
-  background:
-    linear-gradient(165deg, rgb(0 87 255 / 16%), transparent 42%),
-    radial-gradient(circle at 50% 100%, rgb(199 240 0 / 14%), transparent 16rem), #07182b;
+  background: #0b1b30;
   color: #f8fbff;
 }
 
@@ -921,7 +929,7 @@ textarea {
   align-items: center;
   gap: var(--space-3);
   color: #f8fbff;
-  font-weight: 950;
+  font-weight: 750;
   text-decoration: none;
 }
 
@@ -936,7 +944,7 @@ textarea {
   color: #07182b;
   font-family: var(--font-bib);
   font-size: 0.75rem;
-  font-weight: 950;
+  font-weight: 750;
 }
 
 .app-organization {
@@ -956,7 +964,7 @@ textarea {
 .app-organization-copy p {
   overflow: hidden;
   margin: 0;
-  font-weight: 900;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -964,7 +972,7 @@ textarea {
 .app-organization-copy > span {
   color: #b9c7d7;
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -980,7 +988,7 @@ textarea {
   margin: 0 0 var(--space-2);
   color: #94a8bd;
   font-size: 0.6875rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -1000,17 +1008,23 @@ textarea {
   padding: var(--space-2) var(--space-3);
   color: inherit;
   font-size: 0.875rem;
-  font-weight: 800;
+  font-weight: 650;
   text-decoration: none;
 }
 
 .app-nav-link:hover {
-  background: rgb(255 255 255 / 8%);
+  background: rgb(255 255 255 / 14%);
+  color: #ffffff;
+}
+
+.app-nav-link:focus-visible {
+  outline: 2px solid #94bdff;
+  outline-offset: 2px;
 }
 
 .app-nav-link-active {
-  background: var(--color-performance);
-  color: #07182b;
+  background: #0057ff;
+  color: #ffffff;
 }
 
 .app-nav-icon {
@@ -1050,7 +1064,8 @@ textarea {
   padding: var(--space-3) var(--space-4);
 }
 
-.mobile-organization > span:last-child {
+.mobile-workspace-identity {
+  flex: 1;
   display: grid;
   min-width: 0;
 }
@@ -1063,7 +1078,7 @@ textarea {
 
 .mobile-organization small {
   color: #b9c7d7;
-  font-weight: 800;
+  font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1147,7 +1162,7 @@ textarea {
   margin: var(--space-1) var(--space-3);
   color: #94a8bd;
   font-size: 0.6875rem;
-  font-weight: 900;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -1218,7 +1233,7 @@ textarea {
 @media (min-width: 900px) {
   .app-frame {
     display: grid;
-    grid-template-columns: 18rem minmax(0, 1fr);
+    grid-template-columns: 15rem minmax(0, 1fr);
   }
 
   .app-main {
@@ -1239,4 +1254,75 @@ textarea {
   .mobile-navigation {
     display: none;
   }
+}
+
+/* Native details stays open at desktop widths; hide its mobile disclosure marker. */
+@media (min-width: 1024px) {
+  .athlete-profile-panel summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
+/* Feedback reflects actual press/pending state; reduced motion keeps static status. */
+button:not(:disabled):active,
+a[class*='button-']:active,
+[role='button']:active {
+  filter: brightness(0.9);
+}
+.action-spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-inline-end: 0.5em;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+  animation: action-spin 0.8s linear infinite;
+}
+@keyframes action-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .action-spinner {
+    animation: none;
+  }
+}
+
+.native-download-status:not(:empty) {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 100;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.mobile-upgrade-link {
+  margin-left: auto;
+  padding: 0.75rem;
+  border: 1px solid rgb(255 255 255 / 30%);
+  border-radius: 0.75rem;
+  color: var(--color-brand-lime, #c9ff61);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.auth-create-account {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1rem;
+  border: 1px solid #0057ff;
+  border-radius: 0.75rem;
+  color: #0057ff;
+  font-weight: 700;
 }

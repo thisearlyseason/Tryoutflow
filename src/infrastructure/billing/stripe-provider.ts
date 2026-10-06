@@ -1,3 +1,6 @@
+import { managedBillingCountryAllowed } from '@/modules/subscriptions/providers/managed-billing-country';
+import type Stripe from 'stripe';
+import { assertManagedPrice } from '@/modules/subscriptions/providers/stripe-managed-payments';
 import 'server-only';
 
 import { z } from 'zod';
@@ -14,7 +17,7 @@ import {
 import { isValidBillingSessionUrl } from './provider-session-url';
 
 const configurationSchema = z.object({
-  secretKey: z.string().regex(/^sk_(?:test|live)_[A-Za-z0-9]{20,300}$/u),
+  secretKey: z.string().regex(/^(?:sk|rk)_(?:test|live)_[A-Za-z0-9]{20,300}$/u),
   timeoutMs: z.number().int().min(250).max(60_000).default(10_000),
 });
 const secureUrlSchema = z.url().refine((value) => value.startsWith('https://'));
@@ -37,6 +40,8 @@ const checkoutInputSchema = z.object({
   successUrl: secureUrlSchema,
   cancelUrl: secureUrlSchema,
   customerId: z.string().pipe(stripeCustomerIdSchema).optional(),
+  checkoutProtocol: z.enum(['standard_tax_v1', 'managed_v1']).optional(),
+  billingCountry: z.unknown().optional(),
 });
 const portalInputSchema = z.object({
   organizationId: z.uuid(),
@@ -106,6 +111,7 @@ export class StripeBillingProvider implements BillingProvider {
     idempotencyKey: string,
     responseSchema: typeof checkoutResponseSchema | typeof portalResponseSchema,
     signal?: AbortSignal,
+    requireManagedPayments = false,
   ) {
     const controller = new AbortController();
     const combinedSignal = signal
@@ -127,6 +133,7 @@ export class StripeBillingProvider implements BillingProvider {
             Authorization: `Bearer ${this.secretKey}`,
             'Content-Type': 'application/x-www-form-urlencoded',
             'Idempotency-Key': idempotencyKey,
+            ...(requireManagedPayments ? { 'Stripe-Version': '2026-08-26.dahlia' } : {}),
           },
           body: body.toString(),
           signal: combinedSignal,
@@ -150,7 +157,39 @@ export class StripeBillingProvider implements BillingProvider {
           controller.abort();
           throw new DOMException('Provider deadline exceeded', 'AbortError');
         }
-        const parsed = responseSchema.safeParse(json);
+        if (
+          requireManagedPayments &&
+          !z.object({ managed_payments: z.object({ enabled: z.literal(true) }) }).safeParse(json)
+            .success
+        )
+          throw { code: 'provider_configuration', retryable: false } satisfies BillingProviderError;
+        if (requireManagedPayments) {
+          const expanded = z
+            .object({
+              line_items: z.object({
+                has_more: z.literal(false),
+                data: z
+                  .array(
+                    z.object({
+                      quantity: z.literal(1),
+                      price: z.object({ id: z.string() }).passthrough(),
+                    }),
+                  )
+                  .length(1),
+              }),
+            })
+            .parse(json);
+          const price = expanded.line_items.data[0]!.price;
+          if (price.id !== body.get('line_items[0][price]'))
+            throw new Error('managed_price_mismatch');
+          assertManagedPrice(
+            price as unknown as Stripe.Price,
+            /^(sk|rk)_live_/.test(this.secretKey),
+          );
+        }
+        const parsed = responseSchema.safeParse(
+          requireManagedPayments ? z.object({ id: z.string(), url: z.string() }).parse(json) : json,
+        );
         const kind = path === 'checkout/sessions' ? 'checkout' : 'portal';
         if (!parsed.success || !isValidBillingSessionUrl(parsed.data.id, parsed.data.url, kind))
           throw { code: 'delivery_uncertain', retryable: false } satisfies BillingProviderError;
@@ -182,8 +221,36 @@ export class StripeBillingProvider implements BillingProvider {
         code: 'provider_rejected',
         retryable: false,
       } satisfies BillingProviderError);
+    if (
+      input.checkoutProtocol === 'managed_v1' &&
+      !managedBillingCountryAllowed(input.billingCountry)
+    )
+      return Promise.reject({
+        code: 'provider_rejected',
+        retryable: false,
+      } satisfies BillingProviderError);
     const body = new URLSearchParams({
       mode: 'subscription',
+      ...(input.checkoutProtocol === 'managed_v1'
+        ? {
+            'managed_payments[enabled]': 'true',
+            'subscription_data[metadata][managed_billing_country]': String(input.billingCountry),
+            'expand[0]': 'line_items.data.price.product',
+            'subscription_data[metadata][tax_protocol]': 'managed_v1',
+            ...(process.env.STRIPE_MANAGED_SELLER_COUNTRY === 'CA'
+              ? { 'subscription_data[metadata][managed_seller_country]': 'CA' }
+              : {}),
+          }
+        : {}),
+      ...(input.checkoutProtocol === 'standard_tax_v1'
+        ? {
+            'managed_payments[enabled]': 'false',
+            'automatic_tax[enabled]': 'true',
+            'subscription_data[metadata][tax_protocol]': 'standard_tax_v1',
+            billing_address_collection: 'required',
+            ...(input.customerId ? { 'customer_update[address]': 'auto' } : {}),
+          }
+        : {}),
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
       'line_items[0][price]': input.priceId,
@@ -198,6 +265,7 @@ export class StripeBillingProvider implements BillingProvider {
       idempotencyKey,
       checkoutResponseSchema,
       options?.signal,
+      input.checkoutProtocol === 'managed_v1',
     );
   }
 

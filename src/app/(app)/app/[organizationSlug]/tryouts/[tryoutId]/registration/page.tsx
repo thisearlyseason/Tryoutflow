@@ -17,6 +17,8 @@ import { requireCapability } from '@/modules/organizations/application/require-c
 import { createCorrelationId } from '@/modules/observability/domain/correlation-id';
 import { createStaffRegistration } from '@/modules/registration/application/create-staff-registration';
 import { RegistrationFormSchema } from '@/modules/registration/domain/form-schema';
+import { RegistrationCustomField } from '@/modules/registration/ui/registration-custom-field';
+import { getBuiltInField } from '@/modules/registration/domain/built-in-fields';
 import { ParticipantWorkspaceHeader } from '@/modules/registration/ui/participant-workspace-header';
 import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
 
@@ -134,13 +136,15 @@ export default async function TryoutRegistrationPage({
     const route = await requireCurrentOrganization(organizationSlug);
     const existingAthleteId = String(formData.get('existingAthleteId') ?? '').trim();
     const responses = Object.fromEntries(
-      configuration.form_schema.fields.map((field) => {
-        const value = formData.get(`response.${field.key}`);
-        return [
-          field.key,
-          field.kind === 'checkbox' || field.kind === 'consent' ? value === 'on' : value,
-        ];
-      }),
+      configuration.form_schema.fields
+        .filter((field) => field.enabled !== false)
+        .map((field) => {
+          const value = formData.get(`response.${field.key}`);
+          return [
+            field.key,
+            field.kind === 'checkbox' || field.kind === 'consent' ? value === 'on' : value,
+          ];
+        }),
     );
     const result = await createStaffRegistration(
       {
@@ -151,7 +155,7 @@ export default async function TryoutRegistrationPage({
         positionId: formData.get('positionId') || undefined,
         givenName: existingAthleteId ? undefined : formData.get('givenName'),
         familyName: existingAthleteId ? undefined : formData.get('familyName'),
-        birthDate: existingAthleteId ? undefined : formData.get('birthDate'),
+        birthDate: existingAthleteId ? undefined : formData.get('birthDate') || undefined,
         responses,
         idempotencyKey: formData.get('idempotencyKey'),
       },
@@ -213,7 +217,12 @@ export default async function TryoutRegistrationPage({
           tryoutName={configuration.tryout_name}
         />
         {query.created === '1' ? <p role="status">Registration created.</p> : null}
-        {query.error === 'idempotency_conflict' ? (
+        {query.error === 'form_changed' ? (
+          <p role="alert">
+            The waiver or registration form has changed. Review the current terms below before
+            creating the registration.
+          </p>
+        ) : query.error === 'idempotency_conflict' ? (
           <p role="alert">
             Registration was not created because this request key is already bound to different
             content. Review the athlete and form details, then restart the registration.
@@ -256,7 +265,8 @@ export default async function TryoutRegistrationPage({
               <option value="">Create a new athlete record</option>
               {(returningResult.data ?? []).map((athlete) => (
                 <option key={athlete.athlete_id} value={athlete.athlete_id}>
-                  {athlete.given_name} {athlete.family_name} — {athlete.birth_date}
+                  {athlete.given_name} {athlete.family_name} —{' '}
+                  {athlete.birth_date ?? 'Date of birth not provided'}
                 </option>
               ))}
             </select>
@@ -279,20 +289,24 @@ export default async function TryoutRegistrationPage({
               />
             </label>
           </div>
-          <label>
-            New athlete date of birth
-            <Input
-              aria-describedby="staff-registration-birth-date-help"
-              name="birthDate"
-              type="date"
-            />
-            <span
-              className="mt-1 block text-sm text-[var(--color-text-muted)]"
-              id="staff-registration-birth-date-help"
-            >
-              Example: September 15, 2012.
-            </span>
-          </label>
+          {getBuiltInField(configuration.form_schema, 'birthDate')?.enabled ? (
+            <label>
+              {configuration.form_schema.builtInFields
+                ? getBuiltInField(configuration.form_schema, 'birthDate')?.label
+                : 'New athlete date of birth'}
+              <Input
+                name="birthDate"
+                type="date"
+                aria-describedby="staff-registration-birth-date-help"
+              />
+              <span
+                id="staff-registration-birth-date-help"
+                className="mt-1 block text-sm text-[var(--color-text-muted)]"
+              >
+                Example: September 15, 2012.
+              </span>
+            </label>
+          ) : null}
           <label>
             Division
             <select
@@ -322,47 +336,15 @@ export default async function TryoutRegistrationPage({
               ))}
             </select>
           </label>
-          {configuration.form_schema.fields.map((field) => (
-            <label key={field.key}>
-              {field.label}
-              {field.kind === 'checkbox' || field.kind === 'consent' ? (
-                <input name={`response.${field.key}`} required={field.required} type="checkbox" />
-              ) : field.kind === 'select' ? (
-                <select
-                  className="min-h-11 w-full rounded border px-3"
-                  defaultValue=""
-                  name={`response.${field.key}`}
-                  required={field.required}
-                >
-                  <option disabled={field.required} value="">
-                    Select {field.label.toLowerCase()}
-                  </option>
-                  {field.options?.map((option) => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              ) : (
-                <Input
-                  aria-describedby={
-                    field.kind === 'date'
-                      ? `staff-registration-response-${field.key}-help`
-                      : undefined
-                  }
-                  name={`response.${field.key}`}
-                  required={field.required}
-                  type={field.kind === 'date' ? 'date' : field.kind === 'email' ? 'email' : 'text'}
-                />
-              )}
-              {field.kind === 'date' ? (
-                <span
-                  className="mt-1 block text-sm text-[var(--color-text-muted)]"
-                  id={`staff-registration-response-${field.key}-help`}
-                >
-                  {field.helpText ? `${field.helpText} ` : null}Example: September 15, 2012.
-                </span>
-              ) : null}
-            </label>
-          ))}
+          {[...configuration.form_schema.fields]
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((field) => (
+              <RegistrationCustomField
+                key={field.key}
+                field={field}
+                inputName={`response.${field.key}`}
+              />
+            ))}
           <Button type="submit">Create registration</Button>
         </form>
       </section>

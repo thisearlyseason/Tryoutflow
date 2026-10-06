@@ -89,7 +89,7 @@ describe('CheckinWorkspace', () => {
       },
     ]);
     render(<CheckinWorkspace search={search} onCheckIn={vi.fn()} />);
-    expect(screen.getByRole('search').closest('.theme-game-day')).toBeInTheDocument();
+    expect(screen.getByRole('search').closest('.sport-day-workspace')).toBeInTheDocument();
     await user.type(screen.getByLabelText(/search registrations/i), 'Ava');
     await user.click(screen.getByRole('button', { name: /search/i }));
     expect(await screen.findByText('Ava Smith')).toBeInTheDocument();

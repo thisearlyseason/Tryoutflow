@@ -37,6 +37,7 @@ describe('semantic CSS contract', () => {
     const css = [
       readFileSync(resolve(process.cwd(), 'src/app/theme.css'), 'utf8'),
       readFileSync(resolve(process.cwd(), 'src/app/globals.css'), 'utf8'),
+      readFileSync(resolve(process.cwd(), 'src/app/product.css'), 'utf8'),
     ].join('\n');
 
     expect(used).toEqual(

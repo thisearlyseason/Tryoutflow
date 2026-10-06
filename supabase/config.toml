@@ -8,16 +8,23 @@ extra_search_path = ["public", "extensions"]
 max_rows = 1000
 
 [db]
-port = 54322
+port = 58322
+shadow_port = 58320
 major_version = 17
 
 [studio]
 enabled = true
-port = 54323
+port = 58323
 
 [inbucket]
 enabled = true
-port = 54324
+port = 58324
+
+[analytics]
+port = 58327
+
+[edge_runtime]
+inspector_port = 58383
 
 [auth]
 enabled = true
@@ -29,3 +36,29 @@ enable_signup = true
 [auth.email]
 enable_signup = true
 enable_confirmations = true
+
+# Keep local auth emails aligned with the hosted TryoutFlow templates.
+# Regenerate with: node scripts/generate-email-previews.mjs
+[auth.email.template.confirmation]
+subject = "Confirm your TryoutFlow email"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.invite]
+subject = "You're invited to TryoutFlow"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.magic_link]
+subject = "Your TryoutFlow sign-in link"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.email_change]
+subject = "Confirm your TryoutFlow email change"
+content_path = "./supabase/templates/email_change.html"
+
+[auth.email.template.recovery]
+subject = "Reset your TryoutFlow password"
+content_path = "./supabase/templates/recovery.html"
+
+[auth.email.template.reauthentication]
+subject = "Your TryoutFlow verification code"
+content_path = "./supabase/templates/reauthentication.html"

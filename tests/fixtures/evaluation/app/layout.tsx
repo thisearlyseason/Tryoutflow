@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 
 import '../../../../src/app/globals.css';
+import '../../../../src/app/product.css';
+import '../../../../src/app/sports-workspace.css';
 
 export const metadata = { title: 'TryoutFlow evaluator scoring' };
 

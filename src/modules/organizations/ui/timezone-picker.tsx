@@ -24,18 +24,20 @@ function getTimezones(): string[] {
   }
 }
 
-const timezones = getTimezones();
-
 type TimezonePickerProps = {
   describedBy?: string;
 };
 
 export function TimezonePicker({ describedBy }: TimezonePickerProps) {
   const [timezone, setTimezone] = useState('');
+  // Node and browser ICU timezone lists differ. Keep the first render identical.
+  const [timezones, setTimezones] = useState(fallbackTimezones);
 
   useEffect(() => {
+    const supportedTimezones = getTimezones();
+    setTimezones(supportedTimezones);
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (timezones.includes(detectedTimezone)) setTimezone(detectedTimezone);
+    if (supportedTimezones.includes(detectedTimezone)) setTimezone(detectedTimezone);
   }, []);
 
   return (

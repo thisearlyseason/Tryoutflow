@@ -1,11 +1,9 @@
-import { BotChallenge } from '../../../modules/identity/ui/bot-challenge';
+import { getBotChallengeConfiguration } from '../../../modules/identity/ui/bot-challenge';
 import { AuthShell } from '../../../components/layout/auth-shell';
-import { Button } from '../../../components/ui/button';
-import { FormField } from '../../../components/ui/form-field';
-import { Input } from '../../../components/ui/input';
+import { SignInForm } from '../../../modules/identity/ui/sign-in-form';
 
 type SignInPageProps = {
-  searchParams: Promise<{ error?: string; next?: string }>;
+  searchParams: Promise<{ error?: string; next?: string; password_updated?: string }>;
 };
 
 const messages: Record<string, string> = {
@@ -15,6 +13,8 @@ const messages: Record<string, string> = {
   bot_verification_required: 'Complete the bot-protection challenge and try again.',
   invalid_input: 'Check the sign-in form and try again.',
   invalid_credentials: 'We could not verify that email and password. Please try again.',
+  email_not_confirmed:
+    'Please verify your email first. Use “Need a new verification link?” below if you need another email.',
   rate_limited: 'Too many sign-in attempts. Please wait a few minutes before trying again.',
 };
 
@@ -28,50 +28,36 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       eyebrow="Welcome back"
       footer={
         <nav aria-label="Account help">
-          <a href="/sign-up">New to TryoutFlow? Create an organization account</a>
+          <a
+            href={parameters.next === '/participant' ? '/sign-up?purpose=participant' : '/sign-up'}
+          >
+            {parameters.next === '/participant'
+              ? 'Create an athlete or family account'
+              : 'New to TryoutFlow? Create an organization account'}
+          </a>
           <a href="/forgot-password">Forgot your password?</a>
           <a href="/verify-email">Need a new verification link?</a>
         </nav>
       }
       title="Sign in to your account"
     >
+      {parameters.password_updated === '1' ? (
+        <p className="auth-alert" role="status">
+          Password saved. Sign in with the email address that received your recovery link.
+        </p>
+      ) : null}
       {message ? (
         <p className="auth-alert" role="alert">
           {message}
         </p>
       ) : null}
-      <form action="/auth/sign-in" method="post">
-        {parameters.next ? <input name="next" type="hidden" value={parameters.next} /> : null}
-        <FormField htmlFor="email" label="Email" required>
-          {({ describedBy }) => (
-            <Input
-              aria-describedby={describedBy}
-              autoComplete="email"
-              id="email"
-              name="email"
-              required
-              type="email"
-            />
-          )}
-        </FormField>
-        <FormField htmlFor="password" label="Password" required>
-          {({ describedBy }) => (
-            <Input
-              aria-describedby={describedBy}
-              autoComplete="current-password"
-              id="password"
-              minLength={1}
-              name="password"
-              required
-              type="password"
-            />
-          )}
-        </FormField>
-        <BotChallenge action="sign_in" />
-        <Button className="mt-2 w-full" type="submit">
-          Sign in
-        </Button>
-      </form>
+      <a
+        className="auth-create-account"
+        href={parameters.next === '/participant' ? '/sign-up?purpose=participant' : '/sign-up'}
+      >
+        New here? Create an account
+      </a>
+      <SignInForm next={parameters.next} {...getBotChallengeConfiguration()} />
     </AuthShell>
   );
 }

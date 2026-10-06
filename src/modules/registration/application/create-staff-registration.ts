@@ -9,6 +9,7 @@ import { failure, success, type AppResult } from '../../../lib/result';
 import type { AuthorizationContext } from '../../organizations/application/capabilities';
 import { requireCapability } from '../../organizations/application/require-capability';
 import type { RegistrationFormSchema as RegistrationForm } from '../domain/form-schema';
+import { getBuiltInField } from '../domain/built-in-fields';
 import { validateRegistrationResponses } from './register-athlete';
 
 const schema = z
@@ -26,8 +27,9 @@ const schema = z
   })
   .refine(
     (value) =>
-      Boolean(value.existingAthleteId) !==
-      Boolean(value.givenName && value.familyName && value.birthDate),
+      value.existingAthleteId
+        ? !value.givenName && !value.familyName && !value.birthDate
+        : Boolean(value.givenName && value.familyName),
     { message: 'Select one returning athlete or enter one new athlete' },
   );
 
@@ -43,6 +45,7 @@ export type StaffRegistrationGateway = {
     birthDate?: string;
     responses: Record<string, unknown>;
     submissionKeyDigest: string;
+    expectedFormSchema: RegistrationForm;
   }): Promise<{ outcome: string; registrationId?: string; athleteId?: string }>;
 };
 
@@ -55,7 +58,7 @@ async function defaultGateway(): Promise<StaffRegistrationGateway> {
   const client = await createServerSupabaseClient();
   return {
     async create(input) {
-      const result = await client.rpc('create_staff_registration', {
+      const result = await client.rpc('create_staff_registration_v2', {
         p_organization_id: input.organizationId,
         p_tryout_id: input.tryoutId,
         p_existing_athlete_id: (input.existingAthleteId ?? null) as unknown as string,
@@ -66,6 +69,7 @@ async function defaultGateway(): Promise<StaffRegistrationGateway> {
         p_birth_date: (input.birthDate ?? null) as unknown as string,
         p_responses: input.responses as Json,
         p_submission_key_digest: input.submissionKeyDigest,
+        p_expected_form_schema: input.expectedFormSchema as Json,
       });
       const row = result.data?.[0];
       if (result.error || !row) throw result.error ?? new Error('Registration command failed');
@@ -86,12 +90,25 @@ export async function createStaffRegistration(
   AppResult<
     { registrationId: string; athleteId: string; replayed: boolean },
     {
-      code: 'invalid_input' | 'idempotency_conflict' | 'forbidden' | 'not_found' | 'unavailable';
+      code:
+        | 'invalid_input'
+        | 'idempotency_conflict'
+        | 'form_changed'
+        | 'forbidden'
+        | 'not_found'
+        | 'unavailable';
     }
   >
 > {
   const parsed = schema.safeParse(input);
   if (!parsed.success) return failure({ code: 'invalid_input' });
+  if (!parsed.data.existingAthleteId) {
+    const birthDateField = getBuiltInField(dependencies.form, 'birthDate');
+    if (birthDateField?.enabled && birthDateField.required && !parsed.data.birthDate)
+      return failure({ code: 'invalid_input' });
+    if (!birthDateField?.enabled && parsed.data.birthDate)
+      return failure({ code: 'invalid_input' });
+  }
   const organizationId = parsed.data.organizationId as OrganizationId;
   if (
     !requireCapability(actor.authorization, 'tryout:write', {
@@ -110,11 +127,13 @@ export async function createStaffRegistration(
     const created = await (dependencies.gateway ?? (await defaultGateway())).create({
       ...parsed.data,
       responses,
+      expectedFormSchema: dependencies.form,
       submissionKeyDigest: createHash('sha256')
         .update(`staff-registration\u0000${parsed.data.idempotencyKey}`)
         .digest('hex'),
     });
     if (!['created', 'replayed'].includes(created.outcome)) {
+      if (created.outcome === 'form_changed') return failure({ code: 'form_changed' });
       if (created.outcome === 'idempotency_conflict')
         return failure({ code: 'idempotency_conflict' });
       return failure({ code: created.outcome === 'not_found' ? 'not_found' : 'invalid_input' });

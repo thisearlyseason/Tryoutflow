@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('shows the password sign-in form', async ({ page }) => {
   await page.goto('/sign-in');
 
-  await expect(page.getByRole('heading', { name: 'Sign in to your organization' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
   await expect(page.locator('input[name="email"]')).toHaveAttribute('autocomplete', 'email');
   await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
 });

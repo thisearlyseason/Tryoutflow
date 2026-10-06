@@ -1,9 +1,12 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import { useRef, useState, useTransition } from 'react';
 
 import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { BibBadge } from '../../../components/ui/bib-badge';
+import { Button } from '../../../components/ui/button';
 import { StatusBadge } from '../../../components/ui/status-badge';
 
 export type CheckinSearchResult = {
@@ -218,7 +221,7 @@ export function CheckinWorkspace({
   }
 
   return (
-    <div className="theme-game-day grid min-w-0 gap-5 rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6">
+    <div className="sport-day-workspace grid min-w-0 gap-5 rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6">
       <div
         aria-busy={operation === 'search'}
         aria-label="Registration search"
@@ -242,8 +245,8 @@ export function CheckinWorkspace({
             style={{ minHeight: 44 }}
             value={query}
           />
-          <button
-            className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-5 font-bold text-[var(--color-primary-foreground)] disabled:opacity-60"
+          <Button
+            className="px-5"
             disabled={pending}
             onClick={(event) => {
               if (event.detail > 1) return;
@@ -253,7 +256,7 @@ export function CheckinWorkspace({
             type="button"
           >
             {operation === 'search' ? 'Searching…' : 'Search'}
-          </button>
+          </Button>
         </div>
       </div>
       {placements.length > 0 ? (
@@ -331,7 +334,8 @@ export function CheckinWorkspace({
                   </div>
                 </div>
               </div>
-              <button
+              <FeedbackButton
+                busy={pending}
                 className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-5 font-bold text-[var(--color-primary)] disabled:opacity-60"
                 disabled={
                   pending ||
@@ -349,7 +353,7 @@ export function CheckinWorkspace({
                 {result.status === 'checked_in'
                   ? `Confirm ${result.athleteName} again`
                   : `Check in ${result.athleteName}`}
-              </button>
+              </FeedbackButton>
             </li>
           ))}
         </ul>

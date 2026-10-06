@@ -1,3 +1,4 @@
+import { nativeContext } from '@/modules/identity/native-context';
 import { NextResponse } from 'next/server';
 
 import type { BillingProvider } from '../../../infrastructure/billing/billing-provider';
@@ -26,6 +27,7 @@ export function billingJsonError(status: number, code: string) {
 }
 
 export async function readBillingJson(request: Request, canonicalOrigin: string): Promise<unknown> {
+  if (nativeContext(request.headers.get('cookie'))) throw { status: 403 };
   if (request.method !== 'POST') throw { status: 405 };
   const internalUrl = new URL(request.url);
   const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',', 1)[0]?.trim();

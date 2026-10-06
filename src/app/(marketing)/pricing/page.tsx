@@ -1,64 +1,85 @@
 import type { Metadata } from 'next';
-
+import { ArrowDownRight, HeartHandshake, ShieldCheck, Sparkles } from 'lucide-react';
 import { marketingMetadata } from '../../../modules/marketing/content/metadata';
 import { PricingTable } from '../../../modules/marketing/ui/pricing-table';
+import './pricing.css';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/pricing',
   title: 'Pricing | TryoutFlow',
   description:
-    'Compare TryoutFlow Team, Club, and Association launch plans in Canadian dollars per month.',
+    'Find your TryoutFlow plan: Pro with a 7-day free trial, Organization, or Single Tryout Pro. Monthly, annual, and one-time pricing in USD.',
 });
 
 export default function PricingPage() {
+  const purchasesAvailable = process.env.BILLING_CHECKOUT_ENABLED !== 'false';
   return (
-    <>
-      <section className="border-b border-[var(--color-border)]">
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
-          <p className="text-sm font-black uppercase tracking-[0.18em] text-[var(--color-primary)]">
-            Launch plans
+    <div className="pricing-page">
+      <section className="pricing-hero" aria-labelledby="pricing-title">
+        <div className="pricing-hero-inner">
+          <p className="pricing-eyebrow">
+            <span /> SMALL PRICE. BIG GAME.
           </p>
-          <h1 className="mt-4 max-w-4xl text-[clamp(2.75rem,7vw,5.75rem)] font-black leading-[0.94] tracking-[-0.055em]">
-            Straightforward pricing for the way you run tryouts
+          <h1 id="pricing-title">
+            Great tryouts.
+            <br />
+            <span>Game-changing pricing.</span>
           </h1>
-          <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--color-text-muted)]">
-            All amounts below are Canadian dollars per month. Choose the operating scale that fits
-            your program; account access changes only after verified billing confirmation.
+          <p className="pricing-intro">
+            Less admin. More potential. Pick your plan and give your next team a brilliant start.
+          </p>
+          <div className="pricing-hero-bottom">
+            <p>
+              Three ways to make it happen. <ArrowDownRight size={22} aria-hidden="true" />
+            </p>
+            <span className="pricing-currency">All prices in USD</span>
+          </div>
+          <div className="pricing-sticker" aria-hidden="true">
+            <Sparkles size={26} />
+            <strong>
+              LET’S
+              <br />
+              PLAY.
+            </strong>
+          </div>
+        </div>
+      </section>
+      <section aria-label="Plan comparison" className="pricing-section">
+        {!purchasesAvailable && (
+          <p className="mb-6 rounded-2xl bg-white p-5 text-center font-bold">
+            Start with a 7-day Pro trial today. Paid plans are coming soon at the prices below.
+          </p>
+        )}
+        <PricingTable />
+      </section>
+      <section className="pricing-reassurance" aria-label="Good to know">
+        <div>
+          <Sparkles aria-hidden="true" />
+          <h2>Try it. Love it. Go Pro.</h2>
+          <p>
+            Activate your 7-day Pro trial when you’re ready. No credit card and no automatic charge.
+            {purchasesAvailable
+              ? 'Choose a paid plan to keep Pro features after your trial.'
+              : 'Paid checkout is coming soon. Your work stays saved when the trial ends.'}
+          </p>
+        </div>
+        <div>
+          <ShieldCheck aria-hidden="true" />
+          <h2>Your work stays yours.</h2>
+          <p>
+            Your athletes, evaluations, and historical records are preserved when a trial ends or
+            your plan changes.
+          </p>
+        </div>
+        <div>
+          <HeartHandshake aria-hidden="true" />
+          <h2>Clear from the start.</h2>
+          <p>
+            Review applicable taxes and billing terms at checkout. Mobile store prices may vary by
+            region and currency.
           </p>
         </div>
       </section>
-      <section
-        aria-labelledby="plan-comparison"
-        className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"
-      >
-        <h2 className="sr-only" id="plan-comparison">
-          Plan comparison
-        </h2>
-        <PricingTable />
-        <div className="mt-8 grid gap-5 border-t border-[var(--color-border)] pt-8 md:grid-cols-3">
-          <div>
-            <h2 className="font-black">Billing truth</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
-              A return from checkout does not activate a plan by itself. The account page shows the
-              last verified subscription state.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-black">Roster responsibility</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
-              Every plan supports human-directed roster review. TryoutFlow does not automatically
-              select athletes.
-            </p>
-          </div>
-          <div>
-            <h2 className="font-black">Before purchase</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--color-text-muted)]">
-              Taxes, cancellation, refunds, service levels, and final commercial terms require
-              approval before production launch.
-            </p>
-          </div>
-        </div>
-      </section>
-    </>
+    </div>
   );
 }

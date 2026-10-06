@@ -1,4 +1,5 @@
 import { LinkButton } from '../../../components/ui/link-button';
+import Link from 'next/link';
 import { StatusBadge } from '../../../components/ui/status-badge';
 import type { OnboardingProgress } from '../application/onboarding-progress';
 
@@ -48,7 +49,17 @@ export function OnboardingChecklist({
           <ol className="onboarding-list">
             {progress.items.map((item) => (
               <li key={item.key}>
-                <span>{item.label}</span>
+                {organizationSlug && !item.complete ? (
+                  <Link
+                    className="font-bold underline decoration-[var(--color-primary)] underline-offset-4"
+                    href={`/app/${organizationSlug}/${milestonePaths[item.key]}`}
+                    prefetch={false}
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <span>{item.label}</span>
+                )}
                 <StatusBadge status="ready">Complete</StatusBadge>
               </li>
             ))}
@@ -58,9 +69,19 @@ export function OnboardingChecklist({
         <ol className="onboarding-list">
           {progress.items.map((item) => (
             <li key={item.key}>
-              <span>{item.label}</span>
+              {organizationSlug && !item.complete ? (
+                <Link
+                  className="font-bold underline decoration-[var(--color-primary)] underline-offset-4"
+                  href={`/app/${organizationSlug}/${milestonePaths[item.key]}`}
+                  prefetch={false}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <span>{item.label}</span>
+              )}
               <StatusBadge status={item.complete ? 'ready' : 'draft'}>
-                {item.complete ? 'Complete' : 'Next'}
+                {item.complete ? 'Complete' : 'Start'}
               </StatusBadge>
             </li>
           ))}
@@ -73,7 +94,7 @@ export function OnboardingChecklist({
             <strong>{progress.next.label}</strong>
           </span>
           <LinkButton href={`/app/${organizationSlug}/${milestonePaths[progress.next.key]}`}>
-            Continue setup
+            Go to next step
           </LinkButton>
         </div>
       ) : null}

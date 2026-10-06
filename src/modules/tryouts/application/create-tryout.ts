@@ -88,8 +88,14 @@ export async function createTryout(
       }),
     );
   } catch (error) {
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505')
-      return failure({ code: 'slug_conflict' });
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const code = String(error.code);
+      const message = 'message' in error ? String(error.message ?? '').toLowerCase() : '';
+      if (code === '23505' || message.includes('duplicate') || message.includes('slug'))
+        return failure({ code: 'slug_conflict' });
+      if (code === '22023' || message.includes('cycle') || message.includes('invalid parameter'))
+        return failure({ code: 'invalid_input' });
+    }
     return failure({ code: 'unexpected' });
   }
 }

@@ -2,20 +2,25 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 import { expect, test } from '@playwright/test';
+import { resolveAndValidateLocalDatabase } from '../../scripts/lib/local-supabase-database.mjs';
+
+import {
+  continuePublicRegistration,
+  reviewPublicRegistration,
+} from './helpers/public-registration';
 
 const realSupabase = process.env.E2E_REAL_SUPABASE === '1';
 
 test.beforeAll(() => {
   if (!realSupabase) return;
+  const databaseUrl =
+    process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
+  const database = resolveAndValidateLocalDatabase(databaseUrl);
+  if (database.name !== 'supabase_db_tryoutflow')
+    throw new Error('Guardian registration requires the local TryoutFlow database.');
   execFileSync(
     'psql',
-    [
-      'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
-      '-v',
-      'ON_ERROR_STOP=1',
-      '-f',
-      resolve('tests/fixtures/registration/seed.sql'),
-    ],
+    [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-f', resolve('tests/fixtures/registration/seed.sql')],
     { stdio: 'pipe' },
   );
 });
@@ -56,19 +61,24 @@ test('guardian can complete the accessible public registration form on mobile', 
   await page.getByLabel('Athlete first name').fill('Ava');
   await page.getByLabel('Athlete last name').fill('Smith');
   await page.getByLabel('Date of birth').fill('2013-05-01');
-  await page.getByLabel('Guardian name').fill('Taylor Smith');
-  await page.getByLabel('Guardian email').fill('guardian@example.com');
   if (realSupabase) {
     await page.getByLabel('Guardian phone').fill('+1 (403) 555-0100');
+    await page.getByLabel('Guardian name').fill('Taylor Smith');
+    await page.locator('select[name="positionId"]').selectOption({ label: 'Goalie' });
+  }
+  await continuePublicRegistration(page);
+  await page.getByLabel('Guardian email').fill('guardian@example.com');
+  if (realSupabase) {
     await page.getByLabel('Player email').fill('player@example.com');
     await page.getByLabel('Player phone').fill('+1 (403) 555-0101');
     await page.getByLabel('Medical date').fill('2024-02-29');
-    await page.locator('select[name="positionId"]').selectOption({ label: 'Goalie' });
     await page.locator('select[name="position"]').selectOption('Goalie');
     await page.getByLabel('Consent').check();
   } else {
+    await page.getByLabel('Guardian name').fill('Taylor Smith');
     await page.getByLabel('I consent').check();
   }
+  await reviewPublicRegistration(page);
   const submissionResponse = realSupabase
     ? page.waitForResponse(
         (response) =>

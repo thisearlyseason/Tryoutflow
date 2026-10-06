@@ -9,7 +9,7 @@ import { parseRankingSnapshot } from '../../../src/modules/rankings/infrastructu
 
 const execFile = promisify(execFileCallback);
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const owner = 'f1111111-1111-4111-8111-111111111111';

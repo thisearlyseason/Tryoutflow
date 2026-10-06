@@ -1,7 +1,9 @@
+import { billingUpgradePrompt } from '@/modules/subscriptions/ui/server-feature-gate';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
 import { ErrorState } from '@/components/feedback/error-state';
+import { PageHeader } from '@/components/layout/page-header';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import {
@@ -24,6 +26,13 @@ export default async function TryoutStaffPage({
 }) {
   const { organizationSlug, tryoutId } = await params;
   const current = await requireOrganizationRouteContext(organizationSlug);
+  const upgrade = await billingUpgradePrompt(
+    current.organization.id,
+    organizationSlug,
+    'unlimited_evaluators',
+    tryoutId,
+  );
+  if (upgrade) return upgrade;
   const managesTryout = requireCapability(current.authorization, 'tryout:write', {
     organizationId: current.organization.id,
     tryoutId,
@@ -217,12 +226,15 @@ export default async function TryoutStaffPage({
   }
 
   return (
-    <section aria-labelledby="staffing-heading" className="min-w-0">
-      <p className="eyebrow">Tryout staffing</p>
-      <h2 id="staffing-heading">{tryout.name} evaluators</h2>
-      <p className="mt-2 max-w-3xl text-[var(--color-text-muted)]">
-        Invite organization members, then grant only the division, session, or group they evaluate.
-      </p>
+    <section aria-labelledby="staffing-heading" className="workspace-stack">
+      <PageHeader
+        description="Invite organization members, then grant only the division, session, or group they evaluate."
+        eyebrow="Tryout staffing"
+        title={`${tryout.name} evaluators`}
+      />
+      <h2 id="staffing-heading" className="sr-only">
+        {tryout.name} evaluators
+      </h2>
       <div className="mt-6">
         <AssignmentWorkspace
           assignments={(manageableAssignments.data ?? []).map(parseManageableAssignment)}

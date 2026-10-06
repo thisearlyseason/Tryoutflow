@@ -193,7 +193,7 @@ describe('core workflow field guidance', () => {
     );
     expect(screen.getByText('Starts').closest('label')?.querySelector('input')).toHaveAttribute(
       'aria-describedby',
-      'tryout-session-starts-help',
+      'tryout-session-timezone-help',
     );
     sessions.unmount();
 
@@ -212,7 +212,7 @@ describe('core workflow field guidance', () => {
       'placeholder',
       FIELD_EXAMPLES.rubric,
     );
-    expect(screen.getByRole('textbox', { name: 'Category name' })).toHaveAttribute(
+    expect(screen.getByRole('textbox', { name: 'Category 1 name' })).toHaveAttribute(
       'placeholder',
       'Skating',
     );
@@ -304,20 +304,20 @@ describe('core workflow field guidance', () => {
       'placeholder',
       FIELD_EXAMPLES.athleteFamilyName,
     );
-    expect(screen.getByRole('textbox', { name: 'Guardian name' })).toHaveAttribute(
+    expect(screen.getByLabelText('Guardian name')).toHaveAttribute(
       'placeholder',
       FIELD_EXAMPLES.guardianName,
     );
-    expect(screen.getByRole('textbox', { name: 'Guardian email' })).toHaveAttribute(
+    expect(screen.getByLabelText('Guardian email')).toHaveAttribute(
       'placeholder',
       FIELD_EXAMPLES.guardianEmail,
     );
-    expect(screen.getByRole('textbox', { name: 'Guardian phone' })).toHaveAttribute(
+    expect(screen.getByLabelText('Guardian phone')).toHaveAttribute(
       'placeholder',
       FIELD_EXAMPLES.guardianPhone,
     );
-    expect(screen.getByRole('option', { name: 'Select a division' })).toBeDisabled();
-    expect(screen.getByRole('option', { name: 'Select playing level' })).toBeDisabled();
+    expect(screen.getByLabelText('Division').querySelector('option[value=""]')).toBeDisabled();
+    expect(screen.getByLabelText('Playing level').querySelector('option[value=""]')).toBeDisabled();
     const publicDynamicDate = screen.getByLabelText('Medical clearance date');
     expect(publicDynamicDate).toHaveAttribute(
       'aria-describedby',

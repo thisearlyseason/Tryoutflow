@@ -50,7 +50,7 @@ insert into public.session_groups(id,organization_id,tryout_id,session_id,name,s
 insert into public.registration_forms(id,organization_id,tryout_id,name) values('32323232-3232-4232-8232-323232323232','20202020-2020-4020-8020-202020202020','22222222-2222-4222-8222-222222222222','Checkin form');
 insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at) values
  ('33333333-3333-4333-8333-333333333333','20202020-2020-4020-8020-202020202020','22222222-2222-4222-8222-222222222222','32323232-3232-4232-8232-323232323232',1,'{"fields":[{"key":"consent","label":"Consent","kind":"consent","required":true,"sortOrder":0}]}','published',clock_timestamp()),
- ('33333333-3333-4333-8333-333333333334','20202020-2020-4020-8020-202020202020','22222222-2222-4222-8222-222222222222','32323232-3232-4232-8232-323232323232',2,'{"fields":[{"key":"consent","label":"Consent","kind":"consent","required":false,"sortOrder":0}]}','draft',null);
+ ('33333333-3333-4333-8333-333333333334','20202020-2020-4020-8020-202020202020','22222222-2222-4222-8222-222222222222','32323232-3232-4232-8232-323232323232',2,'{"fields":[{"key":"consent","label":"Consent","kind":"consent","required":true,"enabled":false,"sortOrder":0}]}','draft',null);
 insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date) values
  ('34343434-3434-4434-8434-343434343434','20202020-2020-4020-8020-202020202020','Ava','Ready','ava','ready','2013-01-01'),
  ('35353535-3535-4535-8535-353535353535','20202020-2020-4020-8020-202020202020','Mia','Second','mia','second','2013-02-01'),
@@ -65,6 +65,9 @@ insert into public.tryout_registrations(id,organization_id,tryout_id,athlete_id,
  ('41414141-4141-4141-8141-414141414141','20202020-2020-4020-8020-202020202020','22222222-2222-4222-8222-222222222222','35353535-3535-4535-8535-353535353535','24242424-2424-4424-8424-242424242424','33333333-3333-4333-8333-333333333333','{"consent":true}','submitted',repeat('b',64),repeat('2',64)),
  ('42424242-4242-4242-8242-424242424242','20202020-2020-4020-8020-202020202020','22222222-2222-4222-8222-222222222222','36363636-3636-4636-8636-363636363636','24242424-2424-4424-8424-242424242424','33333333-3333-4333-8333-333333333333','{"consent":true}','withdrawn',repeat('c',64),repeat('3',64)),
  ('43434343-4343-4343-8343-434343434343','20202020-2020-4020-8020-202020202020','22222222-2222-4222-8222-222222222222','37373737-3737-4737-8737-373737373737','24242424-2424-4424-8424-242424242424','33333333-3333-4333-8333-333333333334','{}','submitted',repeat('d',64),repeat('4',64));
+-- The draft initially hides consent, allowing an unanswered registration.
+-- Enabling it later simulates historical missing information for check-in.
+-- Fresh registrations cannot omit acceptance of an enabled waiver.
 update public.registration_form_versions
 set schema='{"fields":[{"key":"consent","label":"Consent","kind":"consent","required":true,"sortOrder":0}]}'
 where id='33333333-3333-4333-8333-333333333334';

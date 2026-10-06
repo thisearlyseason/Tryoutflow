@@ -34,7 +34,7 @@ describe('Performance Lab authentication shell', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('heading', { name: 'Sign in to TryoutFlow' })).toBeVisible();
     expect(screen.getByRole('region', { name: 'TryoutFlow product summary' })).toHaveTextContent(
-      'Built for the decision room',
+      'Plan. Run. Evaluate.',
     );
     expect(screen.getByText('Evidence-based evaluation')).toBeVisible();
     expect(screen.getByRole('contentinfo')).toContainElement(
@@ -49,7 +49,9 @@ describe('Performance Lab authentication shell', () => {
       </AuthShell>,
     );
 
-    expect(screen.getByLabelText('TryoutFlow home')).toHaveTextContent('TryoutFlow');
+    expect(screen.getByRole('link', { name: 'TryoutFlow home' })).toContainElement(
+      screen.getByRole('img', { name: 'TryoutFlow' }),
+    );
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Start your organization');
   });
 

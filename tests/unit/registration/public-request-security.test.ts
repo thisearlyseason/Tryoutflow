@@ -182,4 +182,29 @@ describe('shared public registration request defenses', () => {
       guardPublicJsonRequest(request(oversized), { bucket: 'consume', parse }),
     ).resolves.toEqual({ ok: false, status: 413 });
   });
+
+  it('cancels an oversized stream instead of accepting more attacker-controlled bytes', async () => {
+    const cancel = vi.fn();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(33 * 1024));
+      },
+      cancel,
+    });
+    const incoming = new NextRequest('http://localhost/api/public/registrations/test', {
+      method: 'POST',
+      headers: {
+        origin: 'http://localhost',
+        'content-type': 'application/json',
+        'x-forwarded-for': '203.0.113.9',
+      },
+      body: stream,
+      duplex: 'half',
+    } as ConstructorParameters<typeof NextRequest>[1]);
+    await expect(guardPublicJsonRequest(incoming, { bucket: 'consume', parse })).resolves.toEqual({
+      ok: false,
+      status: 413,
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+  });
 });

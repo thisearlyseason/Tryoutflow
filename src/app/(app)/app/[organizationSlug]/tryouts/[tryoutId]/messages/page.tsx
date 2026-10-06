@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 
@@ -113,6 +114,9 @@ export default async function MessagesPage({
         {journeyNavigation}
         <h2 id="messages-empty">No finalized roster snapshots</h2>
         <p>Finalize a roster before preparing decision messages.</p>
+        <Link href={`/app/${organizationSlug}/tryouts/${tryoutId}/operations`}>
+          Publish arrival notices, reminders and schedule updates now →
+        </Link>
       </section>
     );
   const authorizedVersions = (versions ?? []).filter(
@@ -255,7 +259,7 @@ export default async function MessagesPage({
   }
 
   return (
-    <main className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-6 sm:px-6">
+    <div className="mx-auto grid w-full max-w-5xl gap-8 px-4 py-6 sm:px-6">
       {journeyNavigation}
       <header>
         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
@@ -310,6 +314,6 @@ export default async function MessagesPage({
           </p>
         )}
       </section>
-    </main>
+    </div>
   );
 }

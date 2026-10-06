@@ -11,3 +11,13 @@ output/playwright/*-results/
 *.tsbuildinfo
 supabase/.branches/
 supabase/.temp/
+
+# Local plan-audit fixtures, auth state, and browser captures.
+/output/plan-audit/
+/output/playwright/plan-audit/
+/.playwright-cli/
+
+/output/deploy-plan-access-20260917/
+/output/team-workspaces/
+/output/playwright/team-workspaces/
+.vercel

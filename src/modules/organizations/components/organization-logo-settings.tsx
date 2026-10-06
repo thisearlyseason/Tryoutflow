@@ -32,7 +32,7 @@ export function OrganizationLogoSettings({
 }: OrganizationLogoSettingsProps) {
   const hasLogo = Boolean(logoUrl);
   return (
-    <section aria-labelledby="organization-logo-heading" className="mt-8">
+    <section aria-labelledby="organization-logo-heading" className="card p-6">
       <h2 id="organization-logo-heading">Organization logo</h2>
       <p>Use a PNG, JPEG, or WebP up to 2 MiB. A square image is recommended.</p>
       {status ? (

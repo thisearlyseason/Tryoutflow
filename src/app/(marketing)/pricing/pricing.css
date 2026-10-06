@@ -1,0 +1,420 @@
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/manrope/Manrope-Variable.ttf') format('truetype');
+  font-weight: 200 800;
+  font-display: swap;
+}
+.pricing-page {
+  --pricing-ink: #162124;
+  font-family: 'Manrope', sans-serif;
+  background: #f8f8f2;
+  color: var(--pricing-ink);
+  padding-bottom: 88px;
+}
+.pricing-page h1,
+.pricing-page h2,
+.pricing-page h3,
+.pricing-page p {
+  font-family: inherit;
+  color: inherit;
+  margin: 0;
+}
+.pricing-hero {
+  padding: 76px 32px 44px;
+  overflow: hidden;
+}
+.pricing-hero-inner {
+  max-width: 1216px;
+  margin: auto;
+  position: relative;
+}
+.pricing-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+.pricing-eyebrow span {
+  width: 9px;
+  height: 9px;
+  background: #1557ee;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px #e5eaff;
+}
+.pricing-page h1 {
+  font-size: clamp(40px, 5vw, 72px);
+  line-height: 1.06;
+  font-weight: 800;
+  letter-spacing: -0.065em;
+  margin: 25px 0;
+  max-width: 1020px;
+}
+.pricing-page h1 span {
+  color: #1c55ee;
+}
+.pricing-intro {
+  max-width: 620px;
+  font-size: 17px;
+  line-height: 1.7;
+}
+.pricing-hero-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 38px;
+}
+.pricing-hero-bottom p {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.pricing-currency {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pricing-sticker {
+  position: absolute;
+  right: 12px;
+  top: 0;
+  width: 118px;
+  height: 118px;
+  border-radius: 30px;
+  background: #deff74;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: rotate(10deg);
+  box-shadow: 5px 6px 0 #172329;
+}
+.pricing-sticker strong {
+  font-size: 25px;
+  line-height: 0.96;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  margin-top: 6px;
+}
+.pricing-section {
+  max-width: 1280px;
+  margin: auto;
+  padding: 0 32px;
+}
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+.pricing-card {
+  padding: 28px;
+  border: 1px solid #dce1d6;
+  border-radius: 26px;
+  background: white;
+  position: relative;
+  min-width: 0;
+  box-shadow: 0 6px 0 #e6e8df;
+}
+.pricing-card-pro {
+  color: white;
+  background: #2253e8;
+  border-color: #2253e8;
+  box-shadow: 0 6px 0 #173aae;
+}
+.pricing-card-organization {
+  background: #eeedff;
+  border-color: #dbd9f4;
+  box-shadow: 0 6px 0 #dcd9ef;
+}
+.pricing-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.pricing-plan-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  background: #ffb3a5;
+  border-radius: 14px;
+  color: #162124;
+  transform: rotate(-6deg);
+}
+.pricing-card-pro .pricing-plan-icon {
+  background: #deff74;
+}
+.pricing-card-organization .pricing-plan-icon {
+  background: #d4cdff;
+}
+.pricing-card-title {
+  margin-top: 30px;
+  min-height: 133px;
+}
+.pricing-page .pricing-brand {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+  margin-bottom: 9px;
+}
+.pricing-card h2 {
+  font-size: clamp(24px, 2.4vw, 33px);
+  line-height: 1.07;
+  font-weight: 800;
+  letter-spacing: -0.055em;
+}
+.pricing-card-title > p:last-child {
+  margin-top: 13px;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 270px;
+}
+.pricing-price-block {
+  min-height: 108px;
+  margin-top: 13px;
+}
+.pricing-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 9px;
+}
+.pricing-price strong {
+  font-size: clamp(45px, 4vw, 58px);
+  line-height: 1.15;
+  letter-spacing: -0.075em;
+  font-weight: 800;
+  font-variant-numeric: lining-nums;
+}
+.pricing-price > span {
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.pricing-page .pricing-annual {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.6;
+  margin-top: 9px;
+}
+.pricing-annual span {
+  font-size: 10px;
+  font-weight: 500;
+}
+.pricing-trial,
+.pricing-plan-caption {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 14px;
+}
+.pricing-trial {
+  background: #deff74;
+  color: #162124;
+  padding: 9px 12px;
+  border-radius: 9px;
+  transform: rotate(-1deg);
+}
+.pricing-plan-caption {
+  font-weight: 700;
+}
+.pricing-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 52px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #162124;
+  color: white;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    transform 0.18s,
+    box-shadow 0.18s;
+}
+.pricing-card-pro .pricing-cta {
+  color: #162124;
+  background: white;
+}
+.pricing-cta:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 5px 0 #0002;
+}
+.pricing-cta:focus-visible {
+  outline: 3px solid #ee734e;
+  outline-offset: 4px;
+}
+.pricing-page .pricing-note {
+  margin-top: 12px;
+  font-size: 10px;
+  line-height: 1.65;
+  min-height: 50px;
+}
+.pricing-features {
+  border-top: 1px solid #16212420;
+  padding-top: 23px;
+  margin-top: 20px;
+}
+.pricing-card-pro .pricing-features {
+  border-color: #ffffff40;
+}
+.pricing-features h3 {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+.pricing-features ul {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+  display: grid;
+  gap: 11px;
+}
+.pricing-features li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.pricing-features svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.pricing-card-pro .pricing-features svg {
+  color: #deff74;
+}
+.pricing-reassurance {
+  max-width: 1216px;
+  margin: 64px auto 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  border-top: 1px solid #d7ddd2;
+  padding-top: 40px;
+}
+.pricing-reassurance svg {
+  color: #2253e8;
+  margin-bottom: 15px;
+}
+.pricing-reassurance h2 {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  margin-bottom: 12px;
+}
+.pricing-reassurance p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #4d5a59;
+}
+@media (max-width: 1300px) {
+  .pricing-reassurance {
+    margin-left: 32px;
+    margin-right: 32px;
+  }
+}
+@media (max-width: 1000px) {
+  .pricing-grid {
+    gap: 14px;
+  }
+  .pricing-card {
+    padding: 22px;
+  }
+  .pricing-sticker {
+    width: 94px;
+    height: 94px;
+    right: 0;
+  }
+  .pricing-price > span {
+    display: block;
+    width: 100%;
+  }
+  .pricing-card-title {
+    min-height: 150px;
+  }
+}
+@media (max-width: 760px) {
+  .pricing-hero {
+    padding: 44px 20px 28px;
+  }
+  .pricing-sticker {
+    display: none;
+  }
+  .pricing-page h1 {
+    font-size: clamp(36px, 8vw, 55px);
+  }
+  .pricing-intro {
+    font-size: 15px;
+  }
+  .pricing-hero-bottom {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 28px;
+  }
+  .pricing-section {
+    padding: 0 20px;
+  }
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+  .pricing-card {
+    padding: 28px;
+  }
+  .pricing-card-title {
+    min-height: 0;
+    margin-top: 26px;
+  }
+  .pricing-card h2 {
+    font-size: 34px;
+  }
+  .pricing-price-block {
+    margin-top: 24px;
+    min-height: 106px;
+  }
+  .pricing-price strong {
+    font-size: 60px;
+  }
+  .pricing-price > span {
+    width: auto;
+  }
+  .pricing-card-title > p:last-child {
+    max-width: none;
+  }
+  .pricing-note {
+    min-height: 0 !important;
+  }
+  .pricing-reassurance {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin: 45px 24px 0;
+  }
+  .pricing-page {
+    padding-bottom: 45px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pricing-cta {
+    transition: none;
+  }
+  .pricing-cta:hover {
+    transform: none;
+  }
+}

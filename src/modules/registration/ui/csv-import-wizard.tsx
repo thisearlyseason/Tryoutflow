@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import Papa from 'papaparse';
 
@@ -256,14 +258,15 @@ export function CsvImportWizard({
               </select>
             </label>
           ))}
-          <button
+          <FeedbackButton
+            busy={busy}
             className="min-h-[var(--target-mobile)] rounded-[var(--radius-control)] bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)] sm:col-span-2"
             type="button"
             disabled={busy}
             onClick={generatePreview}
           >
             {busy ? 'Preparing preview…' : 'Preview import'}
-          </button>
+          </FeedbackButton>
         </fieldset>
       ) : null}
 
@@ -328,22 +331,23 @@ export function CsvImportWizard({
             </p>
             <div className="flex flex-wrap gap-2">
               {preview.rows.some((row) => row.status !== 'valid') ? (
-                <button
+                <FeedbackButton
                   className="min-h-[var(--target-mobile)] rounded-[var(--radius-control)] border border-[var(--color-border)] px-4 font-bold"
                   type="button"
                   onClick={downloadInvalidRows}
                 >
                   Download issues CSV
-                </button>
+                </FeedbackButton>
               ) : null}
-              <button
+              <FeedbackButton
+                busy={busy}
                 className="min-h-[var(--target-mobile)] rounded-[var(--radius-control)] bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)]"
                 type="button"
                 disabled={busy || selected.size === 0}
                 onClick={commit}
               >
                 Confirm import
-              </button>
+              </FeedbackButton>
             </div>
           </div>
         </div>

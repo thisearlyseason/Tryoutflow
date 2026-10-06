@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RegistrationFormSchema } from '../../registration/domain/form-schema';
 
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
 import type { Json } from '../../../infrastructure/supabase/database.types';
@@ -85,12 +86,30 @@ export async function saveWizardConfiguration(
         endsAt: endInstant.toISOString(),
       };
     }
-    const { data, error } = await client.rpc('save_tryout_wizard_configuration', {
-      p_organization_id: organizationId,
-      p_tryout_id: parsed.data.tryoutId,
-      p_step: parsed.data.step,
-      p_payload: payload as Json,
-    });
+    if (parsed.data.step === 'registration') {
+      const registration = z
+        .object({
+          name: z.string().trim().min(1).max(160),
+          schema: RegistrationFormSchema,
+          notificationEmail: z.union([z.email().max(254), z.literal('')]).optional(),
+        })
+        .safeParse(payload);
+      if (!registration.success) return failure({ code: 'invalid_input' });
+      payload = registration.data;
+    }
+    const { data, error } =
+      parsed.data.step === 'registration'
+        ? await client.rpc('save_registration_form_configuration', {
+            p_organization_id: organizationId,
+            p_tryout_id: parsed.data.tryoutId,
+            p_payload: payload as Json,
+          })
+        : await client.rpc('save_tryout_wizard_configuration', {
+            p_organization_id: organizationId,
+            p_tryout_id: parsed.data.tryoutId,
+            p_step: parsed.data.step,
+            p_payload: payload as Json,
+          });
     if (error) return failure({ code: error.code === '42501' ? 'forbidden' : 'unexpected' });
     const outcome = Array.isArray(data)
       ? (data[0] as { outcome?: string } | undefined)?.outcome
@@ -111,9 +130,24 @@ export function wizardPayload(step: TryoutSetupStep, formData: FormData): Record
       registrationStartsAt: text('registrationStartsAt'),
       registrationEndsAt: text('registrationEndsAt'),
     };
-  if (step === 'divisions') return { name: text('name') };
+  const optionalId = (name: string) => (text(name) ? { [name]: text(name) } : {});
+  const optionalNumber = (name: string) =>
+    formData.has(name) ? { [name]: text(name) ? Number(text(name)) : null } : {};
+  if (step === 'divisions')
+    return {
+      name: text('name'),
+      ...optionalId('divisionId'),
+      ...(formData.has('description') ? { description: text('description') } : {}),
+      ...optionalNumber('minAge'),
+      ...optionalNumber('maxAge'),
+    };
   if (step === 'sessions')
     return {
+      ...optionalId('sessionId'),
+      ...optionalId('groupId'),
+      ...optionalId('positionId'),
+      ...(formData.has('location') ? { location: text('location') } : {}),
+      ...optionalNumber('capacity'),
       divisionId: text('divisionId'),
       name: text('name'),
       startsAt: text('startsAt'),
@@ -121,6 +155,23 @@ export function wizardPayload(step: TryoutSetupStep, formData: FormData): Record
       groupName: text('groupName'),
       positionName: text('positionName'),
     };
-  if (step === 'registration') return { name: text('name'), schema: { fields: [] } };
+  if (step === 'registration') {
+    let formSchema: unknown;
+    try {
+      formSchema = JSON.parse(text('formSchema'));
+    } catch {
+      formSchema = null;
+    }
+    return { name: text('name'), schema: formSchema, notificationEmail: text('notificationEmail') };
+  }
+  if (formData.has('categories')) {
+    let categories: unknown;
+    try {
+      categories = JSON.parse(text('categories'));
+    } catch {
+      categories = null;
+    }
+    return { sessionId: text('sessionId'), name: text('name'), categories };
+  }
   return { sessionId: text('sessionId'), name: text('name'), categoryName: text('categoryName') };
 }

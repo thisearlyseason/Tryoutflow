@@ -40,6 +40,27 @@ select ('67000000-0000-4000-8002-'||lpad(to_hex(1000+series_number),12,'0'))::uu
   '2026-02-01 00:00:00+00'::timestamptz + series_number * interval '1 second'
 from generate_series(1,1200) series_number;
 
+-- Include unrelated tryout history in the same organization. With just one
+-- tryout, the organization-only index is equally selective and the planner's
+-- choice between the two valid indexes depends on unrelated table statistics.
+insert into public.tryouts(id,organization_id,name,slug,sport,timezone)
+values('67000000-0000-4000-8000-000000000032','67000000-0000-4000-8000-000000000001','Other indexed','other-indexed','Hockey','America/Edmonton');
+insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order)
+values('67000000-0000-4000-8000-000000000035','67000000-0000-4000-8000-000000000001','67000000-0000-4000-8000-000000000032','U15',0);
+insert into public.registration_forms(id,organization_id,tryout_id,name)
+values('67000000-0000-4000-8000-000000000033','67000000-0000-4000-8000-000000000001','67000000-0000-4000-8000-000000000032','Other Form');
+insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at)
+values('67000000-0000-4000-8000-000000000034','67000000-0000-4000-8000-000000000001','67000000-0000-4000-8000-000000000032','67000000-0000-4000-8000-000000000033',1,'{"fields":[]}','published',clock_timestamp());
+insert into public.tryout_registrations(id,organization_id,tryout_id,athlete_id,division_id,registration_form_version_id,responses,submission_key_digest,submission_digest,created_at)
+select md5('other-registration:'||registration.id::text||':'||duplicate)::uuid,
+  registration.organization_id,'67000000-0000-4000-8000-000000000032',registration.athlete_id,
+  '67000000-0000-4000-8000-000000000035','67000000-0000-4000-8000-000000000034','{}',
+  md5(registration.id::text||':'||duplicate)||md5(registration.id::text||':'||duplicate),
+  md5(registration.id::text||':'||duplicate)||md5(registration.id::text||':'||duplicate),
+  registration.created_at+duplicate*interval '1 day'
+from public.tryout_registrations registration cross join generate_series(1,10) duplicate
+where registration.tryout_id='67000000-0000-4000-8000-000000000002';
+
 select is((select array_agg(registration_id order by athlete_id) from private.bounded_report_athlete_candidates(
   '67000000-0000-4000-8000-000000000001','67000000-0000-4000-8000-000000000002',2)),
   array['67000000-0000-4000-8000-000000000022'::uuid,'67000000-0000-4000-8000-000000000023'::uuid,'67000000-0000-4000-8000-000000000024'::uuid],
@@ -53,7 +74,15 @@ declare line text; output text:=''; begin
   for line in execute 'explain (costs false) '||query loop output:=output||line||E'\n'; end loop;
   return output;
 end $$;
+-- Refresh planner statistics for this transaction's fixture, independent of
+-- demo rows and earlier rolled-back bulk fixtures in the suite.
+analyze public.tryout_registrations;
 set local enable_seqscan=off;
+select diag(pg_temp.explain_text($$select distinct on (registration.athlete_id) registration.athlete_id,registration.id
+  from public.tryout_registrations registration
+  where registration.organization_id='67000000-0000-4000-8000-000000000001'
+    and registration.tryout_id='67000000-0000-4000-8000-000000000002'
+  order by registration.athlete_id,registration.created_at desc,registration.id desc limit 3$$));
 select ok(pg_temp.explain_text($$select distinct on (registration.athlete_id) registration.athlete_id,registration.id
   from public.tryout_registrations registration
   where registration.organization_id='67000000-0000-4000-8000-000000000001'
@@ -74,7 +103,7 @@ select ok(not (pg_temp.explain_text($$select distinct on (registration.athlete_i
   'candidate index plan avoids a pre-cap full tryout scan');
 select is((select proconfig from pg_proc where oid=to_regprocedure('private.bounded_report_athlete_candidates(uuid,uuid,integer)')),
   array['search_path=""']::text[],'tryout candidate helper retains an empty search path');
-select is((select count(*)::integer from public.tryout_registrations where organization_id='67000000-0000-4000-8000-000000000001'),1204,
+select is((select count(*)::integer from public.tryout_registrations where organization_id='67000000-0000-4000-8000-000000000001' and tryout_id='67000000-0000-4000-8000-000000000002'),1204,
   'large tryout history remains preserved while latest selection is deterministic');
 
 select * from finish();

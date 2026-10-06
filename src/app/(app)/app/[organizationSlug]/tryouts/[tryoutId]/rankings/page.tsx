@@ -1,3 +1,5 @@
+import { billingUpgradePrompt } from '@/modules/subscriptions/ui/server-feature-gate';
+import { SavedViews } from '@/modules/talent/ui/saved-views';
 import { ErrorState } from '@/components/feedback/error-state';
 import { listRankings } from '@/modules/rankings/application/list-rankings';
 import { SupabaseRankingGateway } from '@/modules/rankings/infrastructure/supabase-ranking-gateway';
@@ -19,13 +21,25 @@ export default async function RankingsPage({
   const { organizationSlug, tryoutId } = await params;
   const query = await searchParams;
   const current = await requireOrganizationRouteContext(organizationSlug);
+  const upgrade = await billingUpgradePrompt(
+    current.organization.id,
+    organizationSlug,
+    'advanced_rankings',
+    tryoutId,
+  );
+  if (upgrade) return upgrade;
   const requestedCompletion = first(query.completion) || 'all';
   const displayedCompletion = ['all', 'complete', 'incomplete', 'unscored'].includes(
     requestedCompletion,
   )
     ? (requestedCompletion as 'all' | 'complete' | 'incomplete' | 'unscored')
     : 'all';
+  const sort = ['overall', 'category', 'coverage', 'spread'].includes(first(query.sort) || '')
+    ? (first(query.sort) as 'overall' | 'category' | 'coverage' | 'spread')
+    : 'overall';
   const filters = {
+    sort,
+    category: first(query.category) || undefined,
     divisionId: first(query.division) || undefined,
     positionId: first(query.position) || undefined,
     sessionId: first(query.session) || undefined,
@@ -49,20 +63,26 @@ export default async function RankingsPage({
   return (
     <section aria-labelledby="rankings-heading" className="min-w-0">
       <TryoutJourneyNavigation
+        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
         nextAction={{
           label: 'Build rosters',
           href: `/app/${organizationSlug}/tryouts/${tryoutId}/rosters`,
         }}
-        overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
       />
       <p className="eyebrow">Decision evidence</p>
-      <h2 id="rankings-heading">Rankings</h2>
+      <h1 id="rankings-heading">Rankings</h1>
       <p className="mb-6 mt-2 max-w-3xl text-[var(--color-text-muted)]">
         Competition ranks use completed evaluations only. Scores inform a human decision and never
         select an athlete automatically.
       </p>
       {result.ok ? (
-        <RankingsWorkspace filters={filters} initial={result.value} />
+        <>
+          <RankingsWorkspace
+            savedViews={<SavedViews userId={current.userId} slug={organizationSlug} />}
+            filters={{ ...filters, columns: first(query.columns) }}
+            initial={result.value}
+          />
+        </>
       ) : (
         <ErrorState
           description={

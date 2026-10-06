@@ -4,7 +4,8 @@ import { execFile as execFileCallback } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { isolatedDatabase } from '../helpers/isolated-database';
 
 import { FakeEmailProvider } from '../../../src/infrastructure/email/fake-email-provider';
 import type { EmailProvider } from '../../../src/infrastructure/email/email-provider';
@@ -12,8 +13,10 @@ import { claimJobs, type JobRpcClient } from '../../../src/infrastructure/jobs/c
 import { dispatchJob } from '../../../src/infrastructure/jobs/dispatch-job';
 
 const execFile = promisify(execFileCallback);
-const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const database = isolatedDatabase();
+const databaseUrl = database.url;
+beforeAll(() => database.create());
+afterAll(() => database.drop());
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const ids = {
@@ -94,31 +97,6 @@ const databaseJobRpc = async (name: string, args: Record<string, unknown>) => {
     error: null,
   };
 };
-
-afterAll(async () => {
-  await psql(`
-    set session_replication_role=replica;
-    delete from public.outbox_provider_handoffs where organization_id='${ids.organization}';
-    delete from public.outbox_jobs where organization_id='${ids.organization}';
-    delete from public.communication_messages where organization_id='${ids.organization}';
-    delete from public.notification_preferences where organization_id='${ids.organization}';
-    delete from public.organization_invitations where organization_id='${ids.organization}';
-    delete from public.athlete_guardians where organization_id='${ids.organization}';
-    delete from public.guardians where organization_id='${ids.organization}';
-    delete from public.registration_confirmation_tokens where organization_id='${ids.organization}';
-    delete from public.tryout_registrations where organization_id='${ids.organization}';
-    delete from public.athletes where organization_id='${ids.organization}';
-    delete from public.registration_form_versions where organization_id='${ids.organization}';
-    delete from public.registration_forms where organization_id='${ids.organization}';
-    delete from public.tryout_divisions where organization_id='${ids.organization}';
-    delete from public.tryouts where organization_id='${ids.organization}';
-    delete from public.organization_members where organization_id='${ids.organization}';
-    delete from public.audit_logs where organization_id='${ids.organization}';
-    delete from public.organizations where id='${ids.organization}';
-    delete from auth.users where id in('${ids.owner}','${ids.member}');
-    set session_replication_role=origin;
-  `);
-});
 
 describe('transactional communication outbox', () => {
   it('queues one message and job atomically, suppresses optional only, and excludes private data', async () => {

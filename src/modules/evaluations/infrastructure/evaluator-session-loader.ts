@@ -24,6 +24,7 @@ export type EvaluatorRubricCategory = {
   scaleMin: 1;
   scaleMax: 5 | 10;
   required: true;
+  weight?: string;
 };
 
 export type OwnEvaluationSummary = {
@@ -156,7 +157,7 @@ export async function loadEvaluatorSession(
   }
   const categoryResult = await current.client
     .from('rubric_categories')
-    .select('id,name,description,guidance,scale_min,scale_max')
+    .select('id,name,description,guidance,scale_min,scale_max,weight')
     .eq('organization_id', current.organization.id)
     .eq('tryout_id', sessionResult.data.tryout_id)
     .eq('rubric_version_id', binding.data.rubric_version_id)
@@ -175,6 +176,7 @@ export async function loadEvaluatorSession(
       scaleMin: 1,
       scaleMax: category.scale_max,
       required: true,
+      weight: category.weight === undefined ? undefined : String(category.weight),
     });
   }
   const ownEvaluations: OwnEvaluationSummary[] = [];
@@ -217,6 +219,8 @@ export async function loadOwnEvaluationDraft(data: EvaluatorSessionData, registr
     return {
       outcome: 'ready' as const,
       athlete,
+      rubricVersionId: data.rubricVersionId,
+      categories: data.categories,
       draft: {
         evaluationId: null,
         version: 0,
@@ -227,6 +231,33 @@ export async function loadOwnEvaluationDraft(data: EvaluatorSessionData, registr
         flags: [],
       },
     };
+  }
+  let categories = data.categories;
+  if (summary.rubricVersionId !== data.rubricVersionId) {
+    const historical = await data.current.client
+      .from('rubric_categories')
+      .select('id,name,description,guidance,scale_min,scale_max,weight')
+      .eq('organization_id', data.current.organization.id)
+      .eq('tryout_id', data.session.tryoutId)
+      .eq('rubric_version_id', summary.rubricVersionId)
+      .order('sort_order');
+    if (historical.error || !historical.data?.length) return { outcome: 'unexpected' as const };
+    const loaded: EvaluatorRubricCategory[] = [];
+    for (const category of historical.data) {
+      if (category.scale_min !== 1 || (category.scale_max !== 5 && category.scale_max !== 10))
+        return { outcome: 'unexpected' as const };
+      loaded.push({
+        id: category.id,
+        name: category.name,
+        description: category.description,
+        guidance: category.guidance,
+        scaleMin: 1,
+        scaleMax: category.scale_max,
+        required: true,
+        weight: category.weight === undefined ? undefined : String(category.weight),
+      });
+    }
+    categories = loaded;
   }
   const [scores, note, selectedTags, flags] = await Promise.all([
     data.current.client
@@ -259,6 +290,8 @@ export async function loadOwnEvaluationDraft(data: EvaluatorSessionData, registr
   return {
     outcome: 'ready' as const,
     athlete,
+    rubricVersionId: summary.rubricVersionId,
+    categories,
     draft: {
       evaluationId: summary.id,
       version: summary.version,

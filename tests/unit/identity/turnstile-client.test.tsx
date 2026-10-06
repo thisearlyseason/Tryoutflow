@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RegistrationConfirmationClient } from '../../../src/app/(registration)/register/[tryoutSlug]/confirmation/registration-confirmation-client';
 import { TurnstileClientChallenge } from '../../../src/modules/identity/ui/turnstile-client';
+import SignInPage from '../../../src/app/(auth)/sign-in/page';
 
 vi.mock('next/script', () => ({
   default: ({
@@ -66,6 +67,67 @@ describe('explicit Turnstile client lifecycle', () => {
   afterEach(() => {
     delete (window as unknown as { turnstile?: TurnstileApi }).turnstile;
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  it('blocks sign-in until verified, blocks duplicate submits, and renews after browser Back', async () => {
+    vi.stubEnv('TRYOUTFLOW_BOT_PROTECTION_MODE', undefined);
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'turnstile-site-key');
+    const { api, configurations } = installProvider();
+    render(await SignInPage({ searchParams: Promise.resolve({ next: '/app/example' }) }));
+    const button = screen.getByRole('button', { name: /^Sign in$/ });
+    const form = button.closest('form')!;
+    expect(button).toBeDisabled();
+    expect(fireEvent.submit(form)).toBe(false);
+    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: 'coach@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: 'example-password' } });
+    fireEvent.click(screen.getByTestId('turnstile-script-loader'));
+    act(() => configurations[0]!.callback('verified-token'));
+    expect(button).toBeEnabled();
+    act(() => configurations[0]!['expired-callback']());
+    expect(button).toBeDisabled();
+    expect(configurations[0]).toMatchObject({ 'refresh-expired': 'auto' });
+    expect(screen.getByLabelText(/Email/)).toHaveValue('coach@example.com');
+    expect(screen.getByLabelText(/Password/)).toHaveValue('example-password');
+    act(() => configurations[0]!.callback('renewed-token'));
+    expect(fireEvent.submit(form)).toBe(true);
+    expect(fireEvent.submit(form)).toBe(false);
+    act(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
+    expect(api.reset).toHaveBeenCalledTimes(1);
+    expect(button).toBeDisabled();
+    act(() => configurations[0]!.callback('back-navigation-token'));
+    expect(button).toBeEnabled();
+    expect(new FormData(form).get('next')).toBe('/app/example');
+  });
+
+  it('offers recovery when verification stalls and still accepts a late success', () => {
+    vi.useFakeTimers();
+    const { configurations } = installProvider();
+    render(<TurnstileClientChallenge action="sign_in" siteKey="turnstile-site-key" />);
+    fireEvent.click(screen.getByTestId('turnstile-script-loader'));
+    act(() => vi.advanceTimersByTime(30_000));
+    expect(screen.getByRole('button', { name: 'Retry bot protection' })).toBeInTheDocument();
+    act(() => configurations[0]!.callback('late-token'));
+    expect(screen.queryByRole('button', { name: 'Retry bot protection' })).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Bot protection is complete');
+  });
+
+  it('renews an old token before submitting after a phone has been asleep', async () => {
+    vi.stubEnv('TRYOUTFLOW_BOT_PROTECTION_MODE', undefined);
+    vi.stubEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY', 'turnstile-site-key');
+    vi.useFakeTimers();
+    const { api, configurations } = installProvider();
+    render(await SignInPage({ searchParams: Promise.resolve({}) }));
+    fireEvent.click(screen.getByTestId('turnstile-script-loader'));
+    act(() => configurations[0]!.callback('old-token'));
+    const button = screen.getByRole('button', { name: /^Sign in$/ });
+    expect(button).toBeEnabled();
+    // A sleeping mobile tab may not receive Cloudflare's expiry callback in time.
+    vi.setSystemTime(Date.now() + 301_000);
+    expect(fireEvent.submit(button.closest('form')!)).toBe(false);
+    expect(button).toBeDisabled();
+    expect(api.reset).toHaveBeenCalledWith('widget-1');
   });
 
   it('renders explicitly, resets to require a fresh token, and removes the widget on unmount', async () => {
@@ -100,10 +162,6 @@ describe('explicit Turnstile client lifecycle', () => {
     );
 
     act(() => configurations[0]?.callback('first-single-use-token'));
-    expect(screen.getByDisplayValue('first-single-use-token')).toHaveAttribute(
-      'name',
-      'cf-turnstile-response',
-    );
     expect(onReadyChange).toHaveBeenLastCalledWith(true);
 
     view.rerender(
@@ -119,7 +177,7 @@ describe('explicit Turnstile client lifecycle', () => {
     expect(onReadyChange).toHaveBeenLastCalledWith(false);
 
     act(() => configurations[0]?.callback('fresh-single-use-token'));
-    expect(screen.getByDisplayValue('fresh-single-use-token')).toBeInTheDocument();
+    expect(onReadyChange).toHaveBeenLastCalledWith(true);
     view.unmount();
     expect(api.remove).toHaveBeenCalledWith('widget-1');
   });
@@ -210,7 +268,9 @@ describe('explicit Turnstile client lifecycle', () => {
     expect(screen.getByRole('button', { name: 'Get a new confirmation code' })).toBeDisabled();
     expect(request).toHaveBeenLastCalledWith(
       '/api/public/registrations/confirmation/reissue',
-      expect.objectContaining({ body: expect.stringContaining('reissue-token') }),
+      expect.objectContaining({
+        body: expect.stringContaining('"botVerificationToken":"reissue-token"'),
+      }),
     );
   });
 });

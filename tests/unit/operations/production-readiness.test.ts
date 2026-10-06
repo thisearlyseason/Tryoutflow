@@ -109,6 +109,7 @@ async function createReleaseFixture() {
 set -euo pipefail
 printf 'node %s\\n' "$*" >> "$TRYOUTFLOW_COMMAND_LOG"
 if [[ "$*" == "--version" ]]; then printf '%s\\n' "\${TRYOUTFLOW_NODE_VERSION:-v24.12.0}"; exit 0; fi
+if [[ "$*" == "scripts/current-release-dependency-audit.mjs" ]]; then exit 0; fi
 exit 64
 `,
     ),
@@ -222,7 +223,7 @@ describe('production readiness release gate', () => {
       'npm@11.12.1 run demo:local',
       'npm@11.12.1 run test:visual',
       'npm@11.12.1 run test:e2e -- --retries=0',
-      'npm@11.12.1 audit --audit-level=high',
+      'node scripts/current-release-dependency-audit.mjs',
       'npm@11.12.1 exec -- supabase db reset --local --no-seed',
       'npm@11.12.1 run release:state:residue',
     ]);
@@ -382,7 +383,7 @@ describe('production readiness release gate', () => {
     const commands = await loggedCommands(fixture.commandLog);
     expect(commands.at(-2)).toBe('npm@11.12.1 exec -- supabase db reset --local --no-seed');
     expect(commands.at(-1)).toBe('npm@11.12.1 run release:state:residue');
-    expect(commands).not.toContain('npm@11.12.1 audit --audit-level=high');
+    expect(commands).not.toContain('node scripts/current-release-dependency-audit.mjs');
     expect(result.stderr).toContain('FAILED: strict five-project browser gate');
     expect(result.stdout).toContain('failure cleanup: clean unseeded database reset');
     expect(result.stdout).toContain('failure cleanup: residue audit');

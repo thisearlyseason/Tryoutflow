@@ -8,6 +8,7 @@ import { captureOperationalError } from '@/infrastructure/observability/server-o
 import { AppError } from '@/modules/observability/domain/app-error';
 import { shouldInjectTestLoaderFailure } from '@/modules/observability/application/test-failure-boundary';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { TryoutCard } from '@/modules/tryouts/ui/tryout-card';
 
 export default async function TryoutsPage({
@@ -44,7 +45,7 @@ export default async function TryoutsPage({
   }
   const tryoutsResult = await current.client
     .from('tryouts')
-    .select('id, name, slug, status, updated_at')
+    .select('id, name, slug, sport, status, updated_at')
     .eq('organization_id', current.organization.id)
     .order('updated_at', { ascending: false });
   if (tryoutsResult.error) {
@@ -58,7 +59,7 @@ export default async function TryoutsPage({
         action={
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
-            href=""
+            href={`/app/${organizationSlug}/tryouts`}
             prefetch={false}
           >
             Retry
@@ -81,12 +82,21 @@ export default async function TryoutsPage({
         title="Tryouts"
       />
       {tryouts?.length ? (
-        <ul className="workspace-card-grid">
+        <ul className="workspace-card-grid tryout-card-grid">
           {tryouts.map((tryout) => (
             <li key={tryout.id}>
               <TryoutCard
                 baseHref={`/app/${organizationSlug}/tryouts/${tryout.id}`}
+                management={
+                  requireCapability(current.authorization, 'tryout:write', {
+                    organizationId: current.organization.id,
+                    tryoutId: tryout.id,
+                  }).ok
+                    ? { organizationSlug, tryoutId: tryout.id }
+                    : undefined
+                }
                 name={tryout.name}
+                sport={tryout.sport}
                 status={
                   tryout.status === 'draft' ||
                   tryout.status === 'published' ||

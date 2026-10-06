@@ -1,10 +1,16 @@
 'use client';
 
+import { DivisionEditor, SessionEditor, RubricEditor } from './setup-configuration-editor';
+import type { SetupConfiguration } from '../domain/setup-configuration';
+import Link from 'next/link';
+
 import { useActionState, useState } from 'react';
 
 import { FIELD_EXAMPLES } from '@/components/forms/field-examples';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+import { RegistrationFormEditor, type EditableRegistrationForm } from './registration-form-editor';
 
 import type { TryoutSetupStep } from '../application/save-tryout-setup-step';
 import type { TryoutBasicsField, TryoutBasicsInput } from '../application/validate-tryout-basics';
@@ -17,7 +23,7 @@ export type TryoutWizardActionState =
       fieldErrors: Partial<Record<TryoutBasicsField, string>>;
       values: TryoutBasicsInput;
     }
-  | { status: 'form_error'; message: 'Could not save this step'; values?: TryoutBasicsInput };
+  | { status: 'form_error'; message: string; values?: TryoutBasicsInput };
 
 const initialState: TryoutWizardActionState = { status: 'idle' };
 
@@ -48,7 +54,7 @@ const guidance: Record<TryoutSetupStep, { title: string; description: string }> 
   },
   publish: {
     title: 'Publish tryout',
-    description: 'Publishing locks the exact setup used for registration and scoring.',
+    description: 'Publish to open registration. You can continue editing setup afterward.',
   },
 };
 
@@ -61,6 +67,14 @@ export function TryoutWizard({
   name,
   sessions = [],
   step,
+  saved = false,
+  registrationForm,
+  configuration,
+  addNewDivision = false,
+  selectedId,
+  status = 'draft',
+  singleTryout = false,
+  overviewHref,
 }: {
   action: (
     previousState: TryoutWizardActionState,
@@ -73,17 +87,41 @@ export function TryoutWizard({
   name: string;
   sessions?: { id: string; name: string }[];
   step: TryoutSetupStep;
+  saved?: boolean;
+  registrationForm?: EditableRegistrationForm;
+  configuration?: SetupConfiguration;
+  addNewDivision?: boolean;
+  selectedId?: string;
+  status?: string;
+  singleTryout?: boolean;
+  overviewHref?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [confirmation, setConfirmation] = useState('');
   const item = guidance[step];
-  const publishing = step === 'publish';
+  const published = status !== 'draft';
+  const publishing = step === 'publish' && !published;
   const submittedValues = state.status === 'idle' ? undefined : state.values;
   const basicsValues = submittedValues ?? basics;
   const tryoutTimezone = basics?.timezone || FIELD_EXAMPLES.timezone;
   const fieldErrors = state.status === 'field_error' ? state.fieldErrors : {};
   const errorMessage =
-    state.status === 'form_error' ? state.message : error ? 'Could not save this step' : null;
+    state.status === 'form_error'
+      ? state.message
+      : error
+        ? ({
+            confirmation_required: 'Type the exact tryout name to publish.',
+            conflict: 'This tryout changed in another tab. Refresh and review it again.',
+            subscription_required: 'An active subscription is required before publishing.',
+            registration_closed: 'Set a future registration closing time before publishing.',
+            rubric_invalid: 'Every session needs a valid 100-point rubric before publishing.',
+            registration_form_missing: 'Create a registration form before publishing.',
+            division_missing: 'Add at least one division before publishing.',
+            session_missing: 'Add at least one session before publishing.',
+            single_tryout_schedule_invalid:
+              'Single Tryout sessions must fit within 14 days, with registration closing no later than the last session.',
+          }[error] ?? 'Could not save this step')
+        : null;
   const fieldDescription = (field: TryoutBasicsField, helpId?: string) =>
     [
       helpId,
@@ -102,17 +140,31 @@ export function TryoutWizard({
   return (
     <section
       aria-labelledby="wizard-step-heading"
-      className="mt-6 max-w-2xl rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6"
+      className={`mt-6 min-w-0 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 sm:p-6 ${step === 'registration' ? 'w-full' : 'max-w-2xl'}`}
     >
       <p className="eyebrow">Setup step</p>
       <h2 id="wizard-step-heading">{item.title}</h2>
-      <p className="mt-2 text-[var(--color-text-muted)]">{item.description}</p>
+      <p className="mt-2 text-[var(--color-text-muted)]">
+        {singleTryout && step === 'publish'
+          ? 'Publishing fixes this event’s identity, divisions and dates. Finish the event before its Single Tryout editing deadline.'
+          : item.description}
+      </p>
       {errorMessage ? (
         <p className="mt-4 rounded-lg border border-[var(--color-destructive)] p-3" role="alert">
           {errorMessage}
         </p>
       ) : null}
-      {blockers.length > 0 && (step === 'review' || step === 'publish') ? (
+      {saved ? (
+        <p
+          className="mt-4 rounded-lg border border-[var(--color-success)] p-3 text-[var(--color-success)]"
+          role="status"
+        >
+          {step === 'divisions'
+            ? 'Division saved. Add another or continue when ready.'
+            : 'Changes saved.'}
+        </p>
+      ) : null}
+      {!published && blockers.length > 0 && (step === 'review' || step === 'publish') ? (
         <div
           aria-live="polite"
           className="mt-5 rounded-lg border border-[var(--color-destructive)] p-4"
@@ -127,7 +179,9 @@ export function TryoutWizard({
       ) : null}
       <form action={formAction} className="mt-6 space-y-4">
         <input name="step" type="hidden" value={step} />
-        {publishing ? (
+        {step === 'publish' && published ? (
+          <p>This tryout is {status}. Setup changes are saved without publishing again.</p>
+        ) : publishing ? (
           <label className="block" htmlFor="publish-confirmation">
             <span className="font-bold">Type “{name}” to publish</span>
             <Input
@@ -190,6 +244,13 @@ export function TryoutWizard({
               </span>
               {fieldError('timezone', 'tryout-basics-timezone-error')}
             </label>
+            <div className="rounded-lg bg-[var(--color-surface-muted)] p-3">
+              <h3>Registration window</h3>
+              <p>
+                These dates control when athletes can register. Set the actual tryout event dates in
+                Sessions.
+              </p>
+            </div>
             <label className="block" htmlFor="tryout-basics-opens">
               Registration opens
               <Input
@@ -238,120 +299,92 @@ export function TryoutWizard({
             </label>
           </>
         ) : step === 'divisions' ? (
-          <label className="block">
-            Division name
-            <Input name="name" placeholder={FIELD_EXAMPLES.division} required />
-          </label>
+          <DivisionEditor
+            selectedId={selectedId}
+            addNew={addNewDivision}
+            divisions={configuration?.divisions ?? divisions}
+          />
         ) : step === 'sessions' ? (
-          <>
-            <label className="block">
-              Division
-              <select className="w-full" defaultValue="" name="divisionId" required>
-                <option disabled value="">
-                  Select a division
-                </option>
-                {divisions.map((division) => (
-                  <option key={division.id} value={division.id}>
-                    {division.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              Session name
-              <Input name="name" placeholder={FIELD_EXAMPLES.session} required />
-            </label>
-            <label className="block">
-              Starts
-              <Input
-                aria-describedby="tryout-session-starts-help"
-                name="startsAt"
-                required
-                type="datetime-local"
-              />
-              <span
-                className="mt-1 block text-sm text-[var(--color-text-muted)]"
-                id="tryout-session-starts-help"
-              >
-                Example: September 15, 2026 at 6:00 PM in {tryoutTimezone}.
-              </span>
-            </label>
-            <label className="block">
-              Ends
-              <Input
-                aria-describedby="tryout-session-ends-help"
-                name="endsAt"
-                required
-                type="datetime-local"
-              />
-              <span
-                className="mt-1 block text-sm text-[var(--color-text-muted)]"
-                id="tryout-session-ends-help"
-              >
-                Example: September 15, 2026 at 8:00 PM in {tryoutTimezone}.
-              </span>
-            </label>
-            <label className="block">
-              Group (optional)
-              <Input name="groupName" placeholder={FIELD_EXAMPLES.group} />
-            </label>
-            <label className="block">
-              Position (optional)
-              <Input name="positionName" placeholder={FIELD_EXAMPLES.position} />
-            </label>
-          </>
+          <SessionEditor
+            selectedId={selectedId}
+            sessions={configuration?.sessions ?? []}
+            divisions={divisions}
+            positions={configuration?.positions ?? []}
+            timezone={tryoutTimezone}
+          />
         ) : step === 'registration' ? (
-          <label className="block">
-            Form name
-            <Input name="name" placeholder={FIELD_EXAMPLES.registrationForm} required />
-          </label>
+          <RegistrationFormEditor initial={registrationForm} />
         ) : step === 'rubrics' ? (
-          <>
-            <label className="block">
-              Session
-              <select className="w-full" defaultValue="" name="sessionId" required>
-                <option disabled value="">
-                  Select a session
-                </option>
-                {sessions.map((session) => (
-                  <option key={session.id} value={session.id}>
-                    {session.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              Rubric name
-              <Input name="name" placeholder={FIELD_EXAMPLES.rubric} required />
-            </label>
-            <label className="block">
-              Category name
-              <Input
-                name="categoryName"
-                placeholder={FIELD_EXAMPLES.rubric.split(' and ')[0]}
-                required
-              />
-            </label>
-          </>
+          <RubricEditor selectedId={selectedId} sessions={configuration?.sessions ?? []} />
+        ) : step === 'review' ? (
+          <div className="grid gap-4">
+            <p className="text-sm text-[var(--color-text-muted)]">
+              Review the saved setup below. Use the step links above to make changes.
+            </p>
+            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 rounded-xl border border-[var(--color-border)] p-4 text-sm">
+              <dt>Tryout</dt>
+              <dd>{basicsValues?.name ?? name}</dd>
+              <dt>Sport</dt>
+              <dd>{basicsValues?.sport ?? 'Not set'}</dd>
+              <dt>Timezone</dt>
+              <dd>{basicsValues?.timezone ?? 'Not set'}</dd>
+              <dt>Divisions</dt>
+              <dd>{divisions.length || 'None saved'}</dd>
+              <dt>Sessions</dt>
+              <dd>{sessions.length || 'None saved'}</dd>
+            </dl>
+          </div>
         ) : (
           <p className="rounded-lg bg-[var(--color-surface-muted)] p-3 text-sm">
             This step is validated from saved configuration.
           </p>
         )}
-        <Button
-          disabled={
-            pending ||
-            (publishing && (confirmation !== name || blockers.length > 0)) ||
-            (!publishing && step === 'review' && blockers.length > 0)
-          }
-          type="submit"
-        >
-          {publishing
-            ? 'Publish tryout'
-            : step === 'review'
-              ? 'Ready to publish'
-              : 'Save and continue'}
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          {step === 'divisions' && divisions.length > 0 ? (
+            <Button
+              name="intent"
+              value="continue-existing"
+              formNoValidate
+              disabled={pending}
+              type="submit"
+            >
+              Continue with saved divisions
+            </Button>
+          ) : null}
+          {step === 'divisions' ? (
+            <Button
+              name="intent"
+              value="add-another"
+              variant="secondary"
+              disabled={pending}
+              type="submit"
+            >
+              Save and add another
+            </Button>
+          ) : null}
+          {published && (step === 'review' || step === 'publish') && overviewHref ? (
+            <Link className="button-primary" href={overviewHref}>
+              Return to tryout overview
+            </Link>
+          ) : (
+            <Button
+              disabled={
+                pending ||
+                (publishing && (confirmation !== name || blockers.length > 0)) ||
+                (!publishing && step === 'review' && blockers.length > 0)
+              }
+              type="submit"
+            >
+              {publishing
+                ? 'Publish tryout'
+                : step === 'review'
+                  ? 'Ready to publish'
+                  : published
+                    ? 'Save changes'
+                    : 'Save and continue'}
+            </Button>
+          )}
+        </div>
       </form>
     </section>
   );

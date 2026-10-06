@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import { useState } from 'react';
 import { z } from 'zod';
 
@@ -305,14 +307,15 @@ export function RosterExportWizard({
           </div>
         </fieldset>
 
-        <button
+        <FeedbackButton
+          busy={pending}
           type="button"
           disabled={pending || !destination || approvedFields.length === 0}
           onClick={requestPreview}
           className="mt-6 min-h-11 rounded-xl bg-blue-700 px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-400"
         >
           {pending ? 'Working…' : 'Preview export'}
-        </button>
+        </FeedbackButton>
       </div>
 
       {preview ? (
@@ -357,14 +360,15 @@ export function RosterExportWizard({
             />
             I reviewed the exact destination and fields
           </label>
-          <button
+          <FeedbackButton
+            busy={pending}
             type="button"
             disabled={pending || !reviewed}
             onClick={confirm}
             className="mt-4 min-h-11 rounded-xl bg-slate-950 px-5 py-3 font-bold text-white disabled:bg-slate-400"
           >
             Confirm and queue export
-          </button>
+          </FeedbackButton>
         </section>
       ) : null}
 
@@ -386,7 +390,8 @@ export function RosterExportWizard({
               duplicate external transfer.
             </p>
           ) : job.retryEligibleCount > 0 ? (
-            <button
+            <FeedbackButton
+              busy={pending}
               type="button"
               disabled={pending}
               onClick={retry}
@@ -394,7 +399,7 @@ export function RosterExportWizard({
             >
               Retry {job.retryEligibleCount} failed item
               {job.retryEligibleCount === 1 ? '' : 's'}
-            </button>
+            </FeedbackButton>
           ) : job.failedCount > 0 ? (
             <p className="mt-3 font-semibold text-amber-900">
               These items are not safe for automatic retry. Review them manually.

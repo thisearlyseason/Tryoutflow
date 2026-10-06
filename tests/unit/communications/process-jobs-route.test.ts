@@ -1,8 +1,8 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { processJobsRequest } from '../../../src/app/api/jobs/process/route';
+import { GET, POST, processJobsRequest } from '../../../src/app/api/jobs/process/request-handler';
 
 const secret = 's'.repeat(40);
 const request = (body: string, headers: Record<string, string> = {}) =>
@@ -17,6 +17,44 @@ const request = (body: string, headers: Record<string, string> = {}) =>
   });
 
 describe('job processor route security', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('rejects cron requests without the independent cron credential', async () => {
+    vi.stubEnv('CRON_SECRET', 'c'.repeat(40));
+    vi.stubEnv('JOB_PROCESSOR_CRON_SECRET', secret);
+    const response = await GET(new Request('https://tryoutflow.example/api/jobs/process'));
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'unauthorized' });
+  });
+
+  it('does not start a scheduled worker if its credential is missing', async () => {
+    vi.stubEnv('CRON_SECRET', 'c'.repeat(40));
+    vi.stubEnv('JOB_PROCESSOR_CRON_SECRET', '');
+    const response = await GET(
+      new Request('https://tryoutflow.example/api/jobs/process', {
+        headers: { authorization: `Bearer ${'c'.repeat(40)}` },
+      }),
+    );
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'temporarily_unavailable' });
+  });
+
+  it('rejects unauthenticated callers before loading email configuration', async () => {
+    vi.stubEnv('JOB_PROCESSOR_CRON_SECRET', secret);
+    vi.stubEnv('RESEND_FROM_EMAIL', 'invalid-sender');
+    const response = await POST(request('{}', { authorization: '' }));
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'unauthorized' });
+  });
+
+  it('returns a generic unavailable response when authenticated email configuration is invalid', async () => {
+    vi.stubEnv('JOB_PROCESSOR_CRON_SECRET', secret);
+    vi.stubEnv('RESEND_FROM_EMAIL', 'invalid-sender');
+    const response = await POST(request('{}'));
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toEqual({ error: 'temporarily_unavailable' });
+  });
+
   it.each([
     ['missing secret', request('{}', { authorization: '' }), 401],
     ['wrong secret', request('{}', { authorization: `Bearer ${'x'.repeat(40)}` }), 401],

@@ -1,3 +1,4 @@
+import { registrationWindowResponseSchema } from '../../../../modules/registration/domain/registration-window';
 import { createHash } from 'node:crypto';
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -19,6 +20,7 @@ const publicConfigurationSchema = z.object({
   tryout_id: z.uuid(),
   name: z.string().min(1).max(160),
   slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u),
+  form_version_id: z.uuid(),
   form_schema: RegistrationFormSchema,
   divisions: z.array(z.object({ id: z.uuid(), name: z.string().min(1).max(120) })),
   positions: z.array(z.object({ id: z.uuid(), name: z.string().min(1).max(120) })),
@@ -40,7 +42,18 @@ function publicLoadError(outcome: 'not_found' | 'unavailable') {
     outcome === 'not_found'
       ? { outcome, message: 'This registration is unavailable or closed.' }
       : { outcome, message: 'Registration is temporarily unavailable. Please retry.' },
-    { status: outcome === 'not_found' ? 404 : 503 },
+    { status: outcome === 'not_found' ? 404 : 503, headers: { 'Cache-Control': 'no-store' } },
+  );
+}
+
+function formChangedError() {
+  return NextResponse.json(
+    {
+      outcome: 'form_changed',
+      message:
+        'The registration form has changed. Please reload and review the current terms before submitting.',
+    },
+    { status: 409, headers: { 'Cache-Control': 'no-store' } },
   );
 }
 
@@ -59,7 +72,7 @@ export async function GET(request: NextRequest) {
       captureOperationalError(error, { operation: 'registration.load' });
       return publicLoadError('unavailable');
     }
-    const result = await createAdminSupabaseClient().rpc('public_registration_tryout_v2', {
+    const result = await createAdminSupabaseClient().rpc('public_registration_tryout_v3', {
       p_tryout_slug: slug,
     });
     if (result.error) {
@@ -72,24 +85,52 @@ export async function GET(request: NextRequest) {
       return publicLoadError('unavailable');
     }
     const [configuration] = parsed.data;
-    if (!configuration) return publicLoadError('not_found');
-    return NextResponse.json({
-      organization: {
-        name: configuration.organization_name,
-        ...(configuration.logo_exists
-          ? {
-              logoUrl: `/api/organizations/${encodeURIComponent(configuration.organization_slug)}/logo`,
-            }
-          : {}),
+    if (!configuration) {
+      const schedule = await createAdminSupabaseClient().rpc('public_registration_window', {
+        p_tryout_slug: slug,
+      });
+      if (schedule.error) {
+        captureOperationalError(schedule.error, { operation: 'registration.load_window' });
+        return publicLoadError('unavailable');
+      }
+      if (!Array.isArray(schedule.data) || schedule.data.length > 1)
+        return publicLoadError('unavailable');
+      const window = schedule.data[0];
+      if (!window) return publicLoadError('not_found');
+      const parsedWindow = registrationWindowResponseSchema.safeParse({
+        outcome: window.outcome,
+        registrationWindow: {
+          name: window.name,
+          organizationName: window.organization_name,
+          timezone: window.timezone,
+          opensAt: window.registration_starts_at,
+          closesAt: window.registration_ends_at,
+        },
+      });
+      if (!parsedWindow.success) return publicLoadError('unavailable');
+      return NextResponse.json(parsedWindow.data, { headers: { 'Cache-Control': 'no-store' } });
+    }
+    return NextResponse.json(
+      {
+        organization: {
+          name: configuration.organization_name,
+          ...(configuration.logo_exists
+            ? {
+                logoUrl: `/api/organizations/${encodeURIComponent(configuration.organization_slug)}/logo`,
+              }
+            : {}),
+        },
+        tryout: {
+          name: configuration.name,
+          slug: configuration.slug,
+          formVersionId: configuration.form_version_id,
+          formSchema: configuration.form_schema,
+          divisions: configuration.divisions,
+          positions: configuration.positions,
+        },
       },
-      tryout: {
-        name: configuration.name,
-        slug: configuration.slug,
-        formSchema: configuration.form_schema,
-        divisions: configuration.divisions,
-        positions: configuration.positions,
-      },
-    });
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
   } catch (error) {
     captureOperationalError(error, { operation: 'registration.load' });
     return publicLoadError('unavailable');
@@ -103,6 +144,7 @@ export async function POST(request: NextRequest) {
       if (!value || typeof value !== 'object') return null;
       const body = value as {
         tryoutSlug?: unknown;
+        formVersionId?: unknown;
         submission?: unknown;
         idempotencyKey?: unknown;
         botVerificationToken?: unknown;
@@ -110,8 +152,15 @@ export async function POST(request: NextRequest) {
       if (
         Object.keys(body).some(
           (key) =>
-            !['tryoutSlug', 'submission', 'idempotencyKey', 'botVerificationToken'].includes(key),
+            ![
+              'tryoutSlug',
+              'formVersionId',
+              'submission',
+              'idempotencyKey',
+              'botVerificationToken',
+            ].includes(key),
         ) ||
+        (body.formVersionId !== undefined && !z.uuid().safeParse(body.formVersionId).success) ||
         typeof body.tryoutSlug !== 'string' ||
         !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(body.tryoutSlug) ||
         typeof body.idempotencyKey !== 'string' ||
@@ -126,6 +175,7 @@ export async function POST(request: NextRequest) {
       return {
         body: {
           tryoutSlug: body.tryoutSlug,
+          formVersionId: body.formVersionId as string | undefined,
           idempotencyKey: body.idempotencyKey,
           botVerificationToken: body.botVerificationToken,
           submission: body.submission,
@@ -136,6 +186,8 @@ export async function POST(request: NextRequest) {
   });
   if (!guarded.ok) return genericError(guarded.status);
   const body = guarded.body;
+  if (!body.formVersionId) return formChangedError();
+  const expectedFormVersionId = body.formVersionId;
 
   try {
     const client = createAdminSupabaseClient();
@@ -168,7 +220,7 @@ export async function POST(request: NextRequest) {
     });
     if (contextLimit.error) return genericError(400);
     if (contextLimit.data?.[0]?.outcome === 'rate_limited') return genericError(429);
-    const configuration = await client.rpc('public_registration_tryout_v2', {
+    const configuration = await client.rpc('public_registration_tryout_v3', {
       p_tryout_slug: body.tryoutSlug,
     });
     const row = configuration.data?.[0];
@@ -182,49 +234,70 @@ export async function POST(request: NextRequest) {
     const transactionRateKey = createHash('sha256')
       .update(`registration-transaction|${guarded.rateKey}`)
       .digest('hex');
-    const command = await registerAthlete(
-      {
-        tryoutSlug: body.tryoutSlug,
-        idempotencyKey: body.idempotencyKey,
-        submission: body.submission,
+    const gateway = {
+      async submit(input: {
+        tryoutSlug: string;
+        idempotencyKey: string;
+        submission: unknown;
+      }): Promise<{
+        outcome: 'submitted' | 'replayed';
+        registrationId: string;
+        confirmationToken: string;
+      }> {
+        const result = await client.rpc('submit_public_registration_with_notification_v2', {
+          p_tryout_slug: input.tryoutSlug,
+          p_submission: input.submission as Json,
+          p_idempotency_key: input.idempotencyKey,
+          p_rate_key_hash: transactionRateKey,
+          p_app_origin: getPublicAppOrigin(),
+          p_expected_form_version_id: expectedFormVersionId,
+        });
+        const outcome = result.data?.[0];
+        if (result.error || !outcome) throw new Error('closed');
+        if (outcome.outcome === 'form_changed') throw new Error('form_changed');
+        if (outcome.outcome === 'rate_limited') throw new Error('rate_limited');
+        if (outcome.outcome !== 'submitted' && outcome.outcome !== 'replayed')
+          throw new Error('closed');
+        return {
+          outcome: outcome.outcome,
+          registrationId: outcome.registration_id,
+          confirmationToken: outcome.confirmation_token,
+        };
       },
-      {
-        form: RegistrationFormSchema.parse(row.form_schema),
-        notifier: confirmationNotifier,
-        gateway: {
-          async submit(input) {
-            const result = await client.rpc('submit_public_registration_v2', {
-              p_tryout_slug: input.tryoutSlug,
-              p_submission: input.submission as Json,
-              p_idempotency_key: input.idempotencyKey,
-              p_rate_key_hash: transactionRateKey,
-            });
-            const outcome = result.data?.[0];
-            if (result.error || !outcome || outcome.outcome === 'registration_closed')
-              throw new Error('closed');
-            if (outcome.outcome === 'rate_limited') throw new Error('rate_limited');
-            if (outcome.outcome === 'idempotency_conflict') throw new Error('idempotency_conflict');
-            if (outcome.outcome === 'replayed')
-              return {
-                outcome: 'replayed' as const,
-                registrationId: outcome.registration_id,
-                confirmationToken: outcome.confirmation_token,
-              };
-            return {
-              outcome: 'submitted' as const,
-              registrationId: outcome.registration_id,
-              confirmationToken: outcome.confirmation_token,
-            };
-          },
-        },
-      },
-    );
+    };
+    const input = {
+      tryoutSlug: body.tryoutSlug,
+      idempotencyKey: body.idempotencyKey,
+      submission: body.submission,
+    };
+    if (expectedFormVersionId !== row.form_version_id) {
+      // The database rejects fresh stale submissions and verifies accepted retry payloads.
+      // Current fields must not prevent that atomic decision.
+      const accepted = await gateway.submit(input);
+      const { guardianEmail } = z.object({ guardianEmail: z.string() }).parse(body.submission);
+      const notification = await confirmationNotifier.enqueue({
+        registrationId: accepted.registrationId,
+        confirmationToken: accepted.confirmationToken,
+        guardianEmail: guardianEmail.trim().toLocaleLowerCase('en-CA'),
+      });
+      return NextResponse.json({
+        ok: true,
+        delivery: notification.queued ? 'queued' : 'not_configured',
+        manualConfirmationToken: notification.queued ? undefined : accepted.confirmationToken,
+      });
+    }
+    const command = await registerAthlete(input, {
+      form: RegistrationFormSchema.parse(row.form_schema),
+      notifier: confirmationNotifier,
+      gateway,
+    });
     return NextResponse.json({
       ok: true,
       delivery: command.delivery,
       manualConfirmationToken: command.confirmationToken,
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'form_changed') return formChangedError();
     if (error instanceof Error && error.message === 'rate_limited') return genericError(429);
     return genericError(400);
   }

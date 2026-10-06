@@ -1,10 +1,15 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
+import { Check, Flag, Zap } from 'lucide-react';
 
 import { EvaluationSaveState, type EvaluationSaveStatus } from './save-state';
 import { ScoreControl } from './score-control';
+import { AthleteProfilePanel } from './athlete-profile-panel';
+import type { ProfileAverage } from '../domain/athlete-profile';
 
 export type EvaluatorAthlete = {
   registrationId: string;
@@ -24,6 +29,7 @@ export type EvaluatorCategory = {
   scaleMin: 1;
   scaleMax: 5 | 10;
   required: boolean;
+  weight?: string;
 };
 
 export type EvaluationDraftInput = {
@@ -187,7 +193,11 @@ export function EvaluationForm({
   onResolveRecovery,
   recoveryServerDraft,
   allowVerifiedIdentityRemap = false,
+  loadAverage,
+  profileUpgrade,
 }: {
+  profileUpgrade?: import('react').ReactNode;
+  loadAverage?: () => Promise<ProfileAverage | null>;
   athlete: EvaluatorAthlete;
   categories: EvaluatorCategory[];
   initialDraft: EvaluationDraftInput;
@@ -894,9 +904,19 @@ export function EvaluationForm({
     );
   }
 
+  const scoredCount = categories.filter((category) =>
+    draft.scores.some(
+      (score) =>
+        score.categoryId === category.id &&
+        Number.isInteger(score.value) &&
+        score.value >= category.scaleMin &&
+        score.value <= category.scaleMax,
+    ),
+  ).length;
+
   return (
     <div
-      className="theme-game-day grid min-w-0 gap-5 rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 pb-36 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6 sm:pb-36"
+      className="sport-day-workspace grid min-w-0 gap-5 rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 pb-36 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6 sm:pb-36"
       data-testid="evaluation-game-day"
     >
       <header
@@ -908,9 +928,9 @@ export function EvaluationForm({
             <p className="eyebrow">
               {athlete.identityMode === 'blind' ? 'Blind evaluation' : 'Athlete evaluation'}
             </p>
-            <h2 className="break-words text-[clamp(2rem,5vw,4rem)]" id="athlete-heading">
+            <h1 className="break-words text-[clamp(2rem,5vw,4rem)]" id="athlete-heading">
               {athlete.displayName}
-            </h2>
+            </h1>
           </div>
           <p className="shrink-0 rounded-[var(--radius-control)] bg-[var(--color-performance)] px-3 py-2 font-[var(--font-bib)] text-4xl leading-none tabular-nums text-[var(--color-performance-foreground)]">
             {athlete.tryoutNumber === null ? '—' : `#${athlete.tryoutNumber}`}
@@ -920,6 +940,22 @@ export function EvaluationForm({
           {athlete.divisionName} · {athlete.sessionName ?? 'Session'}
           {athlete.groupName ? ` · ${athlete.groupName}` : ''}
         </p>
+        <div className="evaluation-progress-row">
+          <span>
+            <Zap size={15} aria-hidden="true" />
+            {completionState === 'completed' || completionState === 'locked'
+              ? 'Evaluation complete'
+              : 'Build the full picture'}
+          </span>
+          <span>
+            {scoredCount} / {categories.length} criteria scored
+          </span>
+          <progress
+            aria-label="Scoring progress"
+            value={scoredCount}
+            max={Math.max(1, categories.length)}
+          />
+        </div>
       </header>
 
       {recovery ? (
@@ -928,7 +964,7 @@ export function EvaluationForm({
           className="grid min-w-0 gap-4 rounded-xl border-2 border-[var(--color-destructive)] bg-[var(--color-surface)] p-4"
         >
           <div>
-            <h3 id="draft-recovery-heading">Review local and server drafts</h3>
+            <h2 id="draft-recovery-heading">Review local and server drafts</h2>
             <p className="mt-1 text-sm text-[var(--color-text-muted)]">
               {recovery.kind === 'unconfirmed'
                 ? 'The last request was not confirmed and may have reached the server.'
@@ -998,29 +1034,29 @@ export function EvaluationForm({
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {!recovery.serverFresh && recovery.durable ? (
-              <button
+              <FeedbackButton
                 className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 font-bold sm:col-span-2"
                 onClick={() => window.location.reload()}
                 type="button"
               >
                 Reload and compare safely
-              </button>
+              </FeedbackButton>
             ) : null}
-            <button
+            <FeedbackButton
               className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 font-bold"
               onClick={() => void copyLocalDraft()}
               type="button"
             >
               Copy local draft
-            </button>
-            <button
+            </FeedbackButton>
+            <FeedbackButton
               className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 font-bold"
               onClick={downloadLocalDraft}
               type="button"
             >
               Download local draft
-            </button>
-            <button
+            </FeedbackButton>
+            <FeedbackButton
               className="min-h-[44px] rounded-lg border border-[var(--color-destructive)] px-4 font-bold text-[var(--color-destructive)] sm:col-span-2"
               disabled={resolving || !recovery.serverFresh || !online}
               onClick={() => {
@@ -1032,7 +1068,7 @@ export function EvaluationForm({
               type="button"
             >
               Use server draft
-            </button>
+            </FeedbackButton>
           </div>
           {useServerConfirmation ? (
             <div
@@ -1048,21 +1084,21 @@ export function EvaluationForm({
                 made after this confirmation opened requires a new confirmation.
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <button
+                <FeedbackButton
                   className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 font-bold"
                   onClick={() => setUseServerConfirmation(null)}
                   type="button"
                 >
                   Cancel
-                </button>
-                <button
+                </FeedbackButton>
+                <FeedbackButton
                   className="min-h-[44px] rounded-lg bg-[var(--color-destructive)] px-4 font-bold text-[var(--color-destructive-foreground)]"
                   disabled={resolving || !online}
                   onClick={() => void useServerDraft()}
                   type="button"
                 >
                   Confirm use server draft
-                </button>
+                </FeedbackButton>
               </div>
             </div>
           ) : null}
@@ -1072,119 +1108,162 @@ export function EvaluationForm({
         <p role="status">{recoveryNotice}</p>
       ) : null}
 
-      <section aria-labelledby="scores-heading" className="grid min-w-0 gap-5">
-        <div>
-          <h3 id="scores-heading">Scores</h3>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            Choose one whole-number score for every required category.
-          </p>
-          {serverValidation === 'invalid_input' ||
-          serverValidation === 'invalid_score' ||
-          serverValidation === 'required_scores_missing' ? (
-            <p className="mt-2 text-sm font-bold text-[var(--color-destructive)]" role="alert">
-              Review every score and required field before retrying.
-            </p>
-          ) : null}
-        </div>
-        {categories.map((category) => {
-          const score =
-            draft.scores.find((entry) => entry.categoryId === category.id)?.value ?? null;
-          return (
-            <fieldset
-              className="grid min-w-0 gap-2 rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-              disabled={!interactive}
-              key={category.id}
-            >
-              <legend className="font-bold">
-                {category.name}{' '}
-                {category.required ? (
-                  <span className="text-[var(--color-destructive)]">Required</span>
-                ) : null}
-              </legend>
-              {category.description ? <p className="text-sm">{category.description}</p> : null}
-              {category.guidance ? (
-                <p className="text-sm text-[var(--color-text-muted)]">{category.guidance}</p>
-              ) : null}
-              <ScoreControl
-                categoryId={category.id}
-                disabled={!interactive}
-                error={missing.has(category.id) ? `Choose a ${category.name} score.` : undefined}
-                label={category.name}
-                max={category.scaleMax}
-                min={category.scaleMin}
-                onChange={({ categoryId, score: value }) => setScore(categoryId, value)}
-                value={score}
-              />
-            </fieldset>
-          );
-        })}
-      </section>
-
-      <section aria-labelledby="notes-heading" className="grid min-w-0 gap-3">
-        <div>
-          <h3 id="notes-heading">Your private notes</h3>
-          <p className="text-sm text-[var(--color-text-muted)]">
-            Other evaluators cannot see this note during live evaluation.
-          </p>
-        </div>
-        <label className="grid gap-1 font-bold">
-          Private evaluator note
-          <textarea
-            className="min-h-28 min-w-0 resize-y rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 font-normal focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)] disabled:opacity-50"
-            disabled={!interactive}
-            maxLength={4000}
-            onChange={(event) => updateDraft({ ...draft, note: event.target.value })}
-            value={draft.note}
-          />
-        </label>
-        {noteTags.length > 0 ? (
-          <fieldset className="grid min-w-0 gap-2" disabled={!interactive}>
-            <legend className="font-bold">Quick tags</legend>
-            {serverValidation === 'invalid_note_tag' ? (
-              <p className="text-sm font-bold text-[var(--color-destructive)]" role="alert">
-                A selected quick tag is no longer available. Change the selection before retrying.
+      <div className="grid min-w-0 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)]">
+        <div className="order-2 grid min-w-0 gap-5 lg:order-1">
+          <section aria-labelledby="scores-heading" className="grid min-w-0 gap-5">
+            <div className="score-section-heading">
+              <span className="section-index" aria-hidden="true">
+                01
+              </span>
+              <h2 id="scores-heading">Scores</h2>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Choose one whole-number score for every required category.
               </p>
-            ) : null}
-            <div className="flex min-w-0 flex-wrap gap-2">
-              {noteTags.map((tag) => (
-                <label className="relative inline-flex min-w-0 max-w-full" key={tag.id}>
-                  <input
-                    checked={draft.noteTagIds.includes(tag.id)}
-                    className="peer absolute inset-0 min-h-[44px] w-full min-w-[44px] appearance-none rounded-full focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)]"
-                    onChange={() =>
-                      updateDraft({ ...draft, noteTagIds: toggle(draft.noteTagIds, tag.id) })
-                    }
-                    type="checkbox"
-                  />
-                  <span className="pointer-events-none inline-flex min-h-[44px] max-w-full items-center rounded-full border border-[var(--color-border)] px-4 text-center text-sm font-bold peer-checked:bg-[var(--color-selection)] peer-checked:text-[var(--color-selection-foreground)]">
-                    {tag.label}
-                  </span>
-                </label>
-              ))}
+              {serverValidation === 'invalid_input' ||
+              serverValidation === 'invalid_score' ||
+              serverValidation === 'required_scores_missing' ? (
+                <p className="mt-2 text-sm font-bold text-[var(--color-destructive)]" role="alert">
+                  Review every score and required field before retrying.
+                </p>
+              ) : null}
             </div>
-          </fieldset>
-        ) : null}
-        <fieldset className="grid min-w-0 gap-2" disabled={!interactive}>
-          <legend className="font-bold">Evaluator flags</legend>
-          <div className="grid min-w-0 gap-2 sm:grid-cols-3">
-            {flagOptions.map((flag) => (
-              <label className="relative" key={flag.value}>
-                <input
-                  checked={draft.flags.includes(flag.value)}
-                  className="peer min-h-[44px] w-full appearance-none rounded-lg border border-[var(--color-border)] focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)]"
-                  onChange={() => updateDraft({ ...draft, flags: toggle(draft.flags, flag.value) })}
-                  type="checkbox"
-                />
-                <span className="pointer-events-none absolute inset-0 grid place-items-center rounded-lg px-3 text-center text-sm font-bold peer-checked:bg-[var(--color-selection)] peer-checked:text-[var(--color-selection-foreground)]">
-                  {flag.label}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      </section>
+            {categories.map((category, categoryIndex) => {
+              const score =
+                draft.scores.find((entry) => entry.categoryId === category.id)?.value ?? null;
+              return (
+                <fieldset
+                  className="evaluation-criterion grid min-w-0 gap-2"
+                  data-scored={score !== null}
+                  disabled={!interactive}
+                  key={category.id}
+                >
+                  <legend className="criterion-legend">
+                    <span className="criterion-number" aria-hidden="true">
+                      {String(categoryIndex + 1).padStart(2, '0')}
+                    </span>
+                    <span>{category.name}</span>
+                    {category.required && <span className="sr-only">Required</span>}
+                  </legend>
+                  <div className="criterion-meta">
+                    <span>
+                      {category.scaleMin}–{category.scaleMax} scale
+                      {category.weight ? ` · ${Number(category.weight)}% weight` : ''}
+                    </span>
+                    <span className="criterion-current">
+                      {score === null ? (
+                        'Not scored'
+                      ) : (
+                        <>
+                          <Check size={13} aria-hidden="true" />
+                          {score} / {category.scaleMax}
+                        </>
+                      )}
+                    </span>
+                  </div>
+                  {category.description ? <p className="text-sm">{category.description}</p> : null}
+                  {category.guidance ? (
+                    <p className="text-sm text-[var(--color-text-muted)]">{category.guidance}</p>
+                  ) : null}
+                  <ScoreControl
+                    categoryId={category.id}
+                    disabled={!interactive}
+                    error={
+                      missing.has(category.id) ? `Choose a ${category.name} score.` : undefined
+                    }
+                    label={category.name}
+                    max={category.scaleMax}
+                    min={category.scaleMin}
+                    onChange={({ categoryId, score: value }) => setScore(categoryId, value)}
+                    value={score}
+                  />
+                </fieldset>
+              );
+            })}
+          </section>
 
-      <div className="sticky bottom-0 z-20 -mx-4 grid min-w-0 gap-3 border-t border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_24px_rgb(0_0_0/0.32)] sm:-mx-6 sm:grid-cols-[1fr_auto] sm:items-center sm:px-6">
+          <section aria-labelledby="notes-heading" className="evaluation-notes grid min-w-0 gap-3">
+            <div>
+              <h2 id="notes-heading">
+                <Flag size={18} aria-hidden="true" /> Your private notes
+              </h2>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Other evaluators cannot see this note during live evaluation.
+              </p>
+            </div>
+            <label className="grid gap-1 font-bold">
+              Private evaluator note
+              <textarea
+                className="min-h-28 min-w-0 resize-y rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 font-normal focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)] disabled:opacity-50"
+                disabled={!interactive}
+                maxLength={4000}
+                onChange={(event) => updateDraft({ ...draft, note: event.target.value })}
+                value={draft.note}
+              />
+            </label>
+            {noteTags.length > 0 ? (
+              <fieldset className="grid min-w-0 gap-2" disabled={!interactive}>
+                <legend className="font-bold">Quick tags</legend>
+                {serverValidation === 'invalid_note_tag' ? (
+                  <p className="text-sm font-bold text-[var(--color-destructive)]" role="alert">
+                    A selected quick tag is no longer available. Change the selection before
+                    retrying.
+                  </p>
+                ) : null}
+                <div className="flex min-w-0 flex-wrap gap-2">
+                  {noteTags.map((tag) => (
+                    <label className="relative inline-flex min-w-0 max-w-full" key={tag.id}>
+                      <input
+                        checked={draft.noteTagIds.includes(tag.id)}
+                        className="peer absolute inset-0 min-h-[44px] w-full min-w-[44px] appearance-none rounded-full focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)]"
+                        onChange={() =>
+                          updateDraft({ ...draft, noteTagIds: toggle(draft.noteTagIds, tag.id) })
+                        }
+                        type="checkbox"
+                      />
+                      <span className="pointer-events-none inline-flex min-h-[44px] max-w-full items-center rounded-full border border-[var(--color-border)] px-4 text-center text-sm font-bold peer-checked:bg-[var(--color-selection)] peer-checked:text-[var(--color-selection-foreground)]">
+                        {tag.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
+            <fieldset className="grid min-w-0 gap-2" disabled={!interactive}>
+              <legend className="font-bold">Evaluator flags</legend>
+              <div className="grid min-w-0 gap-2 sm:grid-cols-3">
+                {flagOptions.map((flag) => (
+                  <label className="relative" key={flag.value}>
+                    <input
+                      checked={draft.flags.includes(flag.value)}
+                      className="peer min-h-[44px] w-full appearance-none rounded-lg border border-[var(--color-border)] focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)]"
+                      onChange={() =>
+                        updateDraft({ ...draft, flags: toggle(draft.flags, flag.value) })
+                      }
+                      type="checkbox"
+                    />
+                    <span className="pointer-events-none absolute inset-0 grid place-items-center rounded-lg px-3 text-center text-sm font-bold peer-checked:bg-[var(--color-selection)] peer-checked:text-[var(--color-selection-foreground)]">
+                      {flag.label}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </section>
+        </div>
+        <div className="order-1 min-w-0 lg:order-2 lg:sticky lg:top-6">
+          {profileUpgrade ?? (
+            <AthleteProfilePanel
+              athleteName={athlete.displayName}
+              categories={categories}
+              scores={draft.scores}
+              completed={completionState === 'completed' || completionState === 'locked'}
+              note={draft.note}
+              loadAverage={loadAverage}
+            />
+          )}
+        </div>
+      </div>
+      <div className="evaluation-save-dock sticky bottom-0 z-20 -mx-4 grid min-w-0 gap-3 border-t border-[var(--color-border-strong)] bg-[var(--color-surface)] px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-10px_24px_rgb(0_0_0/0.32)] sm:-mx-6 sm:grid-cols-[1fr_auto] sm:items-center sm:px-6">
         <EvaluationSaveState
           detail={
             !storageAvailableRef.current &&
@@ -1195,7 +1274,7 @@ export function EvaluationForm({
           state={saveState}
         />
         <div className="grid grid-cols-2 gap-2 sm:flex">
-          <button
+          <FeedbackButton
             className="min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 font-bold text-[var(--color-primary)] disabled:opacity-50"
             disabled={
               !interactive ||
@@ -1208,9 +1287,9 @@ export function EvaluationForm({
             type="button"
           >
             Save now
-          </button>
-          <button
-            className="min-h-[44px] rounded-lg bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)] disabled:opacity-50"
+          </FeedbackButton>
+          <FeedbackButton
+            className="evaluation-complete-button min-h-[44px] rounded-lg bg-[var(--color-primary)] px-4 font-bold text-[var(--color-primary-foreground)] disabled:opacity-50"
             disabled={
               !interactive ||
               blockedRef.current ||
@@ -1225,7 +1304,7 @@ export function EvaluationForm({
               : completing
                 ? 'Completing evaluation'
                 : 'Complete evaluation'}
-          </button>
+          </FeedbackButton>
         </div>
       </div>
     </div>

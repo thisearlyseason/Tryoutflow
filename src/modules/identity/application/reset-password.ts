@@ -4,7 +4,14 @@ import { createServerSupabaseClient } from '../../../infrastructure/supabase/ser
 import { failure, success, type AppResult } from '../../../lib/result';
 
 const resetPasswordInputSchema = z.object({
-  password: z.string().min(12),
+  password: z
+    .string()
+    .min(8)
+    .max(128)
+    .regex(/[a-z]/u)
+    .regex(/[A-Z]/u)
+    .regex(/\d/u)
+    .regex(/[^A-Za-z0-9\s]/u),
 });
 
 export type ResetPasswordError = 'invalid_input' | 'password_reset_failed';

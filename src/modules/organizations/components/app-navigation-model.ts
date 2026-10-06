@@ -44,9 +44,13 @@ function scopedItem(
 export function buildAppNavigation({
   authorization,
   organizationSlug,
+  hasScoutingAccess = false,
+  isTeamWorkspace = false,
 }: {
   authorization: AuthorizationContext;
   organizationSlug: string;
+  hasScoutingAccess?: boolean;
+  isTeamWorkspace?: boolean;
 }): NavigationGroup[] {
   const base = `/app/${organizationSlug}`;
   const managesOrganization =
@@ -66,6 +70,8 @@ export function buildAppNavigation({
         items: [
           { href: `${base}/tryouts`, label: 'Tryouts', icon: 'tryouts' },
           { href: `${base}/athletes`, label: 'Athletes', icon: 'athletes' },
+          { href: `${base}/scouting`, label: 'Scouting', icon: 'evaluate' },
+          { href: `${base}/performance`, label: 'Performance', icon: 'reports' },
           { href: `${base}/evaluators`, label: 'Evaluators', icon: 'evaluate' },
           { href: `${base}/reports`, label: 'Reports', icon: 'reports' },
           ...(authorization.assignments.some(({ role }) => role === 'evaluator')
@@ -77,6 +83,16 @@ export function buildAppNavigation({
         id: 'organization',
         label: 'Organization',
         items: [
+          ...(!isTeamWorkspace
+            ? [
+                {
+                  href: `${base}/organization/teams`,
+                  label: 'Team workspaces',
+                  icon: 'organization' as const,
+                },
+              ]
+            : []),
+          { href: `${base}/participants`, label: 'Participant access', icon: 'athletes' },
           { href: `${base}/organization/members`, label: 'Members', icon: 'organization' },
           {
             href: `${base}/organization/integrations`,
@@ -104,6 +120,13 @@ export function buildAppNavigation({
   const reviewerTryouts = uniqueTryouts(authorization, ['reviewer']);
   const checkinTryouts = uniqueTryouts(authorization, ['checkin']);
   const items: NavigationItem[] = [
+    ...(hasScoutingAccess
+      ? [
+          { href: `${base}/scouting`, label: 'Scouting', icon: 'evaluate' as const },
+          { href: `${base}/performance`, label: 'Performance', icon: 'reports' as const },
+          { href: `${base}/search`, label: 'Search athletes', icon: 'athletes' as const },
+        ]
+      : []),
     ...(evaluator
       ? [{ href: `${base}/evaluate`, label: 'Evaluate', icon: 'evaluate' as const }]
       : []),

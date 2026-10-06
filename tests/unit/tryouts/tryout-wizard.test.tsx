@@ -112,13 +112,17 @@ describe('tryout wizard basics', () => {
       />,
     );
 
-    expect(screen.getByText(/September 15, 2026 at 6:00 PM in America\/Toronto/i)).toHaveAttribute(
+    expect(screen.getByText('Session times use America/Toronto.')).toHaveAttribute(
       'id',
-      'tryout-session-starts-help',
+      'tryout-session-timezone-help',
     );
-    expect(screen.getByText(/September 15, 2026 at 8:00 PM in America\/Toronto/i)).toHaveAttribute(
-      'id',
-      'tryout-session-ends-help',
+    expect(screen.getByLabelText('Starts')).toHaveAttribute(
+      'aria-describedby',
+      'tryout-session-timezone-help',
+    );
+    expect(screen.getByLabelText('Ends')).toHaveAttribute(
+      'aria-describedby',
+      'tryout-session-timezone-help',
     );
     expect(screen.queryByText(/America\/Edmonton/i)).not.toBeInTheDocument();
   });

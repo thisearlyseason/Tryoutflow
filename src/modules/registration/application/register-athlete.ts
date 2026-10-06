@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { getBuiltInField, getBuiltInFields } from '../domain/built-in-fields';
 import { AthleteIdentitySchema } from '../../athletes/domain/athlete';
 import type { RegistrationConfirmationNotifier } from './registration-confirmation-notifier';
 import {
@@ -30,7 +31,10 @@ function contactName(maximum: number) {
 }
 
 const SubmissionSchema = AthleteIdentitySchema.extend({
-  guardianName: contactName(160),
+  birthDate: AthleteIdentitySchema.shape.birthDate.nullish().transform((value) => value ?? null),
+  guardianName: contactName(160)
+    .nullish()
+    .transform((value) => value ?? null),
   guardianEmail: z.string().transform(canonicalRegistrationText).refine(isValidRegistrationEmail),
   guardianPhone: PhoneSchema.optional(),
   divisionId: z.uuid().optional(),
@@ -57,20 +61,34 @@ export function validateRegistrationResponses(
   }
   for (const field of fields.values()) {
     const value = responses[field.key];
+    if (field.enabled === false) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        !(typeof value === 'string' && canonicalRegistrationText(value) === '')
+      )
+        throw new Error(`Disabled registration response field: ${field.key}`);
+      delete normalized[field.key];
+      continue;
+    }
     if (
-      field.required &&
+      (field.required || field.kind === 'consent') &&
       (value === undefined ||
         value === null ||
         (typeof value === 'string' && canonicalRegistrationText(value) === ''))
     ) {
       throw new Error(`Required registration response field: ${field.key}`);
     }
-    if (value === undefined || value === null) continue;
+    if (
+      value === undefined ||
+      value === null ||
+      (!field.required && typeof value === 'string' && canonicalRegistrationText(value) === '')
+    ) {
+      delete normalized[field.key];
+      continue;
+    }
     if (field.kind === 'consent' || field.kind === 'checkbox') {
-      if (
-        typeof value !== 'boolean' ||
-        (field.kind === 'consent' && field.required && value !== true)
-      ) {
+      if (typeof value !== 'boolean' || (field.kind === 'consent' && value !== true)) {
         throw new Error(`Invalid registration response field: ${field.key}`);
       }
     } else if (field.kind === 'select') {
@@ -107,7 +125,42 @@ export function validateRegistrationSubmission(
   input: unknown,
   form: RegistrationForm,
 ): RegistrationSubmission {
-  const submission = SubmissionSchema.parse(input);
+  const schema = RegistrationFormSchema.parse(form);
+  const raw = z.record(z.string(), z.unknown()).parse(input);
+  const normalized = { ...raw };
+  for (const key of [
+    'birthDate',
+    'guardianName',
+    'guardianPhone',
+    'positionId',
+    'divisionId',
+  ] as const) {
+    const config = getBuiltInField(schema, key);
+    const value = raw[key];
+    const empty =
+      value === undefined ||
+      value === null ||
+      (typeof value === 'string' && canonicalRegistrationText(value) === '');
+    if (!config?.enabled && !empty) throw new Error(`Disabled registration field: ${key}`);
+    // Division selection is validated with the available divisions by the database.
+    if (config?.enabled && config.required && key !== 'divisionId' && empty)
+      throw new Error(`Required registration field: ${key}`);
+    if (empty) {
+      if (key === 'birthDate' || key === 'guardianName') normalized[key] = null;
+      else if (key === 'guardianPhone' && !schema.builtInFields && value !== undefined) continue;
+      else delete normalized[key];
+    }
+  }
+  for (const field of getBuiltInFields(schema)) {
+    if (
+      field.enabled &&
+      field.required &&
+      ['givenName', 'familyName', 'guardianEmail'].includes(field.key) &&
+      !raw[field.key]
+    )
+      throw new Error(`Required registration field: ${field.key}`);
+  }
+  const submission = SubmissionSchema.parse(normalized);
   return {
     ...submission,
     responses: validateRegistrationResponses(submission.responses, form),

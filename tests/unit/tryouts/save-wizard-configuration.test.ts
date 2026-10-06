@@ -134,3 +134,58 @@ describe('saveWizardConfiguration local-time boundary', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 });
+
+it('rejects edited schemas that redefine protected registration inputs before persistence', async () => {
+  rpc.mockClear();
+  const result = await saveWizardConfiguration(
+    {
+      organizationId,
+      tryoutId,
+      step: 'registration',
+      payload: {
+        name: 'Invalid',
+        schema: {
+          fields: [
+            { key: 'guardian_email', label: 'Unsafe', kind: 'email', required: true, sortOrder: 0 },
+          ],
+        },
+        notificationEmail: '',
+      },
+    },
+    actor,
+  );
+  expect(result).toEqual({ ok: false, error: { code: 'invalid_input' } });
+  expect(rpc).not.toHaveBeenCalled();
+});
+
+it('saves custom field definitions and private destination in the atomic registration RPC', async () => {
+  rpc.mockClear();
+  rpc.mockResolvedValue({ data: [{ outcome: 'saved' }], error: null });
+  const payload = {
+    name: 'Custom',
+    schema: {
+      fields: [
+        {
+          key: 'jersey',
+          label: 'Jersey size',
+          kind: 'select',
+          required: false,
+          sortOrder: 0,
+          options: ['S', 'M'],
+        },
+      ],
+    },
+    notificationEmail: 'organizer@example.test',
+  };
+  expect(
+    await saveWizardConfiguration(
+      { organizationId, tryoutId, step: 'registration', payload },
+      actor,
+    ),
+  ).toEqual({ ok: true, value: undefined });
+  expect(rpc).toHaveBeenCalledWith('save_registration_form_configuration', {
+    p_organization_id: organizationId,
+    p_tryout_id: tryoutId,
+    p_payload: payload,
+  });
+});

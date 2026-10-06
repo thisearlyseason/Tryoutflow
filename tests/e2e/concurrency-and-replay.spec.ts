@@ -18,8 +18,8 @@ test('rankings preserve an exact tie and compare both athletes with completion e
   });
   const monitor = await signInAs(page, scenario.users.director, scenario.organizationSlug);
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rankings`);
-  const alpha = page.getByRole('listitem').filter({ hasText: 'Tie Alpha' });
-  const beta = page.getByRole('listitem').filter({ hasText: 'Tie Beta' });
+  const alpha = page.getByRole('row').filter({ hasText: 'Tie Alpha' });
+  const beta = page.getByRole('row').filter({ hasText: 'Tie Beta' });
   await expect(alpha).toContainText('Tied at rank 1');
   await expect(beta).toContainText('Tied at rank 1');
   await expect(alpha).toContainText('84.0');
@@ -115,6 +115,17 @@ test('scenarios 10–11 — mock connection preview survives lost response, part
     ],
     headers: { 'next-action': /.+/u },
     label: 'one deliberately lost roster export confirmation response',
+    method: 'POST',
+    url: new RegExp(
+      `^http://127\\.0\\.0\\.1:3112/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters/${scenario.ids.finalRoster}/export$`,
+      'u',
+    ),
+  });
+  monitor.allowOptionalRequestFailure({
+    maxCount: 1,
+    errorText: ['net::ERR_FAILED', 'net::ERR_ABORTED', 'NS_ERROR_FAILURE', 'Load failed'],
+    headers: { 'next-action': /.+/u },
+    label: 'an extra browser cancellation during the simulated lost export response',
     method: 'POST',
     url: new RegExp(
       `^http://127\\.0\\.0\\.1:3112/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters/${scenario.ids.finalRoster}/export$`,

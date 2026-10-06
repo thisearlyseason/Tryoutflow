@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import Script from 'next/script';
 import { useEffect, useRef, useState } from 'react';
 
@@ -11,6 +13,8 @@ type TurnstileConfiguration = {
   'error-callback': () => void;
   'expired-callback': () => void;
   'timeout-callback': () => void;
+  'refresh-expired': 'auto';
+  'refresh-timeout': 'auto';
   sitekey: string;
 };
 
@@ -30,12 +34,14 @@ export function TurnstileClientChallenge({
   action,
   deterministicToken,
   onReadyChange,
+  onTokenChange,
   resetKey = 0,
   siteKey,
 }: {
   action: BotAction;
   deterministicToken?: string;
   onReadyChange?: (ready: boolean) => void;
+  onTokenChange?: (token: string) => void;
   resetKey?: number;
   siteKey?: string;
 }) {
@@ -45,7 +51,7 @@ export function TurnstileClientChallenge({
   const readyCallback = useRef(onReadyChange);
   const [providerReady, setProviderReady] = useState(false);
   const [renderAttempt, setRenderAttempt] = useState(0);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>(
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'slow'>(
     deterministicToken ? 'ready' : siteKey ? 'loading' : 'error',
   );
   const [token, setToken] = useState(deterministicToken ?? '');
@@ -53,8 +59,18 @@ export function TurnstileClientChallenge({
   readyCallback.current = onReadyChange;
 
   useEffect(() => {
+    if (status !== 'loading') return;
+    const timeout = window.setTimeout(() => setStatus('slow'), 30_000);
+    return () => window.clearTimeout(timeout);
+  }, [status, resetKey, renderAttempt]);
+
+  useEffect(() => {
     readyCallback.current?.(Boolean(deterministicToken || token));
   }, [deterministicToken, token]);
+
+  useEffect(() => {
+    onTokenChange?.(deterministicToken ?? token);
+  }, [deterministicToken, onTokenChange, token]);
 
   useEffect(
     () => () => {
@@ -77,6 +93,8 @@ export function TurnstileClientChallenge({
       renderedId = api.render(container.current, {
         sitekey: siteKey,
         action,
+        'refresh-expired': 'auto',
+        'refresh-timeout': 'auto',
         callback(nextToken) {
           if (!nextToken) {
             setToken('');
@@ -92,11 +110,11 @@ export function TurnstileClientChallenge({
         },
         'expired-callback'() {
           setToken('');
-          setStatus('error');
+          setStatus('loading');
         },
         'timeout-callback'() {
           setToken('');
-          setStatus('error');
+          setStatus('loading');
         },
       });
     } catch {
@@ -133,7 +151,7 @@ export function TurnstileClientChallenge({
 
   function retry() {
     if (!window.turnstile) {
-      setStatus('error');
+      window.location.reload();
       return;
     }
     setToken('');
@@ -161,8 +179,7 @@ export function TurnstileClientChallenge({
         src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         strategy="afterInteractive"
       />
-      <div aria-label="Bot protection challenge" ref={container} />
-      {token ? <input name="cf-turnstile-response" type="hidden" value={token} /> : null}
+      <div aria-label="Bot protection challenge" ref={container} role="group" />
       {status === 'loading' ? (
         <p aria-live="polite" role="status">
           Bot protection is loading…
@@ -173,10 +190,14 @@ export function TurnstileClientChallenge({
         </p>
       ) : (
         <div className="grid gap-2">
-          <p role="alert">Bot protection could not load. Retry the challenge.</p>
-          <button className="min-h-11 rounded border px-3" onClick={retry} type="button">
+          <p role="alert">
+            {status === 'slow'
+              ? 'Verification is taking longer than usual. You can wait or retry the challenge.'
+              : 'Bot protection could not load. Retry the challenge.'}
+          </p>
+          <FeedbackButton className="min-h-11 rounded border px-3" onClick={retry} type="button">
             Retry bot protection
-          </button>
+          </FeedbackButton>
         </div>
       )}
     </>

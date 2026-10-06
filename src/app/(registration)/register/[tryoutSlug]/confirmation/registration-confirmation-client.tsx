@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 
@@ -70,6 +72,10 @@ export function RegistrationConfirmationClient({
     Boolean(confirmationBotToken),
   );
   const [reissueChallengeReady, setReissueChallengeReady] = useState(Boolean(reissueBotToken));
+  const [confirmationChallengeToken, setConfirmationChallengeToken] = useState(
+    confirmationBotToken ?? '',
+  );
+  const [reissueChallengeToken, setReissueChallengeToken] = useState(reissueBotToken ?? '');
   const [confirmationChallengeResetKey, setConfirmationChallengeResetKey] = useState(0);
   const [reissueChallengeResetKey, setReissueChallengeResetKey] = useState(0);
 
@@ -145,7 +151,7 @@ export function RegistrationConfirmationClient({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           token,
-          botVerificationToken: fields.get('cf-turnstile-response'),
+          botVerificationToken: confirmationChallengeToken || fields.get('cf-turnstile-response'),
         }),
       });
       const result = (await response.json()) as { status: ConfirmationStatus };
@@ -174,7 +180,7 @@ export function RegistrationConfirmationClient({
         body: JSON.stringify({
           token,
           guardianEmail,
-          botVerificationToken: fields.get('cf-turnstile-response'),
+          botVerificationToken: reissueChallengeToken || fields.get('cf-turnstile-response'),
         }),
       });
       const result = (await response.json()) as {
@@ -235,16 +241,18 @@ export function RegistrationConfirmationClient({
               action="registration_confirmation"
               deterministicToken={confirmationBotToken}
               onReadyChange={setConfirmationChallengeReady}
+              onTokenChange={setConfirmationChallengeToken}
               resetKey={confirmationChallengeResetKey}
               siteKey={botSiteKey}
             />
-            <button
+            <FeedbackButton
+              busy={busy}
               className="min-h-[44px] rounded bg-[var(--color-primary)] px-4 text-white"
               type="submit"
               disabled={busy || !confirmationChallengeReady}
             >
               {busy ? 'Confirming…' : 'Confirm registration'}
-            </button>
+            </FeedbackButton>
           </form>
         </>
       ) : status === 'unknown' || !token ? (
@@ -285,16 +293,18 @@ export function RegistrationConfirmationClient({
               action="registration_reissue"
               deterministicToken={reissueBotToken}
               onReadyChange={setReissueChallengeReady}
+              onTokenChange={setReissueChallengeToken}
               resetKey={reissueChallengeResetKey}
               siteKey={botSiteKey}
             />
-            <button
+            <FeedbackButton
+              busy={busy}
               className="min-h-[44px] rounded bg-[var(--color-primary)] px-4 text-white"
               type="submit"
               disabled={busy || !reissueChallengeReady}
             >
               {busy ? 'Requesting…' : 'Get a new confirmation code'}
-            </button>
+            </FeedbackButton>
           </form>
         </section>
       )}

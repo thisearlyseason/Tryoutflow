@@ -11,7 +11,7 @@ export type DuplicateAthlete = {
   athleteId: string;
   givenName: string;
   familyName: string;
-  birthDate: string;
+  birthDate: string | null;
   guardianEmail?: string;
 };
 
@@ -25,6 +25,7 @@ export function findDuplicateCandidates(
   existing: DuplicateAthlete[],
   incoming: DuplicateInput,
 ): DuplicateCandidate[] {
+  if (!incoming.birthDate) return [];
   const givenName = normaliseText(incoming.givenName);
   const familyName = normaliseText(incoming.familyName);
   return existing
@@ -32,6 +33,7 @@ export function findDuplicateCandidates(
       (candidate) =>
         normaliseText(candidate.givenName) === givenName &&
         normaliseText(candidate.familyName) === familyName &&
+        candidate.birthDate !== null &&
         candidate.birthDate === incoming.birthDate,
     )
     .map((candidate) => ({

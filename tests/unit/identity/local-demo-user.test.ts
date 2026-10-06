@@ -9,12 +9,12 @@ import { createLocalDemoEnvironment } from '../../../scripts/start-local-demo.mj
 
 describe('local demo identity bootstrap', () => {
   it('accepts only loopback Supabase origins before provisioning', () => {
-    expect(assertLocalSupabaseUrl('http://127.0.0.1:54321').hostname).toBe('127.0.0.1');
-    expect(assertLocalSupabaseUrl('http://localhost:54321').hostname).toBe('localhost');
+    expect(assertLocalSupabaseUrl('http://127.0.0.1:58321').hostname).toBe('127.0.0.1');
+    expect(assertLocalSupabaseUrl('http://localhost:58321').hostname).toBe('localhost');
     expect(() => assertLocalSupabaseUrl('https://project.supabase.co')).toThrow(
       'local Supabase only',
     );
-    expect(() => assertLocalSupabaseUrl('http://192.0.2.10:54321')).toThrow('local Supabase only');
+    expect(() => assertLocalSupabaseUrl('http://192.0.2.10:58321')).toThrow('local Supabase only');
   });
 
   it('binds one synthetic owner to the deterministic Badlands organization', () => {
@@ -36,7 +36,7 @@ describe('local demo identity bootstrap', () => {
     expect(
       createLocalDemoEnvironment(
         {
-          apiUrl: 'http://127.0.0.1:54321',
+          apiUrl: 'http://127.0.0.1:58321',
           publishableKey: 'local-publishable-key',
           serviceRoleKey: 'local-service-role-key',
         },
@@ -45,12 +45,23 @@ describe('local demo identity bootstrap', () => {
     ).toMatchObject({
       NEXT_PUBLIC_TRYOUTFLOW_LOCAL_DEMO_MODE: 'true',
       NEXT_PUBLIC_APP_URL: 'http://localhost:3112',
-      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:58321',
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'local-publishable-key',
       SUPABASE_SERVICE_ROLE_KEY: 'local-service-role-key',
       ABUSE_PROTECTION_HMAC_SECRET:
         'tryoutflow-local-demo-rate-limit-secret-v1-000000000000000000000000',
     });
+
+    expect(() =>
+      createLocalDemoEnvironment(
+        {
+          apiUrl: 'http://127.0.0.1:54321',
+          publishableKey: 'local-publishable-key',
+          serviceRoleKey: 'local-service-role-key',
+        },
+        {},
+      ),
+    ).toThrow('58321');
 
     expect(() =>
       createLocalDemoEnvironment(
@@ -65,7 +76,7 @@ describe('local demo identity bootstrap', () => {
     expect(() =>
       createLocalDemoEnvironment(
         {
-          apiUrl: 'http://[::1]:54321',
+          apiUrl: 'http://[::1]:58321',
           publishableKey: 'local-publishable-key',
           serviceRoleKey: 'local-service-role-key',
         },
@@ -75,7 +86,7 @@ describe('local demo identity bootstrap', () => {
     expect(() =>
       createLocalDemoEnvironment(
         {
-          apiUrl: 'http://127.0.0.1:54321',
+          apiUrl: 'http://127.0.0.1:58321',
           publishableKey: 'local-publishable-key',
           serviceRoleKey: 'local-service-role-key',
         },

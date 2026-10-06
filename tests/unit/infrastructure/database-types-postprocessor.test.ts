@@ -12,6 +12,14 @@ describe('database type postprocessor', () => {
     const fixture = `export type Database = {
   public: {
     Functions: {
+      save_prospect_identity: {
+        Args: { p_birth_date: string; p_expected_updated_at?: string };
+        Returns: string;
+      };
+      save_athlete_contact: {
+        Args: { p_guardian_id?: string; p_expected_updated_at?: string };
+        Returns: string;
+      };
       complete_evaluation: {
         Args: {
           p_group_id: string;
@@ -141,6 +149,10 @@ describe('database type postprocessor', () => {
 
       expect(processed).toContain('version: number;\n        };\n        Returns:');
       expect(processed).toContain('p_expected_version: number | null;');
+      expect(processed).toContain(
+        'p_birth_date: string | null; p_expected_updated_at?: string | null',
+      );
+      expect(processed).toContain('p_guardian_id?: string | null;');
       expect(processed).toContain('version: number | null;\n        }[];');
       expect(processed).toContain('note_tag_id: string;\n          p_note_tag_id: string | null;');
       expect(processed).toContain('note_tag_id: string | null;\n          outcome: string;');

@@ -44,7 +44,7 @@ describe('EmailProvider contract', () => {
     expect(second).toEqual(first);
   });
 
-  it.each([1, 2, 3, 4, 5])('accepts canonical RFC provider identifier version %i', (version) => {
+  it.each([1, 2, 3, 4, 5, 7])('accepts canonical provider identifier version %i', (version) => {
     expect(
       providerMessageIdSchema.safeParse(`a5555555-5555-${version}555-8555-555555555555`).success,
     ).toBe(true);
@@ -106,9 +106,35 @@ describe('EmailProvider contract', () => {
     );
     const body = JSON.parse(String(request.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
     expect(body).toMatchObject({
-      html: '<main><p>Safe body</p></main>',
+      from: 'TryoutFlow <mail@example.com>',
+      reply_to: 'gamedaysportstech@gmail.com',
+      html: expect.stringContaining('<main><p>Safe body</p></main>'),
       tags: [{ name: 'message_id', value: '33333333-3333-4333-8333-333333333333' }],
     });
+    expect(body.html).toContain('alt="TryoutFlow"');
+  });
+
+  it('brands plain-text notifications without interpreting recipient content as HTML', async () => {
+    const request = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      Response.json({ id: '55555555-5555-4555-8555-555555555555' }),
+    );
+    const provider = new ResendEmailProvider(
+      { apiKey: `re_${'x'.repeat(30)}`, from: 'mail@example.com' },
+      request,
+    );
+    const text =
+      '<script>alert(1)</script>\nConfirm: https://www.tryout.agency/confirm?token=abc&next=1';
+    await provider.send(
+      { to: 'guardian@example.com', subject: '<img src=x>', text },
+      'plain-message',
+    );
+    const body = JSON.parse(String(request.mock.calls[0]?.[1]?.body));
+    expect(body.text).toBe(text);
+    expect(body.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(body.html).not.toContain('<script>');
+    expect(body.html).not.toContain('<img src=x>');
+    expect(body.html).toContain('href="https://www.tryout.agency/confirm?token=abc&amp;next=1"');
+    expect(body.html).toContain('TryoutFlow');
   });
 
   it('rejects incomplete server configuration without exposing its values', () => {

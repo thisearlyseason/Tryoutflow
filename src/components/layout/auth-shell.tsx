@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Brand } from '../ui/brand';
 import type { ReactNode } from 'react';
 
 const defaultProofItems = [
@@ -29,21 +30,18 @@ export function AuthShell({
       <div className="auth-layout">
         <section aria-label="TryoutFlow product summary" className="auth-proof">
           <Link aria-label="TryoutFlow home" className="auth-brand" href="/" prefetch={false}>
-            <span aria-hidden="true" className="auth-brand-mark">
-              TF
-            </span>
-            <span>TryoutFlow</span>
+            <Brand />
           </Link>
           <div>
-            <p className="auth-kicker">Built for the decision room</p>
-            <h2>Move from first registration to final roster with evidence intact.</h2>
+            <p className="auth-kicker">Plan. Run. Evaluate.</p>
+            <h2>Great athletes start here.</h2>
             <ul className="auth-proof-list">
               {proofItems.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
           </div>
-          <p className="auth-proof-note">Durable workflows. Human decisions.</p>
+          <p className="auth-proof-note">More opportunity. Stronger teams.</p>
         </section>
         <section aria-labelledby="auth-heading" className="auth-card">
           <header>

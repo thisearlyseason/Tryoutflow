@@ -77,9 +77,15 @@ function trustedNetworkAddress(value: string | null): string | undefined {
 }
 
 /** Only a deployment-controlled edge header may choose an abuse-limiter address. */
-export function getTrustedAuthRequestContext(headers: Headers): AuthRequestContext {
+export function getTrustedAuthRequestContext(
+  headers: Headers,
+  environment: Record<string, string | undefined> = process.env,
+): AuthRequestContext {
+  const vercelForwardedFor = headers.get('x-vercel-forwarded-for');
+  const platformForwardedFor =
+    vercelForwardedFor ?? (environment.VERCEL === '1' ? headers.get('x-forwarded-for') : null);
   return {
-    networkAddress: trustedNetworkAddress(headers.get('x-vercel-forwarded-for')),
+    networkAddress: trustedNetworkAddress(platformForwardedFor),
   };
 }
 

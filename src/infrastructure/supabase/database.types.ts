@@ -28,6 +28,281 @@ export type Database = {
   };
   public: {
     Tables: {
+      billing_audit_log: {
+        Row: {
+          actor_id: string | null;
+          created_at: string;
+          event_type: string;
+          id: number;
+          metadata: Json;
+          organization_id: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          created_at?: string;
+          event_type: string;
+          id?: never;
+          metadata?: Json;
+          organization_id: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          created_at?: string;
+          event_type?: string;
+          id?: never;
+          metadata?: Json;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_audit_log_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      billing_events: {
+        Row: {
+          contract_id: string | null;
+          event_type: string;
+          id: number;
+          occurred_at: string;
+          organization_id: string | null;
+          payload_digest: string;
+          payload_metadata: Json;
+          processed_at: string;
+          processing_status: string;
+          provider: string;
+          provider_event_id: string;
+        };
+        Insert: {
+          contract_id?: string | null;
+          event_type: string;
+          id?: never;
+          occurred_at: string;
+          organization_id?: string | null;
+          payload_digest: string;
+          payload_metadata?: Json;
+          processed_at?: string;
+          processing_status: string;
+          provider: string;
+          provider_event_id: string;
+        };
+        Update: {
+          contract_id?: string | null;
+          event_type?: string;
+          id?: never;
+          occurred_at?: string;
+          organization_id?: string | null;
+          payload_digest?: string;
+          payload_metadata?: Json;
+          processed_at?: string;
+          processing_status?: string;
+          provider?: string;
+          provider_event_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_events_contract_id_fkey';
+            columns: ['contract_id'];
+            isOneToOne: false;
+            referencedRelation: 'billing_contracts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'billing_events_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      billing_overrides: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          granted_by: string | null;
+          id: string;
+          organization_id: string;
+          product_key: string;
+          reason: string;
+          revoked_at: string | null;
+          starts_at: string;
+          tryout_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          granted_by?: string | null;
+          id?: string;
+          organization_id: string;
+          product_key: string;
+          reason: string;
+          revoked_at?: string | null;
+          starts_at: string;
+          tryout_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          organization_id?: string;
+          product_key?: string;
+          reason?: string;
+          revoked_at?: string | null;
+          starts_at?: string;
+          tryout_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_overrides_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'billing_overrides_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'billing_overrides_product_key_fkey';
+            columns: ['product_key'];
+            isOneToOne: false;
+            referencedRelation: 'billing_products';
+            referencedColumns: ['key'];
+          },
+        ];
+      };
+      billing_contracts: {
+        Row: {
+          cancel_at_period_end: boolean;
+          created_at: string;
+          current_period_end: string | null;
+          current_period_start: string;
+          downgrade_effective_at: string | null;
+          environment: string;
+          grace_period_end: string | null;
+          id: string;
+          observed_at: string;
+          organization_id: string;
+          pending_product_key: string | null;
+          product_key: string;
+          provider: string;
+          provider_contract_id: string;
+          provider_customer_id: string;
+          purchaser_id: string;
+          status: string;
+          tryout_id: string | null;
+        };
+        Insert: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          current_period_start: string;
+          downgrade_effective_at?: string | null;
+          environment: string;
+          grace_period_end?: string | null;
+          id?: string;
+          observed_at: string;
+          organization_id: string;
+          pending_product_key?: string | null;
+          product_key: string;
+          provider: string;
+          provider_contract_id: string;
+          provider_customer_id: string;
+          purchaser_id: string;
+          status: string;
+          tryout_id?: string | null;
+        };
+        Update: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          current_period_start?: string;
+          downgrade_effective_at?: string | null;
+          environment?: string;
+          grace_period_end?: string | null;
+          id?: string;
+          observed_at?: string;
+          organization_id?: string;
+          pending_product_key?: string | null;
+          product_key?: string;
+          provider?: string;
+          provider_contract_id?: string;
+          provider_customer_id?: string;
+          purchaser_id?: string;
+          status?: string;
+          tryout_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_contracts_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'billing_contracts_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'billing_contracts_pending_product_key_fkey';
+            columns: ['pending_product_key'];
+            isOneToOne: false;
+            referencedRelation: 'billing_products';
+            referencedColumns: ['key'];
+          },
+          {
+            foreignKeyName: 'billing_contracts_product_key_fkey';
+            columns: ['product_key'];
+            isOneToOne: false;
+            referencedRelation: 'billing_products';
+            referencedColumns: ['key'];
+          },
+        ];
+      };
+      billing_products: {
+        Row: {
+          features: string[];
+          interval: string | null;
+          key: string;
+          kind: string;
+          limits: Json;
+          name: string;
+          tier: string;
+        };
+        Insert: {
+          features: string[];
+          interval?: string | null;
+          key: string;
+          kind: string;
+          limits?: Json;
+          name: string;
+          tier: string;
+        };
+        Update: {
+          features?: string[];
+          interval?: string | null;
+          key?: string;
+          kind?: string;
+          limits?: Json;
+          name?: string;
+          tier?: string;
+        };
+        Relationships: [];
+      };
       analytics_outbox_events: {
         Row: {
           correlation_id: string;
@@ -66,6 +341,53 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: 'organizations';
             referencedColumns: ['id'];
+          },
+        ];
+      };
+      athlete_corrections: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          organization_id: string;
+          request_text: string;
+          response: string;
+          status: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id: string;
+          request_text: string;
+          response?: string;
+          status?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id?: string;
+          request_text?: string;
+          response?: string;
+          status?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'athlete_corrections_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
           },
         ];
       };
@@ -268,9 +590,80 @@ export type Database = {
           },
         ];
       };
+      athlete_sport_profiles: {
+        Row: {
+          athlete_id: string;
+          biography: string;
+          competitive_level: string;
+          created_at: string;
+          created_by: string;
+          current_team: string;
+          dominant_side: string;
+          hometown: string;
+          id: string;
+          organization_id: string;
+          preferred_name: string;
+          primary_position: string;
+          secondary_positions: string;
+          sport: string;
+          stage: string;
+          tags: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          athlete_id: string;
+          biography?: string;
+          competitive_level?: string;
+          created_at?: string;
+          created_by?: string;
+          current_team?: string;
+          dominant_side?: string;
+          hometown?: string;
+          id?: string;
+          organization_id: string;
+          preferred_name?: string;
+          primary_position?: string;
+          secondary_positions?: string;
+          sport?: string;
+          stage?: string;
+          tags?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          athlete_id?: string;
+          biography?: string;
+          competitive_level?: string;
+          created_at?: string;
+          created_by?: string;
+          current_team?: string;
+          dominant_side?: string;
+          hometown?: string;
+          id?: string;
+          organization_id?: string;
+          preferred_name?: string;
+          primary_position?: string;
+          secondary_positions?: string;
+          sport?: string;
+          stage?: string;
+          tags?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'athlete_sport_profiles_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: true;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       athletes: {
         Row: {
-          birth_date: string;
+          birth_date: string | null;
           created_at: string;
           family_name: string;
           given_name: string;
@@ -281,7 +674,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
-          birth_date: string;
+          birth_date?: string | null;
           created_at?: string;
           family_name: string;
           given_name: string;
@@ -292,7 +685,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
-          birth_date?: string;
+          birth_date?: string | null;
           created_at?: string;
           family_name?: string;
           given_name?: string;
@@ -346,6 +739,98 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'audit_logs_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      calibration_attempts: {
+        Row: {
+          case_id: string;
+          created_at: string;
+          id: string;
+          organization_id: string;
+          rationale: string;
+          score: number;
+          user_id: string;
+        };
+        Insert: {
+          case_id: string;
+          created_at?: string;
+          id?: string;
+          organization_id: string;
+          rationale: string;
+          score: number;
+          user_id?: string;
+        };
+        Update: {
+          case_id?: string;
+          created_at?: string;
+          id?: string;
+          organization_id?: string;
+          rationale?: string;
+          score?: number;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'calibration_attempts_organization_id_case_id_fkey';
+            columns: ['organization_id', 'case_id'];
+            isOneToOne: false;
+            referencedRelation: 'calibration_cases';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'calibration_attempts_organization_id_user_id_fkey';
+            columns: ['organization_id', 'user_id'];
+            isOneToOne: false;
+            referencedRelation: 'organization_members';
+            referencedColumns: ['organization_id', 'user_id'];
+          },
+        ];
+      };
+      calibration_cases: {
+        Row: {
+          active: boolean;
+          anchor_explanation: string;
+          anchor_score: number;
+          created_at: string;
+          created_by: string;
+          id: string;
+          organization_id: string;
+          prompt: string;
+          rubric_guidance: string;
+          title: string;
+        };
+        Insert: {
+          active?: boolean;
+          anchor_explanation: string;
+          anchor_score: number;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id: string;
+          prompt: string;
+          rubric_guidance: string;
+          title: string;
+        };
+        Update: {
+          active?: boolean;
+          anchor_explanation?: string;
+          anchor_score?: number;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id?: string;
+          prompt?: string;
+          rubric_guidance?: string;
+          title?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'calibration_cases_organization_id_fkey';
             columns: ['organization_id'];
             isOneToOne: false;
             referencedRelation: 'organizations';
@@ -1019,6 +1504,63 @@ export type Database = {
           },
         ];
       };
+      eligibility_exceptions: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          organization_id: string;
+          policy_version: number;
+          reason: string;
+          status: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id: string;
+          policy_version: number;
+          reason: string;
+          status: string;
+          tryout_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id?: string;
+          policy_version?: number;
+          reason?: string;
+          status?: string;
+          tryout_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'eligibility_exceptions_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'eligibility_exceptions_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'event_eligibility_policies';
+            referencedColumns: ['organization_id', 'tryout_id'];
+          },
+        ];
+      };
       evaluation_mutations: {
         Row: {
           actor_user_id: string;
@@ -1308,6 +1850,246 @@ export type Database = {
           },
         ];
       };
+      evaluator_sport_profiles: {
+        Row: {
+          affiliation: string;
+          assignments_acknowledged: boolean;
+          availability: string;
+          briefing_complete: boolean;
+          conflict_disclosure: string;
+          created_at: string;
+          created_by: string;
+          device_check_complete: boolean;
+          display_name: string;
+          experience: string;
+          id: string;
+          organization_id: string;
+          qualifications: string;
+          specialties: string;
+          sport: string;
+          updated_at: string;
+          user_id: string;
+          version: number;
+        };
+        Insert: {
+          affiliation?: string;
+          assignments_acknowledged?: boolean;
+          availability?: string;
+          briefing_complete?: boolean;
+          conflict_disclosure?: string;
+          created_at?: string;
+          created_by?: string;
+          device_check_complete?: boolean;
+          display_name: string;
+          experience?: string;
+          id?: string;
+          organization_id: string;
+          qualifications?: string;
+          specialties?: string;
+          sport?: string;
+          updated_at?: string;
+          user_id: string;
+          version?: number;
+        };
+        Update: {
+          affiliation?: string;
+          assignments_acknowledged?: boolean;
+          availability?: string;
+          briefing_complete?: boolean;
+          conflict_disclosure?: string;
+          created_at?: string;
+          created_by?: string;
+          device_check_complete?: boolean;
+          display_name?: string;
+          experience?: string;
+          id?: string;
+          organization_id?: string;
+          qualifications?: string;
+          specialties?: string;
+          sport?: string;
+          updated_at?: string;
+          user_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'evaluator_sport_profiles_organization_id_user_id_fkey';
+            columns: ['organization_id', 'user_id'];
+            isOneToOne: true;
+            referencedRelation: 'organization_members';
+            referencedColumns: ['organization_id', 'user_id'];
+          },
+        ];
+      };
+      event_eligibility_policies: {
+        Row: {
+          created_at: string;
+          created_by: string;
+          cutoff_date: string;
+          id: string;
+          organization_id: string;
+          rules: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string;
+          cutoff_date: string;
+          id?: string;
+          organization_id: string;
+          rules?: string;
+          tryout_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string;
+          cutoff_date?: string;
+          id?: string;
+          organization_id?: string;
+          rules?: string;
+          tryout_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_eligibility_policies_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: true;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      event_fees: {
+        Row: {
+          amount_cents: number;
+          athlete_id: string;
+          created_at: string;
+          created_by: string;
+          currency: string;
+          description: string;
+          due_on: string | null;
+          id: string;
+          note: string;
+          organization_id: string;
+          paid_cents: number;
+          reference: string;
+          refunded_cents: number;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+          waived_cents: number;
+        };
+        Insert: {
+          amount_cents: number;
+          athlete_id: string;
+          created_at?: string;
+          created_by?: string;
+          currency: string;
+          description: string;
+          due_on?: string | null;
+          id?: string;
+          note?: string;
+          organization_id: string;
+          paid_cents?: number;
+          reference?: string;
+          refunded_cents?: number;
+          tryout_id: string;
+          updated_at?: string;
+          version?: number;
+          waived_cents?: number;
+        };
+        Update: {
+          amount_cents?: number;
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string;
+          currency?: string;
+          description?: string;
+          due_on?: string | null;
+          id?: string;
+          note?: string;
+          organization_id?: string;
+          paid_cents?: number;
+          reference?: string;
+          refunded_cents?: number;
+          tryout_id?: string;
+          updated_at?: string;
+          version?: number;
+          waived_cents?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_fees_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'event_fees_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      event_notices: {
+        Row: {
+          body: string;
+          category: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          organization_id: string;
+          status: string;
+          title: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          body: string;
+          category: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id: string;
+          status?: string;
+          title: string;
+          tryout_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          body?: string;
+          category?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id?: string;
+          status?: string;
+          title?: string;
+          tryout_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'event_notices_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       external_entity_mappings: {
         Row: {
           connection_id: string;
@@ -1380,7 +2162,7 @@ export type Database = {
           created_at: string;
           email: string;
           id: string;
-          name: string;
+          name: string | null;
           normalized_email: string;
           organization_id: string;
           phone: string | null;
@@ -1390,7 +2172,7 @@ export type Database = {
           created_at?: string;
           email: string;
           id?: string;
-          name: string;
+          name?: string | null;
           normalized_email: string;
           organization_id: string;
           phone?: string | null;
@@ -1400,7 +2182,7 @@ export type Database = {
           created_at?: string;
           email?: string;
           id?: string;
-          name?: string;
+          name?: string | null;
           normalized_email?: string;
           organization_id?: string;
           phone?: string | null;
@@ -1963,6 +2745,7 @@ export type Database = {
         Row: {
           created_at: string;
           id: string;
+          inherited_from_organization_id: string | null;
           organization_id: string;
           role: string;
           status: string;
@@ -1973,6 +2756,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           id?: string;
+          inherited_from_organization_id?: string | null;
           organization_id: string;
           role?: string;
           status?: string;
@@ -1983,6 +2767,7 @@ export type Database = {
         Update: {
           created_at?: string;
           id?: string;
+          inherited_from_organization_id?: string | null;
           organization_id?: string;
           role?: string;
           status?: string;
@@ -2005,6 +2790,7 @@ export type Database = {
           created_at: string;
           id: string;
           name: string;
+          parent_organization_id: string | null;
           slug: string;
           sport_defaults: Json;
           status: string;
@@ -2017,6 +2803,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           name: string;
+          parent_organization_id?: string | null;
           slug: string;
           sport_defaults?: Json;
           status?: string;
@@ -2029,6 +2816,7 @@ export type Database = {
           created_at?: string;
           id?: string;
           name?: string;
+          parent_organization_id?: string | null;
           slug?: string;
           sport_defaults?: Json;
           status?: string;
@@ -2037,7 +2825,15 @@ export type Database = {
           timezone?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: 'organizations_parent_organization_id_fkey';
+            columns: ['parent_organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
       };
       outbox_jobs: {
         Row: {
@@ -2181,6 +2977,200 @@ export type Database = {
             columns: ['organization_id', 'job_id'];
             isOneToOne: false;
             referencedRelation: 'outbox_jobs';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      participant_links: {
+        Row: {
+          active: boolean;
+          athlete_id: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          organization_id: string;
+          relationship: string;
+          updated_at: string;
+          user_id: string;
+          version: number;
+        };
+        Insert: {
+          active?: boolean;
+          athlete_id: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id: string;
+          relationship: string;
+          updated_at?: string;
+          user_id: string;
+          version?: number;
+        };
+        Update: {
+          active?: boolean;
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id?: string;
+          relationship?: string;
+          updated_at?: string;
+          user_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'participant_links_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      performance_metrics: {
+        Row: {
+          aggregation: string;
+          created_at: string;
+          created_by: string;
+          direction: string;
+          id: string;
+          maximum: number | null;
+          minimum: number | null;
+          name: string;
+          organization_id: string;
+          protocol: string;
+          sport: string;
+          unit: string;
+          updated_at: string;
+          value_kind: string;
+          version: number;
+        };
+        Insert: {
+          aggregation?: string;
+          created_at?: string;
+          created_by?: string;
+          direction: string;
+          id?: string;
+          maximum?: number | null;
+          minimum?: number | null;
+          name: string;
+          organization_id: string;
+          protocol: string;
+          sport: string;
+          unit: string;
+          updated_at?: string;
+          value_kind: string;
+          version?: number;
+        };
+        Update: {
+          aggregation?: string;
+          created_at?: string;
+          created_by?: string;
+          direction?: string;
+          id?: string;
+          maximum?: number | null;
+          minimum?: number | null;
+          name?: string;
+          organization_id?: string;
+          protocol?: string;
+          sport?: string;
+          unit?: string;
+          updated_at?: string;
+          value_kind?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'performance_metrics_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      performance_results: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          created_by: string;
+          denominator: number | null;
+          id: string;
+          measured_at: string;
+          metric_id: string;
+          note: string;
+          numerator: number | null;
+          organization_id: string;
+          session_id: string | null;
+          source: string;
+          status: string;
+          trial: number;
+          updated_at: string;
+          value: number | null;
+          verified: boolean;
+          version: number;
+        };
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          created_by?: string;
+          denominator?: number | null;
+          id?: string;
+          measured_at: string;
+          metric_id: string;
+          note?: string;
+          numerator?: number | null;
+          organization_id: string;
+          session_id?: string | null;
+          source: string;
+          status: string;
+          trial?: number;
+          updated_at?: string;
+          value?: number | null;
+          verified?: boolean;
+          version?: number;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string;
+          denominator?: number | null;
+          id?: string;
+          measured_at?: string;
+          metric_id?: string;
+          note?: string;
+          numerator?: number | null;
+          organization_id?: string;
+          session_id?: string | null;
+          source?: string;
+          status?: string;
+          trial?: number;
+          updated_at?: string;
+          value?: number | null;
+          verified?: boolean;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'performance_results_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'performance_results_organization_id_metric_id_fkey';
+            columns: ['organization_id', 'metric_id'];
+            isOneToOne: false;
+            referencedRelation: 'performance_metrics';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'performance_results_organization_id_session_id_fkey';
+            columns: ['organization_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
             referencedColumns: ['organization_id', 'id'];
           },
         ];
@@ -2595,6 +3585,116 @@ export type Database = {
           },
         ];
       };
+      roster_scenario_members: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          created_by: string;
+          id: string;
+          organization_id: string;
+          rationale: string;
+          response: string;
+          response_due: string | null;
+          role: string;
+          scenario_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id: string;
+          rationale?: string;
+          response?: string;
+          response_due?: string | null;
+          role?: string;
+          scenario_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          organization_id?: string;
+          rationale?: string;
+          response?: string;
+          response_due?: string | null;
+          role?: string;
+          scenario_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'roster_scenario_members_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'roster_scenario_members_organization_id_scenario_id_fkey';
+            columns: ['organization_id', 'scenario_id'];
+            isOneToOne: false;
+            referencedRelation: 'roster_scenarios';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      roster_scenarios: {
+        Row: {
+          created_at: string;
+          created_by: string;
+          id: string;
+          name: string;
+          organization_id: string;
+          rationale: string;
+          status: string;
+          target_size: number;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          name: string;
+          organization_id: string;
+          rationale?: string;
+          status?: string;
+          target_size?: number;
+          tryout_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string;
+          id?: string;
+          name?: string;
+          organization_id?: string;
+          rationale?: string;
+          status?: string;
+          target_size?: number;
+          tryout_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'roster_scenarios_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
       roster_versions: {
         Row: {
           based_on_roster_version_id: string | null;
@@ -2795,6 +3895,134 @@ export type Database = {
             columns: ['organization_id', 'tryout_id'];
             isOneToOne: false;
             referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+        ];
+      };
+      scouting_grants: {
+        Row: {
+          created_at: string;
+          organization_id: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          organization_id: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          organization_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'scouting_grants_organization_id_user_id_fkey';
+            columns: ['organization_id', 'user_id'];
+            isOneToOne: true;
+            referencedRelation: 'organization_members';
+            referencedColumns: ['organization_id', 'user_id'];
+          },
+        ];
+      };
+      scouting_records: {
+        Row: {
+          assigned_user_id: string | null;
+          athlete_id: string;
+          body: string;
+          created_at: string;
+          created_by: string;
+          criterion: string;
+          development_areas: string;
+          due_on: string | null;
+          end_seconds: number | null;
+          event_context: string;
+          id: string;
+          kind: string;
+          observation_type: string;
+          observed_at: string | null;
+          organization_id: string;
+          recommendation: string;
+          review_feedback: string;
+          source: string;
+          start_seconds: number | null;
+          status: string;
+          strengths: string;
+          title: string;
+          updated_at: string;
+          version: number;
+          video_url: string | null;
+          visibility: string;
+        };
+        Insert: {
+          assigned_user_id?: string | null;
+          athlete_id: string;
+          body?: string;
+          created_at?: string;
+          created_by?: string;
+          criterion?: string;
+          development_areas?: string;
+          due_on?: string | null;
+          end_seconds?: number | null;
+          event_context?: string;
+          id?: string;
+          kind: string;
+          observation_type?: string;
+          observed_at?: string | null;
+          organization_id: string;
+          recommendation?: string;
+          review_feedback?: string;
+          source?: string;
+          start_seconds?: number | null;
+          status?: string;
+          strengths?: string;
+          title: string;
+          updated_at?: string;
+          version?: number;
+          video_url?: string | null;
+          visibility?: string;
+        };
+        Update: {
+          assigned_user_id?: string | null;
+          athlete_id?: string;
+          body?: string;
+          created_at?: string;
+          created_by?: string;
+          criterion?: string;
+          development_areas?: string;
+          due_on?: string | null;
+          end_seconds?: number | null;
+          event_context?: string;
+          id?: string;
+          kind?: string;
+          observation_type?: string;
+          observed_at?: string | null;
+          organization_id?: string;
+          recommendation?: string;
+          review_feedback?: string;
+          source?: string;
+          start_seconds?: number | null;
+          status?: string;
+          strengths?: string;
+          title?: string;
+          updated_at?: string;
+          version?: number;
+          video_url?: string | null;
+          visibility?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'scouting_records_organization_id_assigned_user_id_fkey';
+            columns: ['organization_id', 'assigned_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'organization_members';
+            referencedColumns: ['organization_id', 'user_id'];
+          },
+          {
+            foreignKeyName: 'scouting_records_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
             referencedColumns: ['organization_id', 'id'];
           },
         ];
@@ -3730,6 +4958,81 @@ export type Database = {
           },
         ];
       };
+      tryout_stations: {
+        Row: {
+          capacity: number;
+          created_at: string;
+          created_by: string;
+          ends_at: string;
+          evaluator_user_id: string | null;
+          group_label: string;
+          id: string;
+          instructions: string;
+          location: string;
+          name: string;
+          organization_id: string;
+          session_id: string;
+          starts_at: string;
+          status: string;
+          tryout_id: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          capacity: number;
+          created_at?: string;
+          created_by?: string;
+          ends_at: string;
+          evaluator_user_id?: string | null;
+          group_label?: string;
+          id?: string;
+          instructions?: string;
+          location?: string;
+          name: string;
+          organization_id: string;
+          session_id: string;
+          starts_at: string;
+          status?: string;
+          tryout_id: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          capacity?: number;
+          created_at?: string;
+          created_by?: string;
+          ends_at?: string;
+          evaluator_user_id?: string | null;
+          group_label?: string;
+          id?: string;
+          instructions?: string;
+          location?: string;
+          name?: string;
+          organization_id?: string;
+          session_id?: string;
+          starts_at?: string;
+          status?: string;
+          tryout_id?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'tryout_stations_organization_id_evaluator_user_id_fkey';
+            columns: ['organization_id', 'evaluator_user_id'];
+            isOneToOne: false;
+            referencedRelation: 'organization_members';
+            referencedColumns: ['organization_id', 'user_id'];
+          },
+          {
+            foreignKeyName: 'tryout_stations_organization_id_tryout_id_session_id_fkey';
+            columns: ['organization_id', 'tryout_id', 'session_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryout_sessions';
+            referencedColumns: ['organization_id', 'tryout_id', 'id'];
+          },
+        ];
+      };
       tryout_teams: {
         Row: {
           created_at: string;
@@ -3869,6 +5172,117 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      request_account_deletion: { Args: { p_confirm: boolean }; Returns: Json };
+      get_account_deletion_request: { Args: Record<PropertyKey, never>; Returns: Json };
+      platform_account_deletion_requests: { Args: Record<PropertyKey, never>; Returns: Json };
+      pending_account_deletion_notices: { Args: Record<PropertyKey, never>; Returns: Json };
+      record_account_deletion_notice: {
+        Args: { p_id: string; p_provider_id: string };
+        Returns: undefined;
+      };
+      platform_update_account_deletion: {
+        Args: { p_id: string; p_complete?: boolean; p_confirmed?: boolean };
+        Returns: undefined;
+      };
+
+      get_single_tryout_lifecycle: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: Json;
+      };
+      complete_single_tryout: {
+        Args: { p_organization_id: string; p_tryout_id: string; p_expected_version: number };
+        Returns: string;
+      };
+
+      load_athlete_evaluation_history: {
+        Args: { p_organization_id: string; p_athlete_id: string };
+        Returns: Json;
+      };
+      start_pro_trial: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
+      complete_billing_checkout: {
+        Args: { p_intent_id: string; p_session_id: string };
+        Returns: undefined;
+      };
+
+      claim_billing_reconciliation: { Args: Record<PropertyKey, never>; Returns: string | null };
+      finish_billing_reconciliation: {
+        Args: { p_organization_id: string; p_success: boolean };
+        Returns: undefined;
+      };
+
+      record_billing_delivery: {
+        Args: {
+          p_provider: string;
+          p_id: string;
+          p_type: string;
+          p_digest: string;
+          p_success?: boolean;
+        };
+        Returns: string;
+      };
+
+      reserve_native_plan_replacement: {
+        Args: { p_id: string; p_previous_id: string; p_snapshot: Json };
+        Returns: string;
+      };
+
+      record_billing_analytics: {
+        Args: { p_id: string; p_organization_id: string; p_event: string };
+        Returns: undefined;
+      };
+      billing_provider_context: {
+        Args: { p_organization_id?: string; p_purchaser_id?: string };
+        Returns: Json;
+      };
+      get_workspace_navigation: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
+      list_team_workspaces: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
+      create_team_workspace: {
+        Args: { p_name: string; p_organization_id: string; p_slug: string };
+        Returns: string;
+      };
+      get_billing_dashboard: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
+      manage_billing_override: {
+        Args: {
+          p_expires_at: string;
+          p_organization_id: string;
+          p_product_key: string;
+          p_reason: string;
+          p_revoke_id?: string;
+          p_starts_at: string;
+          p_tryout_id?: string;
+        };
+        Returns: string;
+      };
+      apply_billing_snapshot: {
+        Args: { p_event: Json; p_intent_id?: string; p_snapshot: Json };
+        Returns: string;
+      };
+      reserve_billing_purchase: {
+        Args: {
+          p_id: string;
+          p_organization_id: string;
+          p_product_key: string;
+          p_provider: string;
+          p_tryout_id: string;
+        };
+        Returns: Json;
+      };
+      get_effective_entitlements: {
+        Args: { p_organization_id: string; p_tryout_id?: string };
+        Returns: Json;
+      };
       accept_organization_invitation: {
         Args: { p_token_digest: string };
         Returns: {
@@ -3990,6 +5404,14 @@ export type Database = {
           outcome: string;
         }[];
       };
+      build_performance_export: {
+        Args: { p_id: string; p_organization_id: string };
+        Returns: boolean;
+      };
+      calibration_workspace: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
       can_access_evaluation: {
         Args: {
           evaluator_user_id: string;
@@ -4101,6 +5523,11 @@ export type Database = {
       };
       can_select_own_evaluation: {
         Args: { p_evaluation_id: string };
+        Returns: boolean;
+      };
+      can_use_talent: { Args: { p_organization_id: string }; Returns: boolean };
+      can_view_participant: {
+        Args: { p_athlete_id: string; p_organization_id: string };
         Returns: boolean;
       };
       canonical_athlete_identity_lock_key: {
@@ -4231,6 +5658,18 @@ export type Database = {
           isOneToOne: false;
           isSetofReturn: true;
         };
+      };
+      clone_published_tryout_revision: {
+        Args: {
+          p_name: string;
+          p_organization_id: string;
+          p_slug: string;
+          p_source_tryout_id: string;
+        };
+        Returns: {
+          slug: string;
+          tryout_id: string;
+        }[];
       };
       commit_athlete_import: {
         Args: {
@@ -4460,6 +5899,18 @@ export type Database = {
           preview_id: string;
         }[];
       };
+      create_calibration_case: {
+        Args: {
+          p_anchor: number;
+          p_explanation: string;
+          p_guidance: string;
+          p_id: string;
+          p_organization_id: string;
+          p_prompt: string;
+          p_title: string;
+        };
+        Returns: string;
+      };
       create_decision_message_batch: {
         Args: {
           p_confirmation: string;
@@ -4587,6 +6038,26 @@ export type Database = {
           registration_id: string;
         }[];
       };
+      create_staff_registration_v2: {
+        Args: {
+          p_birth_date: string;
+          p_division_id: string;
+          p_existing_athlete_id: string;
+          p_expected_form_schema: Json;
+          p_family_name: string;
+          p_given_name: string;
+          p_organization_id: string;
+          p_position_id: string;
+          p_responses: Json;
+          p_submission_key_digest: string;
+          p_tryout_id: string;
+        };
+        Returns: {
+          athlete_id: string;
+          outcome: string;
+          registration_id: string;
+        }[];
+      };
       create_tryout_draft: {
         Args: {
           p_name: string;
@@ -4670,6 +6141,21 @@ export type Database = {
         };
         Returns: string;
       };
+      disconnect_integration_connection: {
+        Args: { p_connection_id: string; p_organization_id: string };
+        Returns: string;
+      };
+      download_performance_export: {
+        Args: { p_id: string; p_organization_id: string };
+        Returns: string;
+      };
+      duplicate_tryout: {
+        Args: { p_organization_id: string; p_source_tryout_id: string };
+        Returns: {
+          slug: string;
+          tryout_id: string;
+        }[];
+      };
       enqueue_analytics_event: {
         Args: {
           p_correlation_id: string;
@@ -4691,6 +6177,10 @@ export type Database = {
           p_tryout_id: string;
         };
         Returns: boolean;
+      };
+      event_coverage: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: Json;
       };
       fail_integration_outbox_job: {
         Args: {
@@ -4798,6 +6288,24 @@ export type Database = {
           version: number;
         }[];
       };
+      get_registration_form_configuration: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          form_name: string;
+          form_schema: Json;
+          registration_form_version_id: string;
+        }[];
+      };
+      get_registration_notification_settings: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: {
+          notification_email: string;
+        }[];
+      };
+      get_tryout_setup_configuration: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: Json;
+      };
       has_active_configuration_assignment: {
         Args: {
           required_role?: string;
@@ -4824,6 +6332,10 @@ export type Database = {
           target_tryout_id: string;
         };
         Returns: boolean;
+      };
+      import_performance_results: {
+        Args: { p_organization_id: string; p_rows: Json };
+        Returns: number;
       };
       is_active_organization_member: {
         Args: { allowed_roles?: string[]; target_organization_id: string };
@@ -4860,6 +6372,15 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      link_participant: {
+        Args: {
+          p_athlete_id: string;
+          p_email: string;
+          p_organization_id: string;
+          p_relationship: string;
+        };
+        Returns: string;
       };
       list_assigned_athletes: {
         Args: { p_organization_id: string; p_tryout_id: string };
@@ -4907,6 +6428,22 @@ export type Database = {
           evaluator_user_id: string;
         }[];
       };
+      list_organization_invitations: {
+        Args: { p_limit?: number; p_offset?: number; p_organization_id: string };
+        Returns: {
+          accepted_at: string;
+          created_at: string;
+          email: string;
+          expires_at: string;
+          id: string;
+          revoked_at: string;
+          role: string;
+        }[];
+      };
+      list_performance_exports: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
       list_returning_athletes: {
         Args: {
           p_limit?: number;
@@ -4929,6 +6466,16 @@ export type Database = {
           display_name: string;
           evaluator_user_id: string;
         }[];
+      };
+      load_athlete_profile_average: {
+        Args: {
+          p_organization_id: string;
+          p_tryout_id: string;
+          p_registration_id: string;
+          p_session_id: string;
+          p_rubric_version_id: string;
+        };
+        Returns: Json;
       };
       load_live_dashboard: {
         Args: {
@@ -5109,6 +6656,18 @@ export type Database = {
         Args: { p_organization_id: string };
         Returns: boolean;
       };
+      participant_offers: { Args: never; Returns: Json };
+      participant_registration_options: { Args: never; Returns: Json };
+      participant_registration_prefill: {
+        Args: { p_athlete_id: string; p_tryout_slug: string };
+        Returns: Json;
+      };
+      participant_schedule: { Args: never; Returns: Json };
+      participant_workspace: { Args: never; Returns: Json };
+      performance_export_status: {
+        Args: { p_id: string; p_organization_id: string };
+        Returns: Json;
+      };
       platform_health: {
         Args: never;
         Returns: {
@@ -5190,6 +6749,17 @@ export type Database = {
         };
         Returns: Json;
       };
+      preview_event_notice: {
+        Args: { p_notice_id: string; p_organization_id: string };
+        Returns: Json;
+      };
+      program_attendance: {
+        Args: { p_organization_id: string };
+        Returns: {
+          placements: number;
+          tryout_id: string;
+        }[];
+      };
       public_health_check: {
         Args: never;
         Returns: {
@@ -5218,6 +6788,32 @@ export type Database = {
           positions: Json;
           slug: string;
           tryout_id: string;
+        }[];
+      };
+      public_registration_tryout_v3: {
+        Args: { p_tryout_slug: string };
+        Returns: {
+          divisions: Json;
+          form_schema: Json;
+          form_version_id: string;
+          logo_exists: boolean;
+          name: string;
+          organization_name: string;
+          organization_slug: string;
+          positions: Json;
+          slug: string;
+          tryout_id: string;
+        }[];
+      };
+      public_registration_window: {
+        Args: { p_tryout_slug: string };
+        Returns: {
+          name: string;
+          organization_name: string;
+          outcome: string;
+          registration_ends_at: string;
+          registration_starts_at: string;
+          timezone: string;
         }[];
       };
       publish_registration_form_version: {
@@ -5269,6 +6865,14 @@ export type Database = {
         Args: { p_limit?: number };
         Returns: number;
       };
+      queue_event_notice: {
+        Args: {
+          p_expected_digest: string;
+          p_notice_id: string;
+          p_organization_id: string;
+        };
+        Returns: Json;
+      };
       queue_invitation_communication: {
         Args: {
           p_business_idempotency_key: string;
@@ -5294,6 +6898,16 @@ export type Database = {
           p_subject: string;
           p_text: string;
         };
+        Returns: Database['public']['CompositeTypes']['queue_communication_result'];
+        SetofOptions: {
+          from: '*';
+          to: 'queue_communication_result';
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      queue_organizer_registration_notification: {
+        Args: { p_app_origin: string; p_registration_id: string };
         Returns: Database['public']['CompositeTypes']['queue_communication_result'];
         SetofOptions: {
           from: '*';
@@ -5413,6 +7027,10 @@ export type Database = {
           isSetofReturn: false;
         };
       };
+      read_athlete_portrait: {
+        Args: { p_athlete_id: string; p_organization_id: string };
+        Returns: Json;
+      };
       read_organization_logo_service: {
         Args: { p_organization_slug: string };
         Returns: {
@@ -5510,6 +7128,15 @@ export type Database = {
           outcome: string;
         }[];
       };
+      respond_to_offer: {
+        Args: {
+          p_athlete_id: string;
+          p_organization_id: string;
+          p_response: string;
+          p_scenario_id: string;
+        };
+        Returns: boolean;
+      };
       retry_integration_sync_job: {
         Args: {
           p_idempotency_key: string;
@@ -5593,6 +7220,29 @@ export type Database = {
         Args: { p_registration_id: string };
         Returns: string;
       };
+      save_athlete_contact: {
+        Args: {
+          p_athlete_id: string;
+          p_email: string;
+          p_expected_updated_at?: string | null;
+          p_guardian_id?: string | null;
+          p_name: string;
+          p_organization_id: string;
+          p_phone: string;
+          p_relationship: string;
+        };
+        Returns: string;
+      };
+      save_athlete_portrait: {
+        Args: {
+          p_athlete_id: string;
+          p_base64: string;
+          p_organization_id: string;
+          p_sha256: string;
+          p_version: number;
+        };
+        Returns: number;
+      };
       save_communication_template: {
         Args: {
           p_editable_text: string;
@@ -5601,6 +7251,28 @@ export type Database = {
           p_organization_id: string;
         };
         Returns: Json;
+      };
+      save_eligibility_exception: {
+        Args: {
+          p_athlete_id: string;
+          p_organization_id: string;
+          p_policy_version: number;
+          p_reason: string;
+          p_status: string;
+          p_tryout_id: string;
+          p_version: number;
+        };
+        Returns: boolean;
+      };
+      save_eligibility_policy: {
+        Args: {
+          p_cutoff_date: string;
+          p_organization_id: string;
+          p_rules: string;
+          p_tryout_id: string;
+          p_version: number;
+        };
+        Returns: boolean;
       };
       save_evaluation_draft: {
         Args: {
@@ -5632,6 +7304,27 @@ export type Database = {
           p_provider_key: string;
         };
         Returns: string;
+      };
+      save_prospect_identity: {
+        Args: {
+          p_birth_date: string | null;
+          p_expected_updated_at?: string | null;
+          p_family_name: string;
+          p_given_name: string;
+          p_id: string;
+          p_organization_id: string;
+        };
+        Returns: string;
+      };
+      save_registration_form_configuration: {
+        Args: {
+          p_organization_id: string;
+          p_payload: Json;
+          p_tryout_id: string;
+        };
+        Returns: {
+          outcome: string;
+        }[];
       };
       save_roster_export_preview: {
         Args: {
@@ -5687,6 +7380,13 @@ export type Database = {
           outcome: string;
         }[];
       };
+      scouting_people: {
+        Args: { p_organization_id: string };
+        Returns: {
+          display_name: string;
+          user_id: string;
+        }[];
+      };
       search_checkin_registrations: {
         Args: {
           p_limit: number;
@@ -5734,6 +7434,19 @@ export type Database = {
           outcome: string;
         }[];
       };
+      start_performance_export: {
+        Args: { p_filters: Json; p_id: string; p_organization_id: string };
+        Returns: string;
+      };
+      submit_calibration: {
+        Args: {
+          p_case_id: string;
+          p_organization_id: string;
+          p_rationale: string;
+          p_score: number;
+        };
+        Returns: string;
+      };
       submit_public_registration: {
         Args: {
           p_idempotency_key: string;
@@ -5749,6 +7462,35 @@ export type Database = {
       };
       submit_public_registration_v2: {
         Args: {
+          p_idempotency_key: string;
+          p_rate_key_hash: string;
+          p_submission: Json;
+          p_tryout_slug: string;
+        };
+        Returns: {
+          confirmation_token: string;
+          outcome: string;
+          registration_id: string;
+        }[];
+      };
+      submit_public_registration_with_notification: {
+        Args: {
+          p_app_origin: string;
+          p_idempotency_key: string;
+          p_rate_key_hash: string;
+          p_submission: Json;
+          p_tryout_slug: string;
+        };
+        Returns: {
+          confirmation_token: string;
+          outcome: string;
+          registration_id: string;
+        }[];
+      };
+      submit_public_registration_with_notification_v2: {
+        Args: {
+          p_app_origin: string;
+          p_expected_form_version_id: string;
           p_idempotency_key: string;
           p_rate_key_hash: string;
           p_submission: Json;

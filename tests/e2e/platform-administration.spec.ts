@@ -109,7 +109,7 @@ test('organization owner can read safe audit history while a member cannot', asy
 }) => {
   const ownerMonitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   await page.goto(`/app/${scenario.organizationSlug}/organization/audit`);
-  await expect(page.getByRole('heading', { name: 'Organization audit' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Audit history' })).toBeVisible();
   await expect(page.locator('body')).not.toContainText(
     /private evaluator note|selected-.*@example\.test/iu,
   );

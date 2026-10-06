@@ -1,5 +1,7 @@
 'use client';
 
+import { FeedbackButton } from '@/components/ui/button';
+
 import Image from 'next/image';
 import { useActionState } from 'react';
 
@@ -20,9 +22,14 @@ export function IssueQrButton({
     <div className="grid gap-2">
       <form action={submit}>
         <input name="registrationId" type="hidden" value={registrationId} />
-        <button className="min-h-11 rounded border px-3" disabled={pending} type="submit">
+        <FeedbackButton
+          busy={pending}
+          className="min-h-11 rounded border px-3"
+          disabled={pending}
+          type="submit"
+        >
           {pending ? 'Issuing QR…' : 'Issue check-in QR'}
-        </button>
+        </FeedbackButton>
       </form>
       {state.status === 'error' ? <p role="alert">{state.message}</p> : null}
       {state.status === 'issued' ? (

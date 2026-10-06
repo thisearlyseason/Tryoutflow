@@ -1,4 +1,7 @@
+import { loadSingleTryoutLifecycle } from '@/modules/tryouts/application/single-tryout-lifecycle';
+import { CompleteSingleTryoutButton } from '@/modules/tryouts/ui/complete-single-tryout-button';
 import { notFound } from 'next/navigation';
+import { DuplicateTryoutButton } from '@/modules/tryouts/ui/duplicate-tryout-button';
 
 import { ErrorState } from '@/components/feedback/error-state';
 import { PageHeader } from '@/components/layout/page-header';
@@ -85,6 +88,15 @@ export default async function TryoutOverviewPage({
     return unavailable(error);
   }
   const tryout = journey.tryout;
+  const lifecycle = await loadSingleTryoutLifecycle(
+    current.client,
+    current.organization.id,
+    tryoutId,
+  );
+  const canManage = requireCapability(current.authorization, 'tryout:write', {
+    organizationId: current.organization.id,
+    tryoutId,
+  }).ok;
   return (
     <section aria-label="Tryout overview" className="workspace-stack">
       <PageHeader
@@ -93,14 +105,61 @@ export default async function TryoutOverviewPage({
         eyebrow="Tryout control room"
         title={tryout.name}
       />
-      <TryoutJourney journey={journey} />
-      {tryout.status === 'published' ? (
+      <div id="setup">
+        {lifecycle.locked ? (
+          <Link
+            className="button-primary"
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/reports`}
+            prefetch={false}
+          >
+            View results & exports
+          </Link>
+        ) : (
+          <TryoutJourney journey={journey} />
+        )}
+      </div>
+      {canManage && !lifecycle.locked ? (
+        <div className="flex flex-wrap gap-3">
+          {tryout.status === 'draft' ? (
+            <Link
+              className="button-primary"
+              href={`/app/${organizationSlug}/tryouts/${tryoutId}/setup/publish`}
+              prefetch={false}
+            >
+              Publish tryout
+            </Link>
+          ) : null}
+          <Link
+            className="button-secondary"
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/setup/basics`}
+            prefetch={false}
+          >
+            Edit setup
+          </Link>
+          <Link
+            className="button-secondary"
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/setup/registration`}
+            prefetch={false}
+          >
+            Build registration form
+          </Link>
+          <DuplicateTryoutButton organizationSlug={organizationSlug} tryoutId={tryoutId} />
+        </div>
+      ) : null}
+      {canManage && lifecycle.sealed && !lifecycle.locked ? (
+        <CompleteSingleTryoutButton
+          organizationSlug={organizationSlug}
+          tryoutId={tryoutId}
+          expectedVersion={lifecycle.version!}
+        />
+      ) : null}
+      {tryout.status === 'published' && !lifecycle.locked ? (
         <div className="card p-5">
           <RegistrationShare origin={getPublicAppOrigin()} publicSlug={tryout.slug} />
         </div>
-      ) : (
+      ) : tryout.status === 'draft' ? (
         <p className="workspace-note">Finish guided setup before this tryout can be shared.</p>
-      )}
+      ) : null}
     </section>
   );
 }

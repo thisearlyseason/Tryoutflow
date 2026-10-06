@@ -74,10 +74,13 @@ test.describe('indexable public marketing experience', () => {
     );
 
     await page.goto('/pricing');
-    await expect(page.getByText('$49')).toBeVisible();
-    await expect(page.getByText('$129')).toBeVisible();
-    await expect(page.getByText('$249')).toBeVisible();
-    await expect(page.getByText('CAD / month')).toHaveCount(3);
+    await expect(page.getByText('$14.99')).toBeVisible();
+    await expect(page.getByText('$49.99')).toBeVisible();
+    await expect(page.getByText('$34.99')).toBeVisible();
+    await expect(page.getByText('Pro Monthly · USD / month', { exact: true })).toBeVisible();
+    await expect(page.getByText('USD / month', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Pro Annual · \$149\.99 USD \/ year/)).toBeVisible();
+    await expect(page.getByText(/or \$499\.99 USD \/ year/)).toBeVisible();
 
     for (const path of ['/privacy', '/terms']) {
       await page.goto(path);

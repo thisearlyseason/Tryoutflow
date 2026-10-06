@@ -22,14 +22,14 @@ select set_config('request.jwt.claim.sub', '99999999-9999-4999-8999-999999999999
 
 select is(
   (select organization_slug from public.create_organization_with_owner(
-    'Badlands Hockey Academy',
-    ' Badlands Hockey Academy ',
+    'PGTAP Onboarding Club',
+    ' PGTAP Onboarding Club ',
     'America/Edmonton',
     '{"athlete":"Player"}'::jsonb,
     '[]'::jsonb,
     '[]'::jsonb
   )),
-  'badlands-hockey-academy',
+  'pgtap-onboarding-club',
   'onboarding normalizes the reserved organization slug'
 );
 select is(
@@ -61,7 +61,7 @@ insert into public.organization_invitations (
 )
 select
   '10000000-0000-4000-8000-000000000001', id, 'invitee@example.com', 'member', repeat('e',64), now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
-from public.organizations where slug = 'badlands-hockey-academy';
+from public.organizations where slug = 'pgtap-onboarding-club';
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -94,7 +94,7 @@ insert into public.organization_invitations (
 )
 select
   '10000000-0000-4000-8000-000000000002', id, 'invitee@example.com', 'member', repeat('a',64), now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
-from public.organizations where slug = 'badlands-hockey-academy';
+from public.organizations where slug = 'pgtap-onboarding-club';
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -112,7 +112,7 @@ insert into public.organization_invitations (
 )
 select
   '10000000-0000-4000-8000-000000000003', id, 'invitee@example.com', 'member', repeat('b',64), now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
-from public.organizations where slug = 'badlands-hockey-academy';
+from public.organizations where slug = 'pgtap-onboarding-club';
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -128,7 +128,7 @@ insert into public.organization_invitations (
 )
 select
   '10000000-0000-4000-8000-000000000004', id, 'expired-invitee@example.com', 'member', repeat('c',64), now() - interval '2 minutes', now() - interval '1 minute', '99999999-9999-4999-8999-999999999999'
-from public.organizations where slug = 'badlands-hockey-academy';
+from public.organizations where slug = 'pgtap-onboarding-club';
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -144,7 +144,7 @@ insert into public.organization_invitations (
 )
 select
   '10000000-0000-4000-8000-000000000005', id, 'invitee@example.com', 'member', repeat('d',64), now() + interval '1 day', '99999999-9999-4999-8999-999999999999'
-from public.organizations where slug = 'badlands-hockey-academy';
+from public.organizations where slug = 'pgtap-onboarding-club';
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);

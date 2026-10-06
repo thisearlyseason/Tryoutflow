@@ -1,4 +1,5 @@
 'use client';
+import { ManagedBillingCountryField } from './managed-billing-country-field';
 
 import { useEffect, useRef, useState } from 'react';
 
@@ -12,13 +13,15 @@ type DisplayPlan = Readonly<{
   monthlyPriceCad: number;
 }>;
 
-async function requestCheckout(organizationId: string, plan: PaidPlanKey) {
-  const clientAttemptId = crypto.randomUUID();
+async function requestCheckout(organizationId: string, plan: PaidPlanKey, billingCountry: string) {
+  const key = `legacy-managed-v1-${organizationId}-${plan}-${billingCountry}`;
+  const clientAttemptId = sessionStorage.getItem(key) ?? crypto.randomUUID();
+  sessionStorage.setItem(key, clientAttemptId);
   const response = await fetch(`/api/organizations/${organizationId}/billing/checkout`, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plan, clientAttemptId }),
+    body: JSON.stringify({ plan, clientAttemptId, checkoutProtocol: 'managed_v1', billingCountry }),
   });
   const body = (await response.json()) as unknown;
   if (
@@ -59,6 +62,8 @@ export function PlanCard({
   const [state, setState] = useState<'idle' | 'loading' | 'error' | 'conflict'>('idle');
   const actionRef = useRef<HTMLButtonElement>(null);
   const checkoutInFlight = useRef(false);
+  const [billingCountry, setBillingCountry] = useState('');
+  const [countryError, setCountryError] = useState(false);
 
   useEffect(() => {
     if (state === 'error' || state === 'conflict') actionRef.current?.focus();
@@ -66,11 +71,16 @@ export function PlanCard({
 
   async function choosePlan() {
     if (checkoutInFlight.current || state === 'loading' || disabled || globallyBusy) return;
+    if (billingCountry !== 'CA' && billingCountry !== 'US') {
+      setCountryError(true);
+      return;
+    }
+    setCountryError(false);
     checkoutInFlight.current = true;
     setState('loading');
     onBusyChange?.(true);
     try {
-      window.location.assign(await requestCheckout(organizationId, plan.key));
+      window.location.assign(await requestCheckout(organizationId, plan.key, billingCountry));
     } catch (error) {
       checkoutInFlight.current = false;
       setState(
@@ -93,6 +103,18 @@ export function PlanCard({
       <p className="mt-2 flex-1 text-sm text-[var(--color-text-muted)]">
         Provider confirmation updates access after the verified webhook is processed.
       </p>
+      <ManagedBillingCountryField
+        label={`Billing country for ${plan.name}`}
+        value={billingCountry}
+        disabled={disabled || globallyBusy || state === 'loading'}
+        onChange={(value) => {
+          setBillingCountry(value);
+          setCountryError(false);
+        }}
+      />
+      {countryError ? (
+        <p role="alert">Select Canada or United States as your billing country before checkout.</p>
+      ) : null}
       <Button
         ref={actionRef}
         busy={state === 'loading'}
@@ -109,7 +131,7 @@ export function PlanCard({
         {state === 'conflict'
           ? 'Another checkout is already in progress for this organization. Finish it or try again shortly.'
           : state === 'error'
-            ? 'Checkout could not be opened. Nothing was changed. Please try again.'
+            ? 'Checkout could not be opened. Access has not been confirmed. Retry to resume any pending checkout.'
             : ''}
       </p>
     </article>

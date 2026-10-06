@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { LiveRefresh } from '@/modules/talent/ui/live-refresh';
 import { ErrorState } from '@/components/feedback/error-state';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
 import {
@@ -52,16 +54,38 @@ export default async function LivePage({
   return (
     <section
       aria-labelledby="live-heading"
-      className="theme-game-day rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6"
+      className="sport-day-workspace rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6"
     >
       {journeyNavigation}
       <p className="eyebrow">Operational snapshot</p>
       <h2 id="live-heading">Live dashboard</h2>
+      <Link
+        prefetch={false}
+        className="button-primary"
+        href={`/app/${organizationSlug}/tryouts/${tryoutId}/coverage`}
+      >
+        Open athlete × evaluator coverage
+      </Link>
+      <LiveRefresh asOf={new Date().toISOString()} />
+      <Link
+        prefetch={false}
+        className="button-secondary"
+        href={`/app/${organizationSlug}/tryouts/${tryoutId}/rankings?completion=incomplete`}
+      >
+        Review partially evaluated athletes
+      </Link>
       <p className="mt-2 text-[var(--color-text-muted)]">
         Current assignment coverage is a live operational view and can change when staffing changes.
         Recorded sync exceptions are historical non-synced receipts (including conflicts and
         forbidden outcomes), not a count of currently unresolved work.
       </p>
+      <Link
+        prefetch={false}
+        className="button-secondary"
+        href={`/app/${organizationSlug}/tryouts/${tryoutId}/rankings?completion=unscored`}
+      >
+        Review athletes with no completed evaluations
+      </Link>
       <dl className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map(([label, value]) => (
           <div

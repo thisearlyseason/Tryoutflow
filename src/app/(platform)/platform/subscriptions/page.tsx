@@ -1,3 +1,4 @@
+import { PlatformBillingControls } from '@/modules/subscriptions/ui/platform-billing-controls';
 import { requirePlatformRouteContext } from '@/modules/observability/application/platform-route-context';
 import { SubscriptionDirectory } from '@/modules/observability/ui/platform-administration';
 
@@ -14,6 +15,7 @@ export default async function PlatformSubscriptionsPage() {
         payloads.
       </p>
       <SubscriptionDirectory subscriptions={subscriptions} />
+      {process.env.BILLING_ENVIRONMENT ? <PlatformBillingControls /> : null}
     </section>
   );
 }

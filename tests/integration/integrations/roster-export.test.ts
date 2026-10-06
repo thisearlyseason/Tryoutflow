@@ -20,7 +20,7 @@ import {
 
 const execFile = promisify(execFileCallback);
 const primaryDatabaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
 if (!runId || !/^[0-9a-f]{16}$/u.test(runId)) {
   throw new Error('integration export requires a validated run ID');

@@ -70,7 +70,7 @@ export function ScoreControl({
           <label
             className={`relative grid min-h-[44px] min-w-0 cursor-pointer place-items-center overflow-hidden rounded-lg border font-[var(--font-score)] text-lg font-bold focus-within:outline-3 focus-within:outline-offset-2 focus-within:outline-[var(--color-focus)] ${
               selected
-                ? 'border-[var(--color-text)] bg-[var(--color-performance)] text-[var(--color-performance-foreground)]'
+                ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-[var(--color-primary-foreground)]'
                 : 'border-[var(--color-border)] bg-[var(--color-surface)]'
             } ${disabled ? 'cursor-not-allowed opacity-50' : ''}`}
             key={score}

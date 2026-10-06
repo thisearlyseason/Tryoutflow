@@ -25,6 +25,12 @@ describe('runtime observability adapters', () => {
       NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54321',
     };
     expect(shouldInjectTestLoaderFailure('tryouts', 'tryouts', exact)).toBe(true);
+    expect(
+      shouldInjectTestLoaderFailure('tryouts', 'tryouts', {
+        ...exact,
+        NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:58321',
+      }),
+    ).toBe(false);
     expect(shouldInjectTestLoaderFailure('messages', 'tryouts', exact)).toBe(false);
     for (const key of Object.keys(exact))
       expect(

@@ -15,7 +15,7 @@ import { entitlementsFor } from '../../../src/modules/subscriptions/domain/entit
 
 const execFile = promisify(execFileCallback);
 const databaseUrl =
-  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
 const psql = (sql: string) =>
   execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql]);
 const sqlLiteral = (value: unknown) => {
@@ -128,6 +128,29 @@ afterAll(async () => {
 });
 
 describe('verified Stripe subscription authority', () => {
+  it('leaves verified new-catalog events to their dedicated handler', async () => {
+    const payload = JSON.parse(
+      event({
+        id: 'evt_newCatalog',
+        created: Math.floor(Date.now() / 1000),
+        organizationId: ids.organization,
+      }),
+    );
+    payload.data.object.metadata.billing_version = '2';
+    let calls = 0;
+    const response = await POST(signedRequest(JSON.stringify(payload)), {
+      environment: webhookEnvironment,
+      client: {
+        async rpc() {
+          calls++;
+          return { data: 'applied', error: null };
+        },
+      },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ outcome: 'new_catalog_subscription' });
+    expect(calls).toBe(0);
+  });
   it('derives fail-closed entitlements from plan and verified state', () => {
     expect(entitlementsFor({ plan: 'trial', state: 'trialing' }).canPublishTryout).toBe(true);
     expect(entitlementsFor({ plan: 'club', state: 'active' }).canPublishTryout).toBe(true);

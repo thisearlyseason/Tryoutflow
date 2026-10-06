@@ -33,21 +33,20 @@ const statusLabels: Record<Status, string> = {
 
 const statusClassNames: Record<Status, string> = {
   callback: 'bg-[var(--color-selection)] text-[var(--color-selection-foreground)]',
-  complete: 'bg-[var(--color-performance)] text-[var(--color-performance-foreground)]',
+  complete: 'bg-[var(--color-success-surface)] text-[var(--color-success)]',
   draft:
     'bg-[var(--color-surface-muted)] text-[var(--color-text)] ring-1 ring-inset ring-[var(--color-border)]',
   failed: 'bg-[var(--color-destructive)] text-[var(--color-destructive-foreground)]',
-  finalized: 'bg-[var(--color-text)] text-[var(--color-text-inverted)]',
+  finalized: 'bg-[var(--color-success-surface)] text-[var(--color-success)]',
   'in-progress': 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]',
   'not-started':
     'bg-[var(--color-surface-muted)] text-[var(--color-text)] ring-1 ring-inset ring-[var(--color-border)]',
-  published: 'bg-[var(--color-primary)] text-[var(--color-primary-foreground)]',
+  published: 'bg-[var(--color-info-surface)] text-[var(--color-primary)]',
   ready: 'bg-[var(--color-success-surface)] text-[var(--color-success)]',
-  selected: 'bg-[var(--color-performance)] text-[var(--color-performance-foreground)]',
+  selected: 'bg-[var(--color-success-surface)] text-[var(--color-success)]',
   unavailable:
     'bg-[var(--color-surface-muted)] text-[var(--color-text-muted)] ring-1 ring-inset ring-[var(--color-border)]',
-  waitlisted:
-    'bg-[var(--color-surface-muted)] text-[var(--color-text)] ring-1 ring-inset ring-[var(--color-border)]',
+  waitlisted: 'bg-[var(--color-warning-surface)] text-[var(--color-warning)]',
   warning: 'bg-[var(--color-warning-surface)] text-[var(--color-warning)]',
 };
 
@@ -60,7 +59,7 @@ export function StatusBadge({ children, className, status, ...props }: StatusBad
     <span
       {...props}
       className={[
-        'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold tracking-wide',
+        'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
         statusClassNames[status],
         className,
       ]

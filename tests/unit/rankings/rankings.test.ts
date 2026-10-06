@@ -373,4 +373,46 @@ describe('authorized rankings application', () => {
       ],
     });
   });
+  it('sorts coverage across the full cohort before pagination without changing overall ranks', async () => {
+    const varied = {
+      ...snapshot,
+      registrations: snapshot.registrations.map((r, i) => ({
+        ...r,
+        expectedEvaluators: i === 1 ? 8 : 2,
+      })),
+    };
+    const result = await listRankings(
+      { organizationId, tryoutId, sort: 'coverage', pageSize: 1 },
+      actor,
+      { load: async () => ({ outcome: 'ok', snapshot: varied }) },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.rows[0]?.athleteId).toBe(snapshot.registrations[1]?.athleteId);
+    expect(result.value.rows[0]?.rank).toBe(1);
+  });
+  it('sorts a selected rubric category and keeps missing category evidence last', async () => {
+    const selected = '55555555-5555-4555-8555-555555555556';
+    const varied = {
+      ...snapshot,
+      registrations: snapshot.registrations.map((r, i) => ({
+        ...r,
+        evaluations: r.evaluations.map((e) => ({
+          ...e,
+          categories: e.categories.map((c) => ({
+            ...c,
+            categoryId: i === 1 ? selected : c.categoryId,
+          })),
+        })),
+      })),
+    };
+    const result = await listRankings(
+      { organizationId, tryoutId, sort: 'category', category: selected, pageSize: 1 },
+      actor,
+      { load: async () => ({ outcome: 'ok', snapshot: varied }) },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.rows[0]?.athleteId).toBe(snapshot.registrations[1]?.athleteId);
+  });
 });

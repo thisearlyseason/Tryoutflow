@@ -1,3 +1,4 @@
+import { billingUpgradePrompt } from '@/modules/subscriptions/ui/server-feature-gate';
 import Link from 'next/link';
 
 import { ErrorState } from '@/components/feedback/error-state';
@@ -17,6 +18,13 @@ export default async function ComparePage({
   const query = await searchParams;
   const raw = Array.isArray(query.athletes) ? query.athletes[0] : query.athletes;
   const current = await requireOrganizationRouteContext(organizationSlug);
+  const upgrade = await billingUpgradePrompt(
+    current.organization.id,
+    organizationSlug,
+    'player_comparison',
+    tryoutId,
+  );
+  if (upgrade) return upgrade;
   const result = await compareAthletes(
     { organizationId: current.organization.id, tryoutId, athleteIds: raw?.split(',') ?? [] },
     current.authorization,

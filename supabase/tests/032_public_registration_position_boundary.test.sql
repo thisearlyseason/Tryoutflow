@@ -7,9 +7,13 @@ select has_function(
 );
 
 select function_privs_are(
+  'public','submit_public_registration_with_notification_v2',array['text','jsonb','text','text','text','uuid'],
+  'service_role',array['EXECUTE'],'service uses version-bound registration transaction with organizer outbox'
+);
+select function_privs_are(
   'public','submit_public_registration_v2',array['text','jsonb','text','text'],
-  'service_role',array['EXECUTE'],
-  'service role may execute only the canonical registration submission RPC'
+  'service_role',array[]::text[],
+  'service role cannot bypass organizer notification persistence'
 );
 select function_privs_are(
   'public','submit_public_registration_v2',array['text','jsonb','text','text'],

@@ -17,7 +17,7 @@ const signInInputSchema = z.object({
   next: z.string().optional(),
 });
 
-export type SignInError = 'invalid_input' | 'invalid_credentials';
+export type SignInError = 'invalid_input' | 'invalid_credentials' | 'email_not_confirmed';
 
 export type SignInDependencies = {
   abuseProtection?: PasswordSignInAbuseProtection;
@@ -82,6 +82,12 @@ export async function signInWithPassword(
     password: parsedInput.data.password,
   });
 
+  if (
+    error?.code === 'email_not_confirmed' ||
+    error?.message.toLowerCase().includes('email not confirmed')
+  ) {
+    return failure('email_not_confirmed');
+  }
   if (error) {
     return failure('invalid_credentials');
   }

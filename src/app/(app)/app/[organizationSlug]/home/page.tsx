@@ -15,10 +15,35 @@ export default async function OrganizationHomePage({
     const projection = await new SupabaseOnboardingProgressGateway(current.client).load(
       current.organization.id,
     );
+    const canManage = ['owner', 'administrator'].includes(current.authorization.organizationRole);
+    const [tryouts, athletes] = canManage
+      ? await Promise.all([
+          current.client
+            .from('tryouts')
+            .select('id,name,status,updated_at')
+            .eq('organization_id', current.organization.id)
+            .order('updated_at', { ascending: false })
+            .limit(4),
+          current.client
+            .from('athletes')
+            .select('id,given_name,family_name,created_at')
+            .eq('organization_id', current.organization.id)
+            .order('created_at', { ascending: false })
+            .limit(4),
+        ])
+      : [
+          { data: null, error: null },
+          { data: null, error: null },
+        ];
     return projection ? (
       <OrganizationCommandCenter
         organizationSlug={current.organization.slug}
         projection={projection}
+        showManagementActions={canManage}
+        activity={{
+          tryouts: tryouts.error ? null : tryouts.data,
+          athletes: athletes.error ? null : athletes.data,
+        }}
       />
     ) : (
       <ErrorState

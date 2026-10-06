@@ -8,7 +8,9 @@ export default defineConfig({
   timeout: 30_000,
   webServer: {
     command:
-      'npm exec -- next dev tests/fixtures/evaluation --webpack --hostname 127.0.0.1 --port 3103',
+      'npm exec -- next build tests/fixtures/evaluation --webpack && npm exec -- next start tests/fixtures/evaluation --hostname 127.0.0.1 --port 3103',
+    // Offline and cross-tab tests must not be interrupted by development HMR.
+    timeout: 120_000,
     url: 'http://127.0.0.1:3103',
     reuseExistingServer: false,
     env: {

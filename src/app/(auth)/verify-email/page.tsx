@@ -1,19 +1,27 @@
 import { BotChallenge } from '../../../modules/identity/ui/bot-challenge';
 import { AuthShell } from '../../../components/layout/auth-shell';
-import { Button } from '../../../components/ui/button';
-import { FormField } from '../../../components/ui/form-field';
-import { Input } from '../../../components/ui/input';
+
+import { EmailVerificationForm } from '../../../modules/identity/ui/email-verification-form';
 
 type VerifyEmailPageProps = {
-  searchParams: Promise<{ confirmed?: string; error?: string; sent?: string; signup?: string }>;
+  searchParams: Promise<{
+    confirmed?: string;
+    error?: string;
+    sent?: string;
+    signup?: string;
+    purpose?: string;
+  }>;
 };
 
 export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageProps) {
   const parameters = await searchParams;
+  const participant = parameters.purpose === 'participant';
   const status = parameters.error
     ? 'Verification email is temporarily unavailable. Please try again later.'
     : parameters.signup === '1'
-      ? 'Check your inbox and verify your email before continuing to organization setup.'
+      ? participant
+        ? 'Check your inbox and verify your email to open your athlete and family portal.'
+        : 'Check your inbox and verify your email before continuing to organization setup.'
       : parameters.confirmed === '1'
         ? 'Your email is verified. You can continue to your organization.'
         : parameters.sent === '1'
@@ -24,7 +32,9 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
     <AuthShell
       description="Keep your organization secure by confirming the email connected to your account."
       eyebrow="Account security"
-      footer={<a href="/sign-in">Return to sign in</a>}
+      footer={
+        <a href={participant ? '/sign-in?next=/participant' : '/sign-in'}>Return to sign in</a>
+      }
       title="Verify your email"
     >
       <p
@@ -33,24 +43,18 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
       >
         {status}
       </p>
-      <form action="/auth/verification" method="post">
-        <FormField htmlFor="email" label="Email" required>
-          {({ describedBy }) => (
-            <Input
-              aria-describedby={describedBy}
-              autoComplete="email"
-              id="email"
-              name="email"
-              required
-              type="email"
-            />
-          )}
-        </FormField>
-        <BotChallenge action="verification" />
-        <Button className="mt-2 w-full" type="submit">
-          Send verification link
-        </Button>
-      </form>
+      {parameters.signup === '1' ? (
+        <p className="auth-description">
+          {participant
+            ? 'The verification link will open your athlete and family portal.'
+            : 'We’ll take you to organization setup automatically when you open the verification link.'}
+        </p>
+      ) : (
+        <EmailVerificationForm
+          participant={participant}
+          botChallenge={<BotChallenge action="verification" />}
+        />
+      )}
     </AuthShell>
   );
 }

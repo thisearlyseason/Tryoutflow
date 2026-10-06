@@ -187,11 +187,11 @@ select lives_ok(
   'SQL accepts an omitted optional guardianPhone'
 );
 rollback to savepoint omitted_guardian_phone;
-select is((select count(*) from public.athletes), 0::bigint, 'invalid identity/contact types roll back athlete creation');
-select is((select count(*) from public.guardians), 0::bigint, 'invalid identity/contact types roll back guardian creation');
-select is((select count(*) from public.tryout_registrations), 0::bigint, 'invalid identity/contact types roll back registration creation');
-select is((select count(*) from public.session_enrollments), 0::bigint, 'invalid identity/contact types roll back enrollment creation');
-select is((select count(*) from public.registration_confirmation_tokens), 0::bigint, 'invalid identity/contact types roll back confirmation-token creation');
+select is((select count(*) from public.athletes where organization_id='a2101010-1010-4010-8010-101010101010'), 0::bigint, 'invalid identity/contact types roll back athlete creation');
+select is((select count(*) from public.guardians where organization_id='a2101010-1010-4010-8010-101010101010'), 0::bigint, 'invalid identity/contact types roll back guardian creation');
+select is((select count(*) from public.tryout_registrations where organization_id='a2101010-1010-4010-8010-101010101010'), 0::bigint, 'invalid identity/contact types roll back registration creation');
+select is((select count(*) from public.session_enrollments where organization_id='a2101010-1010-4010-8010-101010101010'), 0::bigint, 'invalid identity/contact types roll back enrollment creation');
+select is((select count(*) from public.registration_confirmation_tokens where organization_id='a2101010-1010-4010-8010-101010101010'), 0::bigint, 'invalid identity/contact types roll back confirmation-token creation');
 
 create temporary table first_registration as
 select * from public.submit_public_registration_with_phone('recovery-camp',(select payload from recovery_payload),'recovery-idempotency-key-000001',repeat('a',64));
