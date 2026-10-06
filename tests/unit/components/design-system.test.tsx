@@ -61,6 +61,37 @@ describe('TryoutFlow design system', () => {
     }
   });
 
+  it('keeps live counter text readable on its surface without changing orange accents', () => {
+    const luminance = (hex: string) => {
+      const channels = hex.match(/[0-9a-f]{2}/giu)!.map((value) => {
+        const channel = Number.parseInt(value, 16) / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      });
+      return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+    };
+    const text = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-performance-text')
+      .trim();
+    const surface = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-surface')
+      .trim();
+    const values = [luminance(text), luminance(surface)].sort((a, b) => b - a);
+
+    expect((values[0]! + 0.05) / (values[1]! + 0.05)).toBeGreaterThanOrEqual(4.5);
+    expect(getComputedStyle(document.documentElement).getPropertyValue('--color-performance')).toBe(
+      '#ff8a00',
+    );
+    expect(
+      readFileSync(
+        resolve(
+          process.cwd(),
+          'src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/live/page.tsx',
+        ),
+        'utf8',
+      ),
+    ).toContain('text-[var(--color-performance-text)]');
+  });
+
   it('gives keyboard focus an electric-blue ring', () => {
     render(<Input aria-label="Tryout name" />);
     const input = screen.getByRole('textbox', { name: 'Tryout name' });

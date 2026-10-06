@@ -13,6 +13,7 @@
   --color-primary-foreground: #ffffff;
   --color-primary-hover: #0049d6;
   --color-performance: #ff8a00;
+  --color-performance-text: #a34f00;
   --color-performance-foreground: #101d32;
   --color-selection: #dce9ff;
   --color-selection-foreground: #101d32;
@@ -71,6 +72,7 @@
   --color-primary-foreground: #07182b;
   --color-primary-hover: #a9caff;
   --color-performance: #ff8a00;
+  --color-performance-text: #ff8a00;
   --color-performance-foreground: #07182b;
   --color-selection: #ff7b6f;
   --color-destructive: #ff9b92;

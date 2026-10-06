@@ -1326,3 +1326,11 @@ a[class*='button-']:active,
   color: #0057ff;
   font-weight: 700;
 }
+
+/* Keep focused dashboard controls clear of the fixed mobile chrome. */
+@media (max-width: 899px) {
+  html {
+    scroll-padding-top: 6rem;
+    scroll-padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+  }
+}

@@ -608,7 +608,12 @@ async function loadCompleteStage(
       return {
         ...base,
         status: 'not-started',
-        supportingText: 'No finalized roster yet',
+        supportingText:
+          rosters.latestByDivision.size === 0
+            ? 'No finalized roster yet'
+            : rosters.latestByDivision.size === 1
+              ? 'Latest roster revision is a draft'
+              : 'Latest roster revisions are drafts',
         blocker: 'Finalize a roster before communicating decisions.',
       };
     }

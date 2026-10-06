@@ -659,6 +659,35 @@ describe('authoritative tryout journey projection', () => {
     });
   });
 
+  it('describes a current draft without denying its historical finalized revision', async () => {
+    const journey = await loadFixtureJourney({
+      status: 'published',
+      participantCount: 4,
+      completedEvaluationCount: 2,
+      divisionIds: [divisionAId],
+      rosterVersions: [
+        {
+          id: finalizedRosterAId,
+          division_id: divisionAId,
+          state: 'finalized',
+          revision_number: 1,
+        },
+        {
+          id: '33333333-3333-4333-8333-333333333332',
+          division_id: divisionAId,
+          state: 'draft',
+          revision_number: 2,
+        },
+      ],
+    });
+
+    expect(journey.stages.find((stage) => stage.id === 'complete')).toMatchObject({
+      status: 'not-started',
+      supportingText: 'Latest roster revision is a draft',
+      blocker: 'Finalize a roster before communicating decisions.',
+    });
+  });
+
   it('requires the latest roster for every configured division before decisions complete', async () => {
     const journey = await loadFixtureJourney({
       status: 'published',

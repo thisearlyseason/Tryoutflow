@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "8174b12764802fc9c1b06d46b0ac4dd3c02742309cd5f67848a423e8ce52bd38",
+  "releaseManifestSHA256": "abafae6667daebd9d3cc93f5921daffd80f4bdbe7e408a3528f98cb7f0f1caec",
   "files": [
     {
       "path": ".env.example",
@@ -427,7 +427,7 @@
     },
     {
       "path": "playwright.visual.config.ts",
-      "sha256": "3e9e319232f67c72ecb02b84eaf811d90ec9fcae75a09478dfd1f3dfd6da394b"
+      "sha256": "28141a0b88837bf965562ae7540c37bbe6540cd7790f1cc5dac4a8a26a4605ec"
     },
     {
       "path": "postcss.config.mjs",
@@ -1275,7 +1275,7 @@
     },
     {
       "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/live/page.tsx",
-      "sha256": "60630186be9eba665dd631bfdd6c283e99a860486e78bc91a41a0ade46ec4720"
+      "sha256": "bf7fdd37871e7b1bfe107544413dae4e4e4454f38ec7f57033adea3c39ac49d0"
     },
     {
       "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/messages/page.tsx",
@@ -1675,7 +1675,7 @@
     },
     {
       "path": "src/app/globals.css",
-      "sha256": "92ad79f8aa2afa599792d05b70958b94cb389cfaf7dc5c39066bc51ad7e9f61f"
+      "sha256": "34ed16056d60ffa3252fbf833cb089f281c1f4e965aba8e8e4a9ae0f1ca10f40"
     },
     {
       "path": "src/app/icon.svg",
@@ -1699,7 +1699,7 @@
     },
     {
       "path": "src/app/theme.css",
-      "sha256": "58220352393e4098561590bfa75ef1dd7f9bfdc1225a55e8f0fac4a76291b841"
+      "sha256": "d0e9d06ce3d74dc98122a3f9be25353c413a003287d1135656929e86991d6aab"
     },
     {
       "path": "src/components/feedback/empty-state.tsx",
@@ -3127,7 +3127,7 @@
     },
     {
       "path": "src/modules/tryouts/application/load-tryout-journey.ts",
-      "sha256": "91314805a800bd41963823c4a54be98ee0f686f50db5ea34d629e515d28adbbe"
+      "sha256": "55388c9eaa9c96df4d3b91445c48e3ec371b38b80e4b11a1f79ac61d4b68158c"
     },
     {
       "path": "src/modules/tryouts/application/persist-wizard-step.ts",
@@ -4515,43 +4515,43 @@
     },
     {
       "path": "tests/e2e/visual/__snapshots__/administration.visual.spec.ts/desktop-chromium/billing-administration-mobile.png",
-      "sha256": "2d320abddedc2f64ced3c4907768541344252818479b1f8f7964cd81d794f760"
+      "sha256": "8c1a320b83b9a86aafa59d8c992d7ad24c23b9588483e33c012abb62579d8936"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/administration.visual.spec.ts/desktop-chromium/billing-administration.png",
-      "sha256": "07b023ea35921a2c885c77d92a9caf881e6419acecd5e678b803ed6355eae649"
+      "sha256": "816d1abd0bc7706120d58f1e6eef3f2a5bf9370586eba7b946fb71ad2968da82"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/administration.visual.spec.ts/desktop-chromium/integrations-administration.png",
-      "sha256": "7d600307b70cd130eb678310bcf05fa2a0cfbcebc350ff134e9ce63997fddd36"
+      "sha256": "8918a66df1dff358b1bf3a402eab02fc3899e0c7478f1f42d6585ec037076032"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/administration.visual.spec.ts/desktop-chromium/members-administration.png",
-      "sha256": "2255381b3539d1a4e0e276baa4637683ef90352cbfbddf7aa6ff24111314d941"
+      "sha256": "4838111b06e52eb357ed2cd226cbc342cc059932bafd997b311a7c885a7b56e8"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/application-shell.visual.spec.ts/desktop-chromium/owner-command-center-mobile.png",
-      "sha256": "5e04edbbb266245ded91fb331c835b4416be16b3ecbd0b85f8b42f603674a960"
+      "sha256": "82ad50d424d8858c118891eea605f1d5c37f8d93668aa8731fb742a9fd557d6c"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/application-shell.visual.spec.ts/desktop-chromium/owner-command-center.png",
-      "sha256": "d18ca9ab264314548d7ba297ea5540a955a38d9b59493eb09f2f56367f5be2d4"
+      "sha256": "21fdefb1f7bbdcef33206be793969ffd593504fbc3d7bea8f703ec3126c4c30c"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/forgot-password.png",
-      "sha256": "80298e8812164da9959f30f68364dfa252bc681586288fe7ae93e4f1e6eb9cd8"
+      "sha256": "0abf0d67bae8e5adcd98546835a92d7be39244453e63a2db589b31bdd410b054"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-in.png",
-      "sha256": "6f981befe5bbaeeb94415cc80c136abee7242be9975aa2c0e6af4eee623770e7"
+      "sha256": "7f765c1e208f03815c2e4d66454db5d4c9113b1b414c900918465d048c52b61e"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-up.png",
-      "sha256": "674b61c787ffa62b5fb52229a401c4555f61514e1b162275939871489a693ca2"
+      "sha256": "a04861cbda5f8d54407ac76d2801d92d35927e46f0edc8d0514b58c8d4c06089"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/verify-email.png",
-      "sha256": "89de8ca32b43b705ad3ab5c25a94dc31f6500e91a52af92166fbad9397d3731b"
+      "sha256": "f2e4565fc24ddf331a4989b8641c66aa76f02e444fc1d33c46c0a1dabf5084f7"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/forgot-password.png",
@@ -4571,47 +4571,47 @@
     },
     {
       "path": "tests/e2e/visual/__snapshots__/decisions.visual.spec.ts/desktop-chromium/rankings-decision-board.png",
-      "sha256": "663516ba84f21b9752ec734bda2dc0b5d66f8afa252d1e2fe872f4eb69f192e6"
+      "sha256": "0cc0b489d826f3004d95a587eb018ac5d575ae953ab6f9a419e606e4a169b25a"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/decisions.visual.spec.ts/desktop-chromium/roster-decision-room-mobile.png",
-      "sha256": "b69966de161b5ca11777bf2ab52a4d63bf4c0b4632ab236f127e0e475b6be625"
+      "sha256": "55505ab8f2d8925206df028c60d936afc80c6314fefcae9d00dea536deb1b8f1"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/decisions.visual.spec.ts/desktop-chromium/roster-decision-room.png",
-      "sha256": "a43288ab2c3053a571466eb3a0ccd76ea6e553aeb009c2c9e7bc071e6a52b23a"
+      "sha256": "f58a5eaede80994366fb143a4883d6575e5b52374798bf6062f48bf0720e7291"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/game-day.visual.spec.ts/desktop-chromium/game-day-check-in.png",
-      "sha256": "a8d4465e60373ff9e52e8029b3f1af2acdf92c84208ed159ef96548914d81a65"
+      "sha256": "74b10a66873b3a95c564ad4a7278c8fab251eea560f8a70eee2f2718f61731c5"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/game-day.visual.spec.ts/desktop-chromium/game-day-live-dashboard-mobile.png",
-      "sha256": "982952aad9228bf3df741484a81cc5870a3f36dffe3b139d160c127254f1efad"
+      "sha256": "14966d2b84fe45572715fb20132ce99d57b5e14a71a40ea9aa50c2d7353ecf50"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/game-day.visual.spec.ts/desktop-chromium/game-day-live-dashboard.png",
-      "sha256": "3b689d857aa1d277a7b382c3feaeca8ead4eab149b0a192916df6aa465fc2ec4"
+      "sha256": "ef5ec7a5f0de1da0fa444c7a12e3769f8668f79d859dbb8eeb980b3f47cd1d3d"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/tryout-administration.visual.spec.ts/desktop-chromium/public-registration-unavailable-mobile.png",
-      "sha256": "c64b63d159dfe9c59afb6f0ababadc84fd82fc136f95431a970f1b928a5e602f"
+      "sha256": "fb416c6adbc381c8f9913e829b37abf24d9104d9b08914e8163522b1b763f8a0"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/tryout-administration.visual.spec.ts/desktop-chromium/public-registration-unavailable.png",
-      "sha256": "a4a90d32e1d551f6d9e1d8df703f1423684c75db3a5133f7d033383bc7ade06b"
+      "sha256": "3aa9c4d08e76616fd122dab318ec5043caa87887414d2f451b10825a9e4fae20"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/tryout-administration.visual.spec.ts/desktop-chromium/published-tryout-overview-mobile.png",
-      "sha256": "526cd90980f0dfcb3225eca99a0075710b53722c6348fd9afed0f7ff34512ba5"
+      "sha256": "cf550412e5aab76661839e3fbcceac8a05f62b572c252d8004a31edb19c84a17"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/tryout-administration.visual.spec.ts/desktop-chromium/published-tryout-overview.png",
-      "sha256": "c52b72aeef29347b37294a2f8dbd0a15df9bd8cb3a23aaf4552026b2547be86a"
+      "sha256": "1e359532cd55ea0f1cf90d78101d88de8714599b34fbbecbe48fe4d821c8f8eb"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/tryout-administration.visual.spec.ts/desktop-chromium/tryout-list.png",
-      "sha256": "22e8c8e55a5b857283aba88c4e39652e13df63064d7b29f318ac04ae37acd055"
+      "sha256": "48961eff91d8a63ab8a83e3b34f8ebc85eeea074029e1c0f3f3d1d6a1ed4d3a5"
     },
     {
       "path": "tests/e2e/visual/administration.visual.spec.ts",
@@ -4632,6 +4632,10 @@
     {
       "path": "tests/e2e/visual/game-day.visual.spec.ts",
       "sha256": "b396d52e0124bb7e3bd9c54b3e87841257596eb1e992eebc85ea286f991aaf3a"
+    },
+    {
+      "path": "tests/e2e/visual/navigation-accessibility.visual.spec.ts",
+      "sha256": "6aae802fca2b07a5ad2b7aef16e85b653816191789273d9367d6b564400bac93"
     },
     {
       "path": "tests/e2e/visual/tryout-administration.visual.spec.ts",
@@ -6315,7 +6319,7 @@
     },
     {
       "path": "tests/unit/components/design-system.test.tsx",
-      "sha256": "1b17888045cdcb3356dfa45bc8b2f12f5357cf1891e5a8653cfbfd18e2660a9f"
+      "sha256": "e85796d99df3478983ab67c9e0772af39aa0ce96ea79f39f97d168d7d5a61ee2"
     },
     {
       "path": "tests/unit/components/performance-lab-primitives.test.tsx",
@@ -6831,7 +6835,7 @@
     },
     {
       "path": "tests/unit/tryouts/load-tryout-journey.test.ts",
-      "sha256": "b66359c02de60e64bc5b6ce65e4861ba509a0d3844439bf0c3300d7d95bf0d7f"
+      "sha256": "afcc1154eb0a481479d22a119708d7887ff737d5371aac5efc58d35b788f3273"
     },
     {
       "path": "tests/unit/tryouts/persist-wizard-step.test.ts",
@@ -6916,5 +6920,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation"
+  "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged."
 }

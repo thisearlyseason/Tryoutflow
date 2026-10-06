@@ -94,7 +94,7 @@ export default async function LivePage({
             key={label}
           >
             <dt className="text-sm text-[var(--color-text-muted)]">{label}</dt>
-            <dd className="mt-2 font-[var(--font-bib)] text-5xl tabular-nums text-[var(--color-performance)]">
+            <dd className="mt-2 font-[var(--font-bib)] text-5xl tabular-nums text-[var(--color-performance-text)]">
               {value}
             </dd>
           </div>
