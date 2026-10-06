@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "1d556285a2c2db5415fd8dfdf376a5cc297a16d1e9bb7d028bb340a044929464",
+  "releaseManifestSHA256": "1bc21027f1df9ec4c6596a84f82913b7fed99a0318794d7b1e4756fc7a375a7c",
   "files": [
     {
       "path": ".env.example",
@@ -6431,7 +6431,7 @@
     },
     {
       "path": "tests/unit/identity/authentication.test.ts",
-      "sha256": "865aad790f56f6f4697dcfe818170a5b219a07d33d4914469539664a01d31e51"
+      "sha256": "09a7df346f61ef63e3db61e3b0fd423a10b4b6e92b09939e11c7f39f7cc7fb3c"
     },
     {
       "path": "tests/unit/identity/bot-and-abuse-protection.test.ts",

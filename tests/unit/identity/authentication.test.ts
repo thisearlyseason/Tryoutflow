@@ -2,6 +2,11 @@ import { render, screen } from '@testing-library/react';
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const preflight = vi.hoisted(() => vi.fn());
+vi.mock('../../../src/modules/organizations/application/organization-route-preflight', () => ({
+  organizationRoutePreflight: preflight,
+}));
+
 const auth = vi.hoisted(() => ({
   exchangeCodeForSession: vi.fn(),
   getUser: vi.fn(),
@@ -93,6 +98,7 @@ describe('authentication session boundaries', () => {
     auth.signOut.mockReset();
     auth.updateUser.mockReset();
     responseCookies.set.mockReset();
+    preflight.mockReset().mockResolvedValue(true);
     createServerClientMock.mockClear();
   });
 
