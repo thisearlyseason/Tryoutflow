@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "bcb18fa75e6465207f51dd9eca7a006576e6fde15ad0bcd421c4f113797dc3f9",
+  "releaseManifestSHA256": "ce5748b77db5eaa93d75dd92186132bef3da935b3a4804310ce46dc280f1e70a",
   "files": [
     {
       "path": ".env.example",
@@ -11,7 +11,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "5b0309d8b3cb7e271746ea755754ea789274a8be6223ca22f25567370fad93f8"
+      "sha256": "f9ff91aded3440986e3f9dd67ca1694c16abaddc7bd85541f77283876e6f0618"
     },
     {
       "path": ".gitignore",
@@ -1055,7 +1055,7 @@
     },
     {
       "path": "scripts/postprocess-database-types.mjs",
-      "sha256": "c9466afde7cb14a937004393abae010d188dc79e4bc558955660a9dcbadf87d9"
+      "sha256": "930e0470ed110fb46433fec30d120621cff120a22d524847807a9671521d776f"
     },
     {
       "path": "scripts/run-integration-tests.mjs",
@@ -1091,7 +1091,7 @@
     },
     {
       "path": "scripts/verify-production-readiness.sh",
-      "sha256": "47c5387ae9acbb0437d10e9c341486cb4b4731ac180b8240afc3f822d88cba60"
+      "sha256": "92e664f634e9aaf61dfae2e603ded1053afd7f6d41d9c186a7c635ad5177a2ef"
     },
     {
       "path": "scripts/verify-release-state.mjs",
@@ -1895,7 +1895,7 @@
     },
     {
       "path": "src/infrastructure/supabase/database.types.ts",
-      "sha256": "1792e80e37b51626b13b85812c04a6be887d6b43abc499de42dd6a0177d6d6e4"
+      "sha256": "1649fb705bbf598c82c5f2358f1074bb5254c9c26cda4ac553136b87e2a0e1e3"
     },
     {
       "path": "src/infrastructure/supabase/server.ts",
@@ -6463,7 +6463,7 @@
     },
     {
       "path": "tests/unit/infrastructure/database-types-postprocessor.test.ts",
-      "sha256": "1e87f43269eee79c45740babf6a1f005121a7b03642a7e870322733844a6ecc8"
+      "sha256": "ae437a32df66ee079db119bb08b81c080ff97cd6928f42af6f908c8e102fe783"
     },
     {
       "path": "tests/unit/infrastructure/integration-command-lock.test.ts",
@@ -6900,5 +6900,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; reviewed migration163 static ACL expectations and seven negative checks, with no grant or function changes; temporary schema-only CI diagnostic for generated types drift; web exception scope unchanged"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL test closure; authoritative CI schema types from clean migrations through165, preserving migration147 nullable reconciliation return; temporary diagnostics removed; web exception scope unchanged"
 }

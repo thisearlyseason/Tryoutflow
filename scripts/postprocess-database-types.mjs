@@ -145,4 +145,13 @@ nullableFunctionArgs('save_athlete_contact', {
   p_expected_updated_at: 'string',
 });
 
+// Migration147 returns NULL when no reconciliation lease is available. The
+// generator cannot infer scalar PL/pgSQL nullability, so preserve that contract.
+const reconciliationReturn =
+  /(claim_billing_reconciliation: \{ Args: never; Returns: )string(?: \| null)?(;? \};)/g;
+if ([...source.matchAll(reconciliationReturn)].length !== 1) {
+  throw new Error('Could not find claim_billing_reconciliation scalar return');
+}
+source = source.replace(reconciliationReturn, '$1string | null$2');
+
 await writeFile(path, source);

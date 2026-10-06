@@ -193,10 +193,6 @@ database_cleanup_required=true
 run_stage 'clean unseeded database reset' "${NPM[@]}" exec -- supabase db reset --local --no-seed
 run_stage 'full pgTAP database suite' "${NPM[@]}" run test:db
 run_stage 'generated database types pass 1' "${NPM[@]}" run db:types
-# Temporary CI diagnostic: schema-only output, captured only after successful generation.
-if [[ "${GITHUB_ACTIONS:-}" == 'true' ]]; then
-  cp -- "$DATABASE_TYPES" "${RUNNER_TEMP:?}/tryoutflow-generated-database.types.ts"
-fi
 run_stage 'generated database types match tracked bytes' assert_hash_unchanged "$DATABASE_TYPES" "$database_types_hash" 'generated database types'
 readonly generated_types_first_hash="$(hash_file "$DATABASE_TYPES")"
 run_stage 'generated database types pass 2' "${NPM[@]}" run db:types

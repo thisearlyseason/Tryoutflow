@@ -28,281 +28,6 @@ export type Database = {
   };
   public: {
     Tables: {
-      billing_audit_log: {
-        Row: {
-          actor_id: string | null;
-          created_at: string;
-          event_type: string;
-          id: number;
-          metadata: Json;
-          organization_id: string;
-        };
-        Insert: {
-          actor_id?: string | null;
-          created_at?: string;
-          event_type: string;
-          id?: never;
-          metadata?: Json;
-          organization_id: string;
-        };
-        Update: {
-          actor_id?: string | null;
-          created_at?: string;
-          event_type?: string;
-          id?: never;
-          metadata?: Json;
-          organization_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'billing_audit_log_organization_id_fkey';
-            columns: ['organization_id'];
-            isOneToOne: false;
-            referencedRelation: 'organizations';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      billing_events: {
-        Row: {
-          contract_id: string | null;
-          event_type: string;
-          id: number;
-          occurred_at: string;
-          organization_id: string | null;
-          payload_digest: string;
-          payload_metadata: Json;
-          processed_at: string;
-          processing_status: string;
-          provider: string;
-          provider_event_id: string;
-        };
-        Insert: {
-          contract_id?: string | null;
-          event_type: string;
-          id?: never;
-          occurred_at: string;
-          organization_id?: string | null;
-          payload_digest: string;
-          payload_metadata?: Json;
-          processed_at?: string;
-          processing_status: string;
-          provider: string;
-          provider_event_id: string;
-        };
-        Update: {
-          contract_id?: string | null;
-          event_type?: string;
-          id?: never;
-          occurred_at?: string;
-          organization_id?: string | null;
-          payload_digest?: string;
-          payload_metadata?: Json;
-          processed_at?: string;
-          processing_status?: string;
-          provider?: string;
-          provider_event_id?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'billing_events_contract_id_fkey';
-            columns: ['contract_id'];
-            isOneToOne: false;
-            referencedRelation: 'billing_contracts';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'billing_events_organization_id_fkey';
-            columns: ['organization_id'];
-            isOneToOne: false;
-            referencedRelation: 'organizations';
-            referencedColumns: ['id'];
-          },
-        ];
-      };
-      billing_overrides: {
-        Row: {
-          created_at: string;
-          expires_at: string;
-          granted_by: string | null;
-          id: string;
-          organization_id: string;
-          product_key: string;
-          reason: string;
-          revoked_at: string | null;
-          starts_at: string;
-          tryout_id: string | null;
-        };
-        Insert: {
-          created_at?: string;
-          expires_at: string;
-          granted_by?: string | null;
-          id?: string;
-          organization_id: string;
-          product_key: string;
-          reason: string;
-          revoked_at?: string | null;
-          starts_at: string;
-          tryout_id?: string | null;
-        };
-        Update: {
-          created_at?: string;
-          expires_at?: string;
-          granted_by?: string | null;
-          id?: string;
-          organization_id?: string;
-          product_key?: string;
-          reason?: string;
-          revoked_at?: string | null;
-          starts_at?: string;
-          tryout_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'billing_overrides_organization_id_fkey';
-            columns: ['organization_id'];
-            isOneToOne: false;
-            referencedRelation: 'organizations';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'billing_overrides_organization_id_tryout_id_fkey';
-            columns: ['organization_id', 'tryout_id'];
-            isOneToOne: false;
-            referencedRelation: 'tryouts';
-            referencedColumns: ['organization_id', 'id'];
-          },
-          {
-            foreignKeyName: 'billing_overrides_product_key_fkey';
-            columns: ['product_key'];
-            isOneToOne: false;
-            referencedRelation: 'billing_products';
-            referencedColumns: ['key'];
-          },
-        ];
-      };
-      billing_contracts: {
-        Row: {
-          cancel_at_period_end: boolean;
-          created_at: string;
-          current_period_end: string | null;
-          current_period_start: string;
-          downgrade_effective_at: string | null;
-          environment: string;
-          grace_period_end: string | null;
-          id: string;
-          observed_at: string;
-          organization_id: string;
-          pending_product_key: string | null;
-          product_key: string;
-          provider: string;
-          provider_contract_id: string;
-          provider_customer_id: string;
-          purchaser_id: string;
-          status: string;
-          tryout_id: string | null;
-        };
-        Insert: {
-          cancel_at_period_end?: boolean;
-          created_at?: string;
-          current_period_end?: string | null;
-          current_period_start: string;
-          downgrade_effective_at?: string | null;
-          environment: string;
-          grace_period_end?: string | null;
-          id?: string;
-          observed_at: string;
-          organization_id: string;
-          pending_product_key?: string | null;
-          product_key: string;
-          provider: string;
-          provider_contract_id: string;
-          provider_customer_id: string;
-          purchaser_id: string;
-          status: string;
-          tryout_id?: string | null;
-        };
-        Update: {
-          cancel_at_period_end?: boolean;
-          created_at?: string;
-          current_period_end?: string | null;
-          current_period_start?: string;
-          downgrade_effective_at?: string | null;
-          environment?: string;
-          grace_period_end?: string | null;
-          id?: string;
-          observed_at?: string;
-          organization_id?: string;
-          pending_product_key?: string | null;
-          product_key?: string;
-          provider?: string;
-          provider_contract_id?: string;
-          provider_customer_id?: string;
-          purchaser_id?: string;
-          status?: string;
-          tryout_id?: string | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: 'billing_contracts_organization_id_fkey';
-            columns: ['organization_id'];
-            isOneToOne: false;
-            referencedRelation: 'organizations';
-            referencedColumns: ['id'];
-          },
-          {
-            foreignKeyName: 'billing_contracts_organization_id_tryout_id_fkey';
-            columns: ['organization_id', 'tryout_id'];
-            isOneToOne: false;
-            referencedRelation: 'tryouts';
-            referencedColumns: ['organization_id', 'id'];
-          },
-          {
-            foreignKeyName: 'billing_contracts_pending_product_key_fkey';
-            columns: ['pending_product_key'];
-            isOneToOne: false;
-            referencedRelation: 'billing_products';
-            referencedColumns: ['key'];
-          },
-          {
-            foreignKeyName: 'billing_contracts_product_key_fkey';
-            columns: ['product_key'];
-            isOneToOne: false;
-            referencedRelation: 'billing_products';
-            referencedColumns: ['key'];
-          },
-        ];
-      };
-      billing_products: {
-        Row: {
-          features: string[];
-          interval: string | null;
-          key: string;
-          kind: string;
-          limits: Json;
-          name: string;
-          tier: string;
-        };
-        Insert: {
-          features: string[];
-          interval?: string | null;
-          key: string;
-          kind: string;
-          limits?: Json;
-          name: string;
-          tier: string;
-        };
-        Update: {
-          features?: string[];
-          interval?: string | null;
-          key?: string;
-          kind?: string;
-          limits?: Json;
-          name?: string;
-          tier?: string;
-        };
-        Relationships: [];
-      };
       analytics_outbox_events: {
         Row: {
           correlation_id: string;
@@ -745,6 +470,317 @@ export type Database = {
             referencedColumns: ['id'];
           },
         ];
+      };
+      billing_audit_log: {
+        Row: {
+          actor_id: string | null;
+          created_at: string;
+          event_type: string;
+          id: number;
+          metadata: Json;
+          organization_id: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          created_at?: string;
+          event_type: string;
+          id?: never;
+          metadata?: Json;
+          organization_id: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          created_at?: string;
+          event_type?: string;
+          id?: never;
+          metadata?: Json;
+          organization_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_audit_log_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      billing_contracts: {
+        Row: {
+          cancel_at_period_end: boolean;
+          created_at: string;
+          current_period_end: string | null;
+          current_period_start: string;
+          downgrade_effective_at: string | null;
+          environment: string;
+          grace_period_end: string | null;
+          id: string;
+          observed_at: string;
+          organization_id: string;
+          pending_product_key: string | null;
+          product_key: string;
+          provider: string;
+          provider_contract_id: string;
+          provider_customer_id: string;
+          purchaser_id: string;
+          status: string;
+          tryout_id: string | null;
+        };
+        Insert: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          current_period_start: string;
+          downgrade_effective_at?: string | null;
+          environment: string;
+          grace_period_end?: string | null;
+          id?: string;
+          observed_at: string;
+          organization_id: string;
+          pending_product_key?: string | null;
+          product_key: string;
+          provider: string;
+          provider_contract_id: string;
+          provider_customer_id: string;
+          purchaser_id: string;
+          status: string;
+          tryout_id?: string | null;
+        };
+        Update: {
+          cancel_at_period_end?: boolean;
+          created_at?: string;
+          current_period_end?: string | null;
+          current_period_start?: string;
+          downgrade_effective_at?: string | null;
+          environment?: string;
+          grace_period_end?: string | null;
+          id?: string;
+          observed_at?: string;
+          organization_id?: string;
+          pending_product_key?: string | null;
+          product_key?: string;
+          provider?: string;
+          provider_contract_id?: string;
+          provider_customer_id?: string;
+          purchaser_id?: string;
+          status?: string;
+          tryout_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_contracts_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'billing_contracts_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'billing_contracts_pending_product_key_fkey';
+            columns: ['pending_product_key'];
+            isOneToOne: false;
+            referencedRelation: 'billing_products';
+            referencedColumns: ['key'];
+          },
+          {
+            foreignKeyName: 'billing_contracts_product_key_fkey';
+            columns: ['product_key'];
+            isOneToOne: false;
+            referencedRelation: 'billing_products';
+            referencedColumns: ['key'];
+          },
+        ];
+      };
+      billing_deliveries: {
+        Row: {
+          attempts: number;
+          event_type: string;
+          last_received_at: string;
+          payload_digest: string;
+          processed_at: string | null;
+          processing_error: string | null;
+          processing_status: string;
+          provider: string;
+          provider_event_id: string;
+        };
+        Insert: {
+          attempts?: number;
+          event_type: string;
+          last_received_at?: string;
+          payload_digest: string;
+          processed_at?: string | null;
+          processing_error?: string | null;
+          processing_status: string;
+          provider: string;
+          provider_event_id: string;
+        };
+        Update: {
+          attempts?: number;
+          event_type?: string;
+          last_received_at?: string;
+          payload_digest?: string;
+          processed_at?: string | null;
+          processing_error?: string | null;
+          processing_status?: string;
+          provider?: string;
+          provider_event_id?: string;
+        };
+        Relationships: [];
+      };
+      billing_events: {
+        Row: {
+          contract_id: string | null;
+          event_type: string;
+          id: number;
+          occurred_at: string;
+          organization_id: string | null;
+          payload_digest: string;
+          payload_metadata: Json;
+          processed_at: string;
+          processing_status: string;
+          provider: string;
+          provider_event_id: string;
+        };
+        Insert: {
+          contract_id?: string | null;
+          event_type: string;
+          id?: never;
+          occurred_at: string;
+          organization_id?: string | null;
+          payload_digest: string;
+          payload_metadata?: Json;
+          processed_at?: string;
+          processing_status: string;
+          provider: string;
+          provider_event_id: string;
+        };
+        Update: {
+          contract_id?: string | null;
+          event_type?: string;
+          id?: never;
+          occurred_at?: string;
+          organization_id?: string | null;
+          payload_digest?: string;
+          payload_metadata?: Json;
+          processed_at?: string;
+          processing_status?: string;
+          provider?: string;
+          provider_event_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_events_contract_id_fkey';
+            columns: ['contract_id'];
+            isOneToOne: false;
+            referencedRelation: 'billing_contracts';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'billing_events_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
+      billing_overrides: {
+        Row: {
+          created_at: string;
+          expires_at: string;
+          granted_by: string | null;
+          id: string;
+          organization_id: string;
+          product_key: string;
+          reason: string;
+          revoked_at: string | null;
+          starts_at: string;
+          tryout_id: string | null;
+        };
+        Insert: {
+          created_at?: string;
+          expires_at: string;
+          granted_by?: string | null;
+          id?: string;
+          organization_id: string;
+          product_key: string;
+          reason: string;
+          revoked_at?: string | null;
+          starts_at: string;
+          tryout_id?: string | null;
+        };
+        Update: {
+          created_at?: string;
+          expires_at?: string;
+          granted_by?: string | null;
+          id?: string;
+          organization_id?: string;
+          product_key?: string;
+          reason?: string;
+          revoked_at?: string | null;
+          starts_at?: string;
+          tryout_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'billing_overrides_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'billing_overrides_organization_id_tryout_id_fkey';
+            columns: ['organization_id', 'tryout_id'];
+            isOneToOne: false;
+            referencedRelation: 'tryouts';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'billing_overrides_product_key_fkey';
+            columns: ['product_key'];
+            isOneToOne: false;
+            referencedRelation: 'billing_products';
+            referencedColumns: ['key'];
+          },
+        ];
+      };
+      billing_products: {
+        Row: {
+          features: string[];
+          interval: string | null;
+          key: string;
+          kind: string;
+          limits: Json;
+          name: string;
+          tier: string;
+        };
+        Insert: {
+          features: string[];
+          interval?: string | null;
+          key: string;
+          kind: string;
+          limits?: Json;
+          name: string;
+          tier: string;
+        };
+        Update: {
+          features?: string[];
+          interval?: string | null;
+          key?: string;
+          kind?: string;
+          limits?: Json;
+          name?: string;
+          tier?: string;
+        };
+        Relationships: [];
       };
       calibration_attempts: {
         Row: {
@@ -5172,117 +5208,6 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      request_account_deletion: { Args: { p_confirm: boolean }; Returns: Json };
-      get_account_deletion_request: { Args: Record<PropertyKey, never>; Returns: Json };
-      platform_account_deletion_requests: { Args: Record<PropertyKey, never>; Returns: Json };
-      pending_account_deletion_notices: { Args: Record<PropertyKey, never>; Returns: Json };
-      record_account_deletion_notice: {
-        Args: { p_id: string; p_provider_id: string };
-        Returns: undefined;
-      };
-      platform_update_account_deletion: {
-        Args: { p_id: string; p_complete?: boolean; p_confirmed?: boolean };
-        Returns: undefined;
-      };
-
-      get_single_tryout_lifecycle: {
-        Args: { p_organization_id: string; p_tryout_id: string };
-        Returns: Json;
-      };
-      complete_single_tryout: {
-        Args: { p_organization_id: string; p_tryout_id: string; p_expected_version: number };
-        Returns: string;
-      };
-
-      load_athlete_evaluation_history: {
-        Args: { p_organization_id: string; p_athlete_id: string };
-        Returns: Json;
-      };
-      start_pro_trial: {
-        Args: { p_organization_id: string };
-        Returns: Json;
-      };
-      complete_billing_checkout: {
-        Args: { p_intent_id: string; p_session_id: string };
-        Returns: undefined;
-      };
-
-      claim_billing_reconciliation: { Args: Record<PropertyKey, never>; Returns: string | null };
-      finish_billing_reconciliation: {
-        Args: { p_organization_id: string; p_success: boolean };
-        Returns: undefined;
-      };
-
-      record_billing_delivery: {
-        Args: {
-          p_provider: string;
-          p_id: string;
-          p_type: string;
-          p_digest: string;
-          p_success?: boolean;
-        };
-        Returns: string;
-      };
-
-      reserve_native_plan_replacement: {
-        Args: { p_id: string; p_previous_id: string; p_snapshot: Json };
-        Returns: string;
-      };
-
-      record_billing_analytics: {
-        Args: { p_id: string; p_organization_id: string; p_event: string };
-        Returns: undefined;
-      };
-      billing_provider_context: {
-        Args: { p_organization_id?: string; p_purchaser_id?: string };
-        Returns: Json;
-      };
-      get_workspace_navigation: {
-        Args: { p_organization_id: string };
-        Returns: Json;
-      };
-      list_team_workspaces: {
-        Args: { p_organization_id: string };
-        Returns: Json;
-      };
-      create_team_workspace: {
-        Args: { p_name: string; p_organization_id: string; p_slug: string };
-        Returns: string;
-      };
-      get_billing_dashboard: {
-        Args: { p_organization_id: string };
-        Returns: Json;
-      };
-      manage_billing_override: {
-        Args: {
-          p_expires_at: string;
-          p_organization_id: string;
-          p_product_key: string;
-          p_reason: string;
-          p_revoke_id?: string;
-          p_starts_at: string;
-          p_tryout_id?: string;
-        };
-        Returns: string;
-      };
-      apply_billing_snapshot: {
-        Args: { p_event: Json; p_intent_id?: string; p_snapshot: Json };
-        Returns: string;
-      };
-      reserve_billing_purchase: {
-        Args: {
-          p_id: string;
-          p_organization_id: string;
-          p_product_key: string;
-          p_provider: string;
-          p_tryout_id: string;
-        };
-        Returns: Json;
-      };
-      get_effective_entitlements: {
-        Args: { p_organization_id: string; p_tryout_id?: string };
-        Returns: Json;
-      };
       accept_organization_invitation: {
         Args: { p_token_digest: string };
         Returns: {
@@ -5290,6 +5215,10 @@ export type Database = {
           organization_slug: string;
           outcome: string;
         }[];
+      };
+      apply_billing_snapshot: {
+        Args: { p_event: Json; p_intent_id?: string; p_snapshot: Json };
+        Returns: string;
       };
       apply_resend_delivery_event: {
         Args: {
@@ -5403,6 +5332,10 @@ export type Database = {
           expires_at: string;
           outcome: string;
         }[];
+      };
+      billing_provider_context: {
+        Args: { p_organization_id?: string; p_purchaser_id?: string };
+        Returns: Json;
       };
       build_performance_export: {
         Args: { p_id: string; p_organization_id: string };
@@ -5631,6 +5564,7 @@ export type Database = {
           outcome: string;
         }[];
       };
+      claim_billing_reconciliation: { Args: never; Returns: string | null };
       claim_integration_outbox_jobs: {
         Args: {
           p_batch_size: number;
@@ -5692,6 +5626,10 @@ export type Database = {
           athlete_ids: string[];
           outcome: string;
         }[];
+      };
+      complete_billing_checkout: {
+        Args: { p_intent_id: string; p_session_id: string };
+        Returns: undefined;
       };
       complete_evaluation: {
         Args: {
@@ -5764,6 +5702,14 @@ export type Database = {
           p_lease_token: string;
           p_provider_message_id: string;
           p_send_attempt_token: string;
+        };
+        Returns: string;
+      };
+      complete_single_tryout: {
+        Args: {
+          p_expected_version: number;
+          p_organization_id: string;
+          p_tryout_id: string;
         };
         Returns: string;
       };
@@ -6058,6 +6004,10 @@ export type Database = {
           registration_id: string;
         }[];
       };
+      create_team_workspace: {
+        Args: { p_name: string; p_organization_id: string; p_slug: string };
+        Returns: string;
+      };
       create_tryout_draft: {
         Args: {
           p_name: string;
@@ -6261,6 +6211,19 @@ export type Database = {
           version: number | null;
         }[];
       };
+      finish_billing_reconciliation: {
+        Args: { p_organization_id: string; p_success: boolean };
+        Returns: undefined;
+      };
+      get_account_deletion_request: { Args: never; Returns: Json };
+      get_billing_dashboard: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
+      get_effective_entitlements: {
+        Args: { p_organization_id: string; p_tryout_id?: string };
+        Returns: Json;
+      };
       get_organization_logo_metadata: {
         Args: { p_organization_id: string };
         Returns: {
@@ -6302,8 +6265,16 @@ export type Database = {
           notification_email: string;
         }[];
       };
+      get_single_tryout_lifecycle: {
+        Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: Json;
+      };
       get_tryout_setup_configuration: {
         Args: { p_organization_id: string; p_tryout_id: string };
+        Returns: Json;
+      };
+      get_workspace_navigation: {
+        Args: { p_organization_id: string };
         Returns: Json;
       };
       has_active_configuration_assignment: {
@@ -6459,6 +6430,10 @@ export type Database = {
           prior_registrations: number;
         }[];
       };
+      list_team_workspaces: {
+        Args: { p_organization_id: string };
+        Returns: Json;
+      };
       list_tryout_evaluator_candidates: {
         Args: { p_organization_id: string; p_tryout_id: string };
         Returns: {
@@ -6467,13 +6442,17 @@ export type Database = {
           evaluator_user_id: string;
         }[];
       };
+      load_athlete_evaluation_history: {
+        Args: { p_athlete_id: string; p_organization_id: string };
+        Returns: Json;
+      };
       load_athlete_profile_average: {
         Args: {
           p_organization_id: string;
-          p_tryout_id: string;
           p_registration_id: string;
-          p_session_id: string;
           p_rubric_version_id: string;
+          p_session_id: string;
+          p_tryout_id: string;
         };
         Returns: Json;
       };
@@ -6608,6 +6587,18 @@ export type Database = {
         };
         Returns: boolean;
       };
+      manage_billing_override: {
+        Args: {
+          p_expires_at: string;
+          p_organization_id: string;
+          p_product_key: string;
+          p_reason: string;
+          p_revoke_id?: string;
+          p_starts_at: string;
+          p_tryout_id?: string;
+        };
+        Returns: string;
+      };
       manage_director_evaluation_flag: {
         Args: {
           p_action: string;
@@ -6664,10 +6655,12 @@ export type Database = {
       };
       participant_schedule: { Args: never; Returns: Json };
       participant_workspace: { Args: never; Returns: Json };
+      pending_account_deletion_notices: { Args: never; Returns: Json };
       performance_export_status: {
         Args: { p_id: string; p_organization_id: string };
         Returns: Json;
       };
+      platform_account_deletion_requests: { Args: never; Returns: Json };
       platform_health: {
         Args: never;
         Returns: {
@@ -6728,6 +6721,10 @@ export type Database = {
           revoked_at: string;
           support_user_id: string;
         }[];
+      };
+      platform_update_account_deletion: {
+        Args: { p_complete?: boolean; p_confirmed?: boolean; p_id: string };
+        Returns: undefined;
       };
       preview_decision_message_batch: {
         Args: {
@@ -7041,6 +7038,24 @@ export type Database = {
           updated_at: string;
         }[];
       };
+      record_account_deletion_notice: {
+        Args: { p_id: string; p_provider_id: string };
+        Returns: undefined;
+      };
+      record_billing_analytics: {
+        Args: { p_event: string; p_id: string; p_organization_id: string };
+        Returns: undefined;
+      };
+      record_billing_delivery: {
+        Args: {
+          p_digest: string;
+          p_id: string;
+          p_provider: string;
+          p_success?: boolean;
+          p_type: string;
+        };
+        Returns: string;
+      };
       record_outbox_job_delivery_uncertain_v2: {
         Args: {
           p_job_id: string;
@@ -7092,6 +7107,21 @@ export type Database = {
           outcome: string;
           version: number | null;
         }[];
+      };
+      request_account_deletion: { Args: { p_confirm: boolean }; Returns: Json };
+      reserve_billing_purchase: {
+        Args: {
+          p_id: string;
+          p_organization_id: string;
+          p_product_key: string;
+          p_provider: string;
+          p_tryout_id: string;
+        };
+        Returns: Json;
+      };
+      reserve_native_plan_replacement: {
+        Args: { p_id: string; p_previous_id: string; p_snapshot: Json };
+        Returns: string;
       };
       reserve_subscription_checkout_intent: {
         Args: {
@@ -7438,6 +7468,7 @@ export type Database = {
         Args: { p_filters: Json; p_id: string; p_organization_id: string };
         Returns: string;
       };
+      start_pro_trial: { Args: { p_organization_id: string }; Returns: Json };
       submit_calibration: {
         Args: {
           p_case_id: string;

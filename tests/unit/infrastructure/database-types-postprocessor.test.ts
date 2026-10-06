@@ -12,6 +12,7 @@ describe('database type postprocessor', () => {
     const fixture = `export type Database = {
   public: {
     Functions: {
+      claim_billing_reconciliation: { Args: never; Returns: string };
       save_prospect_identity: {
         Args: { p_birth_date: string; p_expected_updated_at?: string };
         Returns: string;
@@ -147,6 +148,9 @@ describe('database type postprocessor', () => {
       execFileSync('node', [resolve('scripts/postprocess-database-types.mjs'), databaseTypes]);
       const processedTwice = readFileSync(databaseTypes, 'utf8');
 
+      expect(processed).toContain(
+        'claim_billing_reconciliation: { Args: never; Returns: string | null };',
+      );
       expect(processed).toContain('version: number;\n        };\n        Returns:');
       expect(processed).toContain('p_expected_version: number | null;');
       expect(processed).toContain(
@@ -219,6 +223,9 @@ describe('database type postprocessor', () => {
       };`);
       expect(processedTwice).toBe(processed);
       expect(processedTwice).not.toContain('| null | null');
+      expect(processedTwice).toContain(
+        'claim_billing_reconciliation: { Args: never; Returns: string | null };',
+      );
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
@@ -267,6 +274,9 @@ describe('database type postprocessor', () => {
       expect(processedOnce).toBe(tracked);
       expect(processedTwice).toBe(tracked);
       expect(processedTwice).not.toContain('| null | null');
+      expect(processedTwice).toContain(
+        'claim_billing_reconciliation: { Args: never; Returns: string | null };',
+      );
       expect(processedTwice).toContain('p_flag_id: string | null;');
       expect(processedTwice).toContain('athlete_flag_id: string | null;');
     } finally {
