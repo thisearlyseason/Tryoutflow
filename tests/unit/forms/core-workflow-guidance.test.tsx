@@ -104,6 +104,12 @@ describe('core workflow field guidance', () => {
   });
 
   it('uses catalog examples as non-submitted guidance during account and organization setup', async () => {
+    const resolvedOptions = Intl.DateTimeFormat.prototype.resolvedOptions;
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(function (
+      this: Intl.DateTimeFormat,
+    ) {
+      return { ...resolvedOptions.call(this), timeZone: FIELD_EXAMPLES.timezone };
+    });
     const signUp = render(await SignUpPage({ searchParams: Promise.resolve({}) }));
     const signUpEmail = screen.getByRole('textbox', { name: 'Email' });
     expect(signUpEmail).toHaveAttribute('placeholder', FIELD_EXAMPLES.guardianEmail);

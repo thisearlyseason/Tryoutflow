@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "ce5748b77db5eaa93d75dd92186132bef3da935b3a4804310ce46dc280f1e70a",
+  "releaseManifestSHA256": "f44fa880c918c88ace76a5a8d7afbfae264c5ffab54500ebb44d373c1fd50063",
   "files": [
     {
       "path": ".env.example",
@@ -2519,7 +2519,7 @@
     },
     {
       "path": "src/modules/organizations/ui/timezone-picker.tsx",
-      "sha256": "39056b072a8e9311dcb883a6acd918219f4adcd6057c552ceb4ab8613935ea29"
+      "sha256": "ef6341f598e9f794396e22d4809e624eea179f223960c44da580ffc3e5433ac5"
     },
     {
       "path": "src/modules/rankings/application/compare-athletes.ts",
@@ -6383,7 +6383,7 @@
     },
     {
       "path": "tests/unit/forms/core-workflow-guidance.test.tsx",
-      "sha256": "33db6b4607386ac223f341e65a9f8a62fd3a29310f262197452929e2f67b8ee7"
+      "sha256": "23bebea6d329c5951bd0f1b7fbb22beba7a5fb50c755787b2389d0d01ebfc797"
     },
     {
       "path": "tests/unit/forms/field-examples.test.ts",
@@ -6618,6 +6618,10 @@
       "sha256": "911fe12b40abf6c4e56c71a191c2433b2ca57b388c3e7a63ef3ece6acb8ad397"
     },
     {
+      "path": "tests/unit/organizations/timezone-picker.test.tsx",
+      "sha256": "8450ff65eccc28ab07b9f2cbdaa7490afa0d90287bd3cb74d35776bddfbbcf28"
+    },
+    {
       "path": "tests/unit/proxy.test.ts",
       "sha256": "cba6af8a7c10ec0fbb1de1010cccdf05e9a6098c8007e9a0e345be52013fa3c3"
     },
@@ -6847,7 +6851,7 @@
     },
     {
       "path": "tests/unit/tryouts/tryout-basics.test.ts",
-      "sha256": "ec023755e6ddfb2c754cd7c72b9e856f73f46841e416124ff0c098de768e117f"
+      "sha256": "ef5ac4b0d27b183cf2dd2e251add032f5fd50c1e999bf3ecf2741dad42eb5de4"
     },
     {
       "path": "tests/unit/tryouts/tryout-card.test.tsx",
@@ -6900,5 +6904,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL test closure; authoritative CI schema types from clean migrations through165, preserving migration147 nullable reconciliation return; temporary diagnostics removed; web exception scope unchanged"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL test closure; authoritative CI schema types through165 with nullable reconciliation return; validated local timezone detection including UTC and deterministic guidance/date-boundary coverage; web exception scope unchanged"
 }

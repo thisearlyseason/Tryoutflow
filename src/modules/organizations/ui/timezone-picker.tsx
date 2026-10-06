@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { Input } from '../../../components/ui/input';
+import { isIanaTimeZone } from '../domain/organization';
 
 const fallbackTimezones = [
   'America/Edmonton',
@@ -37,7 +38,12 @@ export function TimezonePicker({ describedBy }: TimezonePickerProps) {
     const supportedTimezones = getTimezones();
     setTimezones(supportedTimezones);
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (supportedTimezones.includes(detectedTimezone)) setTimezone(detectedTimezone);
+    // supportedValuesOf lists canonical zones, not every valid identifier (UTC
+    // and browser aliases may be omitted). Validate detection independently.
+    if (detectedTimezone && isIanaTimeZone(detectedTimezone)) {
+      setTimezones([...new Set([...supportedTimezones, detectedTimezone])]);
+      setTimezone(detectedTimezone);
+    }
   }, []);
 
   return (

@@ -15,6 +15,12 @@ describe('tryout basics presentation', () => {
     );
   });
 
+  it('preserves the organization-local date across the UTC new-year boundary', () => {
+    const instant = '2027-01-01T01:30:00.000Z';
+    expect(toDateTimeLocalValue(instant, 'UTC')).toBe('2027-01-01T01:30');
+    expect(toDateTimeLocalValue(instant, 'America/Edmonton')).toBe('2026-12-31T18:30');
+  });
+
   it('fails closed when the stored basics projection is malformed', () => {
     expect(
       parseTryoutBasics({
