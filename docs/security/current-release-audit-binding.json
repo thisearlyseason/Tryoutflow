@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "033eef5710a5224de13d7eebf49d9664de62711de92ed24fdd1447d0bf406647",
+  "releaseManifestSHA256": "bcb18fa75e6465207f51dd9eca7a006576e6fde15ad0bcd421c4f113797dc3f9",
   "files": [
     {
       "path": ".env.example",
@@ -11,7 +11,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "f9ff91aded3440986e3f9dd67ca1694c16abaddc7bd85541f77283876e6f0618"
+      "sha256": "5b0309d8b3cb7e271746ea755754ea789274a8be6223ca22f25567370fad93f8"
     },
     {
       "path": ".gitignore",
@@ -1091,7 +1091,7 @@
     },
     {
       "path": "scripts/verify-production-readiness.sh",
-      "sha256": "92e664f634e9aaf61dfae2e603ded1053afd7f6d41d9c186a7c635ad5177a2ef"
+      "sha256": "47c5387ae9acbb0437d10e9c341486cb4b4731ac180b8240afc3f822d88cba60"
     },
     {
       "path": "scripts/verify-release-state.mjs",
@@ -6900,5 +6900,5 @@
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
-  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; reviewed migration163 static ACL expectations and seven negative checks, with no grant or function changes; web exception scope unchanged"
+  "currentReleaseAmendment": "Approved exact native exception and supported shell-quote/sharp fixes; reviewed migration163 static ACL expectations and seven negative checks, with no grant or function changes; temporary schema-only CI diagnostic for generated types drift; web exception scope unchanged"
 }
