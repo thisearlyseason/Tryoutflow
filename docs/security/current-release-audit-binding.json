@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "626d8cfc923de3d875a196240bf670d4bef23f0225c1cee80271f51af5a7bbfe",
+  "releaseManifestSHA256": "37e2aa1f8f40b92cf068b971e9a66cacd2eb4fc0cdca0965a0e833bd652d42b9",
   "files": [
     {
       "path": ".env.example",
@@ -1747,7 +1747,7 @@
     },
     {
       "path": "src/components/layout/mobile-nav.tsx",
-      "sha256": "16f2a7ae49c0347a9a61fa905e055a5b2beca30acb994d67c3ddfc38ad759aba"
+      "sha256": "8f04722164943e6819618db45ab5b34a9c44de20cc4d50f612a36c8979f258bb"
     },
     {
       "path": "src/components/layout/page-header.tsx",
@@ -6963,5 +6963,16 @@
     "approvalScope": "Approved one-time carry-forward of the same pinned web/native tooling exceptions for the exact fourteen-file recovery manifest; CI-first DB-backed verification; local commit and ordinary first push only to the exact review branch with Vercel Git deployment opt-out already present. Production remains held until the full canonical CI gate and all production prerequisites pass. No new exception, future regeneration, deployment, provider activation, protection change, or secret change authorized.",
     "limitations": "No deployment/promotion/merge/provider activation, Vercel dashboard/protection/credential change, new paid resource, future exception regeneration or gate waiver. Current source has not completed browser verification; Production remains held.",
     "ownerResponseReference": "Sentinel_65e6bcc356208191aaf84ee09394fec6"
+  },
+  "unitEnvironmentCompatibilityAmendment": {
+    "ownerResponse": "yes yes",
+    "ownerApprovalTimestampUTC": "2026-10-07T22:14Z",
+    "sourceMessageId": "Sentinel_09e4694bd2748191a7a8a930a21ccbb3",
+    "proposalOnly": false,
+    "previousManifestSHA256": "626d8cfc923de3d875a196240bf670d4bef23f0225c1cee80271f51af5a7bbfe",
+    "manifestSHA256": "37e2aa1f8f40b92cf068b971e9a66cacd2eb4fc0cdca0965a0e833bd652d42b9",
+    "changedSourcePaths": ["src/components/layout/mobile-nav.tsx"],
+    "reason": "Guard the mobile navigation ResizeObserver and preserve initial height measurement, resize fallback, and cleanup in DOM environments without that browser API.",
+    "futureRegenerationAuthorized": false
   }
 }

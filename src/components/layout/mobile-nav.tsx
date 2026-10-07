@@ -37,10 +37,13 @@ export function MobileNav({
         `${navigation.getBoundingClientRect().height}px`,
       );
     updateHeight();
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(navigation);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateHeight);
+    observer?.observe(navigation);
+    if (!observer) window.addEventListener('resize', updateHeight);
     return () => {
-      observer.disconnect();
+      observer?.disconnect();
+      if (!observer) window.removeEventListener('resize', updateHeight);
       frame.style.removeProperty('--mobile-navigation-height');
     };
   }, []);
