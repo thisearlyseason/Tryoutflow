@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "ad173006d5a356fe8a163e015f24c8412dce2589d46d1710462ac25f91822a02",
+  "releaseManifestSHA256": "defda2359b6f3343a1594e5022e32d59acdf7d5b1a31c329f46d567fab849842",
   "files": [
     {
       "path": ".env.example",
@@ -11,7 +11,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "470ee87e3c74265c600f9efcda09b8ee5fc748a67b333e3b6278983acb993c29"
+      "sha256": "b5223f5a0b623369a4a4bf364bf357d2590e717007c2bc8963a65b4da52a449c"
     },
     {
       "path": ".gitignore",
@@ -4415,7 +4415,7 @@
     },
     {
       "path": "tests/e2e/critical-lifecycle.spec.ts",
-      "sha256": "bfb11d572ec1f9b1a7fb816b7f6242e2c7a984600950b4cc343833a7aabc70dd"
+      "sha256": "e870c176ff4d9659015d68af71a3193b0934172b58d604648c5125f47b471b68"
     },
     {
       "path": "tests/e2e/decision-messages.spec.ts",
@@ -4423,11 +4423,11 @@
     },
     {
       "path": "tests/e2e/error-states.spec.ts",
-      "sha256": "164f2f6b3a9a676c34ee5d556cbcb69cf6d516f8aa3320cff35271101168cc19"
+      "sha256": "ca2c6f04b54491427cedc04e7cde38f723a7d2b81404b52a7738bae23eede44f"
     },
     {
       "path": "tests/e2e/final-remediation.spec.ts",
-      "sha256": "226838ebb0654669b092212a6d4198b418784b953fd7a2f762e3bdd11676f934"
+      "sha256": "5b24803d95596c6654679c7561870ec42d8f5bfac3658f7b2cb5665b3d66fffe"
     },
     {
       "path": "tests/e2e/global-database-lifecycle.ts",
@@ -6914,10 +6914,6 @@
       "sha256": "f2b3fc7b55585c0f807acdb98dbed68e24eb62a298c75198c4a78fee764d4f5a"
     },
     {
-      "path": "tsconfig.tsbuildinfo",
-      "sha256": "aca5209f5142f1ae4e7abf3afa0f70a915459a48f3ff55b80c0b3ec456b867be"
-    },
-    {
       "path": "vercel.json",
       "sha256": "105a86b241cba4c3fbc4756f0d5d411d3819ea67fb1b7dcdadd1e9891dba2ba5"
     },
@@ -6933,5 +6929,5 @@
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
   "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged.",
-  "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged. Cross-browser continuation: quiet psql scalar output without changing SQL authorization; responsive message form intrinsic widths; explicit browser downloads for CSV links; bounded Firefox logo-request coalescing with loaded-image assertions; one observed WebKit synthetic cancellation spelling; committed message status replaces unrelated network-idle wait. Visual baselines, thresholds, provider configuration and dependency advisory scope remain unchanged."
+  "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged. Cross-browser continuation: quiet psql scalar output without changing SQL authorization; responsive message form intrinsic widths; explicit browser downloads for CSV links; bounded Firefox logo-request coalescing with loaded-image assertions; one observed WebKit synthetic cancellation spelling; committed message status replaces unrelated network-idle wait. Visual baselines, thresholds, provider configuration and dependency advisory scope remain unchanged. Final browser-gate continuation: mandatory sanitized CSV download checks retained with an optional single exact attachment cancellation; one declared initiating request for each delayed search and check-in; rendered dashboard navigation avoids interrupting an unfinished redirect stream. Measured 45-minute job budget retains all 170 cases, zero retries, existing per-test/assertion limits and every security/cleanup gate. Generated TypeScript build cache is preserved locally and no longer tracked, in accordance with the existing ignore rule; tracked ignored source remains bound. Advisory scope, pinned dependencies, provider settings and visual baselines are unchanged."
 }

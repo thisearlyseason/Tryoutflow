@@ -67,6 +67,7 @@ test('slow check-in search announces loading, disables repeat submission, and re
   );
   try {
     await page.getByLabel('Search registrations').fill('Exact');
+    expectCancellableServerAction(monitor, page, 'one delayed registration search action');
     await page.getByRole('button', { name: 'Search' }).evaluate((button: HTMLButtonElement) => {
       button.click();
       button.click();
@@ -100,6 +101,7 @@ test('slow check-in search announces loading, disables repeat submission, and re
   );
   try {
     const checkIn = page.getByRole('button', { name: 'Check in Exact Aggregate' });
+    expectCancellableServerAction(monitor, page, 'one delayed check-in action');
     await checkIn.evaluate((button: HTMLButtonElement) => {
       button.click();
       button.click();

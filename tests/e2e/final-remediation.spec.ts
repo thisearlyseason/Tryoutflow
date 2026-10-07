@@ -110,7 +110,12 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/home$`, 'u'));
 
-  await page.goto(`/app/${organizationSlug}/tryouts/new`);
+  // A redirect updates the URL before its Server Action stream has finished.
+  // Wait for the destination UI and follow its real link instead of interrupting
+  // that stream with a full-document navigation.
+  await expect(page.getByRole('heading', { name: /Welcome back,.*Coach\./u })).toBeVisible();
+  await page.getByRole('link', { name: 'Create Tryout', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/tryouts/new$`, 'u'));
   await page.getByLabel('Tryout name').fill('AC01 Verified Owner Tryout');
   await page.getByLabel('Sport').fill('Hockey');
   await page.getByLabel('New cycle name').fill('2026 Fall Cycle');

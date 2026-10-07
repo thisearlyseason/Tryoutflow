@@ -607,12 +607,12 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
 }, testInfo) => {
   scope(testInfo, 'owner', scenario);
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
-  // Chromium reports a completed attachment handoff as a failed document
-  // navigation. WebKit may emit the equivalent event depending on its mobile
-  // navigation handoff, so bound it to at most one exact artifact.
+  // Native download links can finish without a failed navigation. Some browser
+  // versions still report the attachment handoff as one cancellation; the actual
+  // download and its sanitized CSV contents are required below in either case.
   if (browserName === 'chromium') {
-    monitor.expectRequestFailure({
-      count: 1,
+    monitor.allowOptionalRequestFailure({
+      maxCount: 1,
       errorText: 'net::ERR_ABORTED',
       label: 'one Chromium download handoff cancellation after the roster CSV response',
       method: 'GET',
