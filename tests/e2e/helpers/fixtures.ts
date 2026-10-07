@@ -169,7 +169,7 @@ function countPublicRegistrationRateKeys(databaseUrl: string, rateKeys: Readonly
 }
 
 function scalarSql(databaseUrl: string, sql: string) {
-  return execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl, '-c', sql], {
+  return execFileSync('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-qAt', databaseUrl, '-c', sql], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();

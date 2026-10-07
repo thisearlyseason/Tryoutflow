@@ -6,7 +6,6 @@ import { signInAs } from './helpers/auth';
 import { task30AuthBrowserAddress } from './helpers/environment';
 import { expect, test } from './helpers/fixtures';
 import {
-  expectCancellableImageRequest,
   expectCancellableNextRscRequest,
   expectCancellableServerAction,
   monitorBrowserErrors,
@@ -426,13 +425,27 @@ test('isolated owner completes the branded tryout journey and removes the logo c
     const evaluationPage = await evaluationContext.newPage();
     try {
       const evaluationMonitor = monitorBrowserErrors(evaluationPage);
+      let evaluatorLogoRequests = 0;
       if (testInfo.project.name === 'firefox') {
-        expectCancellableImageRequest(
-          evaluationMonitor,
-          new URL(initialLogoSrc!, String(baseURL)).href,
-          'two versioned evaluator shell logo requests in Firefox responsive chrome',
-          2,
-        );
+        const logoUrl = new URL(initialLogoSrc!, String(baseURL)).href;
+        evaluationPage.on('request', (request) => {
+          if (
+            request.method() === 'GET' &&
+            request.url() === logoUrl &&
+            /image\//u.test(request.headers().accept ?? '')
+          )
+            evaluatorLogoRequests += 1;
+        });
+        // The two responsive chrome images share one URL. Firefox may coalesce their
+        // requests; still require a real request, loaded image, and at most two attempts.
+        evaluationMonitor.allowOptionalRequestFailure({
+          maxCount: 2,
+          method: 'GET',
+          url: logoUrl,
+          headers: { accept: /image\//u },
+          errorText: ['NS_BINDING_ABORTED', 'NS_ERROR_ABORT'],
+          label: 'versioned evaluator shell image navigation cancellation in Firefox',
+        });
       }
       await signInAs(
         evaluationPage,
@@ -532,6 +545,10 @@ test('isolated owner completes the branded tryout journey and removes the logo c
           `select count(*) from public.evaluations where organization_id='${scenario.ids.organization}' and tryout_id='${authoredTryoutId}' and tryout_registration_id='${authoredRegistrationId}' and tryout_session_id='${authoredSessionId}' and evaluator_user_id='${scenario.users.evaluatorOne.id}' and state='completed'`,
         ),
       ).toBe('1');
+      if (testInfo.project.name === 'firefox') {
+        expect(evaluatorLogoRequests).toBeGreaterThanOrEqual(1);
+        expect(evaluatorLogoRequests).toBeLessThanOrEqual(2);
+      }
       evaluationMonitor.assertClean();
     } finally {
       await evaluationContext.close();

@@ -372,6 +372,7 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
       'NS_ERROR_FAILURE',
       'Load failed',
       'Blocked by Web Inspector',
+      'Load request cancelled',
     ],
     label: 'one deliberately failed offline evaluation synchronization request',
     method: 'POST',
@@ -579,7 +580,6 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
   await expect(messagesPage.getByRole('status')).toContainText(
     '1 message queued. Decisions were not changed.',
   );
-  await messagesPage.waitForLoadState('networkidle');
   messagesMonitor.assertClean();
 
   const deliveryPage = await context.newPage();

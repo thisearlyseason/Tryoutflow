@@ -128,10 +128,10 @@ export function MessageComposer({
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="grid gap-2 font-semibold">
+        <label className="grid min-w-0 gap-2 font-semibold">
           Finalized roster
           <select
-            className="min-h-[var(--target-mobile)] rounded-[var(--radius-control)] border px-3"
+            className="min-h-[var(--target-mobile)] min-w-0 w-full max-w-full rounded-[var(--radius-control)] border px-3"
             style={{ height: 'var(--target-mobile)', minHeight: 'var(--target-mobile)' }}
             value={rosterVersionId}
             onChange={(event) => {
@@ -146,10 +146,10 @@ export function MessageComposer({
             ))}
           </select>
         </label>
-        <label className="grid gap-2 font-semibold">
+        <label className="grid min-w-0 gap-2 font-semibold">
           Decision
           <select
-            className="min-h-[var(--target-mobile)] rounded-[var(--radius-control)] border px-3"
+            className="min-h-[var(--target-mobile)] min-w-0 w-full max-w-full rounded-[var(--radius-control)] border px-3"
             style={{ height: 'var(--target-mobile)', minHeight: 'var(--target-mobile)' }}
             value={kind}
             onChange={(event) => {
@@ -168,10 +168,10 @@ export function MessageComposer({
           </select>
         </label>
       </div>
-      <label className="grid gap-2 font-semibold">
+      <label className="grid min-w-0 gap-2 font-semibold">
         Organization message
         <textarea
-          className="min-h-36 rounded-[var(--radius-control)] border p-3"
+          className="min-h-36 min-w-0 w-full max-w-full rounded-[var(--radius-control)] border p-3"
           style={{ minHeight: '9rem' }}
           maxLength={4000}
           placeholder={

@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "1bc21027f1df9ec4c6596a84f82913b7fed99a0318794d7b1e4756fc7a375a7c",
+  "releaseManifestSHA256": "ad173006d5a356fe8a163e015f24c8412dce2589d46d1710462ac25f91822a02",
   "files": [
     {
       "path": ".env.example",
@@ -2003,7 +2003,7 @@
     },
     {
       "path": "src/modules/communications/ui/message-composer.tsx",
-      "sha256": "43c9cf234b6f725a79c82de904103688808dca7d84773c6caf582a2485c7eba8"
+      "sha256": "ef0b08bff9d680da54bff6e77c9f72685b6cabfd35d0f7a95aa47126b0659a3d"
     },
     {
       "path": "src/modules/demo/demo-state.ts",
@@ -2671,7 +2671,7 @@
     },
     {
       "path": "src/modules/reports/ui/reports-page.tsx",
-      "sha256": "e6fd0033b057e9f4b5256f55afaa12246fd65585a78f54807a73c6eae05d09a8"
+      "sha256": "bc8bc2b9e15ddc7eef25a991b73848e33da7a70038200a777048e9dcfa519488"
     },
     {
       "path": "src/modules/rosters/application/change-decision.ts",
@@ -4407,7 +4407,7 @@
     },
     {
       "path": "tests/e2e/complete-branded-journey.spec.ts",
-      "sha256": "8a5128e7b61911162cf8c22afc4b34377f100cb52abf7083c6d411a113a19310"
+      "sha256": "2f6e0b8bfdcb41fda20c3926e00d9cd688b81cf8d2f940f120f42601ad01879e"
     },
     {
       "path": "tests/e2e/concurrency-and-replay.spec.ts",
@@ -4415,7 +4415,7 @@
     },
     {
       "path": "tests/e2e/critical-lifecycle.spec.ts",
-      "sha256": "43d4e31ae5f7a5b5fd283f9aef79fad79d74fc634b68362f701143aaa2c79fa0"
+      "sha256": "bfb11d572ec1f9b1a7fb816b7f6242e2c7a984600950b4cc343833a7aabc70dd"
     },
     {
       "path": "tests/e2e/decision-messages.spec.ts",
@@ -4451,7 +4451,7 @@
     },
     {
       "path": "tests/e2e/helpers/fixtures.ts",
-      "sha256": "c409ef2413b04971ee4f03189f097ac25ef62c1e3b6a59c0f435e19742fb4d35"
+      "sha256": "fe41d9642dbf6b4789f6c577b0f36b1fde96783c20cd70db653978a6a46092eb"
     },
     {
       "path": "tests/e2e/helpers/network.ts",
@@ -6933,5 +6933,5 @@
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
   "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged.",
-  "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged."
+  "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged. Cross-browser continuation: quiet psql scalar output without changing SQL authorization; responsive message form intrinsic widths; explicit browser downloads for CSV links; bounded Firefox logo-request coalescing with loaded-image assertions; one observed WebKit synthetic cancellation spelling; committed message status replaces unrelated network-idle wait. Visual baselines, thresholds, provider configuration and dependency advisory scope remain unchanged."
 }
