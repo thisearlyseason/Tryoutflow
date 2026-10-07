@@ -8,6 +8,7 @@ import {
   billingRouteFailure,
   readBillingJson,
   type BillingRouteDependencies,
+  type LazyBillingRouteDependencies,
 } from '../../../../../../modules/subscriptions/application/billing-route-boundary';
 import { createCheckoutSession } from '../../../../../../modules/subscriptions/application/create-checkout-session';
 
@@ -23,13 +24,21 @@ const bodySchema = z
 export async function handleCheckoutRequest(
   request: Request,
   organizationId: OrganizationId,
-  dependencies: BillingRouteDependencies,
+  dependencySource:
+    BillingRouteDependencies | LazyBillingRouteDependencies<BillingRouteDependencies>,
 ) {
   try {
-    const body = bodySchema.safeParse(await readBillingJson(request, dependencies.canonicalOrigin));
+    const body = bodySchema.safeParse(
+      await readBillingJson(request, dependencySource.canonicalOrigin),
+    );
     if (!body.success) return billingJsonError(400, 'invalid_request');
-    const authenticated = await dependencies.authenticate(organizationId);
+    // Rejection and owner authorization must not depend on provider credential readiness.
+    const authenticated = await dependencySource.authenticate(organizationId);
     if (!authenticated) return billingJsonError(403, 'forbidden');
+    const dependencies =
+      'loadDependencies' in dependencySource
+        ? await dependencySource.loadDependencies()
+        : dependencySource;
     const result = await createCheckoutSession(
       {
         organizationId,

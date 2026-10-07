@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "defda2359b6f3343a1594e5022e32d59acdf7d5b1a31c329f46d567fab849842",
+  "releaseManifestSHA256": "2e9c900909ad10cea88519687b08f6e6bb78c149fc6d4603f74dafe329220709",
   "files": [
     {
       "path": ".env.example",
@@ -1591,15 +1591,15 @@
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/billing-route-dependencies.ts",
-      "sha256": "efb2624dcd999eb8c5f1c517c82ab2b3c1350ee23cb57cf36ab58f6ddc56454c"
+      "sha256": "034cd523e2feb1c54aca2ac25e95401306005cb9e3537412c624f4f2fe6b88c9"
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/checkout/checkout-request.ts",
-      "sha256": "81df03e8f3e382743783a2afc6fff3418c96ce3781d899337b198fa129c71c52"
+      "sha256": "bca1595356e2413dd310008eb7fbbd733f5561a96205dede273340e81d7648d4"
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/checkout/route.ts",
-      "sha256": "6eba2c8a8ad0b7e7191eb5eda825c9404ee8e6a094dd9220b2fc2552b7232bf1"
+      "sha256": "f4cdd3e4344229c2a3dd5133282949518939bd9d79564e6f6e20d61149407ab3"
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/plan-change/route.ts",
@@ -1607,11 +1607,11 @@
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/portal/portal-request.ts",
-      "sha256": "3dc122dd0127cd768a39446b4436be265eb2a68cefbedbd14ecc8b141c324464"
+      "sha256": "2d275e51a503228fcd11c39fc4ea17b56911ab741c2ab83f8acd31da9d7ad5e2"
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/portal/route.ts",
-      "sha256": "9fdf277f10beb6149a688d19c7cc9af9511b9584aeac20188d313d9e959c59d7"
+      "sha256": "390fb5db2397f2362fb74c245e3fc76460711c43a213c72c9eff861bf41742b3"
     },
     {
       "path": "src/app/api/organizations/[organizationId]/entitlements/route.ts",
@@ -2819,7 +2819,7 @@
     },
     {
       "path": "src/modules/subscriptions/application/billing-route-boundary.ts",
-      "sha256": "9be5bf18f850788d562c34219813c679c18be2641764fe293529614fb3a8b4c6"
+      "sha256": "3f54bb84326325d1748de98d071ddbe2682654793a2ae1554967325e58ebe884"
     },
     {
       "path": "src/modules/subscriptions/application/billing-service.ts",
@@ -6247,7 +6247,7 @@
     },
     {
       "path": "tests/integration/subscriptions/sessions.test.ts",
-      "sha256": "05d00313d866794680e99731e7cb25c62c2a192158ec49137923e71797bd498f"
+      "sha256": "95d98113b017953fffc66b7ad4a5a7abcc1470f1415e0339676ddf57f7a70b58"
     },
     {
       "path": "tests/integration/subscriptions/webhooks.test.ts",
@@ -6782,12 +6782,20 @@
       "sha256": "409092bda3a49df22c2706dc555a6f118b15b4bc863c1ce6e01a6dd9b504996f"
     },
     {
+      "path": "tests/unit/subscriptions/billing-dependency-scope.test.ts",
+      "sha256": "bb426f886a7c89e8d14abc8761f53f0181e9435dd530a62f75c1b8d844838876"
+    },
+    {
       "path": "tests/unit/subscriptions/billing-provider-recovery.test.ts",
       "sha256": "6a6948a908e3948b378ce9dbbcb76240ea882d2bab91794d0b3e8f6678077c54"
     },
     {
       "path": "tests/unit/subscriptions/billing-ui.test.tsx",
       "sha256": "0396c5f1339a99b1efbecdac90602fd2c154afa7b1d2ce8b52b3c9545d369cb7"
+    },
+    {
+      "path": "tests/unit/subscriptions/checkout-request-readiness.test.ts",
+      "sha256": "89099fd4763d49d83b9420662c435d8789edf2feed75bd1f7fecd7bdb692b854"
     },
     {
       "path": "tests/unit/subscriptions/cross-platform-billing.test.ts",
@@ -6800,6 +6808,10 @@
     {
       "path": "tests/unit/subscriptions/plan-change-timestamp.test.ts",
       "sha256": "5fa4625a6983c2abb0309a88ec00323d631c7ade8d1ad8f2ebb34492ebc61609"
+    },
+    {
+      "path": "tests/unit/subscriptions/portal-request-readiness.test.ts",
+      "sha256": "b951ce47a39554f7e97a906e6fe556f463626aabb37a824241956f9e675b221d"
     },
     {
       "path": "tests/unit/subscriptions/price-revisions.test.ts",
@@ -6929,5 +6941,12 @@
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
   "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
   "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged.",
-  "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged. Cross-browser continuation: quiet psql scalar output without changing SQL authorization; responsive message form intrinsic widths; explicit browser downloads for CSV links; bounded Firefox logo-request coalescing with loaded-image assertions; one observed WebKit synthetic cancellation spelling; committed message status replaces unrelated network-idle wait. Visual baselines, thresholds, provider configuration and dependency advisory scope remain unchanged. Final browser-gate continuation: mandatory sanitized CSV download checks retained with an optional single exact attachment cancellation; one declared initiating request for each delayed search and check-in; rendered dashboard navigation avoids interrupting an unfinished redirect stream. Measured 45-minute job budget retains all 170 cases, zero retries, existing per-test/assertion limits and every security/cleanup gate. Generated TypeScript build cache is preserved locally and no longer tracked, in accordance with the existing ignore rule; tracked ignored source remains bound. Advisory scope, pinned dependencies, provider settings and visual baselines are unchanged."
+  "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged. Cross-browser continuation: quiet psql scalar output without changing SQL authorization; responsive message form intrinsic widths; explicit browser downloads for CSV links; bounded Firefox logo-request coalescing with loaded-image assertions; one observed WebKit synthetic cancellation spelling; committed message status replaces unrelated network-idle wait. Visual baselines, thresholds, provider configuration and dependency advisory scope remain unchanged. Final browser-gate continuation: mandatory sanitized CSV download checks retained with an optional single exact attachment cancellation; one declared initiating request for each delayed search and check-in; rendered dashboard navigation avoids interrupting an unfinished redirect stream. Measured 45-minute job budget retains all 170 cases, zero retries, existing per-test/assertion limits and every security/cleanup gate. Generated TypeScript build cache is preserved locally and no longer tracked, in accordance with the existing ignore rule; tracked ignored source remains bound. Advisory scope, pinned dependencies, provider settings and visual baselines are unchanged.",
+  "billingBoundaryAmendment": {
+    "approvalRecordedUTC": "2026-10-07T14:30:07Z",
+    "ownerResponse": "yes. Pleae deploy it.",
+    "approvalScope": "One-time carry-forward of same two tooling exceptions for exact ten-file portal/validation correction; deploy source with original Production configuration; no payment activation or future regeneration permission.",
+    "sourceManifest": "2e9c900909ad10cea88519687b08f6e6bb78c149fc6d4603f74dafe329220709",
+    "limitations": "Actual verified legacy-customer portal and Managed purchases remain unverified."
+  }
 }

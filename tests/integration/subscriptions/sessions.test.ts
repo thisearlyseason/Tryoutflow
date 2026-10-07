@@ -731,6 +731,84 @@ describe('billing session HTTP boundary', () => {
     expect([absent.status, await absent.json()]).toEqual([403, { error: 'forbidden' }]);
   });
 
+  it('lazy authenticated checkout preserves the injected-provider result and disabled gate', async () => {
+    const direct = routeDependencies(trialAccount);
+    const lazy = routeDependencies(trialAccount);
+    const directProvider = vi.spyOn(direct.provider, 'createCheckoutSession');
+    const lazyProvider = vi.spyOn(lazy.provider, 'createCheckoutSession');
+    const loadDependencies = vi.fn(async () => lazy);
+    const authenticate = vi.fn(lazy.authenticate);
+    const before = await handleCheckoutRequest(
+      checkoutRequest({ plan: 'team' }),
+      organizationId,
+      direct,
+    );
+    const after = await handleCheckoutRequest(checkoutRequest({ plan: 'team' }), organizationId, {
+      canonicalOrigin,
+      authenticate,
+      loadDependencies,
+    });
+    expect(before.status).toBe(200);
+    expect(after.status).toBe(200);
+    expect(await after.json()).toEqual(await before.json());
+    expect(lazyProvider.mock.calls).toEqual(directProvider.mock.calls);
+    expect(authenticate).toHaveBeenCalledOnce();
+    expect(loadDependencies).toHaveBeenCalledOnce();
+    expect(authenticate.mock.invocationCallOrder[0]).toBeLessThan(
+      loadDependencies.mock.invocationCallOrder[0]!,
+    );
+
+    vi.stubEnv('BILLING_CHECKOUT_ENABLED', 'false');
+    const providerCall = lazyProvider.mockClear();
+    const disabled = await handleCheckoutRequest(
+      checkoutRequest({ plan: 'team', clientAttemptId: '11111111-1111-4111-8111-111111111199' }),
+      organizationId,
+      { canonicalOrigin, authenticate, loadDependencies },
+    );
+    expect(disabled.status).toBe(503);
+    expect(await disabled.json()).toEqual({ error: 'billing_unavailable' });
+    expect(providerCall).not.toHaveBeenCalled();
+  });
+
+  it('lazy owner portal management preserves the existing customer and session result', async () => {
+    const account = {
+      ...trialAccount,
+      providerCustomerId: 'cus_Task25Customer01',
+      providerSubscriptionId: 'sub_Task25Subscript01',
+      providerPriceId: prices.team,
+      plan: 'team' as const,
+      state: 'active' as const,
+      version: 7,
+    };
+    const direct = routeDependencies(account);
+    const lazy = routeDependencies(account);
+    const directProvider = vi.spyOn(direct.provider, 'createPortalSession');
+    const lazyProvider = vi.spyOn(lazy.provider, 'createPortalSession');
+    const authenticate = vi.fn(lazy.authenticate);
+    const loadDependencies = vi.fn(async () => lazy);
+    const request = () =>
+      new Request(`${canonicalOrigin}/api/organizations/${organizationId}/billing/portal`, {
+        method: 'POST',
+        headers: { origin: canonicalOrigin, 'content-type': 'application/json' },
+        body: JSON.stringify({ clientAttemptId: portalAttemptId }),
+      });
+    const before = await handlePortalRequest(request(), organizationId, direct);
+    const after = await handlePortalRequest(request(), organizationId, {
+      canonicalOrigin,
+      authenticate,
+      loadDependencies,
+    });
+    expect(before.status).toBe(200);
+    expect(after.status).toBe(200);
+    expect(await after.json()).toEqual(await before.json());
+    expect(lazyProvider.mock.calls).toEqual(directProvider.mock.calls);
+    expect(authenticate).toHaveBeenCalledOnce();
+    expect(loadDependencies).toHaveBeenCalledOnce();
+    expect(authenticate.mock.invocationCallOrder[0]).toBeLessThan(
+      loadDependencies.mock.invocationCallOrder[0]!,
+    );
+  });
+
   it('portal accepts an empty body and a checkout return query cannot mutate entitlements', async () => {
     const account = {
       ...trialAccount,

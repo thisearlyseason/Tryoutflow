@@ -22,6 +22,17 @@ export type BillingRouteDependencies = Readonly<{
   checkoutIntents: CheckoutIntentStore;
 }>;
 
+export type BillingPortalRouteDependencies = Pick<
+  BillingRouteDependencies,
+  'canonicalOrigin' | 'providerReturnOrigin' | 'provider' | 'authenticate' | 'loadOwnedAccount'
+>;
+
+export type LazyBillingRouteDependencies<T extends BillingPortalRouteDependencies> = Readonly<{
+  canonicalOrigin: string;
+  authenticate: T['authenticate'];
+  loadDependencies(): Promise<T>;
+}>;
+
 export function billingJsonError(status: number, code: string) {
   return NextResponse.json({ error: code }, { status });
 }
