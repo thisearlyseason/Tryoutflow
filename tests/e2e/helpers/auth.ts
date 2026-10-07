@@ -12,6 +12,29 @@ export async function signInAs(
   onBotToken?: (token: string) => void,
 ) {
   await page.goto('/sign-in');
+  if (page.context().browser()?.browserType().name() === 'firefox') {
+    const iconHref = await page
+      .locator('link[rel="icon"][type="image/svg+xml"]')
+      .getAttribute('href');
+    expect(iconHref, 'the generated SVG favicon is declared').not.toBeNull();
+    const iconUrl = new URL(iconHref!, page.url());
+    expect(iconUrl.origin).toBe(new URL(page.url()).origin);
+    expect(iconUrl.pathname).toBe('/icon.svg');
+    const iconResponse = await page.request.get(iconUrl.href);
+    expect(iconResponse.ok(), 'the exact favicon is served successfully').toBe(true);
+    expect(iconResponse.headers()['content-type']).toContain('image/svg+xml');
+    // Firefox cancels an in-flight chrome favicon on navigation even when the
+    // asset itself is healthy. Bound this to one image request for this exact URL;
+    // failed assets, application requests, other errors, and repeats still fail.
+    monitor.allowOptionalRequestFailure({
+      errorText: 'NS_BINDING_ABORTED',
+      headers: { 'sec-fetch-dest': 'image' },
+      label: 'one Firefox navigation cancellation of the verified SVG favicon',
+      maxCount: 1,
+      method: 'GET',
+      url: iconUrl.href,
+    });
+  }
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(user.password);
   if (onBotToken) {

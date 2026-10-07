@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import Stripe from 'stripe';
 
 import { openAuthenticatedContext, signInAs } from './helpers/auth';
+import { saveEvaluationDraft } from './helpers/evaluation-save';
 import { expect, test, type Task30Scenario } from './helpers/fixtures';
 import {
   expectCancellableServerAction,
@@ -26,18 +27,28 @@ function scope(
   });
 }
 
-async function queuedEvaluationMutation(page: import('@playwright/test').Page) {
+type QueuedEvaluationMutation = {
+  clientMutationId: string;
+  queueSequence: number;
+  attemptCount: number;
+  claimToken?: string;
+  nextAttemptAt: string;
+  status: string;
+  draft: {
+    scores: { categoryId: string; value: number }[];
+    note?: string;
+    noteTagIds: string[];
+    flags: string[];
+  };
+};
+
+async function queuedEvaluationMutations(page: import('@playwright/test').Page) {
   return page.evaluate(async () => {
     const database = (await indexedDB.databases()).find((candidate) =>
       candidate.name?.startsWith('tryoutflow-evaluations--u-'),
     );
-    if (!database?.name) return null;
-    return new Promise<{
-      attemptCount: number;
-      claimToken?: string;
-      nextAttemptAt: string;
-      status: string;
-    } | null>((resolve, reject) => {
+    if (!database?.name) return [];
+    return new Promise<QueuedEvaluationMutation[]>((resolve, reject) => {
       const opening = indexedDB.open(database.name!);
       opening.onerror = () => reject(opening.error);
       opening.onsuccess = () => {
@@ -46,20 +57,22 @@ async function queuedEvaluationMutation(page: import('@playwright/test').Page) {
         const reading = transaction.objectStore('mutations').getAll();
         reading.onerror = () => reject(reading.error);
         reading.onsuccess = () => {
-          const record = reading.result[0] as
-            | {
-                attemptCount: number;
-                claimToken?: string;
-                nextAttemptAt: string;
-                status: string;
-              }
-            | undefined;
+          const records = reading.result as QueuedEvaluationMutation[];
           connection.close();
-          resolve(record ?? null);
+          resolve(records);
         };
       };
     });
   });
+}
+
+async function queuedEvaluationMutation(
+  page: import('@playwright/test').Page,
+  clientMutationId: string,
+) {
+  return (await queuedEvaluationMutations(page)).find(
+    (mutation) => mutation.clientMutationId === clientMutationId,
+  );
 }
 
 test('scenario 1 — new owner completes organization onboarding and publishes a configured tryout', async ({
@@ -293,7 +306,7 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
       await page.getByRole('radio', { name: `Control score ${control} of 10` }).click();
       await page.getByRole('radio', { name: 'Finish score 10 of 10' }).click();
       await page.getByLabel('Private evaluator note').fill(`private ${expected}`);
-      await page.getByRole('button', { name: 'Save now' }).click();
+      await saveEvaluationDraft(page, 'server');
       await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
       expectCancellableServerAction(
         monitor,
@@ -363,6 +376,7 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   scenario,
 }, testInfo) => {
   scope(testInfo, 'evaluator-three', scenario);
+  await page.clock.install();
   const monitor = await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
   monitor.expectRequestFailure({
     count: 1,
@@ -388,6 +402,10 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   await page.goto(
     `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationD}`,
   );
+  await expect(page.getByRole('radio', { name: 'Control score 2 of 10' })).toBeEnabled();
+  // This scenario queues one complete revision. Pause autosave while ordinary
+  // hit-tested input actions assemble it; Save now still performs the real save.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1_000));
   let mutations = 0;
   page.on('request', (request) => {
     if (request.method() === 'POST' && request.url().includes('/api/evaluations/')) {
@@ -398,38 +416,72 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
   await page.getByRole('radio', { name: 'Control score 2 of 10' }).click();
   await page.getByRole('radio', { name: 'Finish score 10 of 10' }).click();
   await page.getByLabel('Private evaluator note').fill('Exact durable offline draft');
-  await page.getByRole('button', { name: 'Save now' }).click();
+  await saveEvaluationDraft(page, 'device');
   await expect(page.getByRole('status')).toContainText('Saved on device');
+  await expect
+    .poll(() => queuedEvaluationMutations(page))
+    .toEqual([
+      expect.objectContaining({
+        clientMutationId: expect.any(String),
+        queueSequence: 1,
+        attemptCount: 0,
+        status: 'pending',
+        draft: {
+          scores: [
+            { categoryId: scenario.ids.categoryControl, value: 2 },
+            { categoryId: scenario.ids.categoryFinish, value: 10 },
+          ],
+          note: 'Exact durable offline draft',
+          noteTagIds: [],
+          flags: [],
+        },
+      }),
+    ]);
+  const [queuedRevision] = await queuedEvaluationMutations(page);
   expect(mutations).toBe(0);
+  await page.clock.resume();
   await page.route('**/api/evaluations/**', (route) => route.abort('failed'));
   const failedSynchronizationRequest = page.waitForRequest(
     (request) => request.method() === 'POST' && request.url().includes('/api/evaluations/'),
   );
   await reconnect(page.context(), page);
-  await failedSynchronizationRequest;
+  const failedRequest = await failedSynchronizationRequest;
+  const { clientMutationId } = failedRequest.postDataJSON() as { clientMutationId: string };
+  expect(clientMutationId).toBe(queuedRevision!.clientMutationId);
+  const failedMutationState = async () => {
+    const mutation = await queuedEvaluationMutation(page, clientMutationId);
+    return mutation
+      ? {
+          attemptCount: mutation.attemptCount,
+          claimed: mutation.claimToken !== undefined,
+          status: mutation.status,
+        }
+      : null;
+  };
+  // A request event precedes the durable failure transaction. Verify that exact
+  // transaction committed before reload, then require it to survive reload.
+  await expect.poll(failedMutationState).toEqual({
+    attemptCount: 1,
+    claimed: false,
+    status: 'pending',
+  });
   await page.reload();
   await expect(page.getByLabel('Private evaluator note')).toHaveValue(
     'Exact durable offline draft',
   );
   await expect.poll(() => mutations).toBe(1);
-  await expect
-    .poll(async () => {
-      const mutation = await queuedEvaluationMutation(page);
-      return mutation
-        ? {
-            attemptCount: mutation.attemptCount,
-            claimed: mutation.claimToken !== undefined,
-            status: mutation.status,
-          }
-        : null;
-    })
-    .toEqual({ attemptCount: 1, claimed: false, status: 'pending' });
+  await expect.poll(failedMutationState).toEqual({
+    attemptCount: 1,
+    claimed: false,
+    status: 'pending',
+  });
   mutations = 0;
   await page.unroute('**/api/evaluations/**');
   await expect
     .poll(async () => {
-      const mutation = await queuedEvaluationMutation(page);
-      return mutation ? mutation.nextAttemptAt <= new Date().toISOString() : false;
+      const mutation = await queuedEvaluationMutation(page, clientMutationId);
+      const now = await page.evaluate(() => new Date().toISOString());
+      return mutation ? mutation.nextAttemptAt <= now : false;
     })
     .toBe(true);
   const synchronizationResponse = page.waitForResponse(

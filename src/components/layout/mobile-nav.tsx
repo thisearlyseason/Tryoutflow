@@ -3,7 +3,7 @@
 import { FeedbackButton } from '@/components/ui/button';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { NavigationGroup } from '../../modules/organizations/components/app-navigation-model';
 import { flattenNavigation } from '../../modules/organizations/components/app-navigation-model';
@@ -24,6 +24,26 @@ export function MobileNav({
   roleLabel?: string;
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const bottomNavigation = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const navigation = bottomNavigation.current;
+    const frame = navigation?.closest<HTMLElement>('.app-frame');
+    if (!navigation || !frame) return;
+    // The bar can grow with text zoom, wrapped labels, and device safe areas.
+    // Keep sticky evaluation actions above its actual rendered height.
+    const updateHeight = () =>
+      frame.style.setProperty(
+        '--mobile-navigation-height',
+        `${navigation.getBoundingClientRect().height}px`,
+      );
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(navigation);
+    return () => {
+      observer.disconnect();
+      frame.style.removeProperty('--mobile-navigation-height');
+    };
+  }, []);
   if (legacyItems) {
     return (
       <nav aria-label="Primary navigation" className="mobile-nav-bar">
@@ -65,7 +85,7 @@ export function MobileNav({
           </Link>
         ) : null}
       </div>
-      <div className="mobile-nav-bar">
+      <div className="mobile-nav-bar" ref={bottomNavigation}>
         {primaryItems.map((item) => (
           <NavigationLink item={item} key={item.href} pathname={pathname} />
         ))}

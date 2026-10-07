@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "2e9c900909ad10cea88519687b08f6e6bb78c149fc6d4603f74dafe329220709",
+  "releaseManifestSHA256": "626d8cfc923de3d875a196240bf670d4bef23f0225c1cee80271f51af5a7bbfe",
   "files": [
     {
       "path": ".env.example",
@@ -11,7 +11,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
-      "sha256": "b5223f5a0b623369a4a4bf364bf357d2590e717007c2bc8963a65b4da52a449c"
+      "sha256": "e6daba0d6c69390b158717f80083fbe383423a184aa7b7713cfd28ec20994e29"
     },
     {
       "path": ".gitignore",
@@ -391,7 +391,7 @@
     },
     {
       "path": "playwright.config.ts",
-      "sha256": "e13225601375fc4b172cc08f7dc1357e8faf6b1ff1a70e66aa369e33b97e9bba"
+      "sha256": "67476837e0b34afdbac2934edc2424096264f8f71a8bdb623607045d4146a168"
     },
     {
       "path": "playwright.evaluation.config.ts",
@@ -1679,7 +1679,7 @@
     },
     {
       "path": "src/app/globals.css",
-      "sha256": "34ed16056d60ffa3252fbf833cb089f281c1f4e965aba8e8e4a9ae0f1ca10f40"
+      "sha256": "2398e36db3d8f5e8ded00d6bae5c90f3640d8514fbed42f910c10d21ae0f01e1"
     },
     {
       "path": "src/app/icon.svg",
@@ -1699,7 +1699,7 @@
     },
     {
       "path": "src/app/sports-workspace.css",
-      "sha256": "5321e3412efa616cf116817f62ef546f8cb84df57d6dba5fabeeebeb6f13c65a"
+      "sha256": "00fadd56ab845069b37cf0105bf2da8a9a48837df72bb798c35a84937bb6445b"
     },
     {
       "path": "src/app/theme.css",
@@ -1747,7 +1747,7 @@
     },
     {
       "path": "src/components/layout/mobile-nav.tsx",
-      "sha256": "ff178301b79cbfcf794ae4c63ea9c51aa68705194f1f4c10235d0d9757a74940"
+      "sha256": "16f2a7ae49c0347a9a61fa905e055a5b2beca30acb994d67c3ddfc38ad759aba"
     },
     {
       "path": "src/components/layout/page-header.tsx",
@@ -4407,7 +4407,7 @@
     },
     {
       "path": "tests/e2e/complete-branded-journey.spec.ts",
-      "sha256": "2f6e0b8bfdcb41fda20c3926e00d9cd688b81cf8d2f940f120f42601ad01879e"
+      "sha256": "9e7ade95f24f2859e808aae01176922e580a89db430bd2a25dec3d2360fc0129"
     },
     {
       "path": "tests/e2e/concurrency-and-replay.spec.ts",
@@ -4415,7 +4415,7 @@
     },
     {
       "path": "tests/e2e/critical-lifecycle.spec.ts",
-      "sha256": "e870c176ff4d9659015d68af71a3193b0934172b58d604648c5125f47b471b68"
+      "sha256": "625c3fbcd968642ecb4129b4788c236223d7f24443c66c74a6b307e142f6d2bc"
     },
     {
       "path": "tests/e2e/decision-messages.spec.ts",
@@ -4423,7 +4423,7 @@
     },
     {
       "path": "tests/e2e/error-states.spec.ts",
-      "sha256": "ca2c6f04b54491427cedc04e7cde38f723a7d2b81404b52a7738bae23eede44f"
+      "sha256": "4b2ec26f4881a8cd930f4057539c24317d6286ccca599d586cb4d09a1bda845c"
     },
     {
       "path": "tests/e2e/final-remediation.spec.ts",
@@ -4443,11 +4443,15 @@
     },
     {
       "path": "tests/e2e/helpers/auth.ts",
-      "sha256": "64c8ca5ad1eb94371468962a9b5154bab7311ec9ab208852fa21e0561728612c"
+      "sha256": "bfd0e909c4729b320e7cee595ce7c9e8609842d4812f006a18d38fa40a7e67f0"
     },
     {
       "path": "tests/e2e/helpers/environment.ts",
       "sha256": "0f4124108c163353101c1de85b5d338ab349673f1094ebd5ebecbf5a71cfeae6"
+    },
+    {
+      "path": "tests/e2e/helpers/evaluation-save.ts",
+      "sha256": "83e20d10610935cef4adfa06aebf66c672f5b07062b4f761f789efc1a007fcd4"
     },
     {
       "path": "tests/e2e/helpers/fixtures.ts",
@@ -4471,7 +4475,7 @@
     },
     {
       "path": "tests/e2e/mobile-evaluation.spec.ts",
-      "sha256": "d68afd61dbfedf703df64b4d422baecda50602cd3b0cb0f961eeb45ebc8e0cae"
+      "sha256": "f39be0f53d411e6aa1e6b7907e1caddd43f666a6660accb77203056c1592ccb4"
     },
     {
       "path": "tests/e2e/mock-roster-export.spec.ts",
@@ -4703,7 +4707,7 @@
     },
     {
       "path": "tests/fixtures/evaluation/app/layout.tsx",
-      "sha256": "a0abd8f6fc34c34d0e349e648c34194e93a3e4f991f55fb3bf70735eb607b19e"
+      "sha256": "d5e7ba1abc167ff061e45e1c0569856b44e04032416fc09731ee27d787e975c4"
     },
     {
       "path": "tests/fixtures/evaluation/app/radar/page.tsx",
@@ -6355,7 +6359,7 @@
     },
     {
       "path": "tests/unit/e2e/browser-error-monitor.test.ts",
-      "sha256": "48dbc8b29159c4a362d9ef5191e6d557a70c88e1e59da3fc74fac355635ff3c8"
+      "sha256": "fe4746900d22f08d3f6252831de1f7212e5ad0147872317ee1da5551cc354ab7"
     },
     {
       "path": "tests/unit/evaluations/athlete-profile.test.tsx",
@@ -6927,7 +6931,7 @@
     },
     {
       "path": "vercel.json",
-      "sha256": "105a86b241cba4c3fbc4756f0d5d411d3819ea67fb1b7dcdadd1e9891dba2ba5"
+      "sha256": "1350e36c2287a4e8fbc9b13b360c5845908689fe99d7544577130fc3eb19683f"
     },
     {
       "path": "vitest.config.ts",
@@ -6948,5 +6952,16 @@
     "approvalScope": "One-time carry-forward of same two tooling exceptions for exact ten-file portal/validation correction; deploy source with original Production configuration; no payment activation or future regeneration permission.",
     "sourceManifest": "2e9c900909ad10cea88519687b08f6e6bb78c149fc6d4603f74dafe329220709",
     "limitations": "Actual verified legacy-customer portal and Managed purchases remain unverified."
+  },
+  "ciOnlyRecoveryAmendment": {
+    "approvalRecordedUTC": "2026-10-07T21:48Z",
+    "ownerResponse": "yes",
+    "sourceManifest": "626d8cfc923de3d875a196240bf670d4bef23f0225c1cee80271f51af5a7bbfe",
+    "baseCommit": "fbb9dd215b7c6afa83f47316f9247c3b60071ff0",
+    "branch": "codex/tryoutflow-offline-preconditions-oct7",
+    "sourceScope": "Exact cumulative fourteen-file recovery, including two offline test precondition corrections and vercel.json exact review-branch automatic deployment opt-out.",
+    "approvalScope": "Approved one-time carry-forward of the same pinned web/native tooling exceptions for the exact fourteen-file recovery manifest; CI-first DB-backed verification; local commit and ordinary first push only to the exact review branch with Vercel Git deployment opt-out already present. Production remains held until the full canonical CI gate and all production prerequisites pass. No new exception, future regeneration, deployment, provider activation, protection change, or secret change authorized.",
+    "limitations": "No deployment/promotion/merge/provider activation, Vercel dashboard/protection/credential change, new paid resource, future exception regeneration or gate waiver. Current source has not completed browser verification; Production remains held.",
+    "ownerResponseReference": "Sentinel_65e6bcc356208191aaf84ee09394fec6"
   }
 }

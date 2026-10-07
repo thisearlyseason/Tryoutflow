@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 
 import { signInAs } from './helpers/auth';
+import { saveEvaluationDraft } from './helpers/evaluation-save';
 import { task30AuthBrowserAddress } from './helpers/environment';
 import { expect, test } from './helpers/fixtures';
 import {
@@ -528,7 +529,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
           name: `Skating score ${authoredScaleMaximum} of ${authoredScaleMaximum}`,
         })
         .click();
-      await evaluationPage.getByRole('button', { name: 'Save now' }).click();
+      await saveEvaluationDraft(evaluationPage, 'server');
       await expect(evaluationPage.getByText('Saved on server', { exact: true })).toBeVisible();
       expectCancellableServerAction(
         evaluationMonitor,

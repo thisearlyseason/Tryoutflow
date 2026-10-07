@@ -1,11 +1,107 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { saveEvaluationDraft } from './helpers/evaluation-save';
 
 test.beforeEach(async ({ context }, testInfo) => {
   await context.setExtraHTTPHeaders({
     'x-tryoutflow-fixture-run': `${testInfo.project.name}:${testInfo.testId}:${testInfo.retry}:${testInfo.repeatEachIndex}`,
   });
+});
+
+test('confirmed autosave needs no repeat mutation and cannot hide an obscured save control', async ({
+  context,
+  page,
+}, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'x-tryoutflow-fixture-run': `${testInfo.project.name}:${testInfo.testId}`,
+    'x-tryoutflow-fixture-navigation': 'mobile',
+  });
+  await page.goto('/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+  const note = page.getByLabel('Private evaluator note');
+  await expect(note).toBeEnabled();
+  await note.fill('Already confirmed synthetic autosave');
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save now' })).toBeDisabled();
+  let repeatMutations = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/evaluations/'))
+      repeatMutations += 1;
+  });
+  await saveEvaluationDraft(page, 'server');
+  expect(repeatMutations).toBe(0);
+  // Negative control: a confirmed autosave must not mask the original hit-target defect.
+  await page.evaluate(() => {
+    const obstruction = document.createElement('div');
+    obstruction.setAttribute('aria-hidden', 'true');
+    obstruction.style.cssText = 'position:fixed;inset:0;z-index:1000';
+    document.body.append(obstruction);
+  });
+  await expect(saveEvaluationDraft(page, 'server')).rejects.toThrow(/must be uncovered/u);
+});
+
+test('mobile navigation leaves manual offline save reachable through resize and text zoom', async ({
+  context,
+  page,
+}, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'x-tryoutflow-fixture-run': `${testInfo.project.name}:${testInfo.testId}`,
+    'x-tryoutflow-fixture-navigation': 'mobile',
+  });
+  await page.goto('/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+  const note = page.getByLabel('Private evaluator note');
+  const save = page.getByRole('button', { name: 'Save now' });
+  await expect(note).toBeEnabled();
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 720 });
+    await save.evaluate((button) => button.scrollIntoView({ block: 'center' }));
+    await expect
+      .poll(async () =>
+        save.evaluate((button) => {
+          const bounds = button.getBoundingClientRect();
+          const navigation = document.querySelector('.mobile-nav-bar')!.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            bounds.left + bounds.width / 2,
+            bounds.top + bounds.height / 2,
+          );
+          return bounds.bottom <= navigation.top && hit !== null && button.contains(hit);
+        }),
+      )
+      .toBe(true);
+  }
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  await save.evaluate((button) => button.scrollIntoView({ block: 'center' }));
+  await expect
+    .poll(async () =>
+      save.evaluate((button) => {
+        const bounds = button.getBoundingClientRect();
+        const navigation = document.querySelector('.mobile-nav-bar')!.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        );
+        return bounds.bottom <= navigation.top && hit !== null && button.contains(hit);
+      }),
+    )
+    .toBe(true);
+  let mutations = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/evaluations/')) mutations += 1;
+  });
+  await context.setOffline(true);
+  await note.fill('Local navigation regression draft');
+  // Use ordinary hit-tested interaction, never force or DOM-click past the navigation.
+  await save.click();
+  await expect(page.getByRole('status')).toContainText('Saved on device');
+  expect(mutations).toBe(0);
+  const synchronized = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && response.url().includes('/api/evaluations/'),
+  );
+  await context.setOffline(false);
+  expect((await synchronized).ok()).toBe(true);
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  expect(mutations).toBe(1);
 });
 
 test('scores assigned athletes one-handed without losing an in-page draft', async ({ page }) => {

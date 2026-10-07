@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "codex/tryoutflow-offline-preconditions-oct7": false
+    }
+  },
   "crons": [
     { "path": "/api/cron/account-deletion", "schedule": "0 13 * * *" },
     { "path": "/api/jobs/process", "schedule": "*/5 * * * *" }

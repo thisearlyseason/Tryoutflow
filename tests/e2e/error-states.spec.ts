@@ -1,4 +1,5 @@
 import { signInAs } from './helpers/auth';
+import { saveEvaluationDraft } from './helpers/evaluation-save';
 import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableServerAction,
@@ -12,10 +13,15 @@ test('offline evaluation saves locally, reconnects once, and survives refresh', 
   page,
   scenario,
 }) => {
+  await page.clock.install();
   const monitor = await signInAs(page, scenario.users.evaluatorThree, scenario.organizationSlug);
   await page.goto(
     `/app/${scenario.organizationSlug}/evaluate/session/${scenario.ids.session}/athletes/${scenario.ids.registrationD}`,
   );
+  await expect(page.getByRole('radio', { name: 'Control score 2 of 10' })).toBeEnabled();
+  // Keep this one-revision reconnect scenario independent of input speed and
+  // autosave timing. Every edit and Save now action remains ordinarily hit-tested.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1_000));
   let mutations = 0;
   page.on('request', (request) => {
     if (
@@ -30,9 +36,52 @@ test('offline evaluation saves locally, reconnects once, and survives refresh', 
   await page.getByRole('radio', { name: 'Control score 2 of 10' }).click();
   await page.getByRole('radio', { name: 'Finish score 10 of 10' }).click();
   await page.getByLabel('Private evaluator note').fill('Task 31 durable offline note');
-  await page.getByRole('button', { name: 'Save now' }).click();
+  await saveEvaluationDraft(page, 'device');
   await expect(page.getByRole('status')).toContainText('Saved on device');
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const database = (await indexedDB.databases()).find((candidate) =>
+          candidate.name?.startsWith('tryoutflow-evaluations--u-'),
+        );
+        if (!database?.name) return [];
+        return new Promise<unknown[]>((resolve, reject) => {
+          const opening = indexedDB.open(database.name!);
+          opening.onerror = () => reject(opening.error);
+          opening.onsuccess = () => {
+            const connection = opening.result;
+            const reading = connection
+              .transaction('mutations', 'readonly')
+              .objectStore('mutations')
+              .getAll();
+            reading.onerror = () => reject(reading.error);
+            reading.onsuccess = () => {
+              connection.close();
+              resolve(reading.result);
+            };
+          };
+        });
+      }),
+    )
+    .toEqual([
+      expect.objectContaining({
+        clientMutationId: expect.any(String),
+        queueSequence: 1,
+        attemptCount: 0,
+        status: 'pending',
+        draft: {
+          scores: [
+            { categoryId: scenario.ids.categoryControl, value: 2 },
+            { categoryId: scenario.ids.categoryFinish, value: 10 },
+          ],
+          note: 'Task 31 durable offline note',
+          noteTagIds: [],
+          flags: [],
+        },
+      }),
+    ]);
   expect(mutations).toBe(0);
+  await page.clock.resume();
 
   const synchronized = page.waitForResponse(
     (response) =>

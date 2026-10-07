@@ -32,6 +32,40 @@ function consoleError(text: string, url = '') {
 }
 
 describe('Task 30 browser error monitor', () => {
+  it('allows one exact Firefox favicon image cancellation while rejecting application failures', () => {
+    const exact = {
+      errorText: 'NS_BINDING_ABORTED',
+      headers: { 'sec-fetch-dest': 'image' },
+      method: 'GET',
+      url: 'http://127.0.0.1:3112/icon.svg?icon.build.svg',
+    };
+    const create = () => {
+      const page = new FakePage();
+      const monitor = monitorBrowserErrors(page as unknown as Page);
+      monitor.allowOptionalRequestFailure({
+        ...exact,
+        maxCount: 1,
+        label: 'one verified SVG favicon cancellation',
+      });
+      return { page, monitor };
+    };
+    const accepted = create();
+    accepted.page.emit('requestfailed', failedRequest(exact));
+    expect(() => accepted.monitor.assertClean()).not.toThrow();
+    accepted.page.emit('requestfailed', failedRequest(exact));
+    expect(() => accepted.monitor.assertClean()).toThrow(/unexpected request failure/u);
+    for (const mismatch of [
+      { method: 'POST' },
+      { url: 'http://127.0.0.1:3112/api/evaluations/id/mutations' },
+      { url: 'http://127.0.0.1:3112/icon.svg?icon.other-build.svg' },
+      { headers: { 'sec-fetch-dest': 'empty' } },
+      { errorText: 'NS_ERROR_CONNECTION_REFUSED' },
+    ]) {
+      const rejected = create();
+      rejected.page.emit('requestfailed', failedRequest({ ...exact, ...mismatch }));
+      expect(() => rejected.monitor.assertClean()).toThrow(/unexpected request failure/u);
+    }
+  });
   it('consumes an exact method, URL, error, header, and count contract', () => {
     const page = new FakePage();
     const monitor = monitorBrowserErrors(page as unknown as Page);

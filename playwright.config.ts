@@ -97,7 +97,8 @@ export default defineConfig({
   },
   use: {
     baseURL: origin,
-    trace: 'on-first-retry',
+    // Retries are intentionally disabled; retain the first failing execution.
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },

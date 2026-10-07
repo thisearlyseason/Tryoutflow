@@ -682,7 +682,7 @@
   border: 1px solid var(--color-border-strong);
   border-radius: 14px;
   box-shadow: 0 -4px 25px rgb(10 25 45 / 9%);
-  bottom: 0.75rem;
+  bottom: calc(0.75rem + var(--mobile-navigation-height, 0px));
 }
 .evaluation-save-dock button {
   border-radius: 10px;
@@ -958,7 +958,7 @@
     padding: 1.1rem;
   }
   .sport-day-workspace .evaluation-save-dock {
-    bottom: 0.35rem;
+    bottom: calc(0.35rem + var(--mobile-navigation-height, 0px));
     padding: 0.65rem;
   }
   .sport-day-workspace .evaluation-save-dock > div {
