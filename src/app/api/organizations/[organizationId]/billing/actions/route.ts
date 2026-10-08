@@ -7,6 +7,7 @@ import { createAdminSupabaseClient } from '@/infrastructure/supabase/admin';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import { ownerBillingContext } from '@/modules/subscriptions/application/billing-request';
+import { checkoutReturnStatus } from '@/modules/subscriptions/application/checkout-return-status';
 import {
   providerContext,
   reconcileOrganizationSubscription,
@@ -41,7 +42,10 @@ export async function GET(
   try {
     const { organizationId } = await params;
     z.uuid().parse(organizationId);
-    const { client } = await ownerBillingContext(request, organizationId);
+    const { client, user } = await ownerBillingContext(request, organizationId);
+    const intentValues = new URL(request.url).searchParams.getAll('intent');
+    const intentId = intentValues.length ? z.uuid().parse(intentValues[0]) : null;
+    if (intentValues.length > 1) throw new Error('invalid_checkout_identity');
     const { data, error } = await client.rpc('get_billing_dashboard', {
       p_organization_id: organizationId,
     });
@@ -53,8 +57,25 @@ export async function GET(
       .order('created_at', { ascending: false })
       .limit(500);
     if (tryoutError) throw tryoutError;
+    let checkout;
+    if (intentId) {
+      try {
+        checkout = checkoutReturnStatus(await providerContext(organizationId, user.id), {
+          organizationId,
+          purchaserId: user.id,
+          intentId,
+          now: new Date(),
+        });
+      } catch {
+        checkout = { intentId, status: 'unavailable' as const };
+      }
+    }
     return Response.json(
-      { ...z.record(z.string(), z.unknown()).parse(data), tryouts },
+      {
+        ...z.record(z.string(), z.unknown()).parse(data),
+        tryouts,
+        ...(checkout ? { checkout } : {}),
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch {
@@ -240,6 +261,7 @@ export async function POST(
       input.attemptId,
       input.provider === 'stripe' ? input.checkoutProtocol : undefined,
       input.billingCountry,
+      input.provider === 'stripe' ? 'intent_return_v1' : undefined,
     );
     const { data: intent, error } = await client.rpc('reserve_billing_purchase', {
       p_id: checkoutIdentity.intentId,
@@ -339,8 +361,8 @@ export async function POST(
         line_items: [{ price: productConfig, quantity: 1 }],
         client_reference_id: checkoutIdentity.intentId,
         metadata,
-        success_url: `${returnUrl}?checkout=complete`,
-        cancel_url: `${returnUrl}?checkout=cancelled`,
+        success_url: `${returnUrl}?checkout=complete&intent=${checkoutIdentity.intentId}`,
+        cancel_url: `${returnUrl}?checkout=cancelled&intent=${checkoutIdentity.intentId}`,
         expires_at:
           Math.floor(
             Date.parse(z.object({ created_at: z.string() }).parse(intent).created_at) / 1000,

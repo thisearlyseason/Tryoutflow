@@ -51,6 +51,10 @@ export async function loadStripeSnapshot(id: string) {
   const stripe = stripeBillingClient();
   const subscription = await stripe.subscriptions.retrieve(id, { expand: ['schedule'] });
   const snapshot = stripeSubscriptionSnapshot(subscription, observedAt);
+  let accessInvoiceId =
+    typeof subscription.latest_invoice === 'string'
+      ? subscription.latest_invoice
+      : subscription.latest_invoice?.id;
   const taxRequired = ['standard_tax_v1', 'managed_v1'].includes(
     subscription.metadata.tax_protocol ?? '',
   );
@@ -68,11 +72,7 @@ export async function loadStripeSnapshot(id: string) {
     taxEnabled &&
     !['canceled', 'unpaid', 'incomplete_expired', 'paused'].includes(subscription.status)
   ) {
-    const latestId =
-      typeof subscription.latest_invoice === 'string'
-        ? subscription.latest_invoice
-        : subscription.latest_invoice?.id;
-    const invoice = latestId ? await stripe.invoices.retrieve(latestId) : null;
+    const invoice = accessInvoiceId ? await stripe.invoices.retrieve(accessInvoiceId) : null;
     if (
       subscription.metadata.tax_protocol === 'managed_v1' &&
       !launchManagedCoverage(
@@ -116,6 +116,9 @@ export async function loadStripeSnapshot(id: string) {
       .filter((l) => l.amount > 0 && l.pricing?.price_details?.price)
       .sort((a, b) => b.period.end - a.period.end)[0];
     if (line) {
+      // A failed renewal can leave access backed by an earlier paid invoice.
+      // Its refund/dispute state must follow the same period as the grant.
+      accessInvoiceId = invoice?.id;
       snapshot.current_period_start = iso(line.period.start);
       snapshot.current_period_end = iso(line.period.end);
       const price = line.pricing?.price_details?.price;
@@ -131,13 +134,9 @@ export async function loadStripeSnapshot(id: string) {
       }
     } else snapshot.status = 'incomplete';
   }
-  const latestInvoice =
-    typeof subscription.latest_invoice === 'string'
-      ? subscription.latest_invoice
-      : subscription.latest_invoice?.id;
-  if (latestInvoice) {
+  if (accessInvoiceId) {
     const payments = await stripe.invoicePayments.list({
-      invoice: latestInvoice,
+      invoice: accessInvoiceId,
       status: 'paid',
       limit: 10,
     });
@@ -240,13 +239,9 @@ export async function stripeChargeSnapshots(
     if (!id) continue;
     const authoritative = await stripe.subscriptions.retrieve(id);
     if (authoritative.metadata.billing_version !== '2') continue;
-    const current = await loadStripeSnapshot(id),
-      latest =
-        typeof authoritative.latest_invoice === 'string'
-          ? authoritative.latest_invoice
-          : authoritative.latest_invoice?.id;
-    if (latest === invoice.id && targetState !== 'active') current.snapshot.status = targetState;
-    results.push(current);
+    // Re-read the invoice supplying current access. A delayed callback for an
+    // older invoice or a resolved dispute cannot overwrite that verified state.
+    results.push(await loadStripeSnapshot(id));
   }
   return results;
 }

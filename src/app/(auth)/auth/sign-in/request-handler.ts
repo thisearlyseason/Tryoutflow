@@ -4,7 +4,10 @@ import { captureOperationalError } from '../../../../infrastructure/observabilit
 import { trustedRequestUrl } from '../../../../lib/request-origin';
 import type { AuthAbuseProtection } from '../../../../modules/identity/application/database-auth-abuse-protection';
 import { guardAuthFormRequest } from '../../../../modules/identity/application/guard-auth-form-request';
-import { signInWithPassword } from '../../../../modules/identity/application/sign-in';
+import {
+  safeInternalPath,
+  signInWithPassword,
+} from '../../../../modules/identity/application/sign-in';
 import { AppError } from '../../../../modules/observability/domain/app-error';
 
 export async function handleSignIn(
@@ -54,7 +57,10 @@ export async function handleSignIn(
       result.error === 'email_not_confirmed'
         ? result.error
         : 'invalid_input';
-    return NextResponse.redirect(trustedRequestUrl(request, `/sign-in?error=${error}`), 303);
+    const redirect = trustedRequestUrl(request, `/sign-in?error=${error}`);
+    const next = safeInternalPath(guarded.fields.get('next'), '');
+    if (next) redirect.searchParams.set('next', next);
+    return NextResponse.redirect(redirect, 303);
   }
   return NextResponse.redirect(trustedRequestUrl(request, result.value.redirectTo), 303);
 }

@@ -21,7 +21,7 @@ export default async function BillingPage({
   searchParams,
 }: {
   params: Promise<{ organizationSlug: string }>;
-  searchParams: Promise<{ checkout?: string | string[] }>;
+  searchParams: Promise<{ checkout?: string | string[]; intent?: string | string[] }>;
 }) {
   const { organizationSlug } = await params;
   const current = await requireCurrentOrganization(organizationSlug);
@@ -100,6 +100,7 @@ export default async function BillingPage({
     ]);
     if (error) throw new Error('Billing is temporarily unavailable.');
     const dashboard = billingDashboardSchema.parse(data);
+    const checkoutQuery = await searchParams;
     let catalogUnavailable = false;
     const products =
       dashboard.purchasesEnabled === false
@@ -123,7 +124,9 @@ export default async function BillingPage({
         ) : null}
         <BillingDashboardPanel
           key={current.organization.id}
-          checkoutReturn={(await searchParams).checkout === 'complete'}
+          checkoutReturn={checkoutQuery.checkout === 'complete'}
+          checkoutCancelled={checkoutQuery.checkout === 'cancelled'}
+          checkoutIntentId={typeof checkoutQuery.intent === 'string' ? checkoutQuery.intent : null}
           initial={dashboard}
           organizationId={current.organization.id}
           products={products}

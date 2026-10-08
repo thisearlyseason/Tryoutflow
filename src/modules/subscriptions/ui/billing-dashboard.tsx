@@ -23,8 +23,12 @@ export function BillingDashboardPanel({
   readOnly = false,
   analyticsEnabled = true,
   checkoutReturn = false,
+  checkoutCancelled = false,
+  checkoutIntentId = null,
 }: {
   checkoutReturn?: boolean;
+  checkoutCancelled?: boolean;
+  checkoutIntentId?: string | null;
   readOnly?: boolean;
   analyticsEnabled?: boolean;
   initial: BillingDashboard;
@@ -37,7 +41,7 @@ export function BillingDashboardPanel({
     setDashboard,
     status: returnStatus,
     retry: retryReturn,
-  } = useCheckoutReturn(initial, organizationId, checkoutReturn);
+  } = useCheckoutReturn(initial, organizationId, checkoutReturn, checkoutIntentId);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [tryout, setTryout] = useState('');
@@ -157,25 +161,36 @@ export function BillingDashboardPanel({
   }
   return (
     <div className="workspace-stack">
-      {checkoutReturn ? (
+      {checkoutReturn || checkoutCancelled ? (
         <section
           className="workspace-card"
           aria-label="Checkout status"
           aria-busy={returnStatus === 'checking'}
         >
           <p role="status" aria-live="polite">
-            {returnStatus === 'confirmed'
-              ? 'Your paid plan is confirmed.'
-              : returnStatus === 'checking'
-                ? 'Checking your plan… Payment confirmation can take a moment.'
-                : returnStatus === 'denied'
-                  ? 'Unable to check billing access. Sign in as this organization’s owner and try again.'
-                  : 'Payment confirmation is still pending. Check again before starting another purchase.'}
+            {checkoutCancelled
+              ? 'Checkout was cancelled. Your current access is shown below.'
+              : returnStatus === 'confirmed'
+                ? 'Your purchase is confirmed. Your current access is shown below.'
+                : returnStatus === 'checking'
+                  ? 'Checking your plan… Payment confirmation can take a moment.'
+                  : returnStatus === 'denied'
+                    ? 'Unable to check billing access. Sign in as this organization’s owner and try again.'
+                    : returnStatus === 'expired'
+                      ? 'This checkout expired. Return to billing to start a new purchase.'
+                      : returnStatus === 'unavailable'
+                        ? 'This checkout could not be confirmed. Review your current access in billing.'
+                        : 'Payment confirmation is still pending. Check again before starting another purchase.'}
           </p>
-          {returnStatus === 'pending' ? (
+          {!checkoutCancelled && returnStatus === 'pending' ? (
             <Button variant="secondary" onClick={retryReturn}>
               Check payment status again
             </Button>
+          ) : null}
+          {!checkoutCancelled && ['expired', 'unavailable', 'denied'].includes(returnStatus) ? (
+            <a href="?" className="mt-3 inline-block font-bold underline">
+              Return to billing
+            </a>
           ) : null}
         </section>
       ) : null}

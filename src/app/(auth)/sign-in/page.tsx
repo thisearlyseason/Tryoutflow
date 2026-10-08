@@ -36,7 +36,15 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               : 'New to TryoutFlow? Create an organization account'}
           </a>
           <a href="/forgot-password">Forgot your password?</a>
-          <a href="/verify-email">Need a new verification link?</a>
+          <a
+            href={
+              parameters.next === '/participant'
+                ? '/verify-email?purpose=participant'
+                : '/verify-email'
+            }
+          >
+            Need a new verification link?
+          </a>
         </nav>
       }
       title="Sign in to your account"

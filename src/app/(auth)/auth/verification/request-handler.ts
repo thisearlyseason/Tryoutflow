@@ -47,7 +47,10 @@ export async function handleEmailVerification(
           operation: 'auth.verification',
         });
       return NextResponse.redirect(
-        trustedRequestUrl(request, '/verify-email?error=unavailable'),
+        trustedRequestUrl(
+          request,
+          '/verify-email?error=unavailable' + (participant ? '&purpose=participant' : ''),
+        ),
         303,
       );
     }

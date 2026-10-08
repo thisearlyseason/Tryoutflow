@@ -35,7 +35,10 @@ export async function handleSignUp(
   const confirmPassword = guarded.fields.get('confirmPassword') ?? '';
   const token = guarded.fields.get('cf-turnstile-response') ?? '';
   if (password !== confirmPassword)
-    return NextResponse.redirect(trustedRequestUrl(request, '/sign-up?error=invalid_input'), 303);
+    return NextResponse.redirect(
+      trustedRequestUrl(request, `/sign-up?error=invalid_input${purposeSuffix}`),
+      303,
+    );
   try {
     const protection = dependencies.abuseProtection ?? getDefaultAuthAbuseProtection();
     const decision = await protection.check({

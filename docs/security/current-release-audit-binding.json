@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "890a4251507ecfd49850506ff86ee336c2bac755252abbd912c688560fd88738",
+  "releaseManifestSHA256": "556a836413fa4b55a845af99da04a0ce63819a1998b00438985a1369392d6745",
   "files": [
     {
       "path": ".env.example",
@@ -1187,7 +1187,7 @@
     },
     {
       "path": "src/app/(app)/app/[organizationSlug]/organization/billing/page.tsx",
-      "sha256": "c4b6af613dfb996cc5c5046f2e9a380d4b128543b5ec55d7492d44ddda66f17d"
+      "sha256": "2eaf33c74afb81ce1aa8b3ecc5fbc121c2900317438c08439a625bc031179b42"
     },
     {
       "path": "src/app/(app)/app/[organizationSlug]/organization/integrations/page.tsx",
@@ -1375,7 +1375,7 @@
     },
     {
       "path": "src/app/(auth)/auth/sign-in/request-handler.ts",
-      "sha256": "f334d4c4e904ba7f73d877c2df4aac817c797c5a4ede1739fa2ddc9df367e713"
+      "sha256": "248bdb96754b042af60d3633c1ede8df2af2faaafdfca7ea2f45862ba026aa1e"
     },
     {
       "path": "src/app/(auth)/auth/sign-in/route.ts",
@@ -1387,7 +1387,7 @@
     },
     {
       "path": "src/app/(auth)/auth/sign-up/request-handler.ts",
-      "sha256": "41326c0e3007b730e79b1393286fbc589ceb03dec6273b616332cbf35036d900"
+      "sha256": "1621a42cf79925cc9d073ad1bd892c6cba47aed5f730be8f06c2427f98dcb394"
     },
     {
       "path": "src/app/(auth)/auth/sign-up/route.ts",
@@ -1395,7 +1395,7 @@
     },
     {
       "path": "src/app/(auth)/auth/verification/request-handler.ts",
-      "sha256": "5182083fd4b34d2dedfb6fd3ac31f76e2b4ed1cfcd3d0b2fe3d12d0ecc196932"
+      "sha256": "e81d634f58850291f86e4d5f19c2c635527b589c6a117c0944de65a6247c1f90"
     },
     {
       "path": "src/app/(auth)/auth/verification/route.ts",
@@ -1415,7 +1415,7 @@
     },
     {
       "path": "src/app/(auth)/sign-in/page.tsx",
-      "sha256": "ae93b0dac7a485e9e15eb2c50930fb83c301749d68dbf1533e3bb89595d7f5c6"
+      "sha256": "a370274fcd5cba0364476dbb2fdcc7122460eda601aaf7ee05bb7681d49f0b8b"
     },
     {
       "path": "src/app/(auth)/sign-up/page.tsx",
@@ -1583,7 +1583,7 @@
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/actions/route.ts",
-      "sha256": "17b0a474b1b60ac6eb9ef86f5e87c180721cea062dc4cabc5f13558a9fd98667"
+      "sha256": "11c66488a65a9805bf73ebcd9724c22cd9f0888f429d4a831acc55266de02c57"
     },
     {
       "path": "src/app/api/organizations/[organizationId]/billing/analytics/route.ts",
@@ -2834,6 +2834,10 @@
       "sha256": "3e4f500ab5a83e5f415d6b6d5672f3307bb6600256a88a81567b2c478bdd47ae"
     },
     {
+      "path": "src/modules/subscriptions/application/checkout-return-status.ts",
+      "sha256": "e99cbcbf76b0df066fd104941804f07c2dc673bd62c4779a95c3524258bf68de"
+    },
+    {
       "path": "src/modules/subscriptions/application/create-checkout-session.ts",
       "sha256": "f900fe4a39a06ce55d5eb5c824487b307268a0cf0b3e5da3e703cf3e5b3cfbe7"
     },
@@ -2847,7 +2851,7 @@
     },
     {
       "path": "src/modules/subscriptions/domain/billing-dashboard.ts",
-      "sha256": "2a6b928491d1060c09f8ceb53879ae3e9370fb9f8b690cde110e1b02b6dda7d0"
+      "sha256": "77035ee84b977d3886ec3cec5b5a03c62c7fd356175a58f59a315b3f4bdf0efc"
     },
     {
       "path": "src/modules/subscriptions/domain/billing-products.ts",
@@ -2911,7 +2915,7 @@
     },
     {
       "path": "src/modules/subscriptions/providers/stripe-checkout-identity.ts",
-      "sha256": "1e4c1fb214d059823f42bdcd26f1ce8c73f3f03e0b87e5d8cc703a20f80a4e77"
+      "sha256": "b83b53b2145231745dccecd469adc3f397a6c474770f735628f51d3db688a29d"
     },
     {
       "path": "src/modules/subscriptions/providers/stripe-checkout-resume.ts",
@@ -2935,7 +2939,7 @@
     },
     {
       "path": "src/modules/subscriptions/providers/stripe.ts",
-      "sha256": "8f2cac303f9fb99f8cf32b6126f01d285a68c20e44c93a334ab20219bfe33419"
+      "sha256": "a8dbf2190dd03467b34f5c399c358d8057e6b7a29d50f117398c3141410d70c3"
     },
     {
       "path": "src/modules/subscriptions/ui/billing-analytics.ts",
@@ -2943,7 +2947,7 @@
     },
     {
       "path": "src/modules/subscriptions/ui/billing-dashboard.tsx",
-      "sha256": "fd30a58a2ac96f5fb02b971db9bccf276d8d0d9bbfbd5f00fb226beb5c858b0a"
+      "sha256": "262d75c4438dc99a71f614ff5c6838c623d19ede2559a4707e9207963217cc77"
     },
     {
       "path": "src/modules/subscriptions/ui/feature-gate.tsx",
@@ -2979,7 +2983,7 @@
     },
     {
       "path": "src/modules/subscriptions/ui/use-checkout-return.ts",
-      "sha256": "2632531be1e50cbd98768c16e300ecfb7f3ccb017eda8d12912d3e75a7aea2fc"
+      "sha256": "33b1b4650cbd9efa324a3b13b5c908324a5d979ac5d99afd9a5e643a919da92c"
     },
     {
       "path": "src/modules/talent/application/actions.ts",
@@ -6438,6 +6442,10 @@
       "sha256": "e33bdcbd021f2baf1eff2e9f6955eab3cca66c9903d84ff195697108acc53196"
     },
     {
+      "path": "tests/unit/identity/auth-error-context.test.tsx",
+      "sha256": "3cabef61cafd0c9b982724e0d113f0021d442dc789caf6301f9028fe67ab8d16"
+    },
+    {
       "path": "tests/unit/identity/authentication-ui.test.tsx",
       "sha256": "1ba00b97ea19397d065a98f51e6d716bb4b93f9f3a1352a486e5b19be4807ad4"
     },
@@ -6814,8 +6822,16 @@
       "sha256": "89099fd4763d49d83b9420662c435d8789edf2feed75bd1f7fecd7bdb692b854"
     },
     {
+      "path": "tests/unit/subscriptions/checkout-return-status.test.tsx",
+      "sha256": "d168f4863820a010de893970dc8aca79d256cdffadf4f223eea1c9ef9f380605"
+    },
+    {
       "path": "tests/unit/subscriptions/cross-platform-billing.test.ts",
       "sha256": "f8bb93201ac365715b6c8950c66572dfa897de9a1b9eedbeb99d666eaa54c352"
+    },
+    {
+      "path": "tests/unit/subscriptions/five-offer-checkout-boundaries.test.ts",
+      "sha256": "e1a6782fef879fc3b4dbea1b4d3251f9d1bcc8432e0ebd74abd80bd4c975cb51"
     },
     {
       "path": "tests/unit/subscriptions/plan-change-route.test.ts",
@@ -6832,6 +6848,10 @@
     {
       "path": "tests/unit/subscriptions/price-revisions.test.ts",
       "sha256": "bc2c5c9ead7dbf13f10ab667d518f19555bb979213ff76adb9bc89c189d72e7f"
+    },
+    {
+      "path": "tests/unit/subscriptions/prior-paid-invoice-revocation.test.ts",
+      "sha256": "b875e806edf17c72e31e309ae895289c08f83dffcb8554c5d67a233cb6000f4b"
     },
     {
       "path": "tests/unit/subscriptions/stripe-checkout-identity.test.ts",
@@ -7168,5 +7188,45 @@
     "futureRegenerationAuthorized": false,
     "ownerApprovalRecordedUTC": "2026-10-08T04:21:54Z",
     "sourceMessageReference": "Direct user reply to the displayed exact 17-path CI-only approval question in task-3; response i approve, repeated twice. Platform message ID and exact message timestamp were not exposed."
+  },
+  "billingAuthRegressionFixesAmendment": {
+    "proposalOnly": false,
+    "approvalStatus": "approved",
+    "ownerResponse": "yes",
+    "ownerApprovalTimestampUTC": "2026-10-08T16:05Z",
+    "ownerApprovalRecordedUTC": "2026-10-08T16:07:39.865Z",
+    "sourceMessageId": "Sentinel_c9751c35599c8191b146ad00df438000",
+    "approvalQuestionSourceMessageId": "Sentinel_e110d3914914819186f3f4260609db4f",
+    "approvalQuestionTimestampUTC": "2026-10-08T16:04Z",
+    "approvalQuestion": "TryOutFlow’s nine reproduced billing/auth issues are fixed locally, with 359 isolated tests passing. May I push this reviewed fix package to the deployment-disabled test branch for the full CI and database checks? Production will stay unchanged until those pass and the release is approved.",
+    "approvalEvidence": "Owner response and minute-precision timestamps forwarded verbatim by source thread01a10e81-643b-7071-9d99-6e5a5314e0fe; the delegation expressly directs exact required binding carry-forward, commit/push/full canonical CI. No seconds inferred.",
+    "previousCommit": "4e83bc7be4574133cea9b745aff1d46d6d6e0ea5",
+    "previousManifestSHA256": "890a4251507ecfd49850506ff86ee336c2bac755252abbd912c688560fd88738",
+    "manifestSHA256": "556a836413fa4b55a845af99da04a0ce63819a1998b00438985a1369392d6745",
+    "sourceFileCount": 1742,
+    "changedSourcePaths": [
+      "src/app/(app)/app/[organizationSlug]/organization/billing/page.tsx",
+      "src/app/(auth)/auth/sign-in/request-handler.ts",
+      "src/app/(auth)/auth/sign-up/request-handler.ts",
+      "src/app/(auth)/auth/verification/request-handler.ts",
+      "src/app/(auth)/sign-in/page.tsx",
+      "src/app/api/organizations/[organizationId]/billing/actions/route.ts",
+      "src/modules/subscriptions/application/checkout-return-status.ts",
+      "src/modules/subscriptions/domain/billing-dashboard.ts",
+      "src/modules/subscriptions/providers/stripe-checkout-identity.ts",
+      "src/modules/subscriptions/providers/stripe.ts",
+      "src/modules/subscriptions/ui/billing-dashboard.tsx",
+      "src/modules/subscriptions/ui/use-checkout-return.ts",
+      "tests/unit/identity/auth-error-context.test.tsx",
+      "tests/unit/subscriptions/checkout-return-status.test.tsx",
+      "tests/unit/subscriptions/five-offer-checkout-boundaries.test.ts",
+      "tests/unit/subscriptions/prior-paid-invoice-revocation.test.ts"
+    ],
+    "branch": "codex/tryoutflow-offline-preconditions-oct7",
+    "isolatedLocalBranch": "codex/tryoutflow-billing-auth-regressions-oct8",
+    "approvalScope": "One-time carry-forward of only the unchanged existing pinned web/native tooling exceptions for this exact sixteen-source-path package. Record the exact source binding, commit and ordinarily push only to the existing deployment-disabled test branch, then run the full canonical CI/database/browser gate. Production remains held for a separate release approval.",
+    "limitations": "No new advisory exception, future regeneration, deployment/promotion/merge, payment activation, provider/schema/security/credential changes, password-candidate combination, or gate waiver authorized. New candidate canonical CI/DB/browser verification remains pending; 359 synthetic checks passed.",
+    "futureRegenerationAuthorized": false,
+    "independentReviewEvidenceSHA256": "c45a54c731b6a03325ef3ae28daaebc5cf4192eee424142337121002ad0d33bb"
   }
 }

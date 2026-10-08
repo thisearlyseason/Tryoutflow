@@ -1,5 +1,9 @@
 import { z } from 'zod';
 import { effectiveEntitlementsSchema, BILLING_STATES } from './effective-entitlements';
+export const checkoutReturnSchema = z.object({
+  intentId: z.uuid(),
+  status: z.enum(['pending', 'confirmed', 'expired', 'unavailable']),
+});
 export const billingDashboardSchema = z.object({
   access: effectiveEntitlementsSchema,
   purchasesEnabled: z.boolean().optional(),
@@ -38,6 +42,7 @@ export const billingDashboardSchema = z.object({
     z.object({ event_type: z.string(), created_at: z.string(), metadata: z.unknown() }),
   ),
   usage: z.object({ active_tryouts: z.number() }),
+  checkout: checkoutReturnSchema.optional(),
 });
 export type BillingDashboard = z.infer<typeof billingDashboardSchema>;
 export type AvailableBillingProduct = {

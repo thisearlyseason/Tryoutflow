@@ -1,17 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { z } from 'zod';
 import { billingDashboardSchema, type BillingDashboard } from '../domain/billing-dashboard';
 
-export function checkoutConfirmed(value: BillingDashboard) {
+export function checkoutConfirmed(value: BillingDashboard, intentId: string | null = null) {
   return (
-    value.access.source !== 'trial' &&
-    value.access.plan !== 'free' &&
-    value.subscriptions.some(
-      (subscription) =>
-        ['active', 'grace_period'].includes(subscription.status) &&
-        (!subscription.current_period_end ||
-          Date.parse(subscription.current_period_end) > Date.parse(value.access.evaluatedAt)),
-    )
+    !!intentId && value.checkout?.intentId === intentId && value.checkout.status === 'confirmed'
   );
 }
 
@@ -20,26 +14,41 @@ export function useCheckoutReturn(
   initial: BillingDashboard,
   organizationId: string,
   complete: boolean,
+  intentId: string | null = null,
 ) {
   const [dashboard, setDashboard] = useState(initial);
-  const [status, setStatus] = useState<'idle' | 'checking' | 'confirmed' | 'pending' | 'denied'>(
-    complete ? 'checking' : 'idle',
-  );
+  const [status, setStatus] = useState<
+    'idle' | 'checking' | 'confirmed' | 'pending' | 'denied' | 'expired' | 'unavailable'
+  >(complete ? 'checking' : 'idle');
   const [attempt, setAttempt] = useState(0);
+  const currentDashboard = useRef(initial);
   useEffect(() => {
-    setDashboard((previous) =>
+    currentDashboard.current = dashboard;
+  }, [dashboard]);
+  useEffect(() => {
+    const previous = currentDashboard.current;
+    if (
       previous.access.organizationId !== organizationId ||
       Date.parse(initial.access.evaluatedAt) >= Date.parse(previous.access.evaluatedAt)
-        ? initial
-        : previous,
-    );
+    ) {
+      currentDashboard.current = initial;
+      setDashboard(initial);
+    }
   }, [initial, organizationId]);
   useEffect(() => {
     if (!complete) {
       setStatus('idle');
       return;
     }
-    if (checkoutConfirmed(initial)) {
+    if (initial.access.organizationId !== organizationId) {
+      setStatus('denied');
+      return;
+    }
+    if (!intentId || !z.uuid().safeParse(intentId).success) {
+      setStatus('unavailable');
+      return;
+    }
+    if (checkoutConfirmed(currentDashboard.current, intentId)) {
       setStatus('confirmed');
       return;
     }
@@ -55,29 +64,64 @@ export function useCheckoutReturn(
         return;
       }
       controller = new AbortController();
-      const timeout = setTimeout(() => controller?.abort(), Math.min(5_000, deadline - Date.now()));
+      let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
-        const response = await fetch(`/api/organizations/${organizationId}/billing/actions`, {
-          method: 'GET',
-          credentials: 'same-origin',
-          cache: 'no-store',
-          signal: controller.signal,
-        });
+        const readDashboard = async () => {
+          const response = await fetch(
+            `/api/organizations/${organizationId}/billing/actions?intent=${intentId}`,
+            {
+              method: 'GET',
+              credentials: 'same-origin',
+              cache: 'no-store',
+              signal: controller!.signal,
+            },
+          );
+          if (response.status === 401 || response.status === 403) return null;
+          if (!response.ok) throw new Error('Unavailable');
+          return billingDashboardSchema.parse(await response.json());
+        };
+        const next = await Promise.race([
+          readDashboard(),
+          new Promise<never>((_, reject) => {
+            timeout = setTimeout(
+              () => {
+                controller?.abort();
+                reject(new Error('Unavailable'));
+              },
+              Math.min(5_000, deadline - Date.now()),
+            );
+          }),
+        ]);
         if (disposed) return;
-        if (response.status === 401 || response.status === 403) {
+        if (Date.now() >= deadline) {
+          setStatus('pending');
+          return;
+        }
+        if (!next) {
           setStatus('denied');
           return;
         }
-        if (!response.ok) throw new Error('Unavailable');
-        const next = billingDashboardSchema.parse(await response.json());
-        if (disposed) return;
         if (next.access.organizationId !== organizationId) {
           setStatus('denied');
           return;
         }
+        if (next.checkout && next.checkout.intentId !== intentId) {
+          setStatus('denied');
+          return;
+        }
+        if (
+          Date.parse(next.access.evaluatedAt) <
+          Date.parse(currentDashboard.current.access.evaluatedAt)
+        )
+          throw new Error('Stale dashboard');
+        currentDashboard.current = next;
         setDashboard(next);
-        if (checkoutConfirmed(next)) {
+        if (checkoutConfirmed(next, intentId)) {
           setStatus('confirmed');
+          return;
+        }
+        if (next.checkout?.status === 'expired' || next.checkout?.status === 'unavailable') {
+          setStatus(next.checkout.status);
           return;
         }
       } catch {
@@ -98,6 +142,6 @@ export function useCheckoutReturn(
       clearTimeout(timer);
       controller?.abort();
     };
-  }, [complete, organizationId, initial, attempt]);
+  }, [complete, organizationId, intentId, initial, attempt]);
   return { dashboard, setDashboard, status, retry: () => setAttempt((value) => value + 1) };
 }
