@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
 
 import { signInAs } from './helpers/auth';
+import { monitorAutomaticPrefetch } from './helpers/automatic-prefetch';
 import { expect, test } from './helpers/fixtures';
 import { monitorBrowserErrors } from './helpers/network';
 
@@ -128,33 +129,43 @@ test('marketing and authentication remain keyboard-first, 44px, overflow-free, a
       'role=anonymous; organization=none; tryout=none; routes=/ and /sign-in; viewport=430x932',
   });
   const monitor = monitorBrowserErrors(page);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.setViewportSize({ width: 430, height: 932 });
-  const icon = await page.request.get('/icon.svg');
-  expect(icon.status()).toBe(200);
-  expect(icon.headers()['content-type']).toContain('image/svg+xml');
-  await page.goto('/');
-  await page.keyboard.press(
-    testInfo.project.name.includes('webkit') || testInfo.project.name === 'Mobile Safari'
-      ? 'Alt+Tab'
-      : 'Tab',
-  );
-  await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page.locator('#main-content')).toBeFocused();
-  await expectMinimumTouchTargets(
-    page.locator('header a, header button, main a, main button, footer a, footer button'),
-  );
-  await expectNoOverflow(page);
-  await expectAxeClean(page);
+  const automaticPrefetch = monitorAutomaticPrefetch(page);
+  try {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.setViewportSize({ width: 430, height: 932 });
+    const icon = await page.request.get('/icon.svg');
+    expect(icon.status()).toBe(200);
+    expect(icon.headers()['content-type']).toContain('image/svg+xml');
+    const home = await page.goto('/');
+    expect(home?.ok(), 'marketing document loads successfully').toBe(true);
+    await page.keyboard.press(
+      testInfo.project.name.includes('webkit') || testInfo.project.name === 'Mobile Safari'
+        ? 'Alt+Tab'
+        : 'Tab',
+    );
+    await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#main-content')).toBeFocused();
+    await expectMinimumTouchTargets(
+      page.locator('header a, header button, main a, main button, footer a, footer button'),
+    );
+    await expectNoOverflow(page);
+    await expectAxeClean(page);
 
-  await page.goto('/sign-in');
-  await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
-  await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
-  await page.getByLabel('Email').focus();
-  await expect(page.getByLabel('Email')).toBeFocused();
-  await expectMinimumTouchTargets(page.locator('main input, main button, main a'));
-  await expectNoOverflow(page);
-  await expectAxeClean(page);
-  monitor.assertClean();
+    automaticPrefetch.assertNone();
+    const signIn = await page.goto('/sign-in');
+    expect(signIn?.ok(), 'sign-in document loads successfully').toBe(true);
+    await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
+    await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
+    await page.getByLabel('Email').focus();
+    await expect(page.getByLabel('Email')).toBeFocused();
+    await expectMinimumTouchTargets(page.locator('main input, main button, main a'));
+    await expectNoOverflow(page);
+    await expectAxeClean(page);
+    automaticPrefetch.assertNone();
+    monitor.assertClean();
+  } finally {
+    automaticPrefetch.stop();
+    monitor.stop();
+  }
 });

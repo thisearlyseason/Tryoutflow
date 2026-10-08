@@ -85,7 +85,7 @@ export default function HomePage() {
             a tryout experience that moves everyone forward.
           </p>
           <div className="landing-actions">
-            <Link className="landing-button landing-button-blue" href="/demo">
+            <Link prefetch={false} className="landing-button landing-button-blue" href="/demo">
               Try the demo <ArrowRight size={19} aria-hidden="true" />
             </Link>
             <a className="landing-button landing-button-outline" href="#workflow">
@@ -174,7 +174,7 @@ export default function HomePage() {
                 More room to focus.
               </h2>
             </div>
-            <Link href="/features" className="landing-text-link">
+            <Link prefetch={false} href="/features" className="landing-text-link">
               Explore all features <ArrowRight size={18} aria-hidden="true" />
             </Link>
           </div>
@@ -192,7 +192,11 @@ export default function HomePage() {
                   Clear scoring criteria and individual athlete scorecards help evaluators turn what
                   they see into useful feedback.
                 </p>
-                <Link href="/how-to?audience=evaluators" className="landing-text-link">
+                <Link
+                  prefetch={false}
+                  href="/how-to?audience=evaluators"
+                  className="landing-text-link"
+                >
                   Meet the evaluator workflow <ArrowRight size={17} aria-hidden="true" />
                 </Link>
               </div>
@@ -220,6 +224,7 @@ export default function HomePage() {
                 </span>
               </div>
               <Link
+                prefetch={false}
                 href="/how-to?audience=evaluators#evaluator-offline"
                 className="landing-text-link"
               >
@@ -278,7 +283,11 @@ export default function HomePage() {
                   Connect linked families with published updates, schedules, approved feedback and
                   offers in their participant portal.
                 </p>
-                <Link href="/how-to?audience=parents" className="landing-text-link">
+                <Link
+                  prefetch={false}
+                  href="/how-to?audience=parents"
+                  className="landing-text-link"
+                >
                   Explore the family guide <ArrowRight size={17} aria-hidden="true" />
                 </Link>
               </div>
@@ -323,7 +332,7 @@ export default function HomePage() {
         </div>
         <div className="landing-program-grid">
           {audiences.map((a) => (
-            <Link className="landing-program" href={a.href} key={a.name}>
+            <Link prefetch={false} className="landing-program" href={a.href} key={a.name}>
               <div>
                 <span>{a.number}</span>
                 <ArrowRight size={24} aria-hidden="true" />
@@ -351,13 +360,13 @@ export default function HomePage() {
               Step-by-step instructions. Real screenshots. A guide for every person who makes tryout
               day happen.
             </p>
-            <Link href="/how-to" className="landing-text-link">
+            <Link prefetch={false} href="/how-to" className="landing-text-link">
               Open the how-to hub <ArrowRight size={18} aria-hidden="true" />
             </Link>
           </div>
           <div className="landing-guide-grid">
             {guides.map((g) => (
-              <Link key={g.audience} href={`/how-to?audience=${g.audience}`}>
+              <Link prefetch={false} key={g.audience} href={`/how-to?audience=${g.audience}`}>
                 <span>
                   <strong>{g.label}</strong>
                   <small>{g.detail}</small>
@@ -380,7 +389,7 @@ export default function HomePage() {
             Before you <br />
             get started.
           </h2>
-          <Link href="/pricing" className="landing-text-link">
+          <Link prefetch={false} href="/pricing" className="landing-text-link">
             View plans and pricing <ArrowRight size={17} aria-hidden="true" />
           </Link>
         </div>
@@ -426,10 +435,10 @@ export default function HomePage() {
           </h2>
           <p>Build your next tryout around the people who make it matter.</p>
           <div className="landing-actions">
-            <Link href="/demo" className="landing-button landing-button-lime">
+            <Link prefetch={false} href="/demo" className="landing-button landing-button-lime">
               Try the demo <ArrowRight size={19} aria-hidden="true" />
             </Link>
-            <Link href="/pricing" className="landing-button landing-button-dark">
+            <Link prefetch={false} href="/pricing" className="landing-button landing-button-dark">
               View Pro plans <ArrowRight size={19} aria-hidden="true" />
             </Link>
           </div>

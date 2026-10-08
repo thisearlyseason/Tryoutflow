@@ -7,7 +7,7 @@ export default function RegistrationLayout({ children }: { children: ReactNode }
   return (
     <div className="public-registration-shell">
       <header className="public-registration-brandbar">
-        <Link href="/" aria-label="TryoutFlow home">
+        <Link prefetch={false} href="/" aria-label="TryoutFlow home">
           <Brand />
         </Link>
         <span>Plan. Run. Evaluate.</span>
@@ -16,8 +16,12 @@ export default function RegistrationLayout({ children }: { children: ReactNode }
       <footer className="public-registration-footer">
         <p>Built for a stronger tomorrow.</p>
         <nav aria-label="Registration legal links">
-          <Link href="/privacy">Privacy</Link>
-          <Link href="/terms">Terms</Link>
+          <Link prefetch={false} href="/privacy">
+            Privacy
+          </Link>
+          <Link prefetch={false} href="/terms">
+            Terms
+          </Link>
         </nav>
       </footer>
     </div>

@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 
 import { expectNoCriticalAccessibilityViolations } from './helpers/accessibility';
 import { signInAs } from './helpers/auth';
-import { monitorOutgoingHomePrefetch } from './helpers/outgoing-prefetch';
+import { monitorAutomaticPrefetch } from './helpers/automatic-prefetch';
 import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableServerAction,
@@ -55,21 +55,25 @@ test('registration and sign-in expose critical-screen semantics without critical
     description: `role=anonymous; organization=${scenario.organizationSlug}; screens=registration,sign-in`,
   });
   const monitor = monitorBrowserErrors(page);
-  const outgoingPrefetch = monitorOutgoingHomePrefetch(page);
+  const automaticPrefetch = monitorAutomaticPrefetch(page);
   try {
     await page.setExtraHTTPHeaders({ 'x-vercel-forwarded-for': scenario.publicClientAddress });
-    await page.goto(`/register/${scenario.organizationSlug}-critical-flow`);
+    const registration = await page.goto(`/register/${scenario.organizationSlug}-critical-flow`);
+    expect(registration?.ok(), 'registration document loads successfully').toBe(true);
     await auditHeading(page, `Register for ${scenario.tryoutName}`);
     await expect(page.getByLabel('Guardian email')).toHaveAttribute('autocomplete', 'email');
-    await outgoingPrefetch.waitForScripts();
+    automaticPrefetch.assertNone();
 
-    await page.goto('/sign-in');
+    const signIn = await page.goto('/sign-in');
+    expect(signIn?.ok(), 'sign-in document loads successfully').toBe(true);
     await auditHeading(page, 'Sign in to your account');
     await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
     await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
+    automaticPrefetch.assertNone();
     monitor.assertClean();
   } finally {
-    outgoingPrefetch.stop();
+    automaticPrefetch.stop();
+    monitor.stop();
   }
 });
 

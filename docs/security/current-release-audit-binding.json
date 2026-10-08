@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "1a538c09980bb251ee3f1969b052238afc1fd67c43300e7257c18a4844b5d410",
+  "releaseManifestSHA256": "890a4251507ecfd49850506ff86ee336c2bac755252abbd912c688560fd88738",
   "files": [
     {
       "path": ".env.example",
@@ -1431,7 +1431,7 @@
     },
     {
       "path": "src/app/(marketing)/delete-account/page.tsx",
-      "sha256": "4c7b8f547f2679c4d0d06c10537d088491abad34047468708f717469da95adf0"
+      "sha256": "39c2e482dab996ab484a76d3520d028ae9d101c87f21119726112f2d5ff841b4"
     },
     {
       "path": "src/app/(marketing)/demo/page.tsx",
@@ -1471,7 +1471,7 @@
     },
     {
       "path": "src/app/(marketing)/page.tsx",
-      "sha256": "cdf5d44407f75b08d2b95372b13845cf18cfd4944713cb7be46850f4e12ad467"
+      "sha256": "3cb1b2793c54ec23fc43ab18837e6170d6cb6e3c262a8428b1b1abcf83ff11aa"
     },
     {
       "path": "src/app/(marketing)/pricing/page.tsx",
@@ -1487,7 +1487,7 @@
     },
     {
       "path": "src/app/(marketing)/support/page.tsx",
-      "sha256": "a843232daa3434a0a69270c09c993c2fefaf1c1c58ed7d5424be337c9132ba17"
+      "sha256": "09929ff681026dc92875e9cc6be8ea7cd12d2bf895071bc82239441d4bc94a5c"
     },
     {
       "path": "src/app/(marketing)/terms/page.tsx",
@@ -1531,7 +1531,7 @@
     },
     {
       "path": "src/app/(registration)/layout.tsx",
-      "sha256": "4834bcf8aa2d6031b741df3c100fc777088656a17e6c6dae6f3f4082350da556"
+      "sha256": "a73a2f89a6dc837672f63a4f428e89e05a9dbaf8c72c55d2bb6caff73d7bd10d"
     },
     {
       "path": "src/app/(registration)/register/[tryoutSlug]/confirmation/page.tsx",
@@ -1539,7 +1539,7 @@
     },
     {
       "path": "src/app/(registration)/register/[tryoutSlug]/confirmation/registration-confirmation-client.tsx",
-      "sha256": "bfe7f83db82076955a31652c5d0895f671337b7f66e04837ac682d9df1d45ee4"
+      "sha256": "7e5071ca51030c1762c90c536442760397dfa7e6b516eb804f649cf7924bd53a"
     },
     {
       "path": "src/app/(registration)/register/[tryoutSlug]/page.tsx",
@@ -1743,7 +1743,7 @@
     },
     {
       "path": "src/components/layout/marketing-shell.tsx",
-      "sha256": "b88d0db85673026891eeb34411269de7581d659e1b2940f437839038fb71f76e"
+      "sha256": "e82480a39e25a6ed25021ba3dbfccc8ba37d9b2d8e76b4d368440aaeb1690124"
     },
     {
       "path": "src/components/layout/mobile-nav.tsx",
@@ -2163,7 +2163,7 @@
     },
     {
       "path": "src/modules/how-to/guide-reader.tsx",
-      "sha256": "0610ead4ba8e5844babc173bd869dd436f6ed91a7a6ee154fa5be7b765d490ee"
+      "sha256": "383cbb1ed2f0358230b454bda979a0d431b277f9401a2985aaca62caaf753a43"
     },
     {
       "path": "src/modules/how-to/plan-guides.ts",
@@ -2331,11 +2331,11 @@
     },
     {
       "path": "src/modules/marketing/ui/audience-page.tsx",
-      "sha256": "15021882354bbce3ab6eeb4d8bee77483a237d72a28f4a9ba6bda0af4832c53d"
+      "sha256": "973670fec69a2040b7b6f30cb0fe7d363bb3809c671bd3e81ad385c22172e826"
     },
     {
       "path": "src/modules/marketing/ui/landing-interactions.tsx",
-      "sha256": "d6185690493c18134a1a3f8782307581e83fc55dc308ce7a08dfc6a026ff0129"
+      "sha256": "e3ccc8d056a69d570b2d516f327ad32748b3855c97b26e4c86c660adba9aa154"
     },
     {
       "path": "src/modules/marketing/ui/legal-draft-status.tsx",
@@ -2343,11 +2343,11 @@
     },
     {
       "path": "src/modules/marketing/ui/page-hero.tsx",
-      "sha256": "18377735dc15a705f3ac29f3b0f8a762d839c2917d89f57d2c8ae91169a898bc"
+      "sha256": "7a6f1f3561ec515592706729ac4017adbfbbf0204c12caf1433ec4a29e085085"
     },
     {
       "path": "src/modules/marketing/ui/pricing-table.tsx",
-      "sha256": "9e1d803d6344786d4c44810562a4162696f112aecdd63c120dbeed30e41aa43a"
+      "sha256": "1f784109fd354d00c6748012f7001c369c8e2e6235af291620f9e7f5f5522980"
     },
     {
       "path": "src/modules/marketing/ui/product-proof.tsx",
@@ -4395,7 +4395,7 @@
     },
     {
       "path": "tests/e2e/accessibility.spec.ts",
-      "sha256": "52525623411881298460e1a31bf8eb95ebf7705408d448e52c405c3ef7e800d8"
+      "sha256": "9360bd3cec48ff25ce1e7d8223163e23000548311faebe6c0164c0e55177970e"
     },
     {
       "path": "tests/e2e/authentication.spec.ts",
@@ -4446,6 +4446,10 @@
       "sha256": "1b1a3f25b28c8510339dc5700024de3b0f8e4886fe189a5f84287988e2637f45"
     },
     {
+      "path": "tests/e2e/helpers/automatic-prefetch.ts",
+      "sha256": "cde6e141bd75413efdcbc1b3bacf7087680dde01f6702cc26346e99a0c8d571d"
+    },
+    {
       "path": "tests/e2e/helpers/environment.ts",
       "sha256": "0f4124108c163353101c1de85b5d338ab349673f1094ebd5ebecbf5a71cfeae6"
     },
@@ -4460,10 +4464,6 @@
     {
       "path": "tests/e2e/helpers/network.ts",
       "sha256": "2d515bfea50754cb3002838092d0bfc6c9ff2a4d91e7417d081feb52645c8eed"
-    },
-    {
-      "path": "tests/e2e/helpers/outgoing-prefetch.ts",
-      "sha256": "6c0810027fb06d0cff4b7fc7d727385f2d0a7356af711ca8f77af88d513acb9c"
     },
     {
       "path": "tests/e2e/helpers/public-registration.ts",
@@ -4507,7 +4507,7 @@
     },
     {
       "path": "tests/e2e/responsive-and-accessibility.spec.ts",
-      "sha256": "d5ca497a548d71a8f3558c04408b3c087b80489728e5e6786ef7cabcf20079ab"
+      "sha256": "0adfb883061d1815ea32242901f859ea3b8e91b7f865d1da823ce05512998567"
     },
     {
       "path": "tests/e2e/role-denials.spec.ts",
@@ -6362,12 +6362,12 @@
       "sha256": "fbffafe818280b3d595695918f258d61213b9e231f1f289ef979388837e1bdfc"
     },
     {
-      "path": "tests/unit/e2e/browser-error-monitor.test.ts",
-      "sha256": "fe4746900d22f08d3f6252831de1f7212e5ad0147872317ee1da5551cc354ab7"
+      "path": "tests/unit/e2e/automatic-prefetch.test.ts",
+      "sha256": "548df8b1f0a3a4f355cfcf4b1abe985ecf1fc7be7126eba3a83391389c0f6c74"
     },
     {
-      "path": "tests/unit/e2e/outgoing-prefetch.test.ts",
-      "sha256": "10e7b657fba0c44877c4475b6c39482afc16d0f7fc6a5e27de913c28f1daf5a5"
+      "path": "tests/unit/e2e/browser-error-monitor.test.ts",
+      "sha256": "fe4746900d22f08d3f6252831de1f7212e5ad0147872317ee1da5551cc354ab7"
     },
     {
       "path": "tests/unit/evaluations/athlete-profile.test.tsx",
@@ -7088,5 +7088,85 @@
     "approvalScope": "One-time carry-forward of only the unchanged existing pinned web/native tooling exceptions for this exact combined source. Apply the reviewed browser-prefetch completion guard and authenticated public navigation, bind, commit and push once to the existing Git deployment-disabled branch, then run the full canonical CI gate. No production deployment is included.",
     "futureRegenerationAuthorized": false,
     "approvalQuestionSourceMessageId": "Sentinel_a5a45c7d5dc4819183b6226d62619ab9"
+  },
+  "publicPrefetchCIOnlyAmendment": {
+    "proposalOnly": false,
+    "approvalStatus": "approved",
+    "ownerResponse": "i approve",
+    "ownerApprovalTimestampUTC": null,
+    "sourceMessageId": null,
+    "previousCommit": "ef0c7fdc6ca74cc956e8d3218dce150268dafb6a",
+    "previousManifestSHA256": "1a538c09980bb251ee3f1969b052238afc1fd67c43300e7257c18a4844b5d410",
+    "manifestSHA256": "890a4251507ecfd49850506ff86ee336c2bac755252abbd912c688560fd88738",
+    "billingBaseCommit": "fbb9dd215b7c6afa83f47316f9247c3b60071ff0",
+    "branch": "codex/tryoutflow-offline-preconditions-oct7",
+    "changedSourcePaths": [
+      "src/app/(marketing)/delete-account/page.tsx",
+      "src/app/(marketing)/page.tsx",
+      "src/app/(marketing)/support/page.tsx",
+      "src/app/(registration)/layout.tsx",
+      "src/app/(registration)/register/[tryoutSlug]/confirmation/registration-confirmation-client.tsx",
+      "src/components/layout/marketing-shell.tsx",
+      "src/modules/how-to/guide-reader.tsx",
+      "src/modules/marketing/ui/audience-page.tsx",
+      "src/modules/marketing/ui/landing-interactions.tsx",
+      "src/modules/marketing/ui/page-hero.tsx",
+      "src/modules/marketing/ui/pricing-table.tsx",
+      "tests/e2e/accessibility.spec.ts",
+      "tests/e2e/helpers/automatic-prefetch.ts",
+      "tests/e2e/helpers/outgoing-prefetch.ts",
+      "tests/e2e/responsive-and-accessibility.spec.ts",
+      "tests/unit/e2e/automatic-prefetch.test.ts",
+      "tests/unit/e2e/outgoing-prefetch.test.ts"
+    ],
+    "cumulativeSourcePaths": [
+      ".github/workflows/ci.yml",
+      "playwright.config.ts",
+      "scripts/verify-marketing-production.d.mts",
+      "scripts/verify-marketing-production.mjs",
+      "src/app/(marketing)/delete-account/page.tsx",
+      "src/app/(marketing)/layout.tsx",
+      "src/app/(marketing)/page.tsx",
+      "src/app/(marketing)/support/page.tsx",
+      "src/app/(registration)/layout.tsx",
+      "src/app/(registration)/register/[tryoutSlug]/confirmation/registration-confirmation-client.tsx",
+      "src/app/globals.css",
+      "src/app/sports-workspace.css",
+      "src/components/layout/marketing-shell.tsx",
+      "src/components/layout/mobile-nav.tsx",
+      "src/infrastructure/supabase/server.ts",
+      "src/modules/how-to/guide-reader.tsx",
+      "src/modules/marketing/ui/audience-page.tsx",
+      "src/modules/marketing/ui/landing-interactions.tsx",
+      "src/modules/marketing/ui/page-hero.tsx",
+      "src/modules/marketing/ui/pricing-table.tsx",
+      "src/proxy.ts",
+      "tests/e2e/accessibility.spec.ts",
+      "tests/e2e/complete-branded-journey.spec.ts",
+      "tests/e2e/critical-lifecycle.spec.ts",
+      "tests/e2e/error-states.spec.ts",
+      "tests/e2e/helpers/auth.ts",
+      "tests/e2e/helpers/automatic-prefetch.ts",
+      "tests/e2e/helpers/evaluation-save.ts",
+      "tests/e2e/mobile-evaluation.spec.ts",
+      "tests/e2e/responsive-and-accessibility.spec.ts",
+      "tests/fixtures/evaluation/app/layout.tsx",
+      "tests/unit/e2e/auth-monitor.test.ts",
+      "tests/unit/e2e/automatic-prefetch.test.ts",
+      "tests/unit/e2e/browser-error-monitor.test.ts",
+      "tests/unit/marketing/marketing-pages.test.tsx",
+      "tests/unit/marketing/marketing-session-navigation.test.tsx",
+      "tests/unit/marketing/production-artifact-gate.test.ts",
+      "tests/unit/proxy.test.ts",
+      "vercel.json"
+    ],
+    "cumulativeSourcePathCount": 39,
+    "sourceFileCount": 1737,
+    "approvalScope": "One-time carry-forward of only the unchanged existing pinned web/native tooling exceptions for this exact 17-path candidate manifest. Apply the reviewed source patch to ef0c7fd, amend its source binding, commit and push once to the same Git deployment-disabled test branch, then run the full canonical zero-retry CI gate. No production deployment is included.",
+    "knownFailure": "The original isolated positive browser matrix remains failed at 59/60: signed-in mobile Chromium confirmation-to-Home clicked RSC ERR_ABORTED. One initial diagnostic and a bounded 10-fresh-context diagnostic did not reproduce cancellation. The failure and strict JS/HTTP monitor remain fatal and have not been waived; intermittent flake risk and root cause remain unresolved.",
+    "limitations": "CI-only approval does not authorize production deployment, promotion, merge, provider activation, new exceptions, future exception regeneration, credential changes or gate waivers. Source pins, strict monitor, retries, timeouts and screenshot thresholds remain unchanged.",
+    "futureRegenerationAuthorized": false,
+    "ownerApprovalRecordedUTC": "2026-10-08T04:21:54Z",
+    "sourceMessageReference": "Direct user reply to the displayed exact 17-path CI-only approval question in task-3; response i approve, repeated twice. Platform message ID and exact message timestamp were not exposed."
   }
 }

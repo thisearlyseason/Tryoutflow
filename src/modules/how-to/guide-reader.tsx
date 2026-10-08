@@ -158,6 +158,7 @@ export function GuideReader({ audience }: { audience: GuideAudience }) {
           <nav className="howto-audiences" aria-label="Choose your how-to guide">
             {guideAudiences.map((role) => (
               <Link
+                prefetch={false}
                 key={role}
                 href={`/how-to?audience=${role}`}
                 aria-current={audience === role ? 'page' : undefined}
@@ -190,6 +191,7 @@ export function GuideReader({ audience }: { audience: GuideAudience }) {
         <nav className="howto-demo-note" aria-label="Plan-specific guides">
           <strong>Plan-specific help: </strong>
           <Link
+            prefetch={false}
             className="font-bold underline"
             onClick={() => setQuery('')}
             href="/how-to?audience=coaches#coach-team-workspaces"
@@ -198,6 +200,7 @@ export function GuideReader({ audience }: { audience: GuideAudience }) {
           </Link>
           {' · '}
           <Link
+            prefetch={false}
             className="font-bold underline"
             onClick={() => setQuery('')}
             href="/how-to?audience=coaches#coach-single-tryout"
@@ -246,7 +249,7 @@ export function GuideReader({ audience }: { audience: GuideAudience }) {
             <div className="howto-help">
               <strong>Before you begin</strong>
               <p>{label.preparation}</p>
-              <Link href={label.start}>
+              <Link prefetch={false} href={label.start}>
                 {label.startLabel} <ArrowRight size={14} aria-hidden="true" />
               </Link>
             </div>
@@ -328,7 +331,10 @@ export function GuideReader({ audience }: { audience: GuideAudience }) {
               <BookOpen size={28} aria-hidden="true" />
               <h3>Keep the next step clear.</h3>
               <p>{label.closing}</p>
-              <Link href={`/how-to?audience=${audience === 'coaches' ? 'parents' : 'coaches'}`}>
+              <Link
+                prefetch={false}
+                href={`/how-to?audience=${audience === 'coaches' ? 'parents' : 'coaches'}`}
+              >
                 {audience === 'coaches'
                   ? 'Open the parent & athlete guide'
                   : 'Open the coach & organizer guide'}{' '}

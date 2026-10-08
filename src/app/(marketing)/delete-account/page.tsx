@@ -66,10 +66,10 @@ export default function DeleteAccountPage() {
         expires within seven days; backup handling will be explained during fulfillment.
       </p>
       <div className="mt-6 flex flex-wrap gap-5">
-        <Link className="underline" href="/support">
+        <Link prefetch={false} className="underline" href="/support">
           Support and subscription links
         </Link>
-        <Link className="underline" href="/privacy">
+        <Link prefetch={false} className="underline" href="/privacy">
           Privacy information
         </Link>
       </div>

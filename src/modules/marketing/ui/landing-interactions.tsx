@@ -178,7 +178,11 @@ export function WorkflowExplorer() {
               </li>
             ))}
           </ul>
-          <Link className="landing-text-link" href={`/how-to?audience=${stage.guide}`}>
+          <Link
+            prefetch={false}
+            className="landing-text-link"
+            href={`/how-to?audience=${stage.guide}`}
+          >
             See every step <ArrowRight size={17} aria-hidden="true" />
           </Link>
         </div>

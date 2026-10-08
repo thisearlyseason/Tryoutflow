@@ -308,7 +308,7 @@ export function RegistrationConfirmationClient({
           </form>
         </section>
       )}
-      <Link className="mt-6 inline-block underline" href="/">
+      <Link prefetch={false} className="mt-6 inline-block underline" href="/">
         Return to TryoutFlow
       </Link>
     </main>

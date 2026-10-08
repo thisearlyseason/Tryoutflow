@@ -40,6 +40,7 @@ export function MarketingShell({
           className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-1 gap-y-2 px-3 py-3 sm:px-6 lg:px-8"
         >
           <Link
+            prefetch={false}
             className={`${marketingLinkClassName} mr-auto justify-start px-1 text-lg font-black no-underline hover:no-underline`}
             href="/"
           >
@@ -47,7 +48,12 @@ export function MarketingShell({
           </Link>
           <div className="order-3 flex w-full flex-wrap items-center gap-1 border-t border-[var(--color-border)] pt-2 sm:order-none sm:w-auto sm:border-0 sm:pt-0">
             {primaryLinks.map((item) => (
-              <Link className={marketingLinkClassName} href={item.href} key={item.href}>
+              <Link
+                prefetch={false}
+                className={marketingLinkClassName}
+                href={item.href}
+                key={item.href}
+              >
                 {item.label}
               </Link>
             ))}
@@ -60,6 +66,7 @@ export function MarketingShell({
             {authenticated ? 'Dashboard' : 'Sign in'}
           </Link>
           <Link
+            prefetch={false}
             className={`${marketingLinkClassName} bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:no-underline`}
             href="/demo"
           >
@@ -85,7 +92,12 @@ export function MarketingShell({
             <p className="font-black">Built for</p>
             <div className="mt-2 flex flex-wrap gap-1 md:flex-col md:items-start">
               {audienceLinks.map((item) => (
-                <Link className={marketingLinkClassName} href={item.href} key={item.href}>
+                <Link
+                  prefetch={false}
+                  className={marketingLinkClassName}
+                  href={item.href}
+                  key={item.href}
+                >
                   {item.label}
                 </Link>
               ))}
@@ -94,16 +106,16 @@ export function MarketingShell({
           <nav aria-label="Legal navigation">
             <p className="font-black">Help and policies</p>
             <div className="mt-2 flex flex-wrap gap-1 md:flex-col md:items-start">
-              <Link className={marketingLinkClassName} href="/support">
+              <Link prefetch={false} className={marketingLinkClassName} href="/support">
                 Support
               </Link>
-              <Link className={marketingLinkClassName} href="/delete-account">
+              <Link prefetch={false} className={marketingLinkClassName} href="/delete-account">
                 Delete account
               </Link>
-              <Link className={marketingLinkClassName} href="/privacy">
+              <Link prefetch={false} className={marketingLinkClassName} href="/privacy">
                 Privacy
               </Link>
-              <Link className={marketingLinkClassName} href="/terms">
+              <Link prefetch={false} className={marketingLinkClassName} href="/terms">
                 Terms
               </Link>
             </div>

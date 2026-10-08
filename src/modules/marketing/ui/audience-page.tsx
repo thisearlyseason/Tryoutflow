@@ -62,6 +62,7 @@ export function AudiencePage({
             <h2 className="mt-2 text-3xl font-black">Bring the whole tryout into focus.</h2>
           </div>
           <Link
+            prefetch={false}
             className={`${marketingLinkClassName} bg-[var(--color-text)] px-5 text-white hover:no-underline`}
             href="/pricing"
           >

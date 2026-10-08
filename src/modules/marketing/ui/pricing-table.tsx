@@ -67,7 +67,11 @@ export function PricingTable() {
                   : 'Go Pro for the event that matters.'}
               </div>
             )}
-            <Link className="pricing-cta" href={plan.key === 'pro' ? '/start?plan=pro' : '/start'}>
+            <Link
+              prefetch={false}
+              className="pricing-cta"
+              href={plan.key === 'pro' ? '/start?plan=pro' : '/start'}
+            >
               {!purchasesAvailable && plan.key !== 'pro' ? 'Create your workspace' : plan.cta}
               <ArrowUpRight size={20} aria-hidden="true" />
             </Link>

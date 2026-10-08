@@ -30,12 +30,14 @@ export function PageHero({
         </div>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
+            prefetch={false}
             className={`${marketingLinkClassName} bg-[var(--color-primary)] px-5 text-[var(--color-primary-foreground)] hover:no-underline`}
             href="/demo"
           >
             Try the demo
           </Link>
           <Link
+            prefetch={false}
             className={`${marketingLinkClassName} border border-[var(--color-border)] bg-[var(--color-surface)] px-5`}
             href="/pricing"
           >

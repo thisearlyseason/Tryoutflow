@@ -36,16 +36,16 @@ export default function SupportPage() {
         app does not cancel a subscription.
       </p>
       <nav aria-label="Support resources" className="mt-6 flex flex-wrap gap-5">
-        <Link className="underline" href="/how-to">
+        <Link prefetch={false} className="underline" href="/how-to">
           Web user guide
         </Link>
-        <Link className="underline" href="/forgot-password">
+        <Link prefetch={false} className="underline" href="/forgot-password">
           Reset password
         </Link>
-        <Link className="underline" href="/delete-account">
+        <Link prefetch={false} className="underline" href="/delete-account">
           Request account deletion
         </Link>
-        <Link className="underline" href="/privacy">
+        <Link prefetch={false} className="underline" href="/privacy">
           Privacy
         </Link>
         <a className="underline" href="https://apps.apple.com/account/subscriptions">
