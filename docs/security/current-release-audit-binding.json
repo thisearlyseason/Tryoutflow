@@ -6955,10 +6955,7 @@
     }
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
-  "nativeAdvisories": [
-    "GHSA-vfj7-8cjw-p6xm",
-    "GHSA-86w9-cpqp-85rv"
-  ],
+  "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
   "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged.",
   "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged. Cross-browser continuation: quiet psql scalar output without changing SQL authorization; responsive message form intrinsic widths; explicit browser downloads for CSV links; bounded Firefox logo-request coalescing with loaded-image assertions; one observed WebKit synthetic cancellation spelling; committed message status replaces unrelated network-idle wait. Visual baselines, thresholds, provider configuration and dependency advisory scope remain unchanged. Final browser-gate continuation: mandatory sanitized CSV download checks retained with an optional single exact attachment cancellation; one declared initiating request for each delayed search and check-in; rendered dashboard navigation avoids interrupting an unfinished redirect stream. Measured 45-minute job budget retains all 170 cases, zero retries, existing per-test/assertion limits and every security/cleanup gate. Generated TypeScript build cache is preserved locally and no longer tracked, in accordance with the existing ignore rule; tracked ignored source remains bound. Advisory scope, pinned dependencies, provider settings and visual baselines are unchanged.",
   "billingBoundaryAmendment": {
@@ -6986,9 +6983,7 @@
     "proposalOnly": false,
     "previousManifestSHA256": "626d8cfc923de3d875a196240bf670d4bef23f0225c1cee80271f51af5a7bbfe",
     "manifestSHA256": "37e2aa1f8f40b92cf068b971e9a66cacd2eb4fc0cdca0965a0e833bd652d42b9",
-    "changedSourcePaths": [
-      "src/components/layout/mobile-nav.tsx"
-    ],
+    "changedSourcePaths": ["src/components/layout/mobile-nav.tsx"],
     "reason": "Guard the mobile navigation ResizeObserver and preserve initial height measurement, resize fallback, and cleanup in DOM environments without that browser API.",
     "futureRegenerationAuthorized": false
   },
