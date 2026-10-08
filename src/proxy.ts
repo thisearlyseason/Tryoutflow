@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { createProxySupabaseClient } from './infrastructure/supabase/server';
+import {
+  createProxySupabaseClient,
+  hasSupabaseSessionCookie,
+} from './infrastructure/supabase/server';
 import { trustedRequestUrl } from './lib/request-origin';
 import { organizationRoutePreflight } from './modules/organizations/application/organization-route-preflight';
 
@@ -31,12 +34,25 @@ function signInUrl(request: NextRequest): URL {
 }
 
 export async function proxy(request: NextRequest) {
-  if (isPublicMarketingPathname(request.nextUrl.pathname)) return NextResponse.next({ request });
+  const publicMarketingPath = isPublicMarketingPathname(request.nextUrl.pathname);
+  if (
+    publicMarketingPath &&
+    (request.nextUrl.pathname.startsWith('/fonts/') ||
+      !hasSupabaseSessionCookie(request.cookies.getAll()))
+  )
+    return NextResponse.next({ request });
 
   const proxyClient = createProxySupabaseClient(request);
   const {
     data: { user },
   } = await proxyClient.supabase.auth.getUser();
+
+  if (publicMarketingPath) {
+    // Refresh here, before rendering: Server Components cannot persist rotated tokens.
+    const response = proxyClient.response();
+    response.headers.set('Cache-Control', 'private, no-store');
+    return response;
+  }
 
   const protectedApplicationPath =
     request.nextUrl.pathname === '/app' ||

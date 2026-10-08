@@ -38,8 +38,11 @@ describe('proxy public marketing boundary', () => {
     '/for/associations',
     '/pricing',
     '/demo',
+    '/how-to',
+    '/how-to/?audience=director',
     '/privacy',
     '/terms',
+    '/fonts/manrope/Manrope-Variable.ttf',
   ])(
     'does not create an auth client or fetch a user for public marketing path %s',
     async (path) => {
@@ -56,6 +59,71 @@ describe('proxy public marketing boundary', () => {
       fetchSpy.mockRestore();
     },
   );
+
+  it.each(['/', '/how-to?audience=director', '/how-to/', '/pricing'])(
+    'refreshes cookie-bearing public page %s without redirecting or loading tenant data',
+    async (path) => {
+      createServerClient.mockImplementation((_url, _key, options) => ({
+        auth: {
+          getUser: async () => {
+            options.cookies.setAll([
+              {
+                name: 'sb-synthetic-auth-token',
+                value: 'rotated-synthetic-session',
+                options: { path: '/', sameSite: 'lax' },
+              },
+            ]);
+            return getUser();
+          },
+        },
+      }));
+      getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+      const request = requestFor(path, 'sb-synthetic-auth-token=existing-synthetic-session');
+      const response = await proxy(request);
+      expect(response.status).toBe(200);
+      expect(response.headers.get('location')).toBeNull();
+      expect(response.headers.get('cache-control')).toBe('private, no-store');
+      expect(response.headers.get('set-cookie')).toContain(
+        'sb-synthetic-auth-token=rotated-synthetic-session',
+      );
+      expect(request.cookies.get('sb-synthetic-auth-token')?.value).toBe(
+        'rotated-synthetic-session',
+      );
+      expect(getUser).toHaveBeenCalledOnce();
+      expect(preflight).not.toHaveBeenCalled();
+    },
+  );
+
+  it('keeps expired sessions on public pages and preserves cookie clearing', async () => {
+    createServerClient.mockImplementation((_url, _key, options) => {
+      options.cookies.setAll([
+        { name: 'sb-synthetic-auth-token', value: '', options: { path: '/', maxAge: 0 } },
+      ]);
+      return { auth: { getUser } };
+    });
+    getUser.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'invalid refresh token' },
+    });
+    const response = await proxy(requestFor('/how-to', 'sb-synthetic-auth-token=expired'));
+    expect(response.status).toBe(200);
+    expect(response.headers.get('location')).toBeNull();
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(preflight).not.toHaveBeenCalled();
+  });
+
+  it('recognizes chunked sessions while leaving static fonts untouched', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+    await proxy(requestFor('/how-to', 'sb-synthetic-auth-token.0=chunk-zero'));
+    const font = await proxy(
+      requestFor('/fonts/manrope/Manrope-Variable.ttf', 'sb-synthetic-auth-token=session'),
+    );
+    expect(font.status).toBe(200);
+    expect(font.headers.get('cache-control')).toBeNull();
+    expect(createServerClient).toHaveBeenCalledOnce();
+    expect(getUser).toHaveBeenCalledOnce();
+  });
 
   it.each([
     '/app',

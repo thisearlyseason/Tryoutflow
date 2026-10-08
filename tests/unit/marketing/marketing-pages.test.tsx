@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('server-only', () => ({}));
+vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [] }) }));
 
 import MarketingLayout from '../../../src/app/(marketing)/layout';
 import HomePage, { metadata as homeMetadata } from '../../../src/app/(marketing)/page';
@@ -52,12 +53,8 @@ const routes: readonly RouteExpectation[] = [
   { path: '/terms', Page: TermsPage, metadata: termsMetadata, heading: /terms/i },
 ];
 
-function renderRoute(Page: ComponentType) {
-  return render(
-    <MarketingLayout>
-      <Page />
-    </MarketingLayout>,
-  );
+async function renderRoute(Page: ComponentType) {
+  return render(await MarketingLayout({ children: <Page /> }));
 }
 
 function canonicalUrl(metadata: Metadata): string | null {
@@ -70,8 +67,8 @@ function canonicalUrl(metadata: Metadata): string | null {
 describe('public marketing routes', () => {
   it.each(routes)(
     '$path renders one indexable page with its own canonical',
-    ({ Page, heading, metadata, path }) => {
-      const { container } = renderRoute(Page);
+    async ({ Page, heading, metadata, path }) => {
+      const { container } = await renderRoute(Page);
 
       expect(screen.getByRole('heading', { level: 1, name: heading })).toBeVisible();
       expect(container.querySelectorAll('h1')).toHaveLength(1);
@@ -178,10 +175,10 @@ describe('public marketing routes', () => {
     }
   });
 
-  it('does not load authenticated or tenant data while rendering any public page', () => {
+  it('does not load authenticated or tenant data while rendering any public page without session cookies', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
-    for (const { Page } of routes) renderRoute(Page);
+    for (const { Page } of routes) await renderRoute(Page);
 
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();

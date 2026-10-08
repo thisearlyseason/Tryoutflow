@@ -32,6 +32,30 @@ export function assertMarketingProductionResponse({ body, path, status }) {
   );
 }
 
+export function assertMarketingAccountNavigation({ body, authenticated, cacheControl = '' }) {
+  const navigation = body.match(
+    /<nav\b[^>]*aria-label="Primary navigation"[^>]*>([\s\S]*?)<\/nav>/u,
+  )?.[1];
+  assert.ok(navigation, 'Expected primary navigation in the server-rendered response');
+  const expected = authenticated ? '/app' : '/sign-in';
+  const unexpected = authenticated ? '/sign-in' : '/app';
+  assert.ok(navigation.includes(`href="${expected}"`), `Expected account link ${expected}`);
+  assert.ok(!navigation.includes(`href="${unexpected}"`), `Unexpected account link ${unexpected}`);
+  assert.ok(navigation.includes(authenticated ? 'Dashboard' : 'Sign in'), 'Expected account label');
+  if (authenticated) {
+    assert.match(
+      cacheControl ?? '',
+      /\bprivate\b/u,
+      'Authenticated marketing response must be private',
+    );
+    assert.match(
+      cacheControl ?? '',
+      /\bno-store\b/u,
+      'Authenticated marketing response must not be stored',
+    );
+  }
+}
+
 function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
@@ -135,12 +159,12 @@ export async function stopOwnedServer(child) {
   }
 }
 
-async function assertStaticMarketingRoutes() {
+async function assertRequestSpecificMarketingRoutes() {
   const manifest = JSON.parse(
     await readFile(resolve(repositoryRoot, '.next/prerender-manifest.json'), 'utf8'),
   );
   for (const path of MARKETING_PATHS) {
-    assert.ok(manifest.routes[path], `Expected ${path} to be statically prerendered`);
+    assert.ok(!manifest.routes[path], `Expected ${path} account navigation to render per request`);
   }
 }
 
@@ -148,8 +172,15 @@ export async function runMarketingProductionArtifactGate() {
   const supabaseRequests = [];
   const supabaseServer = createServer((request, response) => {
     supabaseRequests.push(request.url);
-    response.writeHead(401, { 'content-type': 'application/json' });
-    response.end('{"message":"marketing pages must not use Supabase"}');
+    if (request.url === '/auth/v1/user') {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify({ id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated' }),
+      );
+    } else {
+      response.writeHead(401, { 'content-type': 'application/json' });
+      response.end('{"message":"unexpected marketing auth or tenant request"}');
+    }
   });
   const supabasePort = await listen(supabaseServer);
   const environment = {
@@ -163,7 +194,7 @@ export async function runMarketingProductionArtifactGate() {
 
   try {
     await run(process.execPath, [nextBinary, 'build'], environment);
-    await assertStaticMarketingRoutes();
+    await assertRequestSpecificMarketingRoutes();
 
     ownedServer = await startOwnedServer({
       arguments_: [nextBinary, 'start', '--hostname', '127.0.0.1', '--port', '0'],
@@ -177,6 +208,7 @@ export async function runMarketingProductionArtifactGate() {
       const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });
       const body = await response.text();
       assertMarketingProductionResponse({ body, path, status: response.status });
+      assertMarketingAccountNavigation({ body, authenticated: false });
       assert.equal(
         response.headers.get('set-cookie'),
         null,
@@ -184,6 +216,45 @@ export async function runMarketingProductionArtifactGate() {
       );
     }
     assert.deepEqual(supabaseRequests, [], 'Marketing routes unexpectedly called Supabase');
+
+    const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+    const jwtPart = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+    const accessToken = `${jwtPart({ alg: 'HS256', typ: 'JWT' })}.${jwtPart({ sub: '00000000-0000-4000-8000-000000000001', exp: expiresAt, role: 'authenticated' })}.synthetic-gate-signature`;
+    const session = {
+      access_token: accessToken,
+      refresh_token: 'synthetic-gate-refresh-token',
+      token_type: 'bearer',
+      expires_in: 3600,
+      expires_at: expiresAt,
+      user: { id: '00000000-0000-4000-8000-000000000001', aud: 'authenticated' },
+    };
+    const cookie = `sb-127-auth-token=base64-${Buffer.from(JSON.stringify(session)).toString('base64url')}`;
+    for (const path of ['/how-to', '/pricing']) {
+      const response = await fetch(`${baseUrl}${path}`, {
+        headers: { cookie },
+        redirect: 'manual',
+      });
+      const body = await response.text();
+      assertMarketingProductionResponse({ body, path, status: response.status });
+      assertMarketingAccountNavigation({
+        body,
+        authenticated: true,
+        cacheControl: response.headers.get('cache-control'),
+      });
+      assert.ok(!body.includes(accessToken), 'Session token leaked into public HTML');
+      assert.ok(
+        !body.includes('synthetic-gate-refresh-token'),
+        'Refresh token leaked into public HTML',
+      );
+    }
+    assert.ok(
+      supabaseRequests.length > 0,
+      'Expected verified auth requests for session-bearing pages',
+    );
+    assert.ok(
+      supabaseRequests.every((path) => path === '/auth/v1/user'),
+      'Public pages accessed tenant data or an unexpected auth endpoint',
+    );
 
     for (const path of ['/pricing.json', '/not-a-marketing-route']) {
       const response = await fetch(`${baseUrl}${path}`, { redirect: 'manual' });

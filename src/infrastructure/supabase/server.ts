@@ -5,6 +5,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { getClientEnvironment } from '../../lib/env';
 import type { Database } from './database.types';
 
+export function hasSupabaseSessionCookie(cookies: ReadonlyArray<{ name: string; value: string }>) {
+  // Presence triggers verification; an untrusted cookie never proves identity.
+  return cookies.some(
+    ({ name, value }) => value && /^sb-[a-z0-9-]+-auth-token(?:\.\d+)?$/u.test(name),
+  );
+}
+
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
   const environment = getClientEnvironment();

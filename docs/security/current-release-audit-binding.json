@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "2c3d073a91cc5818b5aaac2a325fcbc549b79c153f88eedc59271fc6624d93d3",
+  "releaseManifestSHA256": "1a538c09980bb251ee3f1969b052238afc1fd67c43300e7257c18a4844b5d410",
   "files": [
     {
       "path": ".env.example",
@@ -1087,11 +1087,11 @@
     },
     {
       "path": "scripts/verify-marketing-production.d.mts",
-      "sha256": "abf53e427c277669e12a1b496326f258194ab30d56180bf25146db6513a4afa7"
+      "sha256": "876f85b5ff82c8b839c85ec37f67f8033357a1022c46fbdf8115c337838c77c7"
     },
     {
       "path": "scripts/verify-marketing-production.mjs",
-      "sha256": "a4ecf50894aea370f6501557b6fa10926d29a9e6faea1f7911dfa75ecdb12ea3"
+      "sha256": "bbe8d0e67d662a1a71788f2c1866ae0fbf4ce261c2939e2bc480e63653be2e5d"
     },
     {
       "path": "scripts/verify-native-billing-catalog.mjs",
@@ -1467,7 +1467,7 @@
     },
     {
       "path": "src/app/(marketing)/layout.tsx",
-      "sha256": "d42a37f42fd71cacb694acf53414c6c90507d0bb86211b54f1f329b2a62c9aa0"
+      "sha256": "9457b088c4e86c687d905324284b55dcc93fc5d89d625c5302b2471abe6d1005"
     },
     {
       "path": "src/app/(marketing)/page.tsx",
@@ -1743,7 +1743,7 @@
     },
     {
       "path": "src/components/layout/marketing-shell.tsx",
-      "sha256": "be462792b2327ec5f4f435cb496319d28f6c2b290fc47327c7f58b88aa02a983"
+      "sha256": "b88d0db85673026891eeb34411269de7581d659e1b2940f437839038fb71f76e"
     },
     {
       "path": "src/components/layout/mobile-nav.tsx",
@@ -1907,7 +1907,7 @@
     },
     {
       "path": "src/infrastructure/supabase/server.ts",
-      "sha256": "f85e5516ec227cfc8eb69128b388cc3fb6b49ca72e4004634a92f016b32e10ca"
+      "sha256": "05b2df63b13a28e903ccb461d16ed80a30ee15adb0df6d96432480c10b3565b3"
     },
     {
       "path": "src/lib/clock.ts",
@@ -3251,7 +3251,7 @@
     },
     {
       "path": "src/proxy.ts",
-      "sha256": "131bf981d3358cc159739ea884bdfba5b8f300f36b84ce6c5b259acd0d715065"
+      "sha256": "ae1bb7ba927595cf30b843f2dabdc282cb545e9985293f1772b6725d735acb13"
     },
     {
       "path": "supabase/config.toml",
@@ -4395,7 +4395,7 @@
     },
     {
       "path": "tests/e2e/accessibility.spec.ts",
-      "sha256": "a344c27aa458f5714322b3180830c639ea9874dcbf3af6246f5ca798e6a14411"
+      "sha256": "52525623411881298460e1a31bf8eb95ebf7705408d448e52c405c3ef7e800d8"
     },
     {
       "path": "tests/e2e/authentication.spec.ts",
@@ -4460,6 +4460,10 @@
     {
       "path": "tests/e2e/helpers/network.ts",
       "sha256": "2d515bfea50754cb3002838092d0bfc6c9ff2a4d91e7417d081feb52645c8eed"
+    },
+    {
+      "path": "tests/e2e/helpers/outgoing-prefetch.ts",
+      "sha256": "6c0810027fb06d0cff4b7fc7d727385f2d0a7356af711ca8f77af88d513acb9c"
     },
     {
       "path": "tests/e2e/helpers/public-registration.ts",
@@ -6362,6 +6366,10 @@
       "sha256": "fe4746900d22f08d3f6252831de1f7212e5ad0147872317ee1da5551cc354ab7"
     },
     {
+      "path": "tests/unit/e2e/outgoing-prefetch.test.ts",
+      "sha256": "10e7b657fba0c44877c4475b6c39482afc16d0f7fc6a5e27de913c28f1daf5a5"
+    },
+    {
       "path": "tests/unit/evaluations/athlete-profile.test.tsx",
       "sha256": "0ebe7d4675e02bde6112f25797096070a085fdd02dc2351d92482b293c3e9f60"
     },
@@ -6551,11 +6559,15 @@
     },
     {
       "path": "tests/unit/marketing/marketing-pages.test.tsx",
-      "sha256": "e87f671fe81a312e5dca0f292a95aa17064993c331c356434cd9c678bebb142d"
+      "sha256": "0c6ca89d0bbceb777c0e395831285d0506c118d800769be24c6b2e1becdbee10"
+    },
+    {
+      "path": "tests/unit/marketing/marketing-session-navigation.test.tsx",
+      "sha256": "209e326cc52ed01beb1ec87711200437940a1066a860ca6da352ac848bfd7922"
     },
     {
       "path": "tests/unit/marketing/production-artifact-gate.test.ts",
-      "sha256": "e898df08d4fc20dd1b242138aa60e73a47c2ce3d98e3e2cdfab048db3d6553b9"
+      "sha256": "8ed15c2923fb1fe7f09156067af574645a0aa086f2e9241559a352626d578226"
     },
     {
       "path": "tests/unit/observability/health-route.test.ts",
@@ -6651,7 +6663,7 @@
     },
     {
       "path": "tests/unit/proxy.test.ts",
-      "sha256": "c71959c9229e639791444bea057c824a8fa23150429d9203e24b3c8430676468"
+      "sha256": "57f1116e9cd57e9be069251fcc66efd7bf469812337515287e466a2f30e738f7"
     },
     {
       "path": "tests/unit/rankings/rankings-workspace.test.tsx",
@@ -6943,7 +6955,10 @@
     }
   ],
   "nativeOwnerApprovalUTC": "2026-10-06T15:10:58Z",
-  "nativeAdvisories": ["GHSA-vfj7-8cjw-p6xm", "GHSA-86w9-cpqp-85rv"],
+  "nativeAdvisories": [
+    "GHSA-vfj7-8cjw-p6xm",
+    "GHSA-86w9-cpqp-85rv"
+  ],
   "currentReleaseAmendment": "Prior release corrections: Approved exact native exception and supported shell-quote/sharp fixes; migration163 ACL and generated-schema closure; timezone and bounded supervisor harness corrections; integration source alias and data-only psql/auth preludes; current Managed-protocol FakeBillingProvider fixtures with closed-gate rejection coverage; production SQL/payment gates and web exception scope unchanged; webhook fixture SQL prelude completed; semantic visual locators and bounded DOM/busy/font/image readiness, help-link layout correction, transactional local-only synthetic timestamp preparation and exact local visual display clock; all screenshot thresholds preserved and PNGs unchanged; one-day synthetic CI comparison evidence; owning release-gate ordered-command fixture aligned with opt-in --visual preparation. Current independently reviewed amendment: eight scoped visual source/test changes repair live-counter contrast, describe latest draft roster accurately and keep focused mobile controls clear of fixed navigation; exactly21 individually approved Linux canonical PNGs updated after two calibrated capture passes. Screenshot120-pixel threshold, zero retries, web/native advisory exception scope, owner approval timestamps, production SQL/payment gates and dependency pins remain unchanged.",
   "amendment": " Browser-gate correction: rolling public-registration dates and future publish dates, current confirmation/country/recovery fixtures, remote-safe CSV verification, optional help prefetch disabled, existing denial capabilities checked before streaming, and Git source inventory excludes only ignored runtime output while retaining tracked ignored source. Dependency advisory scope/pins and production payment settings are unchanged. Cross-browser continuation: quiet psql scalar output without changing SQL authorization; responsive message form intrinsic widths; explicit browser downloads for CSV links; bounded Firefox logo-request coalescing with loaded-image assertions; one observed WebKit synthetic cancellation spelling; committed message status replaces unrelated network-idle wait. Visual baselines, thresholds, provider configuration and dependency advisory scope remain unchanged. Final browser-gate continuation: mandatory sanitized CSV download checks retained with an optional single exact attachment cancellation; one declared initiating request for each delayed search and check-in; rendered dashboard navigation avoids interrupting an unfinished redirect stream. Measured 45-minute job budget retains all 170 cases, zero retries, existing per-test/assertion limits and every security/cleanup gate. Generated TypeScript build cache is preserved locally and no longer tracked, in accordance with the existing ignore rule; tracked ignored source remains bound. Advisory scope, pinned dependencies, provider settings and visual baselines are unchanged.",
   "billingBoundaryAmendment": {
@@ -6971,7 +6986,9 @@
     "proposalOnly": false,
     "previousManifestSHA256": "626d8cfc923de3d875a196240bf670d4bef23f0225c1cee80271f51af5a7bbfe",
     "manifestSHA256": "37e2aa1f8f40b92cf068b971e9a66cacd2eb4fc0cdca0965a0e833bd652d42b9",
-    "changedSourcePaths": ["src/components/layout/mobile-nav.tsx"],
+    "changedSourcePaths": [
+      "src/components/layout/mobile-nav.tsx"
+    ],
     "reason": "Guard the mobile navigation ResizeObserver and preserve initial height measurement, resize fallback, and cleanup in DOM environments without that browser API.",
     "futureRegenerationAuthorized": false
   },
@@ -7014,5 +7031,67 @@
     "reason": "Verify the actual exact Firefox favicon image response and complete browser-received body without an independent Node GET; retain one mandatory exact Chromium/WebKit trace-snapshot preview diagnostic with empty-sandbox and script/attribute safety assertions; add focused favicon failure regressions.",
     "limitations": "No new exception, future regeneration, gate waiver, production write, deployment/promotion/merge, provider activation, secret change or branch-protection change. Configured retries, timeouts and screenshot thresholds remain unchanged. Actual prior CI socket-close trigger remains unproven; full canonical CI verification is pending.",
     "futureRegenerationAuthorized": false
+  },
+  "combinedBrowserRecoveryAndAuthenticatedMarketingAmendment": {
+    "proposalOnly": false,
+    "approvalStatus": "approved",
+    "ownerResponse": "yes",
+    "ownerApprovalTimestampUTC": "2026-10-08T01:51Z",
+    "sourceMessageId": "Sentinel_3a9839e7654c8191964966305bb34880",
+    "previousCommit": "4d0eef686ebb50f86c5e2cf3d7fd5cad4529f09e",
+    "previousManifestSHA256": "2c3d073a91cc5818b5aaac2a325fcbc549b79c153f88eedc59271fc6624d93d3",
+    "manifestSHA256": "1a538c09980bb251ee3f1969b052238afc1fd67c43300e7257c18a4844b5d410",
+    "billingBaseCommit": "fbb9dd215b7c6afa83f47316f9247c3b60071ff0",
+    "branch": "codex/tryoutflow-offline-preconditions-oct7",
+    "changedSourcePaths": [
+      "scripts/verify-marketing-production.d.mts",
+      "scripts/verify-marketing-production.mjs",
+      "src/app/(marketing)/layout.tsx",
+      "src/components/layout/marketing-shell.tsx",
+      "src/infrastructure/supabase/server.ts",
+      "src/proxy.ts",
+      "tests/e2e/accessibility.spec.ts",
+      "tests/e2e/helpers/outgoing-prefetch.ts",
+      "tests/unit/e2e/outgoing-prefetch.test.ts",
+      "tests/unit/marketing/marketing-pages.test.tsx",
+      "tests/unit/marketing/marketing-session-navigation.test.tsx",
+      "tests/unit/marketing/production-artifact-gate.test.ts",
+      "tests/unit/proxy.test.ts"
+    ],
+    "cumulativeSourcePaths": [
+      ".github/workflows/ci.yml",
+      "playwright.config.ts",
+      "scripts/verify-marketing-production.d.mts",
+      "scripts/verify-marketing-production.mjs",
+      "src/app/(marketing)/layout.tsx",
+      "src/app/globals.css",
+      "src/app/sports-workspace.css",
+      "src/components/layout/marketing-shell.tsx",
+      "src/components/layout/mobile-nav.tsx",
+      "src/infrastructure/supabase/server.ts",
+      "src/proxy.ts",
+      "tests/e2e/accessibility.spec.ts",
+      "tests/e2e/complete-branded-journey.spec.ts",
+      "tests/e2e/critical-lifecycle.spec.ts",
+      "tests/e2e/error-states.spec.ts",
+      "tests/e2e/helpers/auth.ts",
+      "tests/e2e/helpers/evaluation-save.ts",
+      "tests/e2e/helpers/outgoing-prefetch.ts",
+      "tests/e2e/mobile-evaluation.spec.ts",
+      "tests/fixtures/evaluation/app/layout.tsx",
+      "tests/unit/e2e/auth-monitor.test.ts",
+      "tests/unit/e2e/browser-error-monitor.test.ts",
+      "tests/unit/e2e/outgoing-prefetch.test.ts",
+      "tests/unit/marketing/marketing-pages.test.tsx",
+      "tests/unit/marketing/marketing-session-navigation.test.tsx",
+      "tests/unit/marketing/production-artifact-gate.test.ts",
+      "tests/unit/proxy.test.ts",
+      "vercel.json"
+    ],
+    "cumulativeSourcePathCount": 28,
+    "sourceFileCount": 1737,
+    "approvalScope": "One-time carry-forward of only the unchanged existing pinned web/native tooling exceptions for this exact combined source. Apply the reviewed browser-prefetch completion guard and authenticated public navigation, bind, commit and push once to the existing Git deployment-disabled branch, then run the full canonical CI gate. No production deployment is included.",
+    "futureRegenerationAuthorized": false,
+    "approvalQuestionSourceMessageId": "Sentinel_a5a45c7d5dc4819183b6226d62619ab9"
   }
 }

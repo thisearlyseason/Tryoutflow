@@ -9,6 +9,7 @@ import { dirname, resolve } from 'node:path';
 
 import {
   assertMarketingProductionResponse,
+  assertMarketingAccountNavigation,
   startOwnedServer,
   stopOwnedServer,
 } from '../../../scripts/verify-marketing-production.mjs';
@@ -74,7 +75,7 @@ describe('marketing production artifact gate', () => {
     ).toThrow(/canonical/i);
   });
 
-  it('rejects a non-static or non-200 response before accepting canonical metadata', () => {
+  it('rejects a non-200 response before accepting canonical metadata', () => {
     expect(() =>
       assertMarketingProductionResponse({
         body: '<link rel="canonical" href="https://marketing.tryoutflow.test/pricing">',
@@ -82,6 +83,49 @@ describe('marketing production artifact gate', () => {
         status: 404,
       }),
     ).toThrow(/status/i);
+  });
+
+  it('requires verified account navigation in server HTML and private storage headers', () => {
+    const body = '<nav aria-label="Primary navigation"><a href="/app">Dashboard</a></nav>';
+    expect(() =>
+      assertMarketingAccountNavigation({
+        body,
+        authenticated: true,
+        cacheControl: 'private, no-store',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      assertMarketingAccountNavigation({
+        body,
+        authenticated: true,
+        cacheControl: 'public, max-age=60',
+      }),
+    ).toThrow(/private/u);
+    expect(() =>
+      assertMarketingAccountNavigation({ body, authenticated: true, cacheControl: 'private' }),
+    ).toThrow(/stored/u);
+    expect(() => assertMarketingAccountNavigation({ body, authenticated: false })).toThrow(
+      /account link/u,
+    );
+  });
+
+  it('rejects a signed-out header or conflicting account links for a verified session', () => {
+    const options = { authenticated: true, cacheControl: 'private, no-store' };
+    expect(() =>
+      assertMarketingAccountNavigation({
+        ...options,
+        body: '<nav aria-label="Primary navigation"><a href="/sign-in">Sign in</a></nav>',
+      }),
+    ).toThrow(/account link/u);
+    expect(() =>
+      assertMarketingAccountNavigation({
+        ...options,
+        body: '<nav aria-label="Primary navigation"><a href="/app">Dashboard</a><a href="/sign-in">Sign in</a></nav>',
+      }),
+    ).toThrow(/Unexpected/u);
+    expect(() =>
+      assertMarketingAccountNavigation({ ...options, body: '<main>Dashboard</main>' }),
+    ).toThrow(/primary navigation/u);
   });
 
   it('reproduces a deterministic collision after a candidate port is released', async () => {

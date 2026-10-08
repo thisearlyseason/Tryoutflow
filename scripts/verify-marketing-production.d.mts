@@ -4,6 +4,12 @@ export function assertMarketingProductionResponse(response: {
   status: number;
 }): void;
 
+export function assertMarketingAccountNavigation(response: {
+  body: string;
+  authenticated: boolean;
+  cacheControl?: string | null;
+}): void;
+
 export function runMarketingProductionArtifactGate(): Promise<void>;
 
 export function startOwnedServer(options: {

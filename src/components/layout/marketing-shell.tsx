@@ -19,7 +19,13 @@ const audienceLinks = [
   { href: '/for/associations', label: 'Associations' },
 ] as const;
 
-export function MarketingShell({ children }: { children: ReactNode }) {
+export function MarketingShell({
+  children,
+  authenticated = false,
+}: {
+  children: ReactNode;
+  authenticated?: boolean;
+}) {
   return (
     <div className="min-h-dvh overflow-x-clip bg-[var(--color-canvas)] text-[var(--color-text)]">
       <a
@@ -46,8 +52,12 @@ export function MarketingShell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </div>
-          <Link className={marketingLinkClassName} href="/sign-in" prefetch={false}>
-            Sign in
+          <Link
+            className={marketingLinkClassName}
+            href={authenticated ? '/app' : '/sign-in'}
+            prefetch={false}
+          >
+            {authenticated ? 'Dashboard' : 'Sign in'}
           </Link>
           <Link
             className={`${marketingLinkClassName} bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:no-underline`}

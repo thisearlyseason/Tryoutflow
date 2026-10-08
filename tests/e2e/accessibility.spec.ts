@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 
 import { expectNoCriticalAccessibilityViolations } from './helpers/accessibility';
 import { signInAs } from './helpers/auth';
+import { monitorOutgoingHomePrefetch } from './helpers/outgoing-prefetch';
 import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableServerAction,
@@ -54,16 +55,22 @@ test('registration and sign-in expose critical-screen semantics without critical
     description: `role=anonymous; organization=${scenario.organizationSlug}; screens=registration,sign-in`,
   });
   const monitor = monitorBrowserErrors(page);
-  await page.setExtraHTTPHeaders({ 'x-vercel-forwarded-for': scenario.publicClientAddress });
-  await page.goto(`/register/${scenario.organizationSlug}-critical-flow`);
-  await auditHeading(page, `Register for ${scenario.tryoutName}`);
-  await expect(page.getByLabel('Guardian email')).toHaveAttribute('autocomplete', 'email');
+  const outgoingPrefetch = monitorOutgoingHomePrefetch(page);
+  try {
+    await page.setExtraHTTPHeaders({ 'x-vercel-forwarded-for': scenario.publicClientAddress });
+    await page.goto(`/register/${scenario.organizationSlug}-critical-flow`);
+    await auditHeading(page, `Register for ${scenario.tryoutName}`);
+    await expect(page.getByLabel('Guardian email')).toHaveAttribute('autocomplete', 'email');
+    await outgoingPrefetch.waitForScripts();
 
-  await page.goto('/sign-in');
-  await auditHeading(page, 'Sign in to your account');
-  await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
-  await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
-  monitor.assertClean();
+    await page.goto('/sign-in');
+    await auditHeading(page, 'Sign in to your account');
+    await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
+    await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
+    monitor.assertClean();
+  } finally {
+    outgoingPrefetch.stop();
+  }
 });
 
 test('tryout wizard preserves native labels and critical accessibility semantics', async ({
