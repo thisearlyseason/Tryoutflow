@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "556a836413fa4b55a845af99da04a0ce63819a1998b00438985a1369392d6745",
+  "releaseManifestSHA256": "09fcd95181a1f5885341cf0186fbe6388dbc0ae0426be009570479dc21c19d47",
   "files": [
     {
       "path": ".env.example",
@@ -4411,7 +4411,7 @@
     },
     {
       "path": "tests/e2e/complete-branded-journey.spec.ts",
-      "sha256": "9e7ade95f24f2859e808aae01176922e580a89db430bd2a25dec3d2360fc0129"
+      "sha256": "49a179b159ec8804a58c250d1fb5e898fee594b8771b6809c34f17ae59e2348e"
     },
     {
       "path": "tests/e2e/concurrency-and-replay.spec.ts",
@@ -7228,5 +7228,29 @@
     "limitations": "No new advisory exception, future regeneration, deployment/promotion/merge, payment activation, provider/schema/security/credential changes, password-candidate combination, or gate waiver authorized. New candidate canonical CI/DB/browser verification remains pending; 359 synthetic checks passed.",
     "futureRegenerationAuthorized": false,
     "independentReviewEvidenceSHA256": "c45a54c731b6a03325ef3ae28daaebc5cf4192eee424142337121002ad0d33bb"
+  },
+  "webkitLogoReadinessAmendment": {
+    "proposalOnly": false,
+    "approvalStatus": "approved",
+    "ownerResponse": "proceed",
+    "ownerApprovalTimestampUTC": "2026-10-08T17:21Z",
+    "ownerApprovalRecordedUTC": "2026-10-08T17:22:58.681Z",
+    "sourceMessageId": "Sentinel_2c924cb4c4d08191bfd584fc1c70bdd0",
+    "approvalQuestionSourceMessageId": "Sentinel_3aae473a990c8191a307fdc33050de22",
+    "approvalQuestion": "I reproduced the TryOutFlow Safari test failure and fixed the logo-readiness timing. The old sequence failed three times; the revised sequence passed three times with the strict checks unchanged.\n\nMay I push this one-file test fix to the same deployment-disabled branch and rerun full CI?",
+    "approvalEvidence": "Owner reply proceed at minute-precision17:21UTC forwarded verbatim by source thread01a10e81-643b-7071-9d99-6e5a5314e0fe, with explicit delegation authorizing exact reviewed manifest, required binding metadata, ordinary push to the same deployment-disabled branch, and one full canonical CI run. No seconds inferred.",
+    "previousCommit": "1e0891d5f917196ef4fcb564bf6754c04661d84f",
+    "previousManifestSHA256": "556a836413fa4b55a845af99da04a0ce63819a1998b00438985a1369392d6745",
+    "manifestSHA256": "09fcd95181a1f5885341cf0186fbe6388dbc0ae0426be009570479dc21c19d47",
+    "sourceFileCount": 1742,
+    "changedSourcePaths": ["tests/e2e/complete-branded-journey.spec.ts"],
+    "branch": "codex/tryoutflow-offline-preconditions-oct7",
+    "isolatedLocalBranch": "codex/tryoutflow-webkit-logo-readiness-oct8",
+    "reason": "Await successfully loaded preview/sidebar/mobile logos before viewport transitions and navigation. CI37806783128 started the versioned image GET38.015ms before goto and recorded Load request cancelled. The unchanged strict monitor reproduces the old-sequence race and passes the revised sequence in isolated macOS WebKit.",
+    "approvalScope": "One-time carry-forward of only unchanged existing pinned web/native tooling exceptions for this exact one-file test change. Apply required binding metadata, commit and push once to the existing deployment-disabled test branch, then verify full canonical CI. Preserve the approved billing fixes; production held.",
+    "limitations": "No cancellation ignored, retries/timeouts/thresholds relaxed, new advisory exception, future regeneration, deployment/promotion/merge, provider/schema/security/credential changes, or password-candidate merge authorized. Full database-backed Linux journey remains pending fresh canonical CI.",
+    "futureRegenerationAuthorized": false,
+    "reviewedHandoffSHA256": "6b1bf1d70e0815d37ce66054a11bce93069d5b80e5e321804aaad8b112397c17",
+    "independentReviewEvidenceSHA256": "5c0b8f86ddee0764cad61d42cf4cfb2f68788353849980e6777a8da1b1af96c5"
   }
 }

@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 
 import { signInAs } from './helpers/auth';
 import { saveEvaluationDraft } from './helpers/evaluation-save';
@@ -18,6 +18,19 @@ import {
 
 const logoFixture = resolve('tests/fixtures/branding/organization-logo.png');
 const replacementLogoFixture = resolve('tests/fixtures/branding/organization-logo-replacement.png');
+
+async function expectLoadedLogo(image: Locator) {
+  await expect
+    .poll(
+      () =>
+        image.evaluate(
+          (element) =>
+            element instanceof HTMLImageElement && element.complete && element.naturalWidth > 0,
+        ),
+      { message: 'The rendered organization logo finishes loading before navigation' },
+    )
+    .toBe(true);
+}
 
 async function expectNoHorizontalOverflow(page: Page, label: string) {
   await expect
@@ -86,10 +99,12 @@ test('isolated owner completes the branded tryout journey and removes the logo c
     .getByRole('img', { name: `${scenario.organizationName} logo` });
   await expect(settingsPreview).toBeVisible();
   await expect(settingsPreview).toHaveAttribute('src', /\/logo\?v=/u);
+  await expectLoadedLogo(settingsPreview);
   const initialSidebarLogo = page.locator('.app-sidebar .app-organization img');
   await expect(initialSidebarLogo).toBeVisible();
   await expect(initialSidebarLogo).toHaveAttribute('alt', '');
   await expect(initialSidebarLogo).toHaveAttribute('aria-hidden', 'true');
+  await expectLoadedLogo(initialSidebarLogo);
   const initialLogoResponse = await page.request.get(
     `/api/organizations/${scenario.organizationSlug}/logo`,
   );
@@ -107,9 +122,11 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   await expect(mobileLogo).toBeVisible();
   await expect(mobileLogo).toHaveAttribute('alt', '');
   await expect(mobileLogo).toHaveAttribute('aria-hidden', 'true');
+  await expectLoadedLogo(mobileLogo);
   await expectNoHorizontalOverflow(page, 'mobile organization settings');
 
   await page.setViewportSize({ width: 1366, height: 900 });
+  await expectLoadedLogo(initialSidebarLogo);
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/new`);
   await expect(page.getByLabel('Tryout name')).toHaveAttribute(
     'placeholder',
