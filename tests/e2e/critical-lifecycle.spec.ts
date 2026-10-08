@@ -509,6 +509,7 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
 });
 
 test('scenarios 8–9 — director finalizes and revises an audited roster, then queues a separate exact message batch', async ({
+  browserName,
   context,
   page,
   scenario,
@@ -615,7 +616,36 @@ test('scenarios 8–9 — director finalizes and revises an audited roster, then
   );
   await messagesPage.getByLabel('Finalized roster').selectOption(scenario.ids.finalRoster);
   expectCancellableServerAction(messagesMonitor, messagesPage, 'exact recipient preview action');
+  // Trace snapshots attempt a bootstrap script in this deliberately script-disabled frame.
+  // The exact single console event is reproduced with script-free HTML; Firefox emits none.
+  if (browserName === 'chromium' || browserName === 'webkit') {
+    messagesMonitor.expectConsoleError({
+      count: 1,
+      label: 'one Playwright snapshot bootstrap blocked by the sandboxed message preview',
+      text: "Blocked script execution in 'about:srcdoc' because the document's frame is sandboxed and the 'allow-scripts' permission is not set.",
+      url: browserName === 'chromium' ? 'about:srcdoc' : 'web-inspector://bootstrap.js',
+    });
+  }
   await messagesPage.getByRole('button', { name: 'Preview exact recipients' }).click();
+  const htmlPreview = messagesPage.getByTitle('HTML message preview for Final', { exact: true });
+  await expect(htmlPreview).toHaveAttribute('sandbox', '');
+  const previewSafety = await htmlPreview.evaluate((element) => {
+    const frame = element as HTMLIFrameElement;
+    const document = new DOMParser().parseFromString(frame.srcdoc, 'text/html');
+    return {
+      scripts: document.querySelectorAll('script').length,
+      unsafeAttributes: [...document.querySelectorAll('*')].reduce(
+        (count, node) =>
+          count +
+          [...node.attributes].filter(
+            (attribute) =>
+              /^on/iu.test(attribute.name) || /^\s*javascript:/iu.test(attribute.value),
+          ).length,
+        0,
+      ),
+    };
+  });
+  expect(previewSafety).toEqual({ scripts: 0, unsafeAttributes: 0 });
   await expect(
     messagesPage.getByRole('heading', { name: 'Exact recipient preview · 1' }),
   ).toBeVisible();

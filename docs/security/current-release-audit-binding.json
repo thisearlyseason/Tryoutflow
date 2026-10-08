@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "37e2aa1f8f40b92cf068b971e9a66cacd2eb4fc0cdca0965a0e833bd652d42b9",
+  "releaseManifestSHA256": "2c3d073a91cc5818b5aaac2a325fcbc549b79c153f88eedc59271fc6624d93d3",
   "files": [
     {
       "path": ".env.example",
@@ -4415,7 +4415,7 @@
     },
     {
       "path": "tests/e2e/critical-lifecycle.spec.ts",
-      "sha256": "625c3fbcd968642ecb4129b4788c236223d7f24443c66c74a6b307e142f6d2bc"
+      "sha256": "6121f70ca30a6a671d28d2bf599d99bb111d9fbc201df10cabb56b46ae5ff5d5"
     },
     {
       "path": "tests/e2e/decision-messages.spec.ts",
@@ -4443,7 +4443,7 @@
     },
     {
       "path": "tests/e2e/helpers/auth.ts",
-      "sha256": "bfd0e909c4729b320e7cee595ce7c9e8609842d4812f006a18d38fa40a7e67f0"
+      "sha256": "1b1a3f25b28c8510339dc5700024de3b0f8e4886fe189a5f84287988e2637f45"
     },
     {
       "path": "tests/e2e/helpers/environment.ts",
@@ -6355,7 +6355,7 @@
     },
     {
       "path": "tests/unit/e2e/auth-monitor.test.ts",
-      "sha256": "d3dfecc811b092f58bc4918b36c7c78e4a012488bea5a6d02f72c50171a45dfe"
+      "sha256": "fbffafe818280b3d595695918f258d61213b9e231f1f289ef979388837e1bdfc"
     },
     {
       "path": "tests/unit/e2e/browser-error-monitor.test.ts",
@@ -6973,6 +6973,46 @@
     "manifestSHA256": "37e2aa1f8f40b92cf068b971e9a66cacd2eb4fc0cdca0965a0e833bd652d42b9",
     "changedSourcePaths": ["src/components/layout/mobile-nav.tsx"],
     "reason": "Guard the mobile navigation ResizeObserver and preserve initial height measurement, resize fallback, and cleanup in DOM environments without that browser API.",
+    "futureRegenerationAuthorized": false
+  },
+  "browserGateTestOnlyRecoveryAmendment": {
+    "ownerResponse": "approve",
+    "ownerApprovalTimestampUTC": "2026-10-07T23:58Z",
+    "sourceMessageId": "Sentinel_bb6c286169c08191bc3212d328fab46c",
+    "approvalQuestionSourceMessageId": "Sentinel_00b3d767bdf481918b74bc3df1f82ad3",
+    "proposalOnly": false,
+    "previousManifestSHA256": "37e2aa1f8f40b92cf068b971e9a66cacd2eb4fc0cdca0965a0e833bd652d42b9",
+    "manifestSHA256": "2c3d073a91cc5818b5aaac2a325fcbc549b79c153f88eedc59271fc6624d93d3",
+    "previousCommit": "f145d283cafea05e96b221e7dcb8c9285661ef04",
+    "billingBaseCommit": "fbb9dd215b7c6afa83f47316f9247c3b60071ff0",
+    "branch": "codex/tryoutflow-offline-preconditions-oct7",
+    "changedSourcePaths": [
+      "tests/e2e/helpers/auth.ts",
+      "tests/e2e/critical-lifecycle.spec.ts",
+      "tests/unit/e2e/auth-monitor.test.ts"
+    ],
+    "cumulativeSourcePaths": [
+      ".github/workflows/ci.yml",
+      "playwright.config.ts",
+      "src/app/globals.css",
+      "src/app/sports-workspace.css",
+      "src/components/layout/mobile-nav.tsx",
+      "tests/e2e/complete-branded-journey.spec.ts",
+      "tests/e2e/critical-lifecycle.spec.ts",
+      "tests/e2e/error-states.spec.ts",
+      "tests/e2e/helpers/auth.ts",
+      "tests/e2e/helpers/evaluation-save.ts",
+      "tests/e2e/mobile-evaluation.spec.ts",
+      "tests/fixtures/evaluation/app/layout.tsx",
+      "tests/unit/e2e/auth-monitor.test.ts",
+      "tests/unit/e2e/browser-error-monitor.test.ts",
+      "vercel.json"
+    ],
+    "cumulativeSourcePathCount": 15,
+    "sourceFileCount": 1734,
+    "approvalScope": "One-time carry-forward of the unchanged existing pinned web/native tooling exceptions for this exact fifteen-path cumulative source manifest. Apply the three reviewed test-only changes, update this source binding, commit and push once to the same Git deployment-disabled review branch, then run the full canonical CI gate. No production deployment is included.",
+    "reason": "Verify the actual exact Firefox favicon image response and complete browser-received body without an independent Node GET; retain one mandatory exact Chromium/WebKit trace-snapshot preview diagnostic with empty-sandbox and script/attribute safety assertions; add focused favicon failure regressions.",
+    "limitations": "No new exception, future regeneration, gate waiver, production write, deployment/promotion/merge, provider activation, secret change or branch-protection change. Configured retries, timeouts and screenshot thresholds remain unchanged. Actual prior CI socket-close trigger remains unproven; full canonical CI verification is pending.",
     "futureRegenerationAuthorized": false
   }
 }
