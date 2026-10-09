@@ -50,11 +50,13 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-    env:
-      COREPACK_HOME: ${{ runner.temp }}/tryoutflow-password-review-corepack
-      REVIEW_BASE_ROOT: ${{ github.workspace }}/app-base
-      REVIEW_OUTPUT_ROOT: ${{ runner.temp }}/tryoutflow-password-visual-review
     steps:
+      - name: Set disposable runner paths
+        run: |
+          printf 'COREPACK_HOME=%s\nREVIEW_BASE_ROOT=%s\nREVIEW_OUTPUT_ROOT=%s\n' \
+            "$RUNNER_TEMP/tryoutflow-password-review-corepack" \
+            "$GITHUB_WORKSPACE/app-base" \
+            "$RUNNER_TEMP/tryoutflow-password-visual-review" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
         with:
           path: control
