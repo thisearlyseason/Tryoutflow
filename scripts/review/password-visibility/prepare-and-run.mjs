@@ -118,12 +118,12 @@ try {
   const transportPath = resolve(controls, 'transport-manifest.json');
   assert.equal(
     fileHash(transportPath),
-    '7e399a7156c608b7a93064b07174a7b2f99b7edd9054b326f65ab7156d1e279b',
+    '59a6f02ec7341e7f700238e7c831a5e36427ea45046ecd925b7d228b19ccbb23',
   );
   const transport = JSON.parse(readFileSync(transportPath));
   assert.equal(transport.baseCommit, approvedBase);
   assert.equal(transport.candidateSourceManifestSHA256, projectionManifest);
-  assert.equal(transport.base.length, 680);
+  assert.equal(transport.base.length, 681);
   assert.equal(transport.afterOverlay.length, 4);
   assert.equal(transport.baselines.length, 4);
   assert.equal(transport.harnesses.length, 4);

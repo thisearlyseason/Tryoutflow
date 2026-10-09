@@ -3404,6 +3404,11 @@
       "path": "tsconfig.json",
       "sha256": "f2b3fc7b55585c0f807acdb98dbed68e24eb62a298c75198c4a78fee764d4f5a",
       "bytes": 708
+    },
+    {
+      "path": "tests/setup.ts",
+      "sha256": "0c1a38fa9e82e5c89ef48928ec236c956032f0a1179de3a5bd9d3d47bf0cd6bf",
+      "bytes": 870
     }
   ],
   "afterOverlay": [
@@ -3488,7 +3493,7 @@
   ],
   "dependencyTreesCopied": 0,
   "inputBytesExcludesTransportManifest": true,
-  "inputBytes": 12985698,
-  "preparedUTC": "2026-10-09T12:47:00.271667+00:00",
+  "inputBytes": 12986568,
+  "preparedUTC": "2026-10-09T14:46:31.894312+00:00",
   "baseSourceManifestSHA256": "09fcd95181a1f5885341cf0186fbe6388dbc0ae0426be009570479dc21c19d47"
 }
