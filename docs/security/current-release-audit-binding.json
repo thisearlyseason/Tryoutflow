@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "3deaedd2115e066a1002d0c0c6b38028a9770a293cd383bd52effcc05c891126",
+  "releaseManifestSHA256": "e80a2505a79029e7020ae6153c58f7a0e765d0ab8c3ebb99392ce460a21d9268",
   "files": [
     {
       "path": ".env.example",
@@ -4451,7 +4451,7 @@
     },
     {
       "path": "tests/e2e/helpers/auth.ts",
-      "sha256": "2328719bfec5f9dbc72c7b5383a4eaee8dacf51bc538006e92e9a73daa9b8bea"
+      "sha256": "d8b2039fd7a327a84a5a3a195a6c4130219801a8a64dcd8a9321e27416efc415"
     },
     {
       "path": "tests/e2e/helpers/automatic-prefetch.ts",
@@ -7206,7 +7206,7 @@
     "sourceMessageId": "Sentinel_c9751c35599c8191b146ad00df438000",
     "approvalQuestionSourceMessageId": "Sentinel_e110d3914914819186f3f4260609db4f",
     "approvalQuestionTimestampUTC": "2026-10-08T16:04Z",
-    "approvalQuestion": "TryOutFlow’s nine reproduced billing/auth issues are fixed locally, with 359 isolated tests passing. May I push this reviewed fix package to the deployment-disabled test branch for the full CI and database checks? Production will stay unchanged until those pass and the release is approved.",
+    "approvalQuestion": "TryOutFlow\u2019s nine reproduced billing/auth issues are fixed locally, with 359 isolated tests passing. May I push this reviewed fix package to the deployment-disabled test branch for the full CI and database checks? Production will stay unchanged until those pass and the release is approved.",
     "approvalEvidence": "Owner response and minute-precision timestamps forwarded verbatim by source thread01a10e81-643b-7071-9d99-6e5a5314e0fe; the delegation expressly directs exact required binding carry-forward, commit/push/full canonical CI. No seconds inferred.",
     "previousCommit": "4e83bc7be4574133cea9b745aff1d46d6d6e0ea5",
     "previousManifestSHA256": "890a4251507ecfd49850506ff86ee336c2bac755252abbd912c688560fd88738",
@@ -7347,6 +7347,48 @@
     "ownerApprovalSourceThreadId": "01a10e81-643b-7071-9d99-6e5a5314e0fe",
     "ownerApprovalQuestionMessageId": "Sentinel_c322a6fa249081919912000035109747",
     "ownerApprovalQuestionUTC": "2026-10-09T16:54:34Z",
-    "ownerApprovalQuestion": "TryOutFlow’s reset and participant-signup Show/Hide checks passed on desktop and mobile. Full CI caught a test issue: password selectors now match both the input and the new button, causing 165 browser-test failures. The database, unit, integration, provider-contract and visual checks passed.\n\nThe reviewed fix changes four test files only. Do you approve publishing those corrections to the existing test branch, updating its exact approval record while retaining the existing tooling exceptions, and rerunning CI? The app itself and live site won’t change."
+    "ownerApprovalQuestion": "TryOutFlow\u2019s reset and participant-signup Show/Hide checks passed on desktop and mobile. Full CI caught a test issue: password selectors now match both the input and the new button, causing 165 browser-test failures. The database, unit, integration, provider-contract and visual checks passed.\n\nThe reviewed fix changes four test files only. Do you approve publishing those corrections to the existing test branch, updating its exact approval record while retaining the existing tooling exceptions, and rerunning CI? The app itself and live site won\u2019t change."
+  },
+  "passwordHelperExactLabelAmendment": {
+    "approvalPending": false,
+    "ownerApprovalUTC": "2026-10-09T17:32:45Z",
+    "ownerApprovalMessageId": "Sentinel_f074358dfe9c8191972100a368adb79d",
+    "ownerApprovalResponse": "yes",
+    "previousCommit": "a7c3d660014baaf372d066bcaf1eda970bb2d7d9",
+    "previousManifestSHA256": "3deaedd2115e066a1002d0c0c6b38028a9770a293cd383bd52effcc05c891126",
+    "releaseManifestSHA256": "e80a2505a79029e7020ae6153c58f7a0e765d0ab8c3ebb99392ce460a21d9268",
+    "sourceFileCount": 1744,
+    "changedSourceFiles": [
+      {
+        "path": "tests/e2e/helpers/auth.ts",
+        "sha256": "d8b2039fd7a327a84a5a3a195a6c4130219801a8a64dcd8a9321e27416efc415"
+      }
+    ],
+    "failedCanonicalRun": 37964145259,
+    "failure": "Six existing auth-monitor unit mocks lack the locator intersection methods introduced by the approved four-file selector correction; three lack page.locator and three lack Locator.and.",
+    "correction": "One helper lookup changes to getByLabel('Password', { exact: true }); the other three approved selector intersections are preserved.",
+    "scope": "Exact one-line reviewed test-helper correction, corresponding source binding update, unchanged existing pinned web/native tooling exceptions, ordinary publication to codex/tryoutflow-offline-preconditions-oct7 with deployment disabled, and canonical CI rerun through actual terminal result. Owner also authorizes further independently reviewed test-only selector/mock repairs and exact binding updates/publication/reruns solely to complete this same CI verification. Preserve application code and approved screenshots, existing exceptions and dependency pins, all assertions/retries/thresholds and release gates. No application change, deployment/promotion/merge, provider or credential operation.",
+    "futureRegenerationAuthorized": true,
+    "canonicalRerunPassed": false,
+    "ownerApprovalQuestionUTC": "2026-10-09T17:32:11Z",
+    "ownerApprovalQuestionMessageId": "Sentinel_40da9d9bb8e08191bdfd30b0aa392bcc",
+    "ownerApprovalSourceThreadId": "01a10e81-643b-7071-9d99-6e5a5314e0fe",
+    "ownerApprovalQuestion": "TryOutFlow\u2019s rerun found six unit-test failures caused by the selector-helper change. A reviewed one-line correction passes the focused checks; nothing changed on the live site.\n\nMay I apply that correction and any further reviewed, test-only selector/mock fixes needed to finish this same CI run, updating the exact approval record each time? I\u2019ll preserve the existing exceptions and test assertions, with no app changes or deployment. This would avoid asking you again for each small test repair.",
+    "futureRegenerationScope": {
+      "testOnlySelectorMockCorrections": true,
+      "independentReviewRequired": true,
+      "purpose": "Complete this same canonical CI verification",
+      "sourceBindingUpdatesAndExistingBranchPublicationAndReruns": true,
+      "existingToolingExceptionsUnchanged": true,
+      "assertionsRetriesThresholdsAndReleaseGatesPreserved": true,
+      "applicationCodeAndScreenshotsPreserved": true,
+      "applicationChangesAuthorized": false,
+      "deploymentAuthorized": false,
+      "materiallyDifferentChangesRequireOwnerReview": true
+    },
+    "broaderLocalUnitUniquePassed": 1849,
+    "broaderLocalUnitCanonicalDatabaseCasesPending": 59,
+    "broaderLocalSelectorSyntheticCasesPassed": 36,
+    "broaderLocalVerificationEvidenceSHA256": "2520c8d2237f4c1443bfa6c2cd216ab6181d0db6dcadd48af20126039f849208"
   }
 }
