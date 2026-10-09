@@ -41,3 +41,47 @@ jobs:
             output/playwright/test-results/**/trace.zip
             output/playwright/test-results/**/error-context.md
             output/playwright/test-results/**/test-failed-*.png
+
+  password-visual-review:
+    name: Check approved auth references and shared password controls (review only)
+    needs: verify
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/codex/tryoutflow-offline-preconditions-oct7' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Set disposable runner paths
+        run: |
+          printf 'COREPACK_HOME=%s\nREVIEW_BASE_ROOT=%s\nREVIEW_OUTPUT_ROOT=%s\n' \
+            "$RUNNER_TEMP/tryoutflow-password-review-corepack" \
+            "$GITHUB_WORKSPACE/app-base" \
+            "$RUNNER_TEMP/tryoutflow-password-visual-review" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: c780295f8f592c94ac403a79b3829ce8918285d9
+          path: app-base
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: control/.nvmrc
+          cache: npm
+          cache-dependency-path: app-base/package-lock.json
+      - run: corepack enable
+      - name: Install unchanged pinned dependencies in the disposable runner
+        working-directory: app-base
+        run: corepack npm@11.12.1 ci
+      - name: Capture approved references and shared variants without baseline writes
+        run: node control/scripts/review/password-visibility/prepare-and-run.mjs
+      - name: Retain anonymous visual review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tryoutflow-password-visual-review-${{ github.sha }}
+          retention-days: 1
+          if-no-files-found: error
+          path: ${{ runner.temp }}/tryoutflow-password-visual-review/artifacts/
