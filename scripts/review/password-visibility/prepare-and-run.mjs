@@ -162,6 +162,9 @@ try {
     logfile: resolve(artifacts, 'pinned-runtime-pull.log'),
   });
   recordResources('before-runtime-preflight');
+  // Nested mounts need existing destinations inside the read-only input bind.
+  mkdirSync(resolve(review, 'work'), { recursive: true });
+  mkdirSync(resolve(review, 'artifacts'), { recursive: true });
   const flags = [
     'run',
     '--rm',
