@@ -156,7 +156,10 @@ test('marketing and authentication remain keyboard-first, 44px, overflow-free, a
     const signIn = await page.goto('/sign-in');
     expect(signIn?.ok(), 'sign-in document loads successfully').toBe(true);
     await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
-    await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
+    await expect(page.getByLabel('Password').and(page.locator('input'))).toHaveAttribute(
+      'autocomplete',
+      'current-password',
+    );
     await page.getByLabel('Email').focus();
     await expect(page.getByLabel('Email')).toBeFocused();
     await expectMinimumTouchTargets(page.locator('main input, main button, main a'));

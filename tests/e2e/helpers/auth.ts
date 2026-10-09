@@ -64,7 +64,7 @@ export async function signInAs(
     if (isFirefox) page.off('response', captureIconResponse);
   }
   await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password').fill(user.password);
+  await page.getByLabel('Password').and(page.locator('input')).fill(user.password);
   if (onBotToken) {
     onBotToken(await page.locator('input[name="cf-turnstile-response"]').inputValue());
   }

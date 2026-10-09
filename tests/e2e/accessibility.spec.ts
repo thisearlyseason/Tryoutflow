@@ -68,7 +68,10 @@ test('registration and sign-in expose critical-screen semantics without critical
     expect(signIn?.ok(), 'sign-in document loads successfully').toBe(true);
     await auditHeading(page, 'Sign in to your account');
     await expect(page.getByLabel('Email')).toHaveAttribute('autocomplete', 'email');
-    await expect(page.getByLabel('Password')).toHaveAttribute('autocomplete', 'current-password');
+    await expect(page.getByLabel('Password').and(page.locator('input'))).toHaveAttribute(
+      'autocomplete',
+      'current-password',
+    );
     automaticPrefetch.assertNone();
     monitor.assertClean();
   } finally {

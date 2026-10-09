@@ -96,7 +96,7 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await page.goto('/sign-up');
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByLabel('Confirm password').fill(password);
+  await page.getByLabel('Confirm password').and(page.locator('input')).fill(password);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page).toHaveURL(/\/verify-email\?signup=1$/u);
   await expect(page.getByRole('status')).toContainText('Check your inbox');

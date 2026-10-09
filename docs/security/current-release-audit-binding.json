@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "40d0aeca8da9e30f303d064b8c8fc162c69f02648da786091d732ebc6e9b647a",
+  "releaseManifestSHA256": "3deaedd2115e066a1002d0c0c6b38028a9770a293cd383bd52effcc05c891126",
   "files": [
     {
       "path": ".env.example",
@@ -4403,7 +4403,7 @@
     },
     {
       "path": "tests/e2e/accessibility.spec.ts",
-      "sha256": "9360bd3cec48ff25ce1e7d8223163e23000548311faebe6c0164c0e55177970e"
+      "sha256": "cc2333af60cd2256c22ced2c2bf70c2731bb537a09701054fa0b7bbe35637776"
     },
     {
       "path": "tests/e2e/authentication.spec.ts",
@@ -4435,7 +4435,7 @@
     },
     {
       "path": "tests/e2e/final-remediation.spec.ts",
-      "sha256": "5b24803d95596c6654679c7561870ec42d8f5bfac3658f7b2cb5665b3d66fffe"
+      "sha256": "defd3b53221dbbaedb28ef55d8aeff13edf8680b2d8de13511389f347fdd3ad2"
     },
     {
       "path": "tests/e2e/global-database-lifecycle.ts",
@@ -4451,7 +4451,7 @@
     },
     {
       "path": "tests/e2e/helpers/auth.ts",
-      "sha256": "1b1a3f25b28c8510339dc5700024de3b0f8e4886fe189a5f84287988e2637f45"
+      "sha256": "2328719bfec5f9dbc72c7b5383a4eaee8dacf51bc538006e92e9a73daa9b8bea"
     },
     {
       "path": "tests/e2e/helpers/automatic-prefetch.ts",
@@ -4515,7 +4515,7 @@
     },
     {
       "path": "tests/e2e/responsive-and-accessibility.spec.ts",
-      "sha256": "0adfb883061d1815ea32242901f859ea3b8e91b7f865d1da823ce05512998567"
+      "sha256": "a3abc14da3471e1275a55911918894cb08306a985b258938b71750132c91b95b"
     },
     {
       "path": "tests/e2e/role-denials.spec.ts",
@@ -7311,5 +7311,42 @@
     "futureRegenerationAuthorized": false,
     "approvalScope": "Exact four frozen password code/test paths and four delivered Linux screenshot references, including mobile design already present on deployed 8c; corresponding one-time carry-forward of the unchanged pinned web/native tooling exceptions for this exact source binding, ordinary CI-only branch publication and canonical verification. Shared password-reset and participant-signup visual checks must finish before a release decision. Existing exception scopes, dependency pins, production SQL/payment gates and unrelated approvals are preserved.",
     "limitations": "No deployment/promotion/merge, new exception or future regeneration, gate waiver, provider activation, credentials/configuration change, or new provider resources authorized. Canonical CI and shared-variant visual checks are pending; production remains unchanged."
+  },
+  "passwordBrowserSelectorAmendment": {
+    "approvalPending": false,
+    "ownerApprovalUTC": "2026-10-09T17:05:35Z",
+    "ownerApprovalMessageId": "Sentinel_98b1d018b0048191bd5005a20190baea",
+    "previousManifestSHA256": "40d0aeca8da9e30f303d064b8c8fc162c69f02648da786091d732ebc6e9b647a",
+    "releaseManifestSHA256": "3deaedd2115e066a1002d0c0c6b38028a9770a293cd383bd52effcc05c891126",
+    "sourceFileCount": 1744,
+    "changedSourceFiles": [
+      {
+        "path": "tests/e2e/accessibility.spec.ts",
+        "sha256": "cc2333af60cd2256c22ced2c2bf70c2731bb537a09701054fa0b7bbe35637776"
+      },
+      {
+        "path": "tests/e2e/final-remediation.spec.ts",
+        "sha256": "defd3b53221dbbaedb28ef55d8aeff13edf8680b2d8de13511389f347fdd3ad2"
+      },
+      {
+        "path": "tests/e2e/helpers/auth.ts",
+        "sha256": "2328719bfec5f9dbc72c7b5383a4eaee8dacf51bc538006e92e9a73daa9b8bea"
+      },
+      {
+        "path": "tests/e2e/responsive-and-accessibility.spec.ts",
+        "sha256": "a3abc14da3471e1275a55911918894cb08306a985b258938b71750132c91b95b"
+      }
+    ],
+    "failedCanonicalCommit": "7b35e3e2e1466ce205baf508e61544956696fa96",
+    "failedCanonicalRun": 37957413584,
+    "failure": "Existing password label locators also match Show/Hide buttons; 160 Password and five Confirm password strictness failures.",
+    "scope": "Exactly four test-only label/input intersections; preserve approved application/UI and PNG bytes, all assertions, test cases, zero retries, thresholds, workflow, dependency pins and production SQL/payment gates. One-time exact-source carry-forward of existing unchanged web/native development-tool advisory exceptions, ordinary publication to existing deployment-disabled test branch and canonical rerun. No deployment.",
+    "futureRegenerationAuthorized": false,
+    "canonicalRerunPassed": false,
+    "ownerApprovalResponse": "yes I approve",
+    "ownerApprovalSourceThreadId": "01a10e81-643b-7071-9d99-6e5a5314e0fe",
+    "ownerApprovalQuestionMessageId": "Sentinel_c322a6fa249081919912000035109747",
+    "ownerApprovalQuestionUTC": "2026-10-09T16:54:34Z",
+    "ownerApprovalQuestion": "TryOutFlow’s reset and participant-signup Show/Hide checks passed on desktop and mobile. Full CI caught a test issue: password selectors now match both the input and the new button, causing 165 browser-test failures. The database, unit, integration, provider-contract and visual checks passed.\n\nThe reviewed fix changes four test files only. Do you approve publishing those corrections to the existing test branch, updating its exact approval record while retaining the existing tooling exceptions, and rerunning CI? The app itself and live site won’t change."
   }
 }
