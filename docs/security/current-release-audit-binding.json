@@ -3,7 +3,7 @@
   "ownerApprovalUTC": "2026-10-06T13:31:03Z",
   "advisory": "GHSA-vfj7-8cjw-p6xm",
   "futureRegenerationAuthorized": false,
-  "releaseManifestSHA256": "09fcd95181a1f5885341cf0186fbe6388dbc0ae0426be009570479dc21c19d47",
+  "releaseManifestSHA256": "40d0aeca8da9e30f303d064b8c8fc162c69f02648da786091d732ebc6e9b647a",
   "files": [
     {
       "path": ".env.example",
@@ -1790,6 +1790,10 @@
       "sha256": "d395215188f04154103fc65878f18f7ba58d6303d60af27c18036e01c49ace12"
     },
     {
+      "path": "src/components/ui/password-input.tsx",
+      "sha256": "6de9d61e5c7bc06709e8a4e2758eb9842989e60121b7d29e7c6be8ba69f57b07"
+    },
+    {
       "path": "src/components/ui/select.tsx",
       "sha256": "592b5186b4b641e8d91952baaf073019a5863adbec5d6617ba93534e77fed245"
     },
@@ -2263,7 +2267,7 @@
     },
     {
       "path": "src/modules/identity/ui/password-fields.tsx",
-      "sha256": "96fad5af351997d99de56ada86d58b7a9e347cc369bbc56b5d0ef35f4d86e1b0"
+      "sha256": "821200315f89c87e35bcf9c12a5aa6a6b9211bf25989f96e59051d0aa237e4ce"
     },
     {
       "path": "src/modules/identity/ui/reset-password-form.tsx",
@@ -2271,7 +2275,7 @@
     },
     {
       "path": "src/modules/identity/ui/sign-in-form.tsx",
-      "sha256": "c6dd9948672eef371de4742c5658fe2cab249a9f14d953fdabf4362847effda0"
+      "sha256": "4c37e5f4c8b900c2855ae401798ef71dc762844f8bc0c3f54f4bea4220078210"
     },
     {
       "path": "src/modules/identity/ui/sign-up-form.tsx",
@@ -4563,11 +4567,11 @@
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-in.png",
-      "sha256": "7f765c1e208f03815c2e4d66454db5d4c9113b1b414c900918465d048c52b61e"
+      "sha256": "5e44581de98522f8d6eadfa461527753b367d50571b5e0a9f6c81123f57af28c"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-up.png",
-      "sha256": "a04861cbda5f8d54407ac76d2801d92d35927e46f0edc8d0514b58c8d4c06089"
+      "sha256": "d366874c3b0bd89ad0fcb5b648f965d0dfd55091269244a1e23bd58582c8edb3"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/verify-email.png",
@@ -4579,11 +4583,11 @@
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-in.png",
-      "sha256": "444a2d703c80061e0f5ac24101769ac24caf746e794b926f57bb93cc23aab1cb"
+      "sha256": "d0ea07cd70f52a9e26a2624a537c3cde595713b0b33a46311364afcc0fc9a841"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-up.png",
-      "sha256": "e5dc4ee6050fa2724b85a8545f6089851c861a01fa9fa902d27c172e37a23d98"
+      "sha256": "da8c566159c6e895f0c682f50162542fc74605fd3d036020f29c74d0b92337ab"
     },
     {
       "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/verify-email.png",
@@ -6490,6 +6494,10 @@
       "sha256": "a8824fcd3d525acae2914698f1d2a7fb7f86922c3b1dfd9b3738a742a80a2cc1"
     },
     {
+      "path": "tests/unit/identity/password-visibility.test.tsx",
+      "sha256": "d1cd9db12b1c42a4c1fb44f787086cc90cd582ae5ad93a883e5d8d64f4fbb8b4"
+    },
+    {
       "path": "tests/unit/identity/reset-password-form.test.tsx",
       "sha256": "a8af1b82e3ef1e50c1b4b8b77f141e51ab02fbf1117e7806b926e0ce2d93bd26"
     },
@@ -7252,5 +7260,56 @@
     "futureRegenerationAuthorized": false,
     "reviewedHandoffSHA256": "6b1bf1d70e0815d37ce66054a11bce93069d5b80e5e321804aaad8b112397c17",
     "independentReviewEvidenceSHA256": "5c0b8f86ddee0764cad61d42cf4cfb2f68788353849980e6777a8da1b1af96c5"
+  },
+  "passwordVisibilityAmendment": {
+    "proposalOnly": false,
+    "approvalStatus": "approved",
+    "ownerResponse": "I approve",
+    "ownerApprovalTimestampUTC": "2026-10-09T15:47:46Z",
+    "sourceMessageId": "Sentinel_6319b384dbe48191a061d86fbe00fad9",
+    "approvalQuestionSourceMessageId": "Sentinel_8d55126974a48191a3bc07538805d0b1",
+    "approvalQuestionTimestampUTC": "2026-10-09T15:19:31Z",
+    "sourceParentThreadId": "01a10e81-643b-7071-9d99-6e5a5314e0fe",
+    "previousCommit": "8c107546f6f2ab40e5c93c64b85457839e4dfb1a",
+    "previousManifestSHA256": "09fcd95181a1f5885341cf0186fbe6388dbc0ae0426be009570479dc21c19d47",
+    "manifestSHA256": "40d0aeca8da9e30f303d064b8c8fc162c69f02648da786091d732ebc6e9b647a",
+    "sourceFileCount": 1744,
+    "changedSourcePaths": [
+      "src/components/ui/password-input.tsx",
+      "src/modules/identity/ui/password-fields.tsx",
+      "src/modules/identity/ui/sign-in-form.tsx",
+      "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-in.png",
+      "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-up.png",
+      "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-in.png",
+      "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-up.png",
+      "tests/unit/identity/password-visibility.test.tsx"
+    ],
+    "approvedPNGHashes": [
+      {
+        "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-in.png",
+        "sha256": "5e44581de98522f8d6eadfa461527753b367d50571b5e0a9f6c81123f57af28c"
+      },
+      {
+        "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-up.png",
+        "sha256": "d366874c3b0bd89ad0fcb5b648f965d0dfd55091269244a1e23bd58582c8edb3"
+      },
+      {
+        "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-in.png",
+        "sha256": "d0ea07cd70f52a9e26a2624a537c3cde595713b0b33a46311364afcc0fc9a841"
+      },
+      {
+        "path": "tests/e2e/visual/__snapshots__/auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-up.png",
+        "sha256": "da8c566159c6e895f0c682f50162542fc74605fd3d036020f29c74d0b92337ab"
+      }
+    ],
+    "reviewCaptureRun": 37946972304,
+    "reviewControlsExcluded": true,
+    "canonicalVisualReviewComplete": true,
+    "candidateCanonicalCIPassed": false,
+    "sharedVariantVisualChecksComplete": false,
+    "branch": "codex/tryoutflow-offline-preconditions-oct7",
+    "futureRegenerationAuthorized": false,
+    "approvalScope": "Exact four frozen password code/test paths and four delivered Linux screenshot references, including mobile design already present on deployed 8c; corresponding one-time carry-forward of the unchanged pinned web/native tooling exceptions for this exact source binding, ordinary CI-only branch publication and canonical verification. Shared password-reset and participant-signup visual checks must finish before a release decision. Existing exception scopes, dependency pins, production SQL/payment gates and unrelated approvals are preserved.",
+    "limitations": "No deployment/promotion/merge, new exception or future regeneration, gate waiver, provider activation, credentials/configuration change, or new provider resources authorized. Canonical CI and shared-variant visual checks are pending; production remains unchanged."
   }
 }

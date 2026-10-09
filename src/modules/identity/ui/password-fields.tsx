@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { FormField } from '../../../components/ui/form-field';
-import { Input } from '../../../components/ui/input';
+import { PasswordInput } from '../../../components/ui/password-input';
 import { unmetPasswordRequirements } from '../password-requirements';
 export function PasswordFields({
   password,
@@ -41,7 +41,7 @@ export function PasswordFields({
         required
       >
         {({ describedBy }) => (
-          <Input
+          <PasswordInput
             aria-describedby={[describedBy, 'password-requirements'].filter(Boolean).join(' ')}
             autoComplete="new-password"
             ref={passwordInput}
@@ -53,13 +53,12 @@ export function PasswordFields({
             name="password"
             onChange={(e) => setPassword(e.target.value)}
             required
-            type="password"
           />
         )}
       </FormField>
       <FormField htmlFor="confirmPassword" label="Confirm password" required>
         {({ describedBy }) => (
-          <Input
+          <PasswordInput
             aria-describedby={[describedBy, 'password-requirements'].filter(Boolean).join(' ')}
             autoComplete="new-password"
             ref={confirmationInput}
@@ -71,7 +70,7 @@ export function PasswordFields({
             name="confirmPassword"
             onChange={(e) => setConfirmation(e.target.value)}
             required
-            type="password"
+            visibilityLabel="confirm password"
           />
         )}
       </FormField>

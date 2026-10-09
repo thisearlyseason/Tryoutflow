@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { FormField } from '../../../components/ui/form-field';
 import { Input } from '../../../components/ui/input';
+import { PasswordInput } from '../../../components/ui/password-input';
 import { TurnstileClientChallenge } from './turnstile-client';
 
 // Cloudflare tokens expire after five minutes; allow time for the request to arrive.
@@ -78,14 +79,13 @@ export function SignInForm({
       </FormField>
       <FormField htmlFor="password" label="Password" required>
         {({ describedBy }) => (
-          <Input
+          <PasswordInput
             aria-describedby={describedBy}
             autoComplete="current-password"
             id="password"
             minLength={1}
             name="password"
             required
-            type="password"
           />
         )}
       </FormField>
