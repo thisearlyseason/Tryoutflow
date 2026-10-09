@@ -1,0 +1,3494 @@
+{
+  "baseCommit": "8c107546f6f2ab40e5c93c64b85457839e4dfb1a",
+  "candidateSourceManifestSHA256": "c0fd9baf05e7a6f0beb5278510a51377fd88eb851ba172e4797b6118111e34d3",
+  "fullSourceFileCount": 1744,
+  "isFullReleaseSource": false,
+  "purpose": "Filtered anonymous auth screenshot input; full release manifest is verified outside the runner.",
+  "base": [
+    {
+      "path": "next.config.ts",
+      "sha256": "f1fef9f7dcf2597b8847bbe37cf933e11f6dbfa86f6e0b2ebf94da6c0c564aa2",
+      "bytes": 1117
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "afe4d54688174b789923c32c0dfb3a7fd408e97b8469dae12158a6fa9c1c180d",
+      "bytes": 409166
+    },
+    {
+      "path": "package.json",
+      "sha256": "9c2450d3b911180a1801b8fcd80c6ad91b56fa6e0cfd91a94d7e91076e2204ff",
+      "bytes": 3730
+    },
+    {
+      "path": "postcss.config.mjs",
+      "sha256": "4cae941be9bc3bee9a6905e47ea7a51aee216d587d34a8cc4ae48f78fd6d8159",
+      "bytes": 70
+    },
+    {
+      "path": "public/brand/gameday-sports-dark.png",
+      "sha256": "bddb1895291bce319d495f8a7dc7758dcb1abb8a8201cdd2981304997b8d554a",
+      "bytes": 515440
+    },
+    {
+      "path": "public/brand/gameday-sports-light.png",
+      "sha256": "85a317fa2443eaa7ce45d0d52fff41f1088b991b3cfe708582b01b8c6e1246c5",
+      "bytes": 550129
+    },
+    {
+      "path": "public/brand/tryoutflow-logo.png",
+      "sha256": "6a5ff6c01b76e71d2385124fa0ac40ea3c8327dce1df9137a95dca118ea251b9",
+      "bytes": 482050
+    },
+    {
+      "path": "public/fonts/manrope/Manrope-Variable.ttf",
+      "sha256": "3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6",
+      "bytes": 164700
+    },
+    {
+      "path": "public/fonts/manrope/OFL.txt",
+      "sha256": "d6a309fcfb963d329a93baf9df66fa5f3c23a4be2b5f67edf24d6cafecde12ac",
+      "bytes": 4386
+    },
+    {
+      "path": "public/how-to/checkin-confirmed.webp",
+      "sha256": "606180b9d88bae98a71e812de5e33e7cb5795393643166f029e0c42330e0215c",
+      "bytes": 38682
+    },
+    {
+      "path": "public/how-to/checkin-conflict.webp",
+      "sha256": "3129cd68ba2bc898063c31a0e74b71dcb8e8ba03a817ad3a1cd75d24e9161ac7",
+      "bytes": 38568
+    },
+    {
+      "path": "public/how-to/checkin-empty.webp",
+      "sha256": "7de6de81461db5fd8287a9e63c04beb4f6c89b49501157fcbe4e9ca3fa6351c3",
+      "bytes": 34664
+    },
+    {
+      "path": "public/how-to/checkin-number-result.webp",
+      "sha256": "223cf3fae189b78407c8b75bb66e425c49c8f61cb25f20b88bbc7c6ca7ce8a81",
+      "bytes": 39258
+    },
+    {
+      "path": "public/how-to/checkin-placement.webp",
+      "sha256": "2a72d56a33eff4ca066b940bde9acd7b9c7f35844237873d52884eb9308c5337",
+      "bytes": 35408
+    },
+    {
+      "path": "public/how-to/checkin-repeat.webp",
+      "sha256": "626c17ee06443456aa10251048aacda4bbf3985d5f425a3369397548c01ce699",
+      "bytes": 39260
+    },
+    {
+      "path": "public/how-to/checkin-search.webp",
+      "sha256": "b5dd0d9e9f9b8c362f76eae008151ac04f94e7f8b515a07eef8b501a3b2c67e0",
+      "bytes": 37214
+    },
+    {
+      "path": "public/how-to/checkin-workspace.webp",
+      "sha256": "11025ffd1853e8a29d71a431e1d1e40e9dd57382cc31d1d6611590a03b9268df",
+      "bytes": 56682
+    },
+    {
+      "path": "public/how-to/coach-athlete-profile.webp",
+      "sha256": "6c9c99de6a5371d558a707d7e9d99992bf5416dadcbd93456facc7889456a78d",
+      "bytes": 57506
+    },
+    {
+      "path": "public/how-to/coach-average.webp",
+      "sha256": "1f035430f4a2705a37d3b4d8498efd8f56257a7aed68ddc40e87baf5797d37c5",
+      "bytes": 68772
+    },
+    {
+      "path": "public/how-to/coach-basics.webp",
+      "sha256": "ce19ef951a0d366fd59af2fd5acb78e1025d590768135bfe24942f4eb741cb92",
+      "bytes": 53264
+    },
+    {
+      "path": "public/how-to/coach-check-in.webp",
+      "sha256": "2bbb97bfe2f345633fecd3dd55ff17399c91463fd5ea3f2692c55eda09a04f3d",
+      "bytes": 51684
+    },
+    {
+      "path": "public/how-to/coach-comparison.webp",
+      "sha256": "4d300ab9dfef0e56fbe4a577f357d7c2ad1fa2f26c4e843e87935f043cde3161",
+      "bytes": 78978
+    },
+    {
+      "path": "public/how-to/coach-complete-evaluation.webp",
+      "sha256": "b54f425cfae6377b1b43a23d5add263ac6ed03e74be2289cff84c82b2c8796cd",
+      "bytes": 68942
+    },
+    {
+      "path": "public/how-to/coach-create-tryout.webp",
+      "sha256": "ccc3a27e4c8ce4ba683eec74613c27883f86d38fc94d968599cf65c4ba30d8c3",
+      "bytes": 64262
+    },
+    {
+      "path": "public/how-to/coach-dashboard.webp",
+      "sha256": "9025075baac08e03529af3ab337371f4af9ccbdd963846495ac7d64037978244",
+      "bytes": 88618
+    },
+    {
+      "path": "public/how-to/coach-divisions.webp",
+      "sha256": "b235be84be83212353657e280d5f41ef6e7c511855a40d663cf95fcf15333f58",
+      "bytes": 60010
+    },
+    {
+      "path": "public/how-to/coach-duplicate.webp",
+      "sha256": "9dc04819116f44f9fc6d09d6bda1aa2cbc5d50fc21bf008382554686133fa9c3",
+      "bytes": 67648
+    },
+    {
+      "path": "public/how-to/coach-eligibility.webp",
+      "sha256": "374cd985fb1f717781a39a2b321cc9774ff9a48aca9ea4d9b53deecc79c4fd82",
+      "bytes": 63162
+    },
+    {
+      "path": "public/how-to/coach-evaluator-profile.webp",
+      "sha256": "23bd33fddb079517a8226da2547bb1288af6eee80f94381df4b19f6c2b586865",
+      "bytes": 37534
+    },
+    {
+      "path": "public/how-to/coach-evaluator-sessions.webp",
+      "sha256": "c48cc6be6b0aaf6c6ef05127ea74cff7593f57dee8eb9ac93a8d1ef12ce78412",
+      "bytes": 47382
+    },
+    {
+      "path": "public/how-to/coach-event-updates.webp",
+      "sha256": "1fdd3c86f914393bed2d51af0fa6b7fa6ff7a5e516106937c1c8008daf0be987",
+      "bytes": 76930
+    },
+    {
+      "path": "public/how-to/coach-feedback.webp",
+      "sha256": "b2b27fd448bc0e8c8cac978d823a0f5188397274c0282f59ee1f1dd29719b46f",
+      "bytes": 42482
+    },
+    {
+      "path": "public/how-to/coach-finalize.webp",
+      "sha256": "9c275af6978a5b1a5091bba28e2f6e787446ce08e9376078df22878a4ab4b2cc",
+      "bytes": 84258
+    },
+    {
+      "path": "public/how-to/coach-live.webp",
+      "sha256": "bb4241e41d7d460d9c3eb793dcbdbbe81f7a58a026bb15274274f1f50d34f3ac",
+      "bytes": 69590
+    },
+    {
+      "path": "public/how-to/coach-members.webp",
+      "sha256": "363fe0d79182fa694e85cb2cc8b8b0af20947c5dc866e20629495abad08eec96",
+      "bytes": 52214
+    },
+    {
+      "path": "public/how-to/coach-message-preview.webp",
+      "sha256": "57744e04cc8c82f3375d96a937daff73eab3f395e828a6c63fcd9c8a03fcf7bb",
+      "bytes": 54770
+    },
+    {
+      "path": "public/how-to/coach-messages.webp",
+      "sha256": "64e133bf2656842f3da26667cb62a6fa868d47cbf4d06970889cd3c972fd6383",
+      "bytes": 59062
+    },
+    {
+      "path": "public/how-to/coach-organization.webp",
+      "sha256": "28f26b6b78d4cd9ddf5004207765ba46aced6d8f6eda78a09f33a404b5177f53",
+      "bytes": 46854
+    },
+    {
+      "path": "public/how-to/coach-participant-access.webp",
+      "sha256": "43698ed32e824ca14b3312e1e82a550c064398c91462649af6ff2035401afffc",
+      "bytes": 73090
+    },
+    {
+      "path": "public/how-to/coach-performance.webp",
+      "sha256": "0aa2de18231807e232c62db79e2cbe45c0973da40103682c4ce7b5bcf0ca924c",
+      "bytes": 36900
+    },
+    {
+      "path": "public/how-to/coach-publish.webp",
+      "sha256": "edcd7591351f0b263c6890f5b40741e5643d2be889be844efda49a69b1b611ec",
+      "bytes": 54596
+    },
+    {
+      "path": "public/how-to/coach-rankings.webp",
+      "sha256": "bdc849c45bc908ccdd539bd11a1b4645b2f6553b296e10018601094b0a807b27",
+      "bytes": 81546
+    },
+    {
+      "path": "public/how-to/coach-registration-form.webp",
+      "sha256": "e16b91a7ce8537d5d37acf25506b425e7a292af8e3b9396247cda32932857798",
+      "bytes": 72372
+    },
+    {
+      "path": "public/how-to/coach-registrations.webp",
+      "sha256": "51314052b6450f17d57b22130b445c73b633bce8cdb2cdc4edb5698ad79807f8",
+      "bytes": 71206
+    },
+    {
+      "path": "public/how-to/coach-reports.webp",
+      "sha256": "d1672b86ceaadb283ab1ea6985597a9cf34c85566855c8df57210ffb633f1e28",
+      "bytes": 73176
+    },
+    {
+      "path": "public/how-to/coach-review.webp",
+      "sha256": "484e44685eb6febc6814b9a6c1d2ad330acc64491e69f64428b5bc8c8917cb93",
+      "bytes": 57692
+    },
+    {
+      "path": "public/how-to/coach-rosters.webp",
+      "sha256": "beaf100dca86b1cd6900670f7341a6483eaf9cd0abe6f235984b53559614c81e",
+      "bytes": 85094
+    },
+    {
+      "path": "public/how-to/coach-rubrics.webp",
+      "sha256": "f08d16542fdb46f1fae35057f8a2172d13d3e012cd1854dd9121f4281cc1f005",
+      "bytes": 44610
+    },
+    {
+      "path": "public/how-to/coach-scenarios.webp",
+      "sha256": "ad9297ae16d4889745ae9f8bd17fe6d39b74c8cbbd04fc3f3add810144ddd5a4",
+      "bytes": 64530
+    },
+    {
+      "path": "public/how-to/coach-score-athlete.webp",
+      "sha256": "60813988eb95aebee5a4bc3da450ddbdc1685cb4f5f5bc382c0f222503d1d89a",
+      "bytes": 67278
+    },
+    {
+      "path": "public/how-to/coach-sessions.webp",
+      "sha256": "924d705d141ecf92e0a5e29a05f0eec7fe25e4bc6b2684ba05e6ac1724c3cce4",
+      "bytes": 42798
+    },
+    {
+      "path": "public/how-to/coach-settings.webp",
+      "sha256": "fdb84ed7bdecca643242078e7db224e528daad322e3e968891c038a95238f12a",
+      "bytes": 59908
+    },
+    {
+      "path": "public/how-to/coach-share.webp",
+      "sha256": "5439ab874af4992b815f6df22ae6a1aa9a155c9aff14bb55248b71b8089c9361",
+      "bytes": 65240
+    },
+    {
+      "path": "public/how-to/coach-sign-up.webp",
+      "sha256": "d4be088c5636a7620b0eab3b9beafaacb146068987ba1a52b94d034a9c4cf16c",
+      "bytes": 46202
+    },
+    {
+      "path": "public/how-to/coach-staff.webp",
+      "sha256": "a7a91f0c70241caeef6281eea68c9fe3e8be9f1435ed5485b5bb22baff078067",
+      "bytes": 68918
+    },
+    {
+      "path": "public/how-to/coach-stations.webp",
+      "sha256": "6258961acab08df1e9e9684a352adaea47c16c6ccc41aab12a35efe272cb9deb",
+      "bytes": 51404
+    },
+    {
+      "path": "public/how-to/coach-waiver.webp",
+      "sha256": "aaf3f08d14b216663b071e40bcc6b4ed6c10008e195586b3e09c9294d7b321d3",
+      "bytes": 103156
+    },
+    {
+      "path": "public/how-to/evaluator-athletes.webp",
+      "sha256": "4b58767f93bdf8a3ca332bad9fa9497800703d20a03586efa38158ac4a47d233",
+      "bytes": 43394
+    },
+    {
+      "path": "public/how-to/evaluator-calibration.webp",
+      "sha256": "943c259e5d2d5f69aabcf85702daec0b72b000d22d48d566e4203c8382780d0e",
+      "bytes": 31626
+    },
+    {
+      "path": "public/how-to/evaluator-completed.webp",
+      "sha256": "51e5deb94698d25a8a4c36bf8965a41b3d310a83e79dd50ddb821baf74f04ffa",
+      "bytes": 44136
+    },
+    {
+      "path": "public/how-to/evaluator-invitation.webp",
+      "sha256": "c73d2863381887a40cf134df0ba7615d1619c858a34c0463d4c5ab50b8447f36",
+      "bytes": 30840
+    },
+    {
+      "path": "public/how-to/evaluator-notes.webp",
+      "sha256": "1a5d7665676f261744c58d2439b42b62f9d077b8167b8eb68f0ba2c3722c1e1e",
+      "bytes": 49530
+    },
+    {
+      "path": "public/how-to/evaluator-offline.webp",
+      "sha256": "1ebb1657d3a4eab50b9724b9dda219112ee6b416e95d5c2b3e416fda7ce077fe",
+      "bytes": 46866
+    },
+    {
+      "path": "public/how-to/evaluator-progress.webp",
+      "sha256": "04a185ece31eabb5d150b1ef4b78c63cb09b650b7b99fae70c9304c75cea1263",
+      "bytes": 27086
+    },
+    {
+      "path": "public/how-to/evaluator-readiness.webp",
+      "sha256": "655c2fffbcb00779ebde6b28a81481356acfe6f1dfdec4824584e9b9a6bc6d8d",
+      "bytes": 27798
+    },
+    {
+      "path": "public/how-to/evaluator-saved.webp",
+      "sha256": "eabde7372f6931bead8cc92b594802c43ce97ca1cc91dcb3000b07a3700d7216",
+      "bytes": 45992
+    },
+    {
+      "path": "public/how-to/evaluator-session.webp",
+      "sha256": "7b2c308cc3452ba52ec9f65724a9a7d3752bc7d5da4d968d5be473882e8da507",
+      "bytes": 21714
+    },
+    {
+      "path": "public/how-to/evaluator-sessions.webp",
+      "sha256": "7d07c5eef371eaa5eb1ddd66f6a3bf155cf018cfd478bdb19746fbd88d07c8a2",
+      "bytes": 45968
+    },
+    {
+      "path": "public/how-to/evaluator-sign-in.webp",
+      "sha256": "54e21f4a70286d2695ea870e26dd1538e8b16a71fc41c264ec321784fec22932",
+      "bytes": 36614
+    },
+    {
+      "path": "public/how-to/evaluator-sign-out.webp",
+      "sha256": "54e21f4a70286d2695ea870e26dd1538e8b16a71fc41c264ec321784fec22932",
+      "bytes": 36614
+    },
+    {
+      "path": "public/how-to/org-coach-workspace.webp",
+      "sha256": "974a9e3cf91f1282fdcf6ee532b292af03ea6bbdbb83be29372d1fb33d50b361",
+      "bytes": 105526
+    },
+    {
+      "path": "public/how-to/org-create-team.webp",
+      "sha256": "8c447d71a0290e8f84c5a98085a034468d65412b36731a988cc4f6de9fe602f4",
+      "bytes": 93778
+    },
+    {
+      "path": "public/how-to/org-inherited-defaults.webp",
+      "sha256": "da79047234ffad3c1baf78ff028d060be0759d0fb0eb2015a7064020a9f735a9",
+      "bytes": 71988
+    },
+    {
+      "path": "public/how-to/org-shared-defaults.webp",
+      "sha256": "e9b57826b3956da29a58c18379a46c3a0c31a9cc90d3fa3f9a52620b93e405df",
+      "bytes": 85234
+    },
+    {
+      "path": "public/how-to/org-team-billing.webp",
+      "sha256": "a0d8d3f6ed1a4771419dc2dcf96d0ef8e1f5fabbe45bf2e8bb9d138405f50ecb",
+      "bytes": 41874
+    },
+    {
+      "path": "public/how-to/org-team-coaches.webp",
+      "sha256": "02597b25d05e15740e07843ce6d476e45af9b3a07b99243413d502a3ccebd625",
+      "bytes": 76370
+    },
+    {
+      "path": "public/how-to/org-team-directory.webp",
+      "sha256": "637d2d0662dd30025d1eace199b94beb8e90a9c46338e665c8a8e41985aa5e5d",
+      "bytes": 91570
+    },
+    {
+      "path": "public/how-to/org-team-home.webp",
+      "sha256": "a5f7c55aa8f19e9a65521c7832c2bc79f51c5eef968aaec039d1a3a1b6dbe385",
+      "bytes": 102960
+    },
+    {
+      "path": "public/how-to/parent-athlete-details.webp",
+      "sha256": "3353cda3d1b071e295c670268c86639a822d8df9c0be74051cf2eb573e26865b",
+      "bytes": 33416
+    },
+    {
+      "path": "public/how-to/parent-confirmed.webp",
+      "sha256": "b68c01cd29409cdb77d40a3c53a8185eba928ecf0956e284becfb05f3bb38536",
+      "bytes": 15112
+    },
+    {
+      "path": "public/how-to/parent-correction.webp",
+      "sha256": "ce58d78c6d70aab101f183ef994454672d519f93d10be109ebb63b391f028d4b",
+      "bytes": 47754
+    },
+    {
+      "path": "public/how-to/parent-feedback.webp",
+      "sha256": "ad435bf4d4d149154901ee7fc45b107382b5efe1a8c4c30de4cc06cf85aff46e",
+      "bytes": 46924
+    },
+    {
+      "path": "public/how-to/parent-fees.webp",
+      "sha256": "b131fa0348cb630d6065b393ab81d97f8bbac74c537ae126b8e47c886b2d2a14",
+      "bytes": 45812
+    },
+    {
+      "path": "public/how-to/parent-guardian-consent.webp",
+      "sha256": "5a9919abab2c9e0a2a7ee112b2d9885603f25e87fa516b0964b9040bfe469467",
+      "bytes": 53352
+    },
+    {
+      "path": "public/how-to/parent-link-pending.webp",
+      "sha256": "102a2fb8982891c135f1b67b39260d8084a7ab8e3fa253a867826612f3209988",
+      "bytes": 21706
+    },
+    {
+      "path": "public/how-to/parent-offer.webp",
+      "sha256": "0a0e9a4eb0e0f8690bf87a7bfc55d3c93db7cf5c3af1c0a01821c126ff52558b",
+      "bytes": 52590
+    },
+    {
+      "path": "public/how-to/parent-portal.webp",
+      "sha256": "dee4548700ef4e0c52697db1cb3a944cce093c8bcd244c87ab7a9ac99776fa53",
+      "bytes": 66558
+    },
+    {
+      "path": "public/how-to/parent-registration.webp",
+      "sha256": "537d53163a7a98cf503258aa9f5ec4ea6e047973af6c0ecac6d1e81017b0a9ef",
+      "bytes": 33394
+    },
+    {
+      "path": "public/how-to/parent-returning.webp",
+      "sha256": "7b65661f21ea8d4c7bc39e9af378a10e64d4aa83ca43d59ab7196eb7b3667232",
+      "bytes": 54516
+    },
+    {
+      "path": "public/how-to/parent-review.webp",
+      "sha256": "dd9a324c5d7cdcf5fe3bdbde7dee3d3428cbce3560458e73b2d9b6a85d04aeb0",
+      "bytes": 38104
+    },
+    {
+      "path": "public/how-to/parent-schedule.webp",
+      "sha256": "feba1a5f9c6df901072d10ded99499792269c2bb0f6a7ad8418bbe0338b9c6c6",
+      "bytes": 52828
+    },
+    {
+      "path": "public/how-to/parent-sign-up.webp",
+      "sha256": "36ad96673f5e9169844901c00a21d9e24393afc13d7839f74426a63a237dad94",
+      "bytes": 48126
+    },
+    {
+      "path": "public/how-to/performance-comparison.webp",
+      "sha256": "b046a8db598e15e25ffcc01f4973398c8967146062cf0f7de7fd08e6314c02c5",
+      "bytes": 49768
+    },
+    {
+      "path": "public/how-to/performance-correction.webp",
+      "sha256": "5317ae2a27916e32c8fd29cc81717b17f9fa42759260194552019b99f3a8dd51",
+      "bytes": 32542
+    },
+    {
+      "path": "public/how-to/performance-filters.webp",
+      "sha256": "9c83251de5fe01e64057ad54e10d15d974347f0f788c285c94634f8842a65dff",
+      "bytes": 46748
+    },
+    {
+      "path": "public/how-to/performance-import-complete.webp",
+      "sha256": "532ecc71b913d84f04454febe4406fc1d00673d4880435a37f6f730c9e65f5c1",
+      "bytes": 60414
+    },
+    {
+      "path": "public/how-to/performance-import-preview.webp",
+      "sha256": "c7147974e016eb52933396c4bcc487c86f94e6a531a4aff74fde524d863e903a",
+      "bytes": 59918
+    },
+    {
+      "path": "public/how-to/performance-import.webp",
+      "sha256": "8860ee6021fc7a90d572b6016e5f719113b7c44c00b31167a115bc0b53140bac",
+      "bytes": 42638
+    },
+    {
+      "path": "public/how-to/performance-lab.webp",
+      "sha256": "2a6d248978e3644319d3d038f02a12a10f5017ad366e8ea6d5a0168e25e703e1",
+      "bytes": 40584
+    },
+    {
+      "path": "public/how-to/performance-measurement.webp",
+      "sha256": "1824a247a0c4b9da209c8c34642b738c0598ff064646c002b0454db788374b8a",
+      "bytes": 33206
+    },
+    {
+      "path": "public/how-to/performance-metric.webp",
+      "sha256": "eae4c3c4179671015c5f88a65b34e941c3913dd4710c78f7cddc111b8de1c723",
+      "bytes": 26012
+    },
+    {
+      "path": "public/how-to/performance-protocol.webp",
+      "sha256": "7fb6c1a0638742ea39d07da42b98efd811cfe6c609ab48ce2e541458f1ef6390",
+      "bytes": 34548
+    },
+    {
+      "path": "public/how-to/performance-source.webp",
+      "sha256": "a9d7f1b35cec28cfa7925658c7e187378a17851f275aeb73f3bf2c6c8316e16a",
+      "bytes": 32984
+    },
+    {
+      "path": "public/how-to/reviewer-comparison.webp",
+      "sha256": "fb05d1de2ba646637566aa7426cb5a08f53e87e1b4a532c025fc7b4825aed362",
+      "bytes": 41892
+    },
+    {
+      "path": "public/how-to/reviewer-filters.webp",
+      "sha256": "9a7e6729f527861f85c4e36d7970dfd58f5501b9a5d70d81c8554c138073887b",
+      "bytes": 44462
+    },
+    {
+      "path": "public/how-to/reviewer-rankings-access.webp",
+      "sha256": "928b615859e801639515317842980a5d0e79c570e963309bccfa53e8987cb18a",
+      "bytes": 34880
+    },
+    {
+      "path": "public/how-to/reviewer-rankings.webp",
+      "sha256": "423d1d1d30b5b4eda9108514af481e30cfe70a4eae98454f635317868724b7ed",
+      "bytes": 47088
+    },
+    {
+      "path": "public/how-to/reviewer-report.webp",
+      "sha256": "897f8c8531da21d8913cf89186babc9277619d7a8e86cfc005aa5f3ca21e7928",
+      "bytes": 32000
+    },
+    {
+      "path": "public/how-to/reviewer-roster-unavailable.webp",
+      "sha256": "b7c16b780d5d039b82fcd6954ae5afb68b50876d5962d3543f22049bf6f24c22",
+      "bytes": 4046
+    },
+    {
+      "path": "public/how-to/reviewer-workspace.webp",
+      "sha256": "b33a6a854a52b1692b87de8907102354f2acbdb5e6d1934d71b05e9da284f5b3",
+      "bytes": 58388
+    },
+    {
+      "path": "public/how-to/scout-assessment.webp",
+      "sha256": "cfcd9f28a7feb4bbeb98b7b2a4d5e10a20fb77eef4e72ca53cd50442949b8148",
+      "bytes": 30588
+    },
+    {
+      "path": "public/how-to/scout-development.webp",
+      "sha256": "57e6bbcc55c99f832f54b2dc202ce572d0af0f099cc09d8e2b6727d0b2c2828d",
+      "bytes": 32560
+    },
+    {
+      "path": "public/how-to/scout-feedback-report.webp",
+      "sha256": "01ccd2097606f49ef040971fd4b8b09788c321775f67b08627325abd3dddc124",
+      "bytes": 49384
+    },
+    {
+      "path": "public/how-to/scout-followup.webp",
+      "sha256": "58317533d0cf5fd49c5a8892d7e06473539c715a7c7912f8de033e1990bc8ced",
+      "bytes": 26912
+    },
+    {
+      "path": "public/how-to/scout-pipeline.webp",
+      "sha256": "8d22e8454f930a03cae6856d001c2b679b3ce4c62a1e994de2c2fd83da895ac7",
+      "bytes": 48064
+    },
+    {
+      "path": "public/how-to/scout-profile-editor.webp",
+      "sha256": "5536431ac64e452cc18b4829ff2bf7840ef2dffa91c3ab1ebb0fbab4d296f51f",
+      "bytes": 28306
+    },
+    {
+      "path": "public/how-to/scout-report-context.webp",
+      "sha256": "d2164181d81c9021da2ed5017cef17037e05ec335de16d99fa14e035fd1feab5",
+      "bytes": 34574
+    },
+    {
+      "path": "public/how-to/scout-report-review.webp",
+      "sha256": "b7a3885aae564cb4ee6180b720777fe67d80ee21fe062e7ef9f926023f545625",
+      "bytes": 28938
+    },
+    {
+      "path": "public/how-to/scout-report-saved.webp",
+      "sha256": "064df900086ca700cbe10e5b9b5bd941edc720dc2b783ae43bdac60b6e415a3e",
+      "bytes": 27548
+    },
+    {
+      "path": "public/how-to/scout-staff-report.webp",
+      "sha256": "78a6c4543b6b04656aa36763eea1cc280dbc413d7925fea6d1d5019ef78a15eb",
+      "bytes": 48686
+    },
+    {
+      "path": "public/how-to/scout-stage.webp",
+      "sha256": "7fcf0942ce675db31bbcffc12133b7afb84a54f7f572cb4ca79455b95690336b",
+      "bytes": 20580
+    },
+    {
+      "path": "public/how-to/scout-unsaved.webp",
+      "sha256": "cafb725816664aaa2c8cf0cf5873585c8cdf62f1d017fdbe9c1fe846ae656f39",
+      "bytes": 28142
+    },
+    {
+      "path": "public/how-to/scout-video.webp",
+      "sha256": "091186f5e4bef43ccc5a522d03a9d291c23fd45af237528ab3d3da4b5111f194",
+      "bytes": 24968
+    },
+    {
+      "path": "public/how-to/scout-watchlist.webp",
+      "sha256": "a3f8da32a8820d1b06d81cdde5db695c0fa2a8c8114b2511b0a4cb3e13a430c5",
+      "bytes": 27464
+    },
+    {
+      "path": "public/how-to/scout-workspace.webp",
+      "sha256": "12045f620b1e1b6329b27edaa751ee732b6292218d67dfeb6d7dca19f436a7be",
+      "bytes": 58914
+    },
+    {
+      "path": "public/how-to/single-complete.webp",
+      "sha256": "1477a1fe5d1ca6c231cdb61e41cbf78c3f57a6d65e4113537cd0ad4b88e37470",
+      "bytes": 81756
+    },
+    {
+      "path": "public/how-to/single-draft.webp",
+      "sha256": "1a1df13cbc3738c47061336df814941186925c3e337ccd70d9f3f75c0fc476c1",
+      "bytes": 65264
+    },
+    {
+      "path": "public/how-to/single-locked.webp",
+      "sha256": "b1369ca27dbbd6aa37b2b4df834b2ebc8d97d9df879421f2310031a0befd6d05",
+      "bytes": 49606
+    },
+    {
+      "path": "public/how-to/single-new-event.webp",
+      "sha256": "04947d91a4fd8a5c39cdb152dfce93bb50f8e4d6d59663b8e7b18b674eb07cf6",
+      "bytes": 71128
+    },
+    {
+      "path": "public/how-to/single-plan.webp",
+      "sha256": "a88e51bd54638e130cdbd96a36882b657ff3fc0d4ea9c047e8d94d8c000d00d3",
+      "bytes": 89572
+    },
+    {
+      "path": "public/how-to/single-publish.webp",
+      "sha256": "6b853aebd999d53eec50fee07b3d7ce0f13557cabaa17e1445b98f18c5d56401",
+      "bytes": 68636
+    },
+    {
+      "path": "public/how-to/single-results.webp",
+      "sha256": "c1e073e6c8e3c89ef432952385d8f82c4bdcce969b1f21be5753b8ae8c1094eb",
+      "bytes": 71550
+    },
+    {
+      "path": "public/how-to/single-sealed.webp",
+      "sha256": "77ed555a9110e20cd3f091e0d9aed9d1aebcc9649ae8c2ff0f69827be38eb2f7",
+      "bytes": 88730
+    },
+    {
+      "path": "public/how-to/single-sessions.webp",
+      "sha256": "3c6999f37f576b113b83620415507f6e1e1506ddfc9892ade3cf6e67dc93f873",
+      "bytes": 49630
+    },
+    {
+      "path": "public/how-to/verify-email.webp",
+      "sha256": "04c5964253129a00564c3cc311751b26393f1152adfabed4291f7a7b537af147",
+      "bytes": 36170
+    },
+    {
+      "path": "public/images/ATTRIBUTION.md",
+      "sha256": "e1f0c564d5dc5949fa2af367bdd7db63010019afdd93d519fd87823cc5f4617f",
+      "bytes": 825
+    },
+    {
+      "path": "public/images/team-training.jpg",
+      "sha256": "4ecb22938e38acd0c5ee23a62b70526eed68e826bc489a486e1994419e120148",
+      "bytes": 286457
+    },
+    {
+      "path": "public/images/tryout-training-hero.webp",
+      "sha256": "f25f23b69c83b7854a7bdc2fbdf1b0817db5c07a9361be863b9f98921c04971c",
+      "bytes": 135920
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/account/page.tsx",
+      "sha256": "3cde2e5da22de7668ef9fd8fb95df29889dbe796cb2aabf16a04f32b3d6100fa",
+      "bytes": 2457
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/athletes/[athleteId]/page.tsx",
+      "sha256": "bd9057963aa02cef381f8c034e4970dcd9b42f0259c603ce11a49d001ad92c8a",
+      "bytes": 15465
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/athletes/duplicates/page.tsx",
+      "sha256": "e471f0c06223915f4a5716f765f7ad09488f434dded602c821a00448977e01b1",
+      "bytes": 10599
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/athletes/import/page.tsx",
+      "sha256": "575b651dde8f03fc8282f769b8c6355d08b6956fa57896f449a684785d199928",
+      "bytes": 1399
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/athletes/new/page.tsx",
+      "sha256": "186a655fa75fd074f73af77bea2c778bd49c277e05ae571b8d86043d0ef6ca1e",
+      "bytes": 533
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/athletes/page.tsx",
+      "sha256": "4607468e050f6eeaed52f5c2f35b3074620b22e63f503ef0c2b72529b7dc5734",
+      "bytes": 7639
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/calibration/page.tsx",
+      "sha256": "c53ece4205ab431e4e423aedeeef0be70b12441a35b59ff1cbad2d79367b0fe3",
+      "bytes": 3207
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/page.tsx",
+      "sha256": "93fd406d3b11ee4c3c196b2e93f0128f8022acfada7102d554fdf011e0246593",
+      "bytes": 2584
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/profile/page.tsx",
+      "sha256": "46e55d9747fc6026e9b88bba84236003261ae62914a5d7c0fb071faae37eb0df",
+      "bytes": 1959
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/session/[sessionId]/athletes/[registrationId]/page.tsx",
+      "sha256": "d478c34d999de8a37b75351153d097f9e4f9f72e421ad16e946ba4f6bbd56240",
+      "bytes": 7166
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/session/[sessionId]/athletes/page.tsx",
+      "sha256": "3aedc5044be89baf92c4ae9bd69e3074f2ef12efb89c3f1e9d3e11def3bbe6a0",
+      "bytes": 1323
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/session/[sessionId]/loading.tsx",
+      "sha256": "bf00929f00df70ab1c3284e9ceca3c913fe8648a6e6a950f2f187918cced8959",
+      "bytes": 555
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/session/[sessionId]/page.tsx",
+      "sha256": "de7806fea8750a013ea9b49cf422b9af3e7bea3710c169257f64d011ccac79ef",
+      "bytes": 2484
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluate/session/[sessionId]/progress/page.tsx",
+      "sha256": "8646fd8c4a73f180cd6ba5f1bbb7ef20e4d02cce95fa34ed1a3d7799422f40f4",
+      "bytes": 3226
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/evaluators/page.tsx",
+      "sha256": "5fc2fa194acf95dc1deed20621ee85e110de908f1344342d3d8d8f3a41abbd4e",
+      "bytes": 11198
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/home/loading.tsx",
+      "sha256": "d4717fee383536c52d4237e54478370ad306c5d05bc15a4bf11850b26127c454",
+      "bytes": 690
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/home/page.tsx",
+      "sha256": "0f93cd74b825ca6c49167324ffd88b000498d78d40860566a7a96dd2128e55c7",
+      "bytes": 2502
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/layout.tsx",
+      "sha256": "0024277b8e40a3d2df392b6afc973422a21bec1ac94f54014d9934c3899ae065",
+      "bytes": 1520
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/organization/audit/page.tsx",
+      "sha256": "04d28e6f225a85d280f07d989de7654b0165d1aff61cd2c510e0d9a9b76a0301",
+      "bytes": 1667
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/organization/billing/page.tsx",
+      "sha256": "2eaf33c74afb81ce1aa8b3ecc5fbc121c2900317438c08439a625bc031179b42",
+      "bytes": 9461
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/organization/integrations/page.tsx",
+      "sha256": "33b500e336aaf4600101569a62ad3084022a461b5d34af4d2e2406884f274181",
+      "bytes": 3944
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/organization/members/page.tsx",
+      "sha256": "0abece74c83682092e4b5b38ece41be7867526f900419d9949607ba5cbb0ff74",
+      "bytes": 13811
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/organization/settings/page.tsx",
+      "sha256": "7ed7918f8672986af9759d09195aedf0204f0a8e0ec04f6408d993f75d0887b5",
+      "bytes": 10784
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/organization/teams/page.tsx",
+      "sha256": "5d52cf61679cd9433cd5fb4e1cba2a94c4bef276228b7841459a1e3f1ce230e4",
+      "bytes": 6705
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/participants/page.tsx",
+      "sha256": "4c4a1f2359fda84c9d0250ab6fdd240285d51da741885984ac1a0af595edffea",
+      "bytes": 6930
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/performance/import/page.tsx",
+      "sha256": "165756692038cb2d770f3842792c03225f66621f0c05cbfecef1b97b02e96209",
+      "bytes": 684
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/performance/page.tsx",
+      "sha256": "0a84157798b6178ccdaef4d61a02480c1f3a0e1d3388d0f9efb1b7a6f5c6f3d7",
+      "bytes": 9593
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/reports/athletes/[athleteId]/page.tsx",
+      "sha256": "710171913de16dcc289034c828bb45f7d0b0176fe2d4cc07927fe613408e487a",
+      "bytes": 4049
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/reports/exports/[exportId]/route.ts",
+      "sha256": "20be10b2b2912b982322607e8db51ce15b1a9bb28418ca8cc3c19ccaf45440c6",
+      "bytes": 1362
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/reports/exports/page.tsx",
+      "sha256": "8825b5d868300d569fb0cea9097f06bd4f62cdfbf85484ffad34af798f097f0d",
+      "bytes": 2310
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/reports/page.tsx",
+      "sha256": "0fc1ee5e060d1971d01f80d4792888124a01eb6b46b1677a7734aedd8c9f01dc",
+      "bytes": 5207
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/reports/program/page.tsx",
+      "sha256": "f966c661f3ea77f5b1a1509f0130f69a03e470bdcd97560434f0cbbaf30626a6",
+      "bytes": 6077
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/reports/scouting/export/route.ts",
+      "sha256": "069e28e344a191563c8ddd5d2666334666df88f9be08333bf7f9f47e4bbaaac0",
+      "bytes": 1656
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/reports/scouting/page.tsx",
+      "sha256": "0179c7760bce447fec907d24d3382b0bea629edb59eded4efa72179280c72bc5",
+      "bytes": 2979
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/scouting/page.tsx",
+      "sha256": "611e91108fe2591e89c0c244a8343c5527e6c18ad616b7bd6859e486e83a7016",
+      "bytes": 14588
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/search/page.tsx",
+      "sha256": "1835330f2d481799240d9f5fbae3a6765fffc6f1a1858bd0777d380226fefc96",
+      "bytes": 3381
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/check-in/page.tsx",
+      "sha256": "21c678ec3d3850634e1a849bffde0ec012809abb6305824aab0ffdd8b9fc21f2",
+      "bytes": 11015
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/compare/loading.tsx",
+      "sha256": "877bb799ba72b80a091e31e4d9081e30dd09e69d060ba8d8ae543212e8cc5121",
+      "bytes": 229
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/compare/page.tsx",
+      "sha256": "d257be69c5367f0dbf4fb641262dcdc3c2d2ec0cdf4e6df53473428f2f54f329",
+      "bytes": 2398
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/eligibility/page.tsx",
+      "sha256": "5bfd1596df1b5854484a345f2aa7d30b4476425dafdffe7e10e07b001bcabf5a",
+      "bytes": 5942
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/layout.tsx",
+      "sha256": "d2adfe66d26e8b3c68bb93212aca59bb4daf64762a737420600ccddbfe754e59",
+      "bytes": 2195
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/live/loading.tsx",
+      "sha256": "aa0fcae40928be52c8dcc6a9330139029a7ccf21d652394544e08b44f4c9a57e",
+      "bytes": 227
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/live/page.tsx",
+      "sha256": "bf7fdd37871e7b1bfe107544413dae4e4e4454f38ec7f57033adea3c39ac49d0",
+      "bytes": 4071
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/messages/page.tsx",
+      "sha256": "fe605ebcdf600a0d06a64936a42609636822c9f392ea271043437da703d02be7",
+      "bytes": 11494
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/operations/page.tsx",
+      "sha256": "ff20e24d3794d80020506e4c130e19bc2df17153ef31e055634b9983a2d886f2",
+      "bytes": 5721
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/overview/page.tsx",
+      "sha256": "e5b675b51a8559db7eae3a756dda97595e5948e13ff96e89f47686f1573de84a",
+      "bytes": 6160
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rankings/loading.tsx",
+      "sha256": "ca541b0346b5553c3851f2ed965feb8a399dcce6a729f52d8d12f4483259a382",
+      "bytes": 341
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rankings/page.tsx",
+      "sha256": "455dbe56b2df71c05bfb493857acb79a01ab6c2fb54187c0814d4f0f100135a3",
+      "bytes": 3936
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/registration/page.tsx",
+      "sha256": "0fcf4af5176868ffa9212ce5df5e42f9a1f6492b4dfdae51f291f485d57e64df",
+      "bytes": 15166
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/reports/decision-packet/page.tsx",
+      "sha256": "0c9ffd145362830c9f2d0a6d1faab51c44fcfbd5c4cdf4b5dc434323e2c969f4",
+      "bytes": 8960
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/reports/page.tsx",
+      "sha256": "81e0c5d55ad82a1e59ac06fd4805f92d47eb80016a8a5e3646c0427242dd130c",
+      "bytes": 2977
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rosters/[rosterVersionId]/export/page.tsx",
+      "sha256": "f915d741a430ae81b18fe08c72ed91640c084c02411eaf97dd768da3b3cd1a9c",
+      "bytes": 9641
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/rosters/page.tsx",
+      "sha256": "b6b1af7861fa7420a29c2d8989eb3d9cf0f6eb886b25a0e5dc52cf3e17aa14e4",
+      "bytes": 13828
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/scenarios/page.tsx",
+      "sha256": "2b1263fbd8b575ac3a27503e1a2bb655292e13414be3bd6b8dd1a7d20057b32d",
+      "bytes": 6947
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/sessions/page.tsx",
+      "sha256": "82b5ee5ea91a404977fac332ec39c2a46ba58f1f507fec41214b8c4b4cb955a1",
+      "bytes": 5631
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/setup/[step]/page.tsx",
+      "sha256": "e723ecbe216a0e2235163d5984fe057e0d3ba6c946c27a0dbb7316401923d90c",
+      "bytes": 14012
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/staff/page.tsx",
+      "sha256": "6466a107f4668c9fce83003b09ce74d68f30d9b34fdc73be4c0584f7dfae95fb",
+      "bytes": 9134
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/[tryoutId]/stations/page.tsx",
+      "sha256": "84116b3ef4f1af0300861e3449a9093e585a87f355076128d8b4a94b8edc6e92",
+      "bytes": 5087
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/new/page.tsx",
+      "sha256": "f4c71befc0aec71227d2e35630f63949732c0d4897fe493acf923ba99fa0efb0",
+      "bytes": 8819
+    },
+    {
+      "path": "src/app/(app)/app/[organizationSlug]/tryouts/page.tsx",
+      "sha256": "afb540a8c2d43c31192d81d73edcef175922ac08cd854e163eb7b15808c67e98",
+      "bytes": 4688
+    },
+    {
+      "path": "src/app/(app)/app/loading.tsx",
+      "sha256": "8b1268a447f0c4791da4f9eb019f563eb135a9266c0302f55e4e84985021bf57",
+      "bytes": 236
+    },
+    {
+      "path": "src/app/(app)/app/page.tsx",
+      "sha256": "68fbc1979112625417580da74be753763690ed6a3573d58d8f9d450444e7e992",
+      "bytes": 950
+    },
+    {
+      "path": "src/app/(auth)/auth/callback/route.ts",
+      "sha256": "618627d803e30dff02bbba2d02ca5949854fc6cc25d21bf17b81580976ac0f58",
+      "bytes": 1035
+    },
+    {
+      "path": "src/app/(auth)/auth/confirm/route.ts",
+      "sha256": "83606fe63d24ec60e1635dd6937cb69f32b00a7f61591eb6a4c8c9be1d294287",
+      "bytes": 2274
+    },
+    {
+      "path": "src/app/(auth)/auth/recovery/request-handler.ts",
+      "sha256": "f34c89fed544def91e0b27bffb3d0ae5045120df0d8aa07df29e5728e9b105c8",
+      "bytes": 3038
+    },
+    {
+      "path": "src/app/(auth)/auth/recovery/route.ts",
+      "sha256": "00dfd3be10ac4bd4307f61b8ec0510959d5bb1335cf81b18a00879c41cae3f74",
+      "bytes": 42
+    },
+    {
+      "path": "src/app/(auth)/auth/sign-in/request-handler.ts",
+      "sha256": "248bdb96754b042af60d3633c1ede8df2af2faaafdfca7ea2f45862ba026aa1e",
+      "bytes": 2768
+    },
+    {
+      "path": "src/app/(auth)/auth/sign-in/route.ts",
+      "sha256": "00dfd3be10ac4bd4307f61b8ec0510959d5bb1335cf81b18a00879c41cae3f74",
+      "bytes": 42
+    },
+    {
+      "path": "src/app/(auth)/auth/sign-out/route.ts",
+      "sha256": "84c4aeba05511517670a9d6312b4537ebc6de7284c6b160761cf2ee177be19b9",
+      "bytes": 466
+    },
+    {
+      "path": "src/app/(auth)/auth/sign-up/request-handler.ts",
+      "sha256": "1621a42cf79925cc9d073ad1bd892c6cba47aed5f730be8f06c2427f98dcb394",
+      "bytes": 3757
+    },
+    {
+      "path": "src/app/(auth)/auth/sign-up/route.ts",
+      "sha256": "00dfd3be10ac4bd4307f61b8ec0510959d5bb1335cf81b18a00879c41cae3f74",
+      "bytes": 42
+    },
+    {
+      "path": "src/app/(auth)/auth/verification/request-handler.ts",
+      "sha256": "e81d634f58850291f86e4d5f19c2c635527b589c6a117c0944de65a6247c1f90",
+      "bytes": 3361
+    },
+    {
+      "path": "src/app/(auth)/auth/verification/route.ts",
+      "sha256": "00dfd3be10ac4bd4307f61b8ec0510959d5bb1335cf81b18a00879c41cae3f74",
+      "bytes": 42
+    },
+    {
+      "path": "src/app/(auth)/forgot-password/page.tsx",
+      "sha256": "671fde984c5f3b6a5c72f197360883293860e82a005d28aace1cec4c88fadfe5",
+      "bytes": 1754
+    },
+    {
+      "path": "src/app/(auth)/invite/[token]/page.tsx",
+      "sha256": "758e642ad4daa04a8ce639f9a87680ac695b1c8c2119d11c81ecb6196eaca6e0",
+      "bytes": 2576
+    },
+    {
+      "path": "src/app/(auth)/reset-password/page.tsx",
+      "sha256": "a59e0e2e158dd04c6db772d83baceb8d2aeca0510ec39884247b3c88d708ab64",
+      "bytes": 1417
+    },
+    {
+      "path": "src/app/(auth)/sign-in/page.tsx",
+      "sha256": "a370274fcd5cba0364476dbb2fdcc7122460eda601aaf7ee05bb7681d49f0b8b",
+      "bytes": 2898
+    },
+    {
+      "path": "src/app/(auth)/sign-up/page.tsx",
+      "sha256": "4e10c155478a87bf185e21d3680f728ab008498cce324028ab09f499daf9be88",
+      "bytes": 2255
+    },
+    {
+      "path": "src/app/(auth)/start/page.tsx",
+      "sha256": "dac82f6ec760787de4f3ac4c24fb73d8de5b203ca8ba1e19c69f5889a9d30fcb",
+      "bytes": 3963
+    },
+    {
+      "path": "src/app/(auth)/verify-email/page.tsx",
+      "sha256": "ae507fd01c9e35dea42978a5c357ff5ad7a79557e52d526ffd8afc52d05b44eb",
+      "bytes": 2215
+    },
+    {
+      "path": "src/app/(marketing)/delete-account/page.tsx",
+      "sha256": "39c2e482dab996ab484a76d3520d028ae9d101c87f21119726112f2d5ff841b4",
+      "bytes": 4198
+    },
+    {
+      "path": "src/app/(marketing)/demo/page.tsx",
+      "sha256": "2a6257f2f2981052cfde2c1dc67ff74612613fcea838e08fe9b0ee2e87c22af5",
+      "bytes": 556
+    },
+    {
+      "path": "src/app/(marketing)/features/page.tsx",
+      "sha256": "db1e63a1a6405fa4090ec365ed6399271b888a4c61ea18dad362a09a74e5b111",
+      "bytes": 3595
+    },
+    {
+      "path": "src/app/(marketing)/for/associations/page.tsx",
+      "sha256": "e476f466898ab4c18fda1d0a2c77971a90ed1ae24479de7b6fdb7acbe37c7aa4",
+      "bytes": 1459
+    },
+    {
+      "path": "src/app/(marketing)/for/clubs/page.tsx",
+      "sha256": "79a3bc753360d03fc261f5d40200852d652d1e993669b50e97a173c2412aab95",
+      "bytes": 1425
+    },
+    {
+      "path": "src/app/(marketing)/for/teams/page.tsx",
+      "sha256": "88b0cdf572bf2afe4f3921bc1a18cc66792cbb73bcfff0e2e356a8951bcdf9f8",
+      "bytes": 1404
+    },
+    {
+      "path": "src/app/(marketing)/how-to/how-to.css",
+      "sha256": "054c0b728452037e9b494a488836fa250268e648c768fea4e48667866ef2c125",
+      "bytes": 13143
+    },
+    {
+      "path": "src/app/(marketing)/how-to/page.tsx",
+      "sha256": "f7ad53ebff7b5c27958d7ea759a51dbfc9879f40c4705de25b0328b40fb8610e",
+      "bytes": 815
+    },
+    {
+      "path": "src/app/(marketing)/landing.css",
+      "sha256": "50fea3d6f90fcc4484c7203738885c5f72a9cc2cc640a6273f46d9ea051221d8",
+      "bytes": 28780
+    },
+    {
+      "path": "src/app/(marketing)/layout.tsx",
+      "sha256": "9457b088c4e86c687d905324284b55dcc93fc5d89d625c5302b2471abe6d1005",
+      "bytes": 744
+    },
+    {
+      "path": "src/app/(marketing)/page.tsx",
+      "sha256": "3cb1b2793c54ec23fc43ab18837e6170d6cb6e3c262a8428b1b1abcf83ff11aa",
+      "bytes": 17402
+    },
+    {
+      "path": "src/app/(marketing)/pricing/page.tsx",
+      "sha256": "a9ecd605b67811a3ea32de1aeaf3a0f79c7b33c7b9ddfcd658054dc6a7a90500",
+      "bytes": 3232
+    },
+    {
+      "path": "src/app/(marketing)/pricing/pricing.css",
+      "sha256": "ba80888a0688d9d63c1a938482ffc222b4e5eae669e14e114eac36b52357b3f1",
+      "bytes": 7779
+    },
+    {
+      "path": "src/app/(marketing)/privacy/page.tsx",
+      "sha256": "48ea5a5146a300fca95e6f235d74f18b8ceccb8717e5a507f45996486a6f7575",
+      "bytes": 7527
+    },
+    {
+      "path": "src/app/(marketing)/support/page.tsx",
+      "sha256": "09929ff681026dc92875e9cc6be8ea7cd12d2bf895071bc82239441d4bc94a5c",
+      "bytes": 2716
+    },
+    {
+      "path": "src/app/(marketing)/terms/page.tsx",
+      "sha256": "9a9dde56417b340023fbd42db21ec72aeeb58ffd869f95c94fc9d1a489c62c6d",
+      "bytes": 8167
+    },
+    {
+      "path": "src/app/(participant)/participant/page.tsx",
+      "sha256": "61c8d2ccafd92c4dac93d25db54d4a531031b3e3c76899bc516d0b9e19d5d572",
+      "bytes": 10235
+    },
+    {
+      "path": "src/app/(platform)/platform/audit/page.tsx",
+      "sha256": "a0e533c6d065827735692b8332cb8aeb951957acf199fc5cccffead001799b36",
+      "bytes": 800
+    },
+    {
+      "path": "src/app/(platform)/platform/deletions/page.tsx",
+      "sha256": "0e505268dae160e52694da03c632b40ef31a4e8789de2872f53770ff003ece59",
+      "bytes": 5078
+    },
+    {
+      "path": "src/app/(platform)/platform/error.tsx",
+      "sha256": "2b1d84d64703306ac7ed8ba9dcfc049004fe66cc6f7ab5ef5df5e53026cd1252",
+      "bytes": 645
+    },
+    {
+      "path": "src/app/(platform)/platform/health/page.tsx",
+      "sha256": "691e657c373ec1fdf0ac0cf45bac703359d72d26709e42701884c4eeeb3e8e02",
+      "bytes": 798
+    },
+    {
+      "path": "src/app/(platform)/platform/layout.tsx",
+      "sha256": "d2d84025812d2b48f72ee39ab5e88b57c8d6edadc107dcb9523a7b556a176500",
+      "bytes": 912
+    },
+    {
+      "path": "src/app/(platform)/platform/organizations/page.tsx",
+      "sha256": "aa25c7e86a178454a7249bd7fd191cb6de6613a1a2296ffd9c9727536bef502d",
+      "bytes": 842
+    },
+    {
+      "path": "src/app/(platform)/platform/subscriptions/page.tsx",
+      "sha256": "5e95e5d048ce88e1e4e773a35c31a522b160f08d064fa62df5bf98a58c49fcf0",
+      "bytes": 1017
+    },
+    {
+      "path": "src/app/(platform)/platform/support/page.tsx",
+      "sha256": "a68b16babd63c45db06c4a9386be0ada430b42cbecee55f324380b61f517bd46",
+      "bytes": 4356
+    },
+    {
+      "path": "src/app/(registration)/layout.tsx",
+      "sha256": "a73a2f89a6dc837672f63a4f428e89e05a9dbaf8c72c55d2bb6caff73d7bd10d",
+      "bytes": 876
+    },
+    {
+      "path": "src/app/(registration)/register/[tryoutSlug]/confirmation/page.tsx",
+      "sha256": "8a2a8ccdb2216c5344f321386b93e8627b65f4f14f9650f58d34b51931554264",
+      "bytes": 675
+    },
+    {
+      "path": "src/app/(registration)/register/[tryoutSlug]/confirmation/registration-confirmation-client.tsx",
+      "sha256": "7e5071ca51030c1762c90c536442760397dfa7e6b516eb804f649cf7924bd53a",
+      "bytes": 11045
+    },
+    {
+      "path": "src/app/(registration)/register/[tryoutSlug]/page.tsx",
+      "sha256": "a5b8161a23654d4403e3cd3b95d1a0562484bae6671c40fd8782ce2f546d9e46",
+      "bytes": 1855
+    },
+    {
+      "path": "src/app/(registration)/register/[tryoutSlug]/registration-form.tsx",
+      "sha256": "3007726c5c5962f2d4b797b376b959de2ad04fdd45824553007267b0a78a2438",
+      "bytes": 21723
+    },
+    {
+      "path": "src/app/api/account/deletion/route.ts",
+      "sha256": "e48b63fdc23b1c1bf80708861efa237ad521ed2ef9f09b89786af4aa625453cd",
+      "bytes": 1843
+    },
+    {
+      "path": "src/app/api/billing/organizations/route.ts",
+      "sha256": "0ad5f08206803f0cc915be80a881a1626f9d536830055ff149f9779a1ad367a7",
+      "bytes": 782
+    },
+    {
+      "path": "src/app/api/cron/account-deletion/route.ts",
+      "sha256": "8d51421e79350d490b1c2511fa69934722cd868114cb7bb624b56bbd3f261977",
+      "bytes": 1311
+    },
+    {
+      "path": "src/app/api/evaluations/[evaluationId]/mutations/route.ts",
+      "sha256": "d2065dfef685cdcc4f3ec39384a64e7c5f6426e992ba429379c54c16c4243244",
+      "bytes": 4168
+    },
+    {
+      "path": "src/app/api/health/route.ts",
+      "sha256": "c2158bb44328e444e262da25ca1caf59a2e20b154c9f9d8cb1dbc38f45dea9ad",
+      "bytes": 1802
+    },
+    {
+      "path": "src/app/api/jobs/process/request-handler.ts",
+      "sha256": "4f6f6d3a015fe8f20aba4a99b84c08fbaca1f5522cb4e008f611ec42fbb3175b",
+      "bytes": 10102
+    },
+    {
+      "path": "src/app/api/jobs/process/route.ts",
+      "sha256": "84c01cb0f753584b37c543997577697838a2d2c97302220ae8716e9c2da51739",
+      "bytes": 47
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/athlete-imports/route.ts",
+      "sha256": "f5df487b590a3391e3c1d05198e00bc3f346a155794d8a21cb178c4d26658577",
+      "bytes": 12011
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/actions/route.ts",
+      "sha256": "11c66488a65a9805bf73ebcd9724c22cd9f0888f429d4a831acc55266de02c57",
+      "bytes": 18313
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/analytics/route.ts",
+      "sha256": "90607b1d76f1e1eaa1991cb797ea70a104c23e5f28016b02e43ae9a9cace88d2",
+      "bytes": 1244
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/billing-route-dependencies.ts",
+      "sha256": "034cd523e2feb1c54aca2ac25e95401306005cb9e3537412c624f4f2fe6b88c9",
+      "bytes": 3745
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/checkout/checkout-request.ts",
+      "sha256": "bca1595356e2413dd310008eb7fbbd733f5561a96205dede273340e81d7648d4",
+      "bytes": 2247
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/checkout/route.ts",
+      "sha256": "f4cdd3e4344229c2a3dd5133282949518939bd9d79564e6f6e20d61149407ab3",
+      "bytes": 1418
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/plan-change/route.ts",
+      "sha256": "51d58c9b485f1112a0464940650009d108cad93795d34670c02c8c58849da389",
+      "bytes": 3752
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/portal/portal-request.ts",
+      "sha256": "2d275e51a503228fcd11c39fc4ea17b56911ab741c2ab83f8acd31da9d7ad5e2",
+      "bytes": 1848
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/billing/portal/route.ts",
+      "sha256": "390fb5db2397f2362fb74c245e3fc76460711c43a213c72c9eff861bf41742b3",
+      "bytes": 1434
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/entitlements/route.ts",
+      "sha256": "2973215a59fbd0eccdfa1229637c4a38de54e36caa195a04c10ab3af5910d1ef",
+      "bytes": 968
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/exports/[exportType]/export-request.ts",
+      "sha256": "c006d2c0485deb6039b781fa77ef43f6ff1bf3fadf3fabbab4b83fb5a4c6d6a6",
+      "bytes": 4335
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/exports/[exportType]/route.ts",
+      "sha256": "929e76796cd68c6b23660759cd55ad112e9703697a5bdc480bdd60d49ad9d670",
+      "bytes": 650
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/exports/export-route-dependencies.ts",
+      "sha256": "9de6af5b48f6183bcdcdd144d4395908002ce37be2a235183bf2e07eb4063602",
+      "bytes": 1280
+    },
+    {
+      "path": "src/app/api/organizations/[organizationId]/logo/route.ts",
+      "sha256": "b8fe81fee858fed32b95dea5f536ebc7ba48b1d82c38967ef679243c786380f8",
+      "bytes": 5651
+    },
+    {
+      "path": "src/app/api/platform/billing/route.ts",
+      "sha256": "8902f6caba277ff400f9a2e4951f19eb7e7c55386ddaf48aad9864e6a0ac54d9",
+      "bytes": 1933
+    },
+    {
+      "path": "src/app/api/public/registrations/confirmation/reissue/route.ts",
+      "sha256": "f77099fbc31ba9b8a0eaf34eb4196b8f8d251d89c5ccc7115cc0830a9fd15e58",
+      "bytes": 3189
+    },
+    {
+      "path": "src/app/api/public/registrations/confirmation/route.ts",
+      "sha256": "05d522f820485577bc48693aa167905934c0378127bebc82553326d5f030fd10",
+      "bytes": 3382
+    },
+    {
+      "path": "src/app/api/public/registrations/public-request-security.ts",
+      "sha256": "ea3e5df9c747a17b45e7a00c60c7115fbdd38916e8ed87c6510b3cb85c702f14",
+      "bytes": 4130
+    },
+    {
+      "path": "src/app/api/public/registrations/route.ts",
+      "sha256": "658d54e2d1cffdcdcde24ce1ba05484a68377f466e02fa1d61782507f0202929",
+      "bytes": 12383
+    },
+    {
+      "path": "src/app/api/webhooks/billing/stripe/route.ts",
+      "sha256": "c5b9f1db527e31c2b798b5662f023f59c0b6c02221fa925d737d1bdf6cd902d3",
+      "bytes": 8023
+    },
+    {
+      "path": "src/app/api/webhooks/resend/request-handler.ts",
+      "sha256": "339fc39d80b246b259dbf964dcd7aabf00639ae8da83705aac69279c115b7a37",
+      "bytes": 3930
+    },
+    {
+      "path": "src/app/api/webhooks/resend/route.ts",
+      "sha256": "84c01cb0f753584b37c543997577697838a2d2c97302220ae8716e9c2da51739",
+      "bytes": 47
+    },
+    {
+      "path": "src/app/api/webhooks/revenuecat/route.ts",
+      "sha256": "9833c2c837ec86e37f6c32df96d918d378e89f4d265f6e63873fbbadd6958e2e",
+      "bytes": 4825
+    },
+    {
+      "path": "src/app/api/webhooks/stripe/route.ts",
+      "sha256": "c1ec071cadad440bbcbfe29a364ef0e669777e4d3523c3e1f5c33b018f97b70b",
+      "bytes": 252
+    },
+    {
+      "path": "src/app/api/webhooks/stripe/stripe-webhook.ts",
+      "sha256": "4ca98725f7d7f7d4f932975ed1254ab2d62fc18c06f6c5067f0d479318821669",
+      "bytes": 7719
+    },
+    {
+      "path": "src/app/globals.css",
+      "sha256": "2398e36db3d8f5e8ded00d6bae5c90f3640d8514fbed42f910c10d21ae0f01e1",
+      "bytes": 25909
+    },
+    {
+      "path": "src/app/icon.svg",
+      "sha256": "ccbce0ef2c0b64f9e6d19613b1a0999a5adf58ff81c443e92a365fe9214152cb",
+      "bytes": 642930
+    },
+    {
+      "path": "src/app/layout.tsx",
+      "sha256": "242d6ad9fd2997d99b88b2708c77b08823a26b30c2c44cacec27d237efbaea2e",
+      "bytes": 616
+    },
+    {
+      "path": "src/app/native/route.ts",
+      "sha256": "cf3c938b51b2bdae83177982580ea3bc5a15672958f0cb65b8824684eabec76f",
+      "bytes": 969
+    },
+    {
+      "path": "src/app/product.css",
+      "sha256": "032c8584c3abdef5451a19779648060ad0a3b2be6a45d210cd34e93382ccbb33",
+      "bytes": 19684
+    },
+    {
+      "path": "src/app/sports-workspace.css",
+      "sha256": "00fadd56ab845069b37cf0105bf2da8a9a48837df72bb798c35a84937bb6445b",
+      "bytes": 22234
+    },
+    {
+      "path": "src/app/theme.css",
+      "sha256": "d0e9d06ce3d74dc98122a3f9be25353c413a003287d1135656929e86991d6aab",
+      "bytes": 3187
+    },
+    {
+      "path": "src/components/feedback/empty-state.tsx",
+      "sha256": "0046532a64dee103b87c7a5bb10555debcee24e7f2a4e85e06990b8c05a13835",
+      "bytes": 708
+    },
+    {
+      "path": "src/components/feedback/error-state.tsx",
+      "sha256": "273787f8c8ca6745b30b4b4a05f51105bda9f8a4539f79f4dac717e6b70be49a",
+      "bytes": 693
+    },
+    {
+      "path": "src/components/feedback/loading-state.tsx",
+      "sha256": "1cbb970c4bf0aedabc374b9ade86de11164f5def3c3c0e8f3d9da60e24069488",
+      "bytes": 483
+    },
+    {
+      "path": "src/components/feedback/workspace-state.tsx",
+      "sha256": "2a550d4d78d3976f3bf2c6462e69b2ce0a64a55c848b833db42702a4d3b7158a",
+      "bytes": 1515
+    },
+    {
+      "path": "src/components/forms/field-examples.ts",
+      "sha256": "dd90d156833c07df59a0288ae208a7e37bd3416653f1680746729a9908d31b4a",
+      "bytes": 643
+    },
+    {
+      "path": "src/components/layout/app-navigation.tsx",
+      "sha256": "e725e3c357fe98e4d6ac08ed2fc76045daf1a88e802d938422657c7df95ced58",
+      "bytes": 3366
+    },
+    {
+      "path": "src/components/layout/app-shell.tsx",
+      "sha256": "aa61c1257ff10e668dd5b9fc3d19798364eb5de69a8e5eb722681539ff71643d",
+      "bytes": 1416
+    },
+    {
+      "path": "src/components/layout/app-topbar.tsx",
+      "sha256": "97e5b94d794c3521f1618c535bf5fa128ba88b1d1bcf5d44b739b3b6de5e6dab",
+      "bytes": 3337
+    },
+    {
+      "path": "src/components/layout/auth-shell.tsx",
+      "sha256": "8eec2e34675c35508a6fe014fb3f00b12cc874d41a06782ed40635087a3c3901",
+      "bytes": 1739
+    },
+    {
+      "path": "src/components/layout/marketing-shell.tsx",
+      "sha256": "e82480a39e25a6ed25021ba3dbfccc8ba37d9b2d8e76b4d368440aaeb1690124",
+      "bytes": 5544
+    },
+    {
+      "path": "src/components/layout/mobile-nav.tsx",
+      "sha256": "8f04722164943e6819618db45ab5b34a9c44de20cc4d50f612a36c8979f258bb",
+      "bytes": 5375
+    },
+    {
+      "path": "src/components/layout/page-header.tsx",
+      "sha256": "e9f037b896089e85be45f57d200e960391e212aeb2b5c65cb8235ec3197226c2",
+      "bytes": 978
+    },
+    {
+      "path": "src/components/ui/bib-badge.tsx",
+      "sha256": "9dfeb7a435115459ffa5b3be378bf1f6a777287acf211c41967a98b990d7d512",
+      "bytes": 450
+    },
+    {
+      "path": "src/components/ui/brand.tsx",
+      "sha256": "431f3a27950e4af844d43fafac610796d96b1f7002855b65b5780c238be6f8a5",
+      "bytes": 527
+    },
+    {
+      "path": "src/components/ui/button-styles.ts",
+      "sha256": "9563ef2a798b2f9c89514b4f7fed79d7f8300546e67a1f655dd7f23654cc9784",
+      "bytes": 818
+    },
+    {
+      "path": "src/components/ui/button.tsx",
+      "sha256": "963ce2558d4ffae72af2cf2ed74087c1c7060a58d2792986711109dd3b9464e4",
+      "bytes": 4575
+    },
+    {
+      "path": "src/components/ui/focus-ring.ts",
+      "sha256": "4d0ab3ce442f86343c1a1e4ce4e98e37300c3ad0e2aa027de27be55105693be0",
+      "bytes": 163
+    },
+    {
+      "path": "src/components/ui/form-field.tsx",
+      "sha256": "c30d0447b915ae45050706a576c848cef40f53a8a9d5bb3684021d5d28f8ebce",
+      "bytes": 1093
+    },
+    {
+      "path": "src/components/ui/input.tsx",
+      "sha256": "bd2d6ec04c625a5bd5dfebbcaf721b7d8b64634a5cbbeb3fa89fca250ce63e72",
+      "bytes": 820
+    },
+    {
+      "path": "src/components/ui/link-button.tsx",
+      "sha256": "435a5798b0fc8cb66df090a53d369ac4210d9b0c764f13d8fcb465a635a2aac2",
+      "bytes": 432
+    },
+    {
+      "path": "src/components/ui/metric.tsx",
+      "sha256": "d395215188f04154103fc65878f18f7ba58d6303d60af27c18036e01c49ace12",
+      "bytes": 676
+    },
+    {
+      "path": "src/components/ui/select.tsx",
+      "sha256": "592b5186b4b641e8d91952baaf073019a5863adbec5d6617ba93534e77fed245",
+      "bytes": 762
+    },
+    {
+      "path": "src/components/ui/status-badge.tsx",
+      "sha256": "86cf13466cd553bd36dfe0f1ecc0808be6f9263006472accb4eb21565c297d63",
+      "bytes": 2380
+    },
+    {
+      "path": "src/components/ui/surface.tsx",
+      "sha256": "b9452fdb9d83cd8220a3b4fd62e06c17f610c723e6140e11dfd728a3e7895ff9",
+      "bytes": 1013
+    },
+    {
+      "path": "src/components/ui/textarea.tsx",
+      "sha256": "8f98999398c3e6b2a2db2567cc218341145b870c053fbab7f577dcfc59946a3f",
+      "bytes": 840
+    },
+    {
+      "path": "src/infrastructure/analytics/analytics-provider.ts",
+      "sha256": "4ea16f743d15c0d86edb7bddb06f5709f46851ffb895ca1fe8e34cee31834275",
+      "bytes": 2122
+    },
+    {
+      "path": "src/infrastructure/analytics/fake-analytics-provider.ts",
+      "sha256": "b86cb2296b5f73dc20596ee93ff0faa3388017a7872ac2bb9f8853e41c681dba",
+      "bytes": 717
+    },
+    {
+      "path": "src/infrastructure/analytics/supabase-analytics-provider.ts",
+      "sha256": "0518ac53b29593337f62955fff5cc639461327d9972baeea468eef48130464b8",
+      "bytes": 2379
+    },
+    {
+      "path": "src/infrastructure/billing/billing-provider.ts",
+      "sha256": "ee883cee8aef42c01dc9967f160cb2257811ec311333f142b44e38e754612617",
+      "bytes": 2287
+    },
+    {
+      "path": "src/infrastructure/billing/fake-billing-provider.ts",
+      "sha256": "af0a6218bf4d9c631f2999ccddce70e91aa58ce6a576c90981a2f3ab445450bc",
+      "bytes": 2641
+    },
+    {
+      "path": "src/infrastructure/billing/provider-session-url.ts",
+      "sha256": "4487fdbe8b98594dd0d3e444ece340726140eeb8dbb1c11475b042f3ba08f53d",
+      "bytes": 2462
+    },
+    {
+      "path": "src/infrastructure/billing/stripe-provider.ts",
+      "sha256": "88cb18841eee9df9163ad0f7bcd7ce43f6a5906642c4d85ff4f9a8cb0af968a2",
+      "bytes": 11062
+    },
+    {
+      "path": "src/infrastructure/billing/task30-fake-provider-environment.ts",
+      "sha256": "7ba8047d66273be92af5a5f8fef349c0f117c4571058b14090f524895658ae7c",
+      "bytes": 638
+    },
+    {
+      "path": "src/infrastructure/email/brand-template.ts",
+      "sha256": "835f376e2f23ffd2fcbe2d3c081442c51eec1c027eeb045cbb3da60b6571609e",
+      "bytes": 3249
+    },
+    {
+      "path": "src/infrastructure/email/email-provider.ts",
+      "sha256": "79c0f0802d8057a07981be38a90e0dde6f6beebefb8762d9b636e5d4eb0bd340",
+      "bytes": 660
+    },
+    {
+      "path": "src/infrastructure/email/fake-email-provider.ts",
+      "sha256": "ac213ab6aec979f6a787c3c01917ef31c7a82f774a89f2205947bdd057fd881c",
+      "bytes": 1925
+    },
+    {
+      "path": "src/infrastructure/email/resend-provider.ts",
+      "sha256": "bdf2fff57b2a55813cff4a2411b3630a723f4c7588ef492f56023fc2bd142d4a",
+      "bytes": 3468
+    },
+    {
+      "path": "src/infrastructure/integrations/dispatch-integration-job.ts",
+      "sha256": "f297c2b778b8e81da7702a700646748e46611ccb7fab4ab8e39ba9c847e2d8cd",
+      "bytes": 6883
+    },
+    {
+      "path": "src/infrastructure/integrations/ensure-demo-mock-connection.ts",
+      "sha256": "420bdb7ff1722e6426881ffcac9c38aeea894ce8e6a12afe8d49c825c660ab20",
+      "bytes": 2119
+    },
+    {
+      "path": "src/infrastructure/integrations/integration-outbox.ts",
+      "sha256": "10d7c7373eb2ef8ef5e74058e34b4301019a8da9fd45d78c4eced14e6cdf5ef3",
+      "bytes": 4936
+    },
+    {
+      "path": "src/infrastructure/integrations/mock-the-squad-provider.ts",
+      "sha256": "11ebbee74b4bdcfd0816c662bb240425a8e9635ab1e8cbe579dfe46b5e7726b6",
+      "bytes": 29642
+    },
+    {
+      "path": "src/infrastructure/integrations/provider-registry.ts",
+      "sha256": "436772f441357a61bc45e6b0b61747fdd6c8ab095a566ab5c5fb32ac49c9a4c4",
+      "bytes": 1719
+    },
+    {
+      "path": "src/infrastructure/integrations/server-provider-registry.ts",
+      "sha256": "6b1761d1f6b7d9d4de566f321f47cac968c98920ba53d76307afd81762c27b99",
+      "bytes": 331
+    },
+    {
+      "path": "src/infrastructure/jobs/claim-jobs.ts",
+      "sha256": "3ae081a7c61a856aa0feaa3f0ff73eaf0d8fd7e09587826367f25f8f64d82c16",
+      "bytes": 1825
+    },
+    {
+      "path": "src/infrastructure/jobs/dispatch-job.ts",
+      "sha256": "412781dab61f0e5eac2829c24a5906e8d55d488cf7e39283169720339cfa6da2",
+      "bytes": 6950
+    },
+    {
+      "path": "src/infrastructure/observability/server-observability.ts",
+      "sha256": "ebe91f8e1ab4a0f2128cc0d26bd486e6ba8588b86f4f717b377cbb38cb6db419",
+      "bytes": 621
+    },
+    {
+      "path": "src/infrastructure/registration/postgres-registration-rate-limiter.ts",
+      "sha256": "274d818b027da62395af6e9fa14b0213995f70620b829bb6d2dad69eb6ca696b",
+      "bytes": 637
+    },
+    {
+      "path": "src/infrastructure/supabase/admin.ts",
+      "sha256": "d98f469a2e3920e7573eca5cd1128a6b2fa6f901194594660543005b9c9ca4c0",
+      "bytes": 697
+    },
+    {
+      "path": "src/infrastructure/supabase/client.ts",
+      "sha256": "23b35be4456d8e6f81b94e871ad4780fde2c27ac59b314c584ddf30f6b24ece9",
+      "bytes": 562
+    },
+    {
+      "path": "src/infrastructure/supabase/database.types.ts",
+      "sha256": "1649fb705bbf598c82c5f2358f1074bb5254c9c26cda4ac553136b87e2a0e1e3",
+      "bytes": 246395
+    },
+    {
+      "path": "src/infrastructure/supabase/server.ts",
+      "sha256": "05b2df63b13a28e903ccb461d16ed80a30ee15adb0df6d96432480c10b3565b3",
+      "bytes": 2414
+    },
+    {
+      "path": "src/lib/clock.ts",
+      "sha256": "c1fa6214d7dbcfc59c47ac567cf95ef18bb4354cf4f66720d2b94e07dfc2e74b",
+      "bytes": 291
+    },
+    {
+      "path": "src/lib/env.ts",
+      "sha256": "1362417c74afd4e89d75872b162721dabee08d981e646e99d5519b349b2da6b1",
+      "bytes": 8775
+    },
+    {
+      "path": "src/lib/ids.ts",
+      "sha256": "52c2adcb991f94ae1c5478234557de4faa2c16d95e8111a4e07de26e8834a671",
+      "bytes": 1205
+    },
+    {
+      "path": "src/lib/json-string-contract.ts",
+      "sha256": "4b309848cdda4010a0f431715814430c139c9e21c993ccb78a117e8d92167762",
+      "bytes": 1132
+    },
+    {
+      "path": "src/lib/request-origin.ts",
+      "sha256": "0a4729fc8175c94412229f9abf401082f1f049b91f7324d59df5e43f80303dcf",
+      "bytes": 2749
+    },
+    {
+      "path": "src/lib/result.ts",
+      "sha256": "8be7aba0bd54b3e6b98a013ffbf8bc01efa18b764404648a7cfbdc9bd4f2852b",
+      "bytes": 307
+    },
+    {
+      "path": "src/modules/athletes/application/directory-pagination.ts",
+      "sha256": "13c6d16f7ff6e4ab283a8087de6dcd31d67874f6659738e6255c32803b58e3c0",
+      "bytes": 322
+    },
+    {
+      "path": "src/modules/athletes/domain/athlete.ts",
+      "sha256": "c4ba802514e20eff4a9b1e9987cca8efe47feecc09f2970cbf2aa83c9877e144",
+      "bytes": 682
+    },
+    {
+      "path": "src/modules/audit/application/append-audit-event.ts",
+      "sha256": "ff99db37fa1606894aa858af689b08a4ab4e300a56785a4effc6cddbe47dbc69",
+      "bytes": 629
+    },
+    {
+      "path": "src/modules/audit/application/list-audit-events.ts",
+      "sha256": "6f95c4ebd6d752626e849cdcd4ff262fbc142bc26b104ba0e4eb067d18ceaed2",
+      "bytes": 1763
+    },
+    {
+      "path": "src/modules/audit/infrastructure/supabase-audit-event-list-gateway.ts",
+      "sha256": "4c00a13ea3ec87f9c2b21c6b9321028c62afb1de4626837f97ce661aa9ebf51f",
+      "bytes": 1604
+    },
+    {
+      "path": "src/modules/checkin/application/assign-tryout-number.ts",
+      "sha256": "51d0d9e27bab7388418a0e24747466e0fc6f70d311df3b6e2be02d0898a47326",
+      "bytes": 1905
+    },
+    {
+      "path": "src/modules/checkin/application/check-in-athlete.ts",
+      "sha256": "5b40dcd4a38d611363eaed41014d47dadc020e9c1598356dba7afd49cb30edaa",
+      "bytes": 2146
+    },
+    {
+      "path": "src/modules/checkin/application/issue-checkin-qr.ts",
+      "sha256": "f523b40b3cc5a26d393a4cdf788005e6bbde32734450daa7b09bcf9dc2a84787",
+      "bytes": 1946
+    },
+    {
+      "path": "src/modules/checkin/domain/number-scope.ts",
+      "sha256": "84422f26c3506fe66bef2d33fa09f525c2aa16f262ad6f26a6bfddb19d7edc86",
+      "bytes": 1204
+    },
+    {
+      "path": "src/modules/checkin/ui/checkin-workspace.tsx",
+      "sha256": "23d0fe8d5a99e613099b69ad41dfad6f6b63d582315e287b748107c95d6d73bb",
+      "bytes": 13817
+    },
+    {
+      "path": "src/modules/checkin/ui/issue-qr-button.tsx",
+      "sha256": "fd736e67d2e19e371353dbb1e250d1b2c0809bd38fe5a714fd38faa3cd972a18",
+      "bytes": 1641
+    },
+    {
+      "path": "src/modules/communications/application/apply-delivery-event.ts",
+      "sha256": "ca3474ae4cf25971172df5b48945556f7797f8576e203f82cf27ac56014fd275",
+      "bytes": 2580
+    },
+    {
+      "path": "src/modules/communications/application/create-message-batch.ts",
+      "sha256": "21757bab71811cca9f81c935e099b2d2b9701795abcb1bc3e0dd84f393783611",
+      "bytes": 4819
+    },
+    {
+      "path": "src/modules/communications/application/queue-communication.ts",
+      "sha256": "61885b2a2ec931557d7072343682c9888f6056d915aa81959f18438fb19c111e",
+      "bytes": 4693
+    },
+    {
+      "path": "src/modules/communications/application/render-message.ts",
+      "sha256": "4cc72195e11b4ac287de93885161b039d34dccec3de1eb0eb80a6aca9795b8ec",
+      "bytes": 436
+    },
+    {
+      "path": "src/modules/communications/domain/message.ts",
+      "sha256": "fc5fffb98f6f4dabde88f1e3b6b31c8efd95f3d1451513c46aacdbad6b768980",
+      "bytes": 676
+    },
+    {
+      "path": "src/modules/communications/ui/delivery-status.tsx",
+      "sha256": "d894f79cf277ba8af024b258975f509a51e73d3fe4f564d175079b5c13ef051e",
+      "bytes": 701
+    },
+    {
+      "path": "src/modules/communications/ui/message-composer.tsx",
+      "sha256": "ef0b08bff9d680da54bff6e77c9f72685b6cabfd35d0f7a95aa47126b0659a3d",
+      "bytes": 11944
+    },
+    {
+      "path": "src/modules/demo/demo-state.ts",
+      "sha256": "8c24bc57417199d61326ad7f68021e1b0f430fa19e1f1d115bf27acc4d8e877d",
+      "bytes": 4796
+    },
+    {
+      "path": "src/modules/demo/demo-workspace.tsx",
+      "sha256": "203a234a35fbf5c7712de716d06d8e18be28f86babf3f7a94eb6278d60b0cb2a",
+      "bytes": 18722
+    },
+    {
+      "path": "src/modules/demo/use-demo.ts",
+      "sha256": "e71993cec629d3af812e907cf7af16071a606f26405a7aaae78719283947d1af",
+      "bytes": 2668
+    },
+    {
+      "path": "src/modules/evaluations/application/complete-evaluation.ts",
+      "sha256": "bd046621e34a82b8a7cf27946723e437c19b5bda7357bc2ecef1256c9fbb4c0c",
+      "bytes": 2295
+    },
+    {
+      "path": "src/modules/evaluations/application/configure-evaluation-note-tag.ts",
+      "sha256": "dfc25ef2cbffdb6039d5b3df9ce23011edb5a3e32f03b1be008574ff42db3671",
+      "bytes": 1529
+    },
+    {
+      "path": "src/modules/evaluations/application/contracts.ts",
+      "sha256": "920e36d8e9a734a1757c3b5174146c6603a58342b6e07e594df6911e86afcd1a",
+      "bytes": 2746
+    },
+    {
+      "path": "src/modules/evaluations/application/evaluation-dependencies.ts",
+      "sha256": "7b42684878cb3d30d576bc4f115bfdb50fc5f8c885a127da6d80f251d12c8ed3",
+      "bytes": 389
+    },
+    {
+      "path": "src/modules/evaluations/application/evaluation-mutation-contract.ts",
+      "sha256": "b5a2384a6c3dbc6028395f7e7651a89dfc8d6337517ff1ebc8e34cb0591ef239",
+      "bytes": 1867
+    },
+    {
+      "path": "src/modules/evaluations/application/issue-authoritative-snapshot-proof.ts",
+      "sha256": "28334f8f37bfdf02cc487898d9424abe3ffd606d2577f595316187b4fe1f577f",
+      "bytes": 2391
+    },
+    {
+      "path": "src/modules/evaluations/application/list-evaluator-destinations.ts",
+      "sha256": "3ec82e21802f69598ac54d7cc9979d02c2c36378cd63b1f78bd326bb5c568c62",
+      "bytes": 2874
+    },
+    {
+      "path": "src/modules/evaluations/application/lock-evaluation.ts",
+      "sha256": "ec8d9b40e0b37f7fd28a4a2b779398fc8e83341ba49289c2e82cc08774d25441",
+      "bytes": 1770
+    },
+    {
+      "path": "src/modules/evaluations/application/manage-director-flag.ts",
+      "sha256": "5ef4125ef8c87f73a7b274826609fa632d6f9e408c012050af6bcd52d85907d0",
+      "bytes": 1892
+    },
+    {
+      "path": "src/modules/evaluations/application/reopen-evaluation.ts",
+      "sha256": "c4be6c3e09005c4f675c70fc11de095802df0674af53ba4d80484f5f33b0f25a",
+      "bytes": 1843
+    },
+    {
+      "path": "src/modules/evaluations/application/save-evaluation-draft.ts",
+      "sha256": "06e6bd0d4c37ec595370804d04ad1590cd205f2caf9907379339214cc54e4332",
+      "bytes": 2540
+    },
+    {
+      "path": "src/modules/evaluations/application/sync-evaluation-mutation.ts",
+      "sha256": "714214d1976bd420ad3d6fc4dd11d688f0cdf55221930c15be2d5553d8959968",
+      "bytes": 3403
+    },
+    {
+      "path": "src/modules/evaluations/domain/athlete-profile.ts",
+      "sha256": "01208bab2b48424a602b62bd8b946a2e57677d37700fe54050417d609f67ec6d",
+      "bytes": 1831
+    },
+    {
+      "path": "src/modules/evaluations/domain/evaluation.ts",
+      "sha256": "96be4fb7d62df3832defd26e190ca373b32df8e4c89f0a7047f38bfadbd2874a",
+      "bytes": 1950
+    },
+    {
+      "path": "src/modules/evaluations/domain/note-tags.ts",
+      "sha256": "75adcd53342ef26b8c101f258ce63fe010a26193c9a8688fb41ae6af6278ddfa",
+      "bytes": 690
+    },
+    {
+      "path": "src/modules/evaluations/domain/profile-total.ts",
+      "sha256": "c873459325ce1f33a7eefc42f4827a705089723ac6a142d0fba497872a238f2b",
+      "bytes": 1039
+    },
+    {
+      "path": "src/modules/evaluations/infrastructure/athlete-profile-loader.ts",
+      "sha256": "081100417d1292ff5aafd56c34b1913fa2a420f608676ddef430dbfc09bbb071",
+      "bytes": 1121
+    },
+    {
+      "path": "src/modules/evaluations/infrastructure/evaluator-session-loader.ts",
+      "sha256": "04886cd46a66aea778d05e18e03ed17a8b151e9a3dd908120fb01c9ec9d7a0d3",
+      "bytes": 10585
+    },
+    {
+      "path": "src/modules/evaluations/infrastructure/supabase-evaluation-gateway.ts",
+      "sha256": "7532e48da165e373287bc0c61eaa385f28ef4332797d075cb0f27f39a5b626c1",
+      "bytes": 7719
+    },
+    {
+      "path": "src/modules/evaluations/offline/authoritative-snapshot-proof.ts",
+      "sha256": "0213d53c1de74a394a7bd59f7f30f1c795e8e39a96450d8e829fdd7f2eafd695",
+      "bytes": 2380
+    },
+    {
+      "path": "src/modules/evaluations/offline/database.ts",
+      "sha256": "95a54874459b758b29e4fae11103a4a25f0961c8cbcb1911548a228418a482dd",
+      "bytes": 61331
+    },
+    {
+      "path": "src/modules/evaluations/offline/outbox.ts",
+      "sha256": "4d937165c234fe7934d1b6dab4b857d7e5fb8868775594ce50fcbd401def9e02",
+      "bytes": 5771
+    },
+    {
+      "path": "src/modules/evaluations/offline/repository.ts",
+      "sha256": "2a5b1aeacf90109ed479c0b68d0df5cd5690ab68c13e573ac480b9414de0d0ce",
+      "bytes": 213260
+    },
+    {
+      "path": "src/modules/evaluations/offline/sync-state.ts",
+      "sha256": "43b547e0067c5c79ede2596b913f2c4e5a562b981434ac939cb8421addde2be2",
+      "bytes": 206
+    },
+    {
+      "path": "src/modules/evaluations/offline/synchronizer.ts",
+      "sha256": "061ac2a25b2ddb4db5108c63b372b8acbe73b2b7cb9887222d55688c3784ded3",
+      "bytes": 20690
+    },
+    {
+      "path": "src/modules/evaluations/ui/athlete-pager.tsx",
+      "sha256": "aada1ae859e58c64474ba76ee31094b3e4bf8ad146d89923f9a35a2d913c6959",
+      "bytes": 1455
+    },
+    {
+      "path": "src/modules/evaluations/ui/athlete-profile-panel.tsx",
+      "sha256": "9d8ab909f0a7282f33327a5367644f894a2e7b76b65a33a7c46ad4c3e0d790eb",
+      "bytes": 7316
+    },
+    {
+      "path": "src/modules/evaluations/ui/athlete-radar-chart.tsx",
+      "sha256": "f97fe5361242e781fa94e4b25b79c82654e3b0b264f286214697fe072ebd9129",
+      "bytes": 9040
+    },
+    {
+      "path": "src/modules/evaluations/ui/evaluation-form.tsx",
+      "sha256": "46398fc72437c13bfd60068ce571037bcf573db2b1f249cf4388e0c4d32774c9",
+      "bytes": 51865
+    },
+    {
+      "path": "src/modules/evaluations/ui/save-state.tsx",
+      "sha256": "90dde1b6a82c321998e8d297745144839617c0addaeaa83b1f863b7eb9c01868",
+      "bytes": 3853
+    },
+    {
+      "path": "src/modules/evaluations/ui/score-control.tsx",
+      "sha256": "9a86985126f532ce489584388962b431f4c685758ba124a94689bc59e504886a",
+      "bytes": 3408
+    },
+    {
+      "path": "src/modules/evaluations/ui/session-state.tsx",
+      "sha256": "59b4d79152fe51d3e173022c06c903a5760adc50498d13c3b59c154c413fe1f9",
+      "bytes": 3457
+    },
+    {
+      "path": "src/modules/evaluations/ui/synchronized-evaluation-form.tsx",
+      "sha256": "3f5af06270e025f735b0a8636372142733e9da2dd816c3ebb8af1fdfd7049117",
+      "bytes": 25600
+    },
+    {
+      "path": "src/modules/how-to/checkin-guide.ts",
+      "sha256": "61bca6965e39a973a852584c8e5dd2634dbe2652e5e29550711fc258dcae1fbe",
+      "bytes": 12345
+    },
+    {
+      "path": "src/modules/how-to/evaluator-guide.ts",
+      "sha256": "f6490da6a9c37b79955b28ad02dcfabc934cb3354cbd17cc37200140874e6c2d",
+      "bytes": 17551
+    },
+    {
+      "path": "src/modules/how-to/guide-content.ts",
+      "sha256": "ca87c4ca6149d495f5f4b05b6806c7fd13cdd70493896f24e88b621e2c5b1d92",
+      "bytes": 52651
+    },
+    {
+      "path": "src/modules/how-to/guide-reader.tsx",
+      "sha256": "383cbb1ed2f0358230b454bda979a0d431b277f9401a2985aaca62caaf753a43",
+      "bytes": 12905
+    },
+    {
+      "path": "src/modules/how-to/plan-guides.ts",
+      "sha256": "458dcc841a7ab125ab1121126c8eec8e141ca64025693802d28d8e45dd40e081",
+      "bytes": 14735
+    },
+    {
+      "path": "src/modules/how-to/reviewer-guide.ts",
+      "sha256": "07af9cdea6182f64b882bf796c5d7d2710730e63f8f97c45534284373cdc5fa6",
+      "bytes": 10872
+    },
+    {
+      "path": "src/modules/how-to/scouting-guide.ts",
+      "sha256": "ebec5c48d880d4d223d5196eed8ee8fcaed87bfa8104ac40dc2d97d0332278da",
+      "bytes": 23973
+    },
+    {
+      "path": "src/modules/how-to/screenshots.json",
+      "sha256": "00876d5691a40cdfbd7da3c09581bbee5ed3dc86c3be5589755d40601408338f",
+      "bytes": 8450
+    },
+    {
+      "path": "src/modules/identity/application/account-request.ts",
+      "sha256": "243665c5b27b29abd2692a4bc0c9a3e2ebeab2754f3076d739033747db6bb5f4",
+      "bytes": 237
+    },
+    {
+      "path": "src/modules/identity/application/bot-protection.ts",
+      "sha256": "7898bcf95a61236661aa0b2da31dc29b5a90877142e723dee636676085de3802",
+      "bytes": 6435
+    },
+    {
+      "path": "src/modules/identity/application/create-account.ts",
+      "sha256": "543cd7988447334ce9005818e19631b5b1b5bf45b50efc583f737c0a2f4a414b",
+      "bytes": 1396
+    },
+    {
+      "path": "src/modules/identity/application/database-auth-abuse-protection.ts",
+      "sha256": "657a504f527be22da2a480fe7c96416a0658cfc01b5067bb8d219014f58f9b5a",
+      "bytes": 7954
+    },
+    {
+      "path": "src/modules/identity/application/deletion-completion.ts",
+      "sha256": "b07cf5540c31a1b44c137460b0865480a6ab93b52ad4a56adda84df1b5ae026b",
+      "bytes": 697
+    },
+    {
+      "path": "src/modules/identity/application/deletion-notices.ts",
+      "sha256": "f611294e6e6465936a0f9e18eb7af79d75894370b27f852df99405d31ca62276",
+      "bytes": 1605
+    },
+    {
+      "path": "src/modules/identity/application/guard-auth-form-request.ts",
+      "sha256": "7fdc2e690b0df89adcf3d7b6545fae78443043c61ccf7e7ca74f77d2ecd2cbb4",
+      "bytes": 3717
+    },
+    {
+      "path": "src/modules/identity/application/non-enumerating-auth-outcome.ts",
+      "sha256": "94995dc4673f63449effa18bce4be87e3f7ea13c151b9a164379a73716bc8560",
+      "bytes": 1123
+    },
+    {
+      "path": "src/modules/identity/application/password-sign-in-rate-limiter.ts",
+      "sha256": "a374888b1f18518e65970d47c84ebd8f7ac619f8d6ae5369c44fd0d30b702242",
+      "bytes": 1279
+    },
+    {
+      "path": "src/modules/identity/application/request-email-verification.ts",
+      "sha256": "61df409c4141840fab36a8b26ea19211bf6db5f7acd91e977c7ee522ff0c05c4",
+      "bytes": 1065
+    },
+    {
+      "path": "src/modules/identity/application/request-password-recovery.ts",
+      "sha256": "629e904f56fa5186f3d535a54a0796a90f5e1813f74cd24c7dbb1aefa927c38c",
+      "bytes": 898
+    },
+    {
+      "path": "src/modules/identity/application/reset-password.ts",
+      "sha256": "a1da016ef29a52a41d83d45212f9fd550fb67238c07a38518bb84d17c3009e24",
+      "bytes": 939
+    },
+    {
+      "path": "src/modules/identity/application/sign-in.ts",
+      "sha256": "4730327033dfff78b7e852e4e68db78cbf35bb7d45ffd821bce064130f7465ce",
+      "bytes": 2650
+    },
+    {
+      "path": "src/modules/identity/application/sign-out.ts",
+      "sha256": "e68d8e55a5d71fda1f8b305ae740a8b970ebddc40349aca3edd8b4ff120fef31",
+      "bytes": 512
+    },
+    {
+      "path": "src/modules/identity/native-context.ts",
+      "sha256": "2f14183aa7e8a7f4f83b254adfb82bca2c8038fb5691088a5fc64bf0b6fbfde0",
+      "bytes": 339
+    },
+    {
+      "path": "src/modules/identity/password-requirements.ts",
+      "sha256": "18c8d74333a1bb42798dacbdcbce7c33852bb626ed0613e97e610c66edb5be6c",
+      "bytes": 525
+    },
+    {
+      "path": "src/modules/identity/ui/account-deletion-request.tsx",
+      "sha256": "26f0259856de1757e78b52e3b6f4bdb660ba523eb1b1ff9d328cc0cb52ad8695",
+      "bytes": 4592
+    },
+    {
+      "path": "src/modules/identity/ui/bot-challenge.tsx",
+      "sha256": "7b6d9c7212568b82801ca2bfb7e71d715013745dd21dfaf5d0019a449d9f4516",
+      "bytes": 676
+    },
+    {
+      "path": "src/modules/identity/ui/email-verification-form.tsx",
+      "sha256": "04528c3b56ff8caf35b1072f6d420d5a1c1162297c49c484dc43207de21712ee",
+      "bytes": 1556
+    },
+    {
+      "path": "src/modules/identity/ui/native-workspace-bridge.tsx",
+      "sha256": "0baf9ff23003e0a008af8a06cfb1c79505de89632f0b767580c380d01102d53a",
+      "bytes": 6150
+    },
+    {
+      "path": "src/modules/identity/ui/password-fields.tsx",
+      "sha256": "96fad5af351997d99de56ada86d58b7a9e347cc369bbc56b5d0ef35f4d86e1b0",
+      "bytes": 4058
+    },
+    {
+      "path": "src/modules/identity/ui/reset-password-form.tsx",
+      "sha256": "8ad2d9285fc4047a32f90d052d40ed21c590427a5ad168e2e546397d5a960c57",
+      "bytes": 1186
+    },
+    {
+      "path": "src/modules/identity/ui/sign-in-form.tsx",
+      "sha256": "c6dd9948672eef371de4742c5658fe2cab249a9f14d953fdabf4362847effda0",
+      "bytes": 3194
+    },
+    {
+      "path": "src/modules/identity/ui/sign-up-form.tsx",
+      "sha256": "5100650c1f753451bec4601f83e9c17b5c0620779aef0176650e55ef7a2e7de6",
+      "bytes": 2562
+    },
+    {
+      "path": "src/modules/identity/ui/turnstile-client.tsx",
+      "sha256": "0496948a779f17190944fd02d90118fb58f790077215a35ad97be1e92f89233f",
+      "bytes": 5715
+    },
+    {
+      "path": "src/modules/integrations/application/connect-demo-provider.ts",
+      "sha256": "85f6e1eb58daed372997418bbd07fbbd53efb5b5fe98ada9ea32d45f04fb7f30",
+      "bytes": 3876
+    },
+    {
+      "path": "src/modules/integrations/application/preview-roster-export.ts",
+      "sha256": "5854a69ad237205bfef3421cae5c30bc97a28262eb1c0af22d423668fb353b45",
+      "bytes": 7345
+    },
+    {
+      "path": "src/modules/integrations/application/retry-sync-job.ts",
+      "sha256": "376970ba1d2a4183c43d69d300e2c09f7525215bc90e7814e9cf36ead245cf76",
+      "bytes": 2675
+    },
+    {
+      "path": "src/modules/integrations/application/start-roster-export.ts",
+      "sha256": "6bf45042470efd4c59fd3b013c56198210d3b7f8f3975fb3cb73c22d75dc28bb",
+      "bytes": 2037
+    },
+    {
+      "path": "src/modules/integrations/domain/contracts.ts",
+      "sha256": "3dd58a1f7320fa14d5cb6ec8458785a21cca1a2f9aaa769beaa728e2629b451f",
+      "bytes": 19055
+    },
+    {
+      "path": "src/modules/integrations/domain/provider.ts",
+      "sha256": "d9ff6aff04e31f0ab7d7158d7eb32bfebcab06ec6da9d650d865871e72c77591",
+      "bytes": 3686
+    },
+    {
+      "path": "src/modules/integrations/infrastructure/supabase-integration-gateway.ts",
+      "sha256": "f622d98b31d54b4f50b1af9abeb2e80babb9e7d94b78d1e9923887768557a41a",
+      "bytes": 9571
+    },
+    {
+      "path": "src/modules/integrations/ui/integration-card.tsx",
+      "sha256": "d491818630a1a150a6dd7d5808d0e6f4a2e4d1c58888003523c3a303981e6757",
+      "bytes": 2641
+    },
+    {
+      "path": "src/modules/integrations/ui/roster-export-link.tsx",
+      "sha256": "a38f79013968a9b89c8dd7b59ebcd9d01cc34937d859bfc2bbc58f782ba4c6e5",
+      "bytes": 469
+    },
+    {
+      "path": "src/modules/integrations/ui/roster-export-wizard.tsx",
+      "sha256": "7203e1b78734c281442b4f83e2b62cf97f3040b7953769a109705a60b43542d9",
+      "bytes": 14857
+    },
+    {
+      "path": "src/modules/marketing/content/metadata.ts",
+      "sha256": "4ef0be7fdc5b74603a604414e42eb8b6fbf231f9273615870c66d13838813bbd",
+      "bytes": 564
+    },
+    {
+      "path": "src/modules/marketing/content/pricing.ts",
+      "sha256": "a1d2c2726eba55e069ee3d160c08746e4a5e87cfeb91db82d29753caf04c0905",
+      "bytes": 2714
+    },
+    {
+      "path": "src/modules/marketing/ui/audience-page.tsx",
+      "sha256": "973670fec69a2040b7b6f30cb0fe7d363bb3809c671bd3e81ad385c22172e826",
+      "bytes": 2695
+    },
+    {
+      "path": "src/modules/marketing/ui/landing-interactions.tsx",
+      "sha256": "e3ccc8d056a69d570b2d516f327ad32748b3855c97b26e4c86c660adba9aa154",
+      "bytes": 9149
+    },
+    {
+      "path": "src/modules/marketing/ui/legal-draft-status.tsx",
+      "sha256": "f54eb3267a7a77ff1c158f0a12bbf077570a370a96cbfa2f402846826693b910",
+      "bytes": 602
+    },
+    {
+      "path": "src/modules/marketing/ui/page-hero.tsx",
+      "sha256": "7a6f1f3561ec515592706729ac4017adbfbbf0204c12caf1433ec4a29e085085",
+      "bytes": 1778
+    },
+    {
+      "path": "src/modules/marketing/ui/pricing-table.tsx",
+      "sha256": "1f784109fd354d00c6748012f7001c369c8e2e6235af291620f9e7f5f5522980",
+      "bytes": 3772
+    },
+    {
+      "path": "src/modules/marketing/ui/product-proof.tsx",
+      "sha256": "0f16f43cc510fcfd7b4fdae94dc3015c6182a8f543732ebff4b07df197836a39",
+      "bytes": 7527
+    },
+    {
+      "path": "src/modules/observability/application/health-check.ts",
+      "sha256": "b37da8f13741081a375d07d9dd65a033e0bbaac152c5824df6d3b62f326ccc42",
+      "bytes": 994
+    },
+    {
+      "path": "src/modules/observability/application/log-error.ts",
+      "sha256": "81c8e8ac647518e0963e0881b0779aebc62ed571415b354ab5fbe9285deeb706",
+      "bytes": 4066
+    },
+    {
+      "path": "src/modules/observability/application/platform-route-context.ts",
+      "sha256": "41d7690a50bf9c1d76e4bc0175ea3a7caab93bfb5afeccd3087b4bb041cb3a75",
+      "bytes": 972
+    },
+    {
+      "path": "src/modules/observability/application/test-failure-boundary.ts",
+      "sha256": "8d177a0e043ce18911bbee8fd9fb38bf509f80b0c56346e6928bec0f31440299",
+      "bytes": 682
+    },
+    {
+      "path": "src/modules/observability/domain/app-error.ts",
+      "sha256": "ec2e96a84cdabc5960863b32049c244c4883d86c62105dd0a801dac04f575a92",
+      "bytes": 2514
+    },
+    {
+      "path": "src/modules/observability/domain/correlation-id.ts",
+      "sha256": "2918778f863468b74a26bbabf3c753fc54a0409e4b54b2ed4442dbd4a548c930",
+      "bytes": 770
+    },
+    {
+      "path": "src/modules/observability/domain/primitive-snapshot.ts",
+      "sha256": "1f6ed2f8ea92cadbc5dfdf2080077af36f99ab296fd52ec067487e1445319d47",
+      "bytes": 1410
+    },
+    {
+      "path": "src/modules/observability/infrastructure/supabase-platform-administration-gateway.ts",
+      "sha256": "f0a1bac37e5ff2320a30bf3ba4f5b056166f47a7046a823e9d92c4acfa4f0c97",
+      "bytes": 4716
+    },
+    {
+      "path": "src/modules/observability/ui/platform-administration.tsx",
+      "sha256": "2520cca4f09a0644090ab4ac4044aa42cd47dd7f3c7f31b688f9801c0aad2e1d",
+      "bytes": 7617
+    },
+    {
+      "path": "src/modules/organizations/application/accept-invitation.ts",
+      "sha256": "dfc06eb213f18b1351b39878d979f851393c42b226b57b11b21e37a24da0b8a2",
+      "bytes": 1233
+    },
+    {
+      "path": "src/modules/organizations/application/begin-support-elevation.ts",
+      "sha256": "55d1810f80d58b5d5af0063e8ee065bd1081af46a0196ac2f7a9630bfd7483ac",
+      "bytes": 2041
+    },
+    {
+      "path": "src/modules/organizations/application/capabilities.ts",
+      "sha256": "05ab73463642e12087ce31e09f5ade7033ddea606fa387b53dd104b98ff40f73",
+      "bytes": 4475
+    },
+    {
+      "path": "src/modules/organizations/application/create-organization.ts",
+      "sha256": "b4adaa665b6d04723e710b7c85dcac596558f496734527386c970942ab755183",
+      "bytes": 2242
+    },
+    {
+      "path": "src/modules/organizations/application/current-organization.ts",
+      "sha256": "2b26a4c4be7da93fb1c2b2f9a0b8567f604908703a29061d4a8a8dcd69a716b7",
+      "bytes": 3556
+    },
+    {
+      "path": "src/modules/organizations/application/invitation-notifier.ts",
+      "sha256": "a6ca86707b900e7b7f29ea0e2091475d77f52495e89685acc79f3edc83bcbecb",
+      "bytes": 146
+    },
+    {
+      "path": "src/modules/organizations/application/invite-member.ts",
+      "sha256": "f1487beda4f807893b296ec6c2d6783c80d23966a24af273b8fd4e68c277103e",
+      "bytes": 3718
+    },
+    {
+      "path": "src/modules/organizations/application/manage-organization-member.ts",
+      "sha256": "58cdb18cc44af66acfee97a745c8de5f2f837d4c0555ef7aacd408fc2bc4f66b",
+      "bytes": 5920
+    },
+    {
+      "path": "src/modules/organizations/application/normalize-organization-logo.ts",
+      "sha256": "c51f90e73497b3cd5ff1022768c366e8b74d77863d75e693eb8c0e129102aa77",
+      "bytes": 2680
+    },
+    {
+      "path": "src/modules/organizations/application/onboarding-progress.ts",
+      "sha256": "7827c4ccf28a04aee106ecc72270c0971039498a1ef1cf34ebb7078044c22a20",
+      "bytes": 2410
+    },
+    {
+      "path": "src/modules/organizations/application/organization-dependencies.ts",
+      "sha256": "8b1b16e03b235dfb0bf98624edad4c3afc12c9bc433313c326840a829f4c088d",
+      "bytes": 412
+    },
+    {
+      "path": "src/modules/organizations/application/organization-route-context.ts",
+      "sha256": "a6140da942f6cc49a7c51fd6e657e147714c55658bf2d9bc0b5c8f3cf0109e95",
+      "bytes": 3165
+    },
+    {
+      "path": "src/modules/organizations/application/organization-route-preflight.ts",
+      "sha256": "eed66f205bd5f9ccb3a2f5fe1e30ece6cba17414305dc474ce23754823ade97c",
+      "bytes": 4229
+    },
+    {
+      "path": "src/modules/organizations/application/require-capability.ts",
+      "sha256": "fc5d5a97c6a418582a5a307faf6b4b6025ffe19e3b485c097a458b03e8a39867",
+      "bytes": 521
+    },
+    {
+      "path": "src/modules/organizations/application/team-workspaces.ts",
+      "sha256": "e5bfacb4ea768048d0a6a141436379985b38b59cfeebfa0444f8612a7486a73c",
+      "bytes": 1919
+    },
+    {
+      "path": "src/modules/organizations/application/update-organization-logo.ts",
+      "sha256": "99d340a463ecd6da3ce6f51d2010762d6b43a125c3f6038442cefc648e83492d",
+      "bytes": 4670
+    },
+    {
+      "path": "src/modules/organizations/application/update-organization-settings.ts",
+      "sha256": "ecc6e4fc6115d5bfc64e0d758b157ddecdef179a6129597a6ccf419d030e0618",
+      "bytes": 1999
+    },
+    {
+      "path": "src/modules/organizations/components/app-navigation-model.ts",
+      "sha256": "ba5bdabcf222c1ab9e6607b5c4c249c6be8b386cd6e71bb0c9fafdd852173249",
+      "bytes": 6129
+    },
+    {
+      "path": "src/modules/organizations/components/create-team-workspace-form.tsx",
+      "sha256": "9d454cb51ee4e42ee38a37079990d679c6556798f8bee6d37e4009428b10810e",
+      "bytes": 2577
+    },
+    {
+      "path": "src/modules/organizations/components/dashboard-activity.tsx",
+      "sha256": "fb9f0c3b55de16bf2976061d1277efdc480e618f4d5f2990116d8c656dc00967",
+      "bytes": 3824
+    },
+    {
+      "path": "src/modules/organizations/components/invite-member-form.tsx",
+      "sha256": "854c95d7f697aeb4518e90ff08c90bdf8e8e19ceb39ca7bea7853bd4fdbe3dbe",
+      "bytes": 3424
+    },
+    {
+      "path": "src/modules/organizations/components/onboarding-checklist.tsx",
+      "sha256": "85d924635f017e93a5dd5e7651864abde56c384940f6892fe2f3f9bd4c1169a1",
+      "bytes": 3484
+    },
+    {
+      "path": "src/modules/organizations/components/organization-command-center.tsx",
+      "sha256": "f2882ae7f953dea3b4068e0f7f4d69f5866730a3f78c68e0997d9f79380fcf37",
+      "bytes": 5093
+    },
+    {
+      "path": "src/modules/organizations/components/organization-logo-settings.tsx",
+      "sha256": "7680246358820f46815bcc5b37d3d67eaf0598613c68f34e31c9fb7475a3e370",
+      "bytes": 3198
+    },
+    {
+      "path": "src/modules/organizations/components/organization-mark.tsx",
+      "sha256": "dc3050c1219a7cdfafea33d956f1461fcd45bb1387a1c6184500a7c43b57c8dc",
+      "bytes": 1546
+    },
+    {
+      "path": "src/modules/organizations/components/organization-navigation.tsx",
+      "sha256": "c9c8e6af73375d156f13222f01b4e9264ef42db8d34227e574cb7f7aed5c3259",
+      "bytes": 685
+    },
+    {
+      "path": "src/modules/organizations/components/suggestion-input.tsx",
+      "sha256": "c9a81bbb085b7d7ffbfd6e4be9d5b4737c20d4529481562b6be40c16f984c21d",
+      "bytes": 1645
+    },
+    {
+      "path": "src/modules/organizations/components/workspace-switcher.tsx",
+      "sha256": "dadd6ceefd2d474a5e5a348a109fd24e41a8b877685e978f8af9831fdd6f2a7a",
+      "bytes": 1652
+    },
+    {
+      "path": "src/modules/organizations/domain/organization.ts",
+      "sha256": "af94e56ce5d3023d63e6705590bcce29cc19f65c0fcc59e9cea61b49cd307a54",
+      "bytes": 2304
+    },
+    {
+      "path": "src/modules/organizations/domain/roles.ts",
+      "sha256": "ed23ed0ee307e64841092118ca0941726402607d4274fc1794055a38af17e3fd",
+      "bytes": 1253
+    },
+    {
+      "path": "src/modules/organizations/infrastructure/membership-repository.ts",
+      "sha256": "e59adc2f0949641f5009c790cf1bfa07ea8f57e8c5d0458aa23049ae61f99a84",
+      "bytes": 5344
+    },
+    {
+      "path": "src/modules/organizations/infrastructure/supabase-onboarding-progress-gateway.ts",
+      "sha256": "2e6cf0af233477c3d670cf1328c37eaca634cd3c3aef20970b55fa95108b66da",
+      "bytes": 1788
+    },
+    {
+      "path": "src/modules/organizations/infrastructure/supabase-organization-gateway.ts",
+      "sha256": "ff443cfff33674372e26de9ce277d86f7c134fa0e5d67f55be6fce5f616c5c25",
+      "bytes": 4662
+    },
+    {
+      "path": "src/modules/organizations/ui/start-error-message.tsx",
+      "sha256": "263566fc023736117e72e1f13dbe59674769e76bfd20231cd718cdd85d29a525",
+      "bytes": 641
+    },
+    {
+      "path": "src/modules/organizations/ui/start-plan.tsx",
+      "sha256": "2ca9f26aa07ea9ae96b2b8b180b9f6de9409fc28ad9962b1defaef44fcb91bdb",
+      "bytes": 230
+    },
+    {
+      "path": "src/modules/organizations/ui/timezone-picker.tsx",
+      "sha256": "ef6341f598e9f794396e22d4809e624eea179f223960c44da580ffc3e5433ac5",
+      "bytes": 2033
+    },
+    {
+      "path": "src/modules/rankings/application/compare-athletes.ts",
+      "sha256": "c0ac4afeae82a68e7ced225d624fda46019f94f0ec9529771cebb6e700ab61ed",
+      "bytes": 4424
+    },
+    {
+      "path": "src/modules/rankings/application/list-rankings.ts",
+      "sha256": "388fbe34ba5597bd445ab420bd6b72730457ebc3a58d7a0b14c6b01e85fa8eec",
+      "bytes": 13685
+    },
+    {
+      "path": "src/modules/rankings/infrastructure/supabase-ranking-gateway.ts",
+      "sha256": "ad903a77e703c2d7e923e6cb50389da7bdcd65b3edc4f92de94d695a28b811a2",
+      "bytes": 3778
+    },
+    {
+      "path": "src/modules/rankings/ui/athlete-comparison-radar.tsx",
+      "sha256": "f59f3033bc7e280d44c845cd29c36c7dedd82d3dce54387642b7de8eea78d39e",
+      "bytes": 3875
+    },
+    {
+      "path": "src/modules/rankings/ui/athlete-comparison.tsx",
+      "sha256": "17fa09536bdbb7c50627c52b8a4fdf915ce65097ab53b16064ac799b33a0f69d",
+      "bytes": 7048
+    },
+    {
+      "path": "src/modules/rankings/ui/rankings-workspace.tsx",
+      "sha256": "e8c7a4586b69558481063150f7106d26c47975769cc1ff1b91d5c77635e8673f",
+      "bytes": 17360
+    },
+    {
+      "path": "src/modules/registration/application/commit-athlete-import.ts",
+      "sha256": "b8e612e177ab0c5e9a83e52ebd93fd552e67c756185d5b3f3090c26acc0fa375",
+      "bytes": 1535
+    },
+    {
+      "path": "src/modules/registration/application/create-staff-registration.ts",
+      "sha256": "685e54d5296d09b4680357245916dbe4cfbe08e8257a7361507ebfcb9b8d2ddc",
+      "bytes": 5651
+    },
+    {
+      "path": "src/modules/registration/application/parse-athlete-csv.ts",
+      "sha256": "5821f4b4b0c61610166caa720d9058d082a8cc9566aee64212f18f9b66e2db14",
+      "bytes": 4637
+    },
+    {
+      "path": "src/modules/registration/application/preview-athlete-import.ts",
+      "sha256": "af545d83f4c8ce7009af65496f76ac5dd83ef810c4387b7b3af3bc635701dc60",
+      "bytes": 6694
+    },
+    {
+      "path": "src/modules/registration/application/public-registration-rate-limiter.ts",
+      "sha256": "255906e86a24122d831ccc25ca164d5f3be4bf8c515e7269c46413994db4ce27",
+      "bytes": 149
+    },
+    {
+      "path": "src/modules/registration/application/register-athlete.ts",
+      "sha256": "3e7d18462b0b623daa2cadb1197ffd8324f0e1428ee089e9c353e323a3c74d98",
+      "bytes": 7796
+    },
+    {
+      "path": "src/modules/registration/application/registration-confirmation-notifier.ts",
+      "sha256": "41796b8273b881c1bd00febce022ef16e6ad9f387ca0bba4abfc1f06262ca45f",
+      "bytes": 558
+    },
+    {
+      "path": "src/modules/registration/domain/built-in-fields.ts",
+      "sha256": "4f111650c2aa36c8d06a0f9b6f1c0e970e0da0a4b96324f26052542710e65593",
+      "bytes": 2498
+    },
+    {
+      "path": "src/modules/registration/domain/duplicate-detection.ts",
+      "sha256": "df2a6274601bcfe74e265da725e7f4daf6c311603c84385782bbb40e68949af1",
+      "bytes": 1458
+    },
+    {
+      "path": "src/modules/registration/domain/form-schema.ts",
+      "sha256": "98839f2cb9d9d8c36ccc11f443c1e14658438e0bfb9090989e4f6679aa9fb557",
+      "bytes": 5002
+    },
+    {
+      "path": "src/modules/registration/domain/registration-validation.ts",
+      "sha256": "855b08c4bf64d1005bfdcb112b8d9fd66a6dd79d79526a8426eaf3e16b4b3919",
+      "bytes": 2731
+    },
+    {
+      "path": "src/modules/registration/domain/registration-window.ts",
+      "sha256": "437d42810e05ea92266d378c51dc90070b03bcff04ca280c4e84bf8bdb59f672",
+      "bytes": 1089
+    },
+    {
+      "path": "src/modules/registration/domain/waiver-starter.ts",
+      "sha256": "a1fd2ddd0b696d03d67ac453fbecc4e06000b6c0278d8a263773c65eeb91e54b",
+      "bytes": 625
+    },
+    {
+      "path": "src/modules/registration/ui/csv-import-wizard.tsx",
+      "sha256": "0d3338a6dc0fd3e11ae2a8b394f10ca701478515e4151311d98c3895bc2af186",
+      "bytes": 13442
+    },
+    {
+      "path": "src/modules/registration/ui/duplicate-review-action.tsx",
+      "sha256": "740b3f158724e8f397c813deac30280c62bb6d8bc767d1c28417a63989969038",
+      "bytes": 1870
+    },
+    {
+      "path": "src/modules/registration/ui/participant-workspace-header.tsx",
+      "sha256": "b5a6c6f21ba7ae631b01474ed5e3e0ac2842fa2af3b4d5a57ba5a03d52829e0b",
+      "bytes": 2094
+    },
+    {
+      "path": "src/modules/registration/ui/registration-built-in-field.tsx",
+      "sha256": "80b2ac1b47e27e8df45bc8427235744bc6e94ad70e28bdab515caabde9c75355",
+      "bytes": 3694
+    },
+    {
+      "path": "src/modules/registration/ui/registration-custom-field.tsx",
+      "sha256": "51884edeae76b04d7feb8b01e0507a39ad0170efc42e8401cb78777301428dd8",
+      "bytes": 3686
+    },
+    {
+      "path": "src/modules/registration/ui/registration-field-errors.ts",
+      "sha256": "65e31ad8ef97beb772c610fbc24ceb91fa3cf458ea6f4ee012df6219862260ef",
+      "bytes": 1038
+    },
+    {
+      "path": "src/modules/registration/ui/registration-steps.tsx",
+      "sha256": "84354866e4229f5e1ff625ea2daaa62ed88ee413c5cb24275cc1fbf9ffd54e17",
+      "bytes": 2702
+    },
+    {
+      "path": "src/modules/registration/ui/registration-waiver.tsx",
+      "sha256": "76fa5d831dec0bb1f476a021a6903a192349416401da9c704d704c30c66fcad7",
+      "bytes": 1590
+    },
+    {
+      "path": "src/modules/reports/application/create-report-export.ts",
+      "sha256": "ff6ce80d9306c56909995aeb247d11b53c1feb4ddaf1375e52c48371e064df5e",
+      "bytes": 5105
+    },
+    {
+      "path": "src/modules/reports/application/csv.ts",
+      "sha256": "a7ed0ce453c05d303762db2066e5ed78cd9ee6aa9e47d6f0f62e4c7fa8a8361f",
+      "bytes": 2343
+    },
+    {
+      "path": "src/modules/reports/application/export-athletes-csv.ts",
+      "sha256": "6caf166258e672aee42f980bba44316147360e8b53a517db23579694beec59e9",
+      "bytes": 1284
+    },
+    {
+      "path": "src/modules/reports/application/export-evaluations-csv.ts",
+      "sha256": "fb11d980860f7358b5652c14da39f030458e05e18e1dd0e72efe80248db5567c",
+      "bytes": 1565
+    },
+    {
+      "path": "src/modules/reports/application/export-roster-csv.ts",
+      "sha256": "f16e9f98d15c8b5d14da98ae2a957448f207212dd51d9b047f4d6845d986d38f",
+      "bytes": 1554
+    },
+    {
+      "path": "src/modules/reports/application/report-count-contract.ts",
+      "sha256": "0cff14c2761a570567051ae0a1719757778f50626e84e0806c27ab601fdb4e04",
+      "bytes": 544
+    },
+    {
+      "path": "src/modules/reports/infrastructure/supabase-report-gateway.ts",
+      "sha256": "84bb8b684397fbcd93cc0a36cdea158c47db7bce959a051b4fab5faff3347af2",
+      "bytes": 6632
+    },
+    {
+      "path": "src/modules/reports/ui/reports-page.tsx",
+      "sha256": "bc8bc2b9e15ddc7eef25a991b73848e33da7a70038200a777048e9dcfa519488",
+      "bytes": 5937
+    },
+    {
+      "path": "src/modules/rosters/application/change-decision.ts",
+      "sha256": "858d1f6ac4872f33e4c0b41f8d131e6e9ab655f8edf32399a02332a34576f0e4",
+      "bytes": 2399
+    },
+    {
+      "path": "src/modules/rosters/application/contracts.ts",
+      "sha256": "9b07e9df02d2079beeecec3b5b56cc80bd1507f0c5c105f7690df4266cbec9a4",
+      "bytes": 2546
+    },
+    {
+      "path": "src/modules/rosters/application/create-roster-draft.ts",
+      "sha256": "58a2af3c2130c67aaf7b86831533968cd056bbe34d36a9cec808214ba206ab31",
+      "bytes": 1971
+    },
+    {
+      "path": "src/modules/rosters/application/finalize-roster.ts",
+      "sha256": "2cf1b09486cdfd91c5c5b2330c8da82a02ed497fa282b7ae616270b329592fee",
+      "bytes": 1995
+    },
+    {
+      "path": "src/modules/rosters/application/load-roster-workspace.ts",
+      "sha256": "7e37364f2d22e4ca21bd2dc560df68f93272f49b0321f37718552b5355ada5b8",
+      "bytes": 3003
+    },
+    {
+      "path": "src/modules/rosters/application/move-athlete.ts",
+      "sha256": "cfeff554491b5cc48f33386d8a4899cb822f50ac42b4973ae01ed97a213e8707",
+      "bytes": 1846
+    },
+    {
+      "path": "src/modules/rosters/application/revise-roster.ts",
+      "sha256": "eb32a751351b79c2a0bcf12b80f2d8c9df27de3de360612c6ba0740f55698e50",
+      "bytes": 2380
+    },
+    {
+      "path": "src/modules/rosters/application/roster-action-boundary.ts",
+      "sha256": "f6a2d84ff24d303cc40030e0f9dda3a93000a5965566b311d54542ddec730c46",
+      "bytes": 4364
+    },
+    {
+      "path": "src/modules/rosters/application/roster-dependencies.ts",
+      "sha256": "6e100d4f2295c2cd9569c10940c96047d295daec60693e4397af46a5c792873b",
+      "bytes": 291
+    },
+    {
+      "path": "src/modules/rosters/application/roster-workspace.ts",
+      "sha256": "d44159c238ae2e23f4141231afd707366cee752fdac7193be1be2027e77f3ff3",
+      "bytes": 1161
+    },
+    {
+      "path": "src/modules/rosters/domain/roster.ts",
+      "sha256": "17b9150d1e536eee36c20bd5a5c7bf83769d879f780b1b278039ac39004aca01",
+      "bytes": 1157
+    },
+    {
+      "path": "src/modules/rosters/infrastructure/supabase-roster-gateway.ts",
+      "sha256": "00f2d8984559b70914681a2728adb9e577dafd71e7fb6c66e0b03b36321053f4",
+      "bytes": 6807
+    },
+    {
+      "path": "src/modules/rosters/infrastructure/supabase-roster-workspace-gateway.ts",
+      "sha256": "9799db33e016a2d673be74143eb11e79d6338a3378071d73430c78734eacaea7",
+      "bytes": 3847
+    },
+    {
+      "path": "src/modules/rosters/ui/athlete-pool.tsx",
+      "sha256": "153e87dd5bbd3bca98421c7c50483976d270f8ab25a888a8e06eda9b4083fe7b",
+      "bytes": 6561
+    },
+    {
+      "path": "src/modules/rosters/ui/finalize-roster-dialog.tsx",
+      "sha256": "c37e06928141e276770bc8c88a7c1932891dcf01f62fdddb37153769130e100a",
+      "bytes": 2666
+    },
+    {
+      "path": "src/modules/rosters/ui/move-athlete-dialog.tsx",
+      "sha256": "5b3fa69b6334bac80011d63507dfbe4b2fa7f21c25b94505a46e38a7ac930f2b",
+      "bytes": 2889
+    },
+    {
+      "path": "src/modules/rosters/ui/roster-builder.tsx",
+      "sha256": "e79020af971a7120b576ce41a444414111659935f239632ad9b83c31750ea47b",
+      "bytes": 31780
+    },
+    {
+      "path": "src/modules/rosters/ui/team-roster.tsx",
+      "sha256": "0f32929b27eb8c769eb4dc15050f9513e591663e4d3803cfa2aacbf6b9eed1bf",
+      "bytes": 2967
+    },
+    {
+      "path": "src/modules/rubrics/application/publish-rubric-version.ts",
+      "sha256": "f7886163507de0a79f85e88056f5c5be1eeaa65423a7319268b1eea6ba6bb004",
+      "bytes": 3552
+    },
+    {
+      "path": "src/modules/rubrics/domain/rubric.ts",
+      "sha256": "60a09556091530222ba1504a3bf45c3b7a71e7d4437fc83d149721e4bde648e4",
+      "bytes": 2705
+    },
+    {
+      "path": "src/modules/scoring/domain/athlete-aggregate.ts",
+      "sha256": "961b5c3e107fe00609530e99ec4780c4d5c2e1550017729d4be6420635526181",
+      "bytes": 5494
+    },
+    {
+      "path": "src/modules/scoring/domain/decimal.ts",
+      "sha256": "ef0a05e5cbefdf0500a76a20aacdb39e11b133622539c914ff9a11562b7220d5",
+      "bytes": 3575
+    },
+    {
+      "path": "src/modules/scoring/domain/evaluator-total.ts",
+      "sha256": "7028fb396bdc88a6321ecb3db447a4135d8a6dd9296420fa2e18d3a61f54e7d0",
+      "bytes": 3838
+    },
+    {
+      "path": "src/modules/scoring/domain/normalize-score.ts",
+      "sha256": "a656a96a5fe03d0856b489abf9702ace9f55a4f400d9d3f780c6176f2c58658a",
+      "bytes": 942
+    },
+    {
+      "path": "src/modules/scoring/domain/rank-athletes.ts",
+      "sha256": "14171b67d11b606b968372c6edf469bc33bb004c3c53da744b92c279529e4b42",
+      "bytes": 5077
+    },
+    {
+      "path": "src/modules/staffing/application/assign-evaluator.ts",
+      "sha256": "03cb9093a27c8e99754e305b3c609871bc760372ae567ab1e37889969fd395a8",
+      "bytes": 2892
+    },
+    {
+      "path": "src/modules/staffing/application/invite-evaluator.ts",
+      "sha256": "ffa66bc0eaa11120da335d139a55fad1a1f91bb6154f5c8c592fb22d21609a8d",
+      "bytes": 1048
+    },
+    {
+      "path": "src/modules/staffing/application/list-assigned-athletes.ts",
+      "sha256": "678f1b04ecd0ddc1f277a6b36c360de618211d795bf3a0821ada90efa8f9e776",
+      "bytes": 1470
+    },
+    {
+      "path": "src/modules/staffing/domain/assignment.ts",
+      "sha256": "a0d54338ffeb05c42d0bf0815f9ab2e28755f158da05586bb4449b3b0aeab905",
+      "bytes": 1573
+    },
+    {
+      "path": "src/modules/staffing/infrastructure/rpc-projections.ts",
+      "sha256": "64c7d9a0b2698eae4b26f0d97dd18903174f57b3eb2986113fd034f5482db7fb",
+      "bytes": 1360
+    },
+    {
+      "path": "src/modules/staffing/infrastructure/supabase-assigned-athlete-gateway.ts",
+      "sha256": "2d71ec45ffca271be724cdaacc0f505070dcd77f17762aaa78a705240c0c56b9",
+      "bytes": 1956
+    },
+    {
+      "path": "src/modules/staffing/ui/assignment-workspace.tsx",
+      "sha256": "5c79d15805a7f49d8ec98c5e19549e4bf3e56a9b3756262783e640c7a270c314",
+      "bytes": 12575
+    },
+    {
+      "path": "src/modules/subscriptions/application/apply-stripe-event.ts",
+      "sha256": "78f2aa34c679bc0e6d72a0ec866f69ff18c8bb504687f9275cf3f7f2718b5fbe",
+      "bytes": 6941
+    },
+    {
+      "path": "src/modules/subscriptions/application/billing-delivery.ts",
+      "sha256": "ca3876bf99da88dd28ae2e4b13f88907e49be2ede36ae6e91a6d67e220e5112b",
+      "bytes": 1324
+    },
+    {
+      "path": "src/modules/subscriptions/application/billing-reconciliation-job.ts",
+      "sha256": "4e5cb90af0dc1cc3fd479e451da85213fe44ff98c701534afdd6513ce06a02eb",
+      "bytes": 866
+    },
+    {
+      "path": "src/modules/subscriptions/application/billing-request.ts",
+      "sha256": "2d71376cec4dcab012cdc45dbd4ec551ff5453bab9c6d5bdeebc534c562df374",
+      "bytes": 1927
+    },
+    {
+      "path": "src/modules/subscriptions/application/billing-route-boundary.ts",
+      "sha256": "3f54bb84326325d1748de98d071ddbe2682654793a2ae1554967325e58ebe884",
+      "bytes": 4418
+    },
+    {
+      "path": "src/modules/subscriptions/application/billing-service.ts",
+      "sha256": "246e31552cdc4c4dfa4669da4307f39727318cf173399130fcec243481b22672",
+      "bytes": 8200
+    },
+    {
+      "path": "src/modules/subscriptions/application/billing-session-shared.ts",
+      "sha256": "100addf837bc7bde292d47f426af45a5363989b665c7ff88c47bed589fb664e0",
+      "bytes": 2025
+    },
+    {
+      "path": "src/modules/subscriptions/application/checkout-intent.ts",
+      "sha256": "3e4f500ab5a83e5f415d6b6d5672f3307bb6600256a88a81567b2c478bdd47ae",
+      "bytes": 951
+    },
+    {
+      "path": "src/modules/subscriptions/application/checkout-return-status.ts",
+      "sha256": "e99cbcbf76b0df066fd104941804f07c2dc673bd62c4779a95c3524258bf68de",
+      "bytes": 2761
+    },
+    {
+      "path": "src/modules/subscriptions/application/create-checkout-session.ts",
+      "sha256": "f900fe4a39a06ce55d5eb5c824487b307268a0cf0b3e5da3e703cf3e5b3cfbe7",
+      "bytes": 6454
+    },
+    {
+      "path": "src/modules/subscriptions/application/create-portal-session.ts",
+      "sha256": "427de361cbda110895fea44093474519524b787b2cbad8d240300c3c80230275",
+      "bytes": 2708
+    },
+    {
+      "path": "src/modules/subscriptions/application/subscription-account.ts",
+      "sha256": "fb5ce2ca87b7ac815a587e2875c4ab100a818d68b754a886ae6e3304f15a8a4f",
+      "bytes": 1556
+    },
+    {
+      "path": "src/modules/subscriptions/domain/billing-dashboard.ts",
+      "sha256": "77035ee84b977d3886ec3cec5b5a03c62c7fd356175a58f59a315b3f4bdf0efc",
+      "bytes": 1666
+    },
+    {
+      "path": "src/modules/subscriptions/domain/billing-products.ts",
+      "sha256": "f97d2d7de8ddb9915d760f3779918edff0f884b6c8bf8279b4330115effd1522",
+      "bytes": 1286
+    },
+    {
+      "path": "src/modules/subscriptions/domain/effective-entitlements.ts",
+      "sha256": "1b21f02a7256adbfcc9e8655dde0a2fa61e1cae051445403bd6fdea7787d287f",
+      "bytes": 4818
+    },
+    {
+      "path": "src/modules/subscriptions/domain/entitlements.ts",
+      "sha256": "6f25f0b06dd389ef23ec198d11479c64f685e447937176f9836b26971292c985",
+      "bytes": 675
+    },
+    {
+      "path": "src/modules/subscriptions/domain/feature-catalog.ts",
+      "sha256": "19cb10cdf7e23fb78490122a53c4d17d6a8e50f806f96c4b0bca013807265b7b",
+      "bytes": 3680
+    },
+    {
+      "path": "src/modules/subscriptions/domain/plan-catalog.ts",
+      "sha256": "bbf614d29b95c4278a5aba5ef70ad20838457b16125f911d075d1b39f88e7a5a",
+      "bytes": 492
+    },
+    {
+      "path": "src/modules/subscriptions/domain/plans.ts",
+      "sha256": "07e7e5b1528c527aebfbb5b93bc92fbbed3bed3f793f253a5beb80e871732ed7",
+      "bytes": 1720
+    },
+    {
+      "path": "src/modules/subscriptions/domain/provider-status.ts",
+      "sha256": "db3f987bc7938b0f70d73c660bf0a37f9ba3f1f97926c71a991fdf62b0b0c733",
+      "bytes": 952
+    },
+    {
+      "path": "src/modules/subscriptions/infrastructure/owned-subscription-account.ts",
+      "sha256": "7f88904eebb4c4d24f548fc13cf3612953d4874a6f7305abdc2f1fc6e7255e48",
+      "bytes": 1417
+    },
+    {
+      "path": "src/modules/subscriptions/infrastructure/subscription-checkout-intent-store.ts",
+      "sha256": "722a309d9c065612b2d7c5c509b6d0fe780715e888be86b07c02ab00bef2e42b",
+      "bytes": 2220
+    },
+    {
+      "path": "src/modules/subscriptions/providers/catalog.ts",
+      "sha256": "5d670c77dacbc46e9eebfe2d532ace8e40f1797eb9d73c7c19ea85e4a172cfc2",
+      "bytes": 1613
+    },
+    {
+      "path": "src/modules/subscriptions/providers/configuration.ts",
+      "sha256": "e2d63fec702e63427baaad07d523a7ed18b050484ca381578d531cc6cd226ef1",
+      "bytes": 2221
+    },
+    {
+      "path": "src/modules/subscriptions/providers/contracts.ts",
+      "sha256": "dd022db142e87c78064ffe100670ca9631a5863a94ce56d1970cbe2833a09213",
+      "bytes": 1415
+    },
+    {
+      "path": "src/modules/subscriptions/providers/managed-billing-country.ts",
+      "sha256": "109e0f16a69c12d84e1afe18cc89d9d2d394c22079f71a483b447626ee98be58",
+      "bytes": 965
+    },
+    {
+      "path": "src/modules/subscriptions/providers/revenuecat-reconciliation.ts",
+      "sha256": "c9935716503b58f9bd0048be93c025a3d230c8611729b59a8e5064e55d20176c",
+      "bytes": 7011
+    },
+    {
+      "path": "src/modules/subscriptions/providers/revenuecat.ts",
+      "sha256": "2d5b1ea9c5d21c4834a3b6ac5894d4bfde23ccdb9232b9598e1c0b41870c782d",
+      "bytes": 5704
+    },
+    {
+      "path": "src/modules/subscriptions/providers/stripe-checkout-identity.ts",
+      "sha256": "b83b53b2145231745dccecd469adc3f397a6c474770f735628f51d3db688a29d",
+      "bytes": 1426
+    },
+    {
+      "path": "src/modules/subscriptions/providers/stripe-checkout-resume.ts",
+      "sha256": "785644e5ebd52340a66f490d67065c2bf3bcefb51993e2c8c1433045886e8c0a",
+      "bytes": 3262
+    },
+    {
+      "path": "src/modules/subscriptions/providers/stripe-managed-coverage.ts",
+      "sha256": "a0c076932f101e71f047aa606efe78ae82f75c766e3d08819d7de32b877478f8",
+      "bytes": 3026
+    },
+    {
+      "path": "src/modules/subscriptions/providers/stripe-managed-payments.ts",
+      "sha256": "713dd56d1b067f622df33ea0faec7d9b680ef9825da87edf0de6fd68a08a7c75",
+      "bytes": 828
+    },
+    {
+      "path": "src/modules/subscriptions/providers/stripe-plan-change.ts",
+      "sha256": "5e844032d261fa3111c03f8609d2f0649adea218517ba38b4905adb388e7babd",
+      "bytes": 10501
+    },
+    {
+      "path": "src/modules/subscriptions/providers/stripe-tax.ts",
+      "sha256": "a1231747c674b4d2ad30e7b92826197b782a6566af8e8714b8aa49f1ac1c5175",
+      "bytes": 1737
+    },
+    {
+      "path": "src/modules/subscriptions/providers/stripe.ts",
+      "sha256": "a8dbf2190dd03467b34f5c399c358d8057e6b7a29d50f117398c3141410d70c3",
+      "bytes": 13582
+    },
+    {
+      "path": "src/modules/subscriptions/ui/billing-analytics.ts",
+      "sha256": "f347bf888089b1bd33b33612125c925dd7a60ab5384cac01cf93526a277270bf",
+      "bytes": 445
+    },
+    {
+      "path": "src/modules/subscriptions/ui/billing-dashboard.tsx",
+      "sha256": "262d75c4438dc99a71f614ff5c6838c623d19ede2559a4707e9207963217cc77",
+      "bytes": 24647
+    },
+    {
+      "path": "src/modules/subscriptions/ui/feature-gate.tsx",
+      "sha256": "f1c7e0896111933cedb4b32b5cfb2bea8a410c823ed16392c65f006010798ce0",
+      "bytes": 2434
+    },
+    {
+      "path": "src/modules/subscriptions/ui/managed-billing-country-field.tsx",
+      "sha256": "d986bdd5ea74f51a885333d24524cbcfa0853e0b2a5dfc175c9799cbf4029263",
+      "bytes": 1163
+    },
+    {
+      "path": "src/modules/subscriptions/ui/native-billing-entry.tsx",
+      "sha256": "da666bf48a513f05f48951939da0bec0df5f4b682cfe4fc5286a40319c0e7ae4",
+      "bytes": 955
+    },
+    {
+      "path": "src/modules/subscriptions/ui/plan-card.tsx",
+      "sha256": "d33c9c856fd4addae99c181cc49b3ff04b303f478efbb5c692d11f2435ae194c",
+      "bytes": 5015
+    },
+    {
+      "path": "src/modules/subscriptions/ui/plan-grid.tsx",
+      "sha256": "dcf9b9ae3ffbfa6a7341b43cffe5318086b2711d099ea30580645061a3ea30d6",
+      "bytes": 780
+    },
+    {
+      "path": "src/modules/subscriptions/ui/platform-billing-controls.tsx",
+      "sha256": "eb37e026aee1fc3eb40164e424fd08c2ff7a8723a6a3f6432a7c166fc3c6dc17",
+      "bytes": 4339
+    },
+    {
+      "path": "src/modules/subscriptions/ui/server-feature-gate.tsx",
+      "sha256": "a2fb5e0163162dcf9d2295f47443ea9e90e67f82707a3334770476a1f2263690",
+      "bytes": 831
+    },
+    {
+      "path": "src/modules/subscriptions/ui/subscription-status.tsx",
+      "sha256": "bf9f8605240100668cb18d2f326deaa499af8c193d143dd35f66a9bffb10559e",
+      "bytes": 5019
+    },
+    {
+      "path": "src/modules/subscriptions/ui/use-checkout-return.ts",
+      "sha256": "33b1b4650cbd9efa324a3b13b5c908324a5d979ac5d99afd9a5e643a919da92c",
+      "bytes": 4812
+    },
+    {
+      "path": "src/modules/talent/application/actions.ts",
+      "sha256": "c7229e3bce3d61f9270e80f28c0a47ce40a47a43f021f47dbac744332a5eb41e",
+      "bytes": 14323
+    },
+    {
+      "path": "src/modules/talent/application/athlete-media-actions.ts",
+      "sha256": "0e4ae8c45d6b8d4c8b69fc09f1bd41886fda02b8570d52771188bbcb268f3b23",
+      "bytes": 2757
+    },
+    {
+      "path": "src/modules/talent/application/calibration-actions.ts",
+      "sha256": "2cea4999971247b60ba648e0d483966cf432a1dc7da66a7245dbc7e96c34b70a",
+      "bytes": 2268
+    },
+    {
+      "path": "src/modules/talent/application/eligibility-actions.ts",
+      "sha256": "72d7f7f5418ace99d733642cb6fb7c24aeb49fe0b4b18c4e7f2663f37717b646",
+      "bytes": 2247
+    },
+    {
+      "path": "src/modules/talent/application/export-actions.ts",
+      "sha256": "2836d99adafa2a3cfde1a375fdf0a18a00ebed62f91cb79c22a63894cd29d2ca",
+      "bytes": 2090
+    },
+    {
+      "path": "src/modules/talent/application/live-snapshot-time.ts",
+      "sha256": "8af6415004e1a41549ad0158bd05bb80cb70dd2612bda9a16d0ad479a0d86822",
+      "bytes": 593
+    },
+    {
+      "path": "src/modules/talent/application/notice-actions.ts",
+      "sha256": "3ee4ad7d1c069f260a8addf9d64bf81f75b7e0d2e74c3dfe174989cf269da284",
+      "bytes": 2043
+    },
+    {
+      "path": "src/modules/talent/application/participant-actions.ts",
+      "sha256": "8dd041b54c6af5254143c4e4ad22ab8bacca2b04469703f0bcf14f488b907fa2",
+      "bytes": 4001
+    },
+    {
+      "path": "src/modules/talent/application/workspace.ts",
+      "sha256": "aa4f93d4345b4533b18b93113c617698b21f230a1535298af8854150ec199b9d",
+      "bytes": 8228
+    },
+    {
+      "path": "src/modules/talent/domain/eligibility.ts",
+      "sha256": "23730e060a3be8fa3ce5eafb4ff1715dc21f2d3acacd0bb02dc8193fd1ef3035",
+      "bytes": 954
+    },
+    {
+      "path": "src/modules/talent/domain/performance.ts",
+      "sha256": "5f1925ae4167487b961e73d2be521ebccf0b5c9c1e9549f1d6449257ed9c8102",
+      "bytes": 4482
+    },
+    {
+      "path": "src/modules/talent/domain/schemas.ts",
+      "sha256": "5f5f0100dc1865d09daa4f120a9685838445b2966e0d24bfb5c7071c2ca347f1",
+      "bytes": 9554
+    },
+    {
+      "path": "src/modules/talent/domain/video.ts",
+      "sha256": "cd65da7cffc8d3717bcb7b0e3a48402924d1f845d35ad554eefc57a8c3d9cd52",
+      "bytes": 820
+    },
+    {
+      "path": "src/modules/talent/ui/athlete-media-forms.tsx",
+      "sha256": "63772dea45577c1004c8a3b054f0295b4c01c05f30ab2f077652330ba8fefb5a",
+      "bytes": 3550
+    },
+    {
+      "path": "src/modules/talent/ui/calibration-forms.tsx",
+      "sha256": "ac2a433d3b374513177dd20879b7c7a4b772b40ea6f3ca41a3d9a993d88a14d8",
+      "bytes": 2983
+    },
+    {
+      "path": "src/modules/talent/ui/eligibility-form.tsx",
+      "sha256": "ed54bc8837f77a5d8be597b911ba343e6d284ad1bfbff0174c2de0c204dd7bf3",
+      "bytes": 1291
+    },
+    {
+      "path": "src/modules/talent/ui/evaluation-history.tsx",
+      "sha256": "1c5292fbfb2f50504c2c45cb3cdf7e713c1a237e99f3c7204b319e08d43fd8bf",
+      "bytes": 2362
+    },
+    {
+      "path": "src/modules/talent/ui/event-navigation.tsx",
+      "sha256": "937eef3c3124895a021ff1869b7ddb089c0ac1639806f23d4c3753ba3459d9f8",
+      "bytes": 2845
+    },
+    {
+      "path": "src/modules/talent/ui/export-builder.tsx",
+      "sha256": "050efbec8f7e103736902fac2b7afe7759552e9b215175636b6272c04dce46a5",
+      "bytes": 6422
+    },
+    {
+      "path": "src/modules/talent/ui/fields.ts",
+      "sha256": "b72816bd0c343cf35032bb95fb62a77e8639a2f70adab099ba0249220f178817",
+      "bytes": 8760
+    },
+    {
+      "path": "src/modules/talent/ui/filter-panel.tsx",
+      "sha256": "457736579511ab230061db2db0f4f8e50a5f9d8a623b1e9bb47b50b6daf460e6",
+      "bytes": 1032
+    },
+    {
+      "path": "src/modules/talent/ui/identity-form.tsx",
+      "sha256": "35451f0585b1a58e93bfc6cc3eef98abe7272fb47603d71cbba45d528717548b",
+      "bytes": 2439
+    },
+    {
+      "path": "src/modules/talent/ui/live-refresh.tsx",
+      "sha256": "3268faa3f7296fe0b6c462bbf196ac2536f57d12ab41729224473c870f4c55fd",
+      "bytes": 1313
+    },
+    {
+      "path": "src/modules/talent/ui/measurement-import.tsx",
+      "sha256": "694e23a68553cb5adc96b2d9d4ff3aeb9da82a076255102e5f551ffed479d346",
+      "bytes": 6930
+    },
+    {
+      "path": "src/modules/talent/ui/notice-delivery.tsx",
+      "sha256": "9486700649ea075915b76c3272e2c34a46fd38525a86a3a714bcb5a6682efe15",
+      "bytes": 2683
+    },
+    {
+      "path": "src/modules/talent/ui/participant-forms.tsx",
+      "sha256": "2e5562ce84af851510325836000ab74c2e2713c11a6ac17a074d4e495d7d3f86",
+      "bytes": 5965
+    },
+    {
+      "path": "src/modules/talent/ui/performance-view.tsx",
+      "sha256": "5d87bcc632362a3138697dec3dbf15c51cf47e692772e3ead23d907e9ffe0a3b",
+      "bytes": 8203
+    },
+    {
+      "path": "src/modules/talent/ui/record-form.tsx",
+      "sha256": "1c6d547cd2a81b59c2f25966ace3ae5e865c9a138fa18a0322bedd417723912a",
+      "bytes": 13182
+    },
+    {
+      "path": "src/modules/talent/ui/report-actions.tsx",
+      "sha256": "8ae3cf7efca2e0ccca3c0ab39d6b200cfe87ce136adc25c1ab1807a6c90fb33f",
+      "bytes": 2957
+    },
+    {
+      "path": "src/modules/talent/ui/saved-views.tsx",
+      "sha256": "cec9a9c08b6cd08eb70407445622e96e326f2f6787c40b839a28328ffe1110f5",
+      "bytes": 2919
+    },
+    {
+      "path": "src/modules/talent/ui/scenario-comparison.tsx",
+      "sha256": "89e080236c9784e17bc19502b5a680ee92b16aa843b38df6f6eb5e0183108d09",
+      "bytes": 3271
+    },
+    {
+      "path": "src/modules/talent/ui/scouting-cards.tsx",
+      "sha256": "cfa66cd00e363c75fd36f80ee5f4eeb5676122c8786d47aef913baf488adeaef",
+      "bytes": 5548
+    },
+    {
+      "path": "src/modules/talent/ui/talent.css",
+      "sha256": "c08dd080554d9626eda656c084f2eb9294809f3cc417020b0846234047a4a7c8",
+      "bytes": 33295
+    },
+    {
+      "path": "src/modules/talent/ui/workspace-ui.tsx",
+      "sha256": "609212e7a2bdc492837af4461f4e710b5fbc73e69ad334ef846acb9873a1f377",
+      "bytes": 2490
+    },
+    {
+      "path": "src/modules/tryouts/application/complete-single-tryout-action.ts",
+      "sha256": "a9e9f62494375fe63e7db53edb0735c51c4b1e13fa1f49a79b01bbdf308be5df",
+      "bytes": 1451
+    },
+    {
+      "path": "src/modules/tryouts/application/create-tryout.ts",
+      "sha256": "408ff19c688624fd87fca901270bd01cbdd4832ff3ad3192e030aed0754ae2a6",
+      "bytes": 4076
+    },
+    {
+      "path": "src/modules/tryouts/application/duplicate-tryout-action.ts",
+      "sha256": "575c9dbc2769b888b955cb3338e2894836306be99947701241727f45db10c039",
+      "bytes": 1753
+    },
+    {
+      "path": "src/modules/tryouts/application/get-live-dashboard.ts",
+      "sha256": "6d9ba2da6ac7089a95bdc20567355f7a6045a470ab96738499772170b1b593d7",
+      "bytes": 3667
+    },
+    {
+      "path": "src/modules/tryouts/application/load-tryout-journey.ts",
+      "sha256": "55388c9eaa9c96df4d3b91445c48e3ec371b38b80e4b11a1f79ac61d4b68158c",
+      "bytes": 27605
+    },
+    {
+      "path": "src/modules/tryouts/application/persist-wizard-step.ts",
+      "sha256": "968969309ec5379407bc43160506073d9480173b49838eeea7ecb686fa797d19",
+      "bytes": 2227
+    },
+    {
+      "path": "src/modules/tryouts/application/prepare-wizard-save-attempt.ts",
+      "sha256": "d841fc95df8fb30a64a66445f4d06618a225d60736c39033f7fa5fbdbfe2a078",
+      "bytes": 623
+    },
+    {
+      "path": "src/modules/tryouts/application/publish-tryout.ts",
+      "sha256": "cafc9b92a5ddcb0c21a300b56d7c1e5d9a5561c752cd3d361d29813fc6287231",
+      "bytes": 6571
+    },
+    {
+      "path": "src/modules/tryouts/application/save-tryout-setup-step.ts",
+      "sha256": "ceb19879bf82ade44db05dc7e340124bb6e4d5f818edceae013057f738ccc303",
+      "bytes": 2865
+    },
+    {
+      "path": "src/modules/tryouts/application/save-wizard-configuration.ts",
+      "sha256": "4bc24cf9509b4df5b58d8fd459460ff1642b26099f7cb798afab1c11f386b2dc",
+      "bytes": 6990
+    },
+    {
+      "path": "src/modules/tryouts/application/select-registration-form-version.ts",
+      "sha256": "80fa8137523f2d37d9b0f164393c9ac0d6c0433db07205b556ff85e918733e70",
+      "bytes": 2049
+    },
+    {
+      "path": "src/modules/tryouts/application/single-tryout-lifecycle.ts",
+      "sha256": "0f1c718862dc37cad300bfe673ddef34263c5e689ff605ab3553deef2ba57cc9",
+      "bytes": 877
+    },
+    {
+      "path": "src/modules/tryouts/application/tryout-dependencies.ts",
+      "sha256": "810da2267ca93f350b56a78afa2df63bdeb1c53ed2fa07a49d77590dafc10f1a",
+      "bytes": 370
+    },
+    {
+      "path": "src/modules/tryouts/application/update-tryout-step.ts",
+      "sha256": "67ca491cc1ced7d1fad7c3d479c70a58fe4909fb1d6a5ac28d33f03571788f14",
+      "bytes": 2007
+    },
+    {
+      "path": "src/modules/tryouts/application/validate-tryout-basics.ts",
+      "sha256": "6514ed36018f4ef72bac3b76bda2aa633624ac8034ede7069da6c8b259d1f963",
+      "bytes": 3716
+    },
+    {
+      "path": "src/modules/tryouts/domain/lifecycle.ts",
+      "sha256": "37c2b6842c4a9cab0e4517644fd03a6ef15629173c4b844b78e5ac244d5e5ba3",
+      "bytes": 1007
+    },
+    {
+      "path": "src/modules/tryouts/domain/setup-configuration.ts",
+      "sha256": "7ccf64e1d7f1fda4736ff2877c0120f71ff71792194f3d67701ea7b3cc8f8c69",
+      "bytes": 1377
+    },
+    {
+      "path": "src/modules/tryouts/domain/tryout-date-time.ts",
+      "sha256": "f1511b1599d9fa249db009a4dac874bd1b0a58aa9bbb1dd203ab57728674a768",
+      "bytes": 2401
+    },
+    {
+      "path": "src/modules/tryouts/domain/tryout.ts",
+      "sha256": "ccee54295fe7f5b6f27472f695865153fc6c512e536ffa5dfb341c4a80173aea",
+      "bytes": 1956
+    },
+    {
+      "path": "src/modules/tryouts/infrastructure/supabase-tryout-gateway.ts",
+      "sha256": "c2ce79caeae7b37213afe966a12df46d54438427ad5b9fd480f05a3ab3aeebeb",
+      "bytes": 3514
+    },
+    {
+      "path": "src/modules/tryouts/ui/complete-single-tryout-button.tsx",
+      "sha256": "37bf62b14069207953186bb18ed82020cf39fd984f3a927e8adaf60a29bffe9e",
+      "bytes": 1602
+    },
+    {
+      "path": "src/modules/tryouts/ui/duplicate-tryout-button.tsx",
+      "sha256": "c0df2b99ad0031f91512afe2aef090920b007aed20610d49653ce2a6e4d9a23b",
+      "bytes": 822
+    },
+    {
+      "path": "src/modules/tryouts/ui/registration-form-editor.tsx",
+      "sha256": "76090ed4542fc7f3069017d27715782e23b6d5e944fe3d7961488d4f6e4cdd67",
+      "bytes": 21541
+    },
+    {
+      "path": "src/modules/tryouts/ui/registration-share.tsx",
+      "sha256": "c457ab999f3b834264e2f52a5e4e02b50e224c60cc3e61023fa4c302316a1362",
+      "bytes": 1519
+    },
+    {
+      "path": "src/modules/tryouts/ui/setup-configuration-editor.tsx",
+      "sha256": "ddd562715a1dc0d593d4e99a9965d0e37324d7ba9e317263369f3b9d7be5a175",
+      "bytes": 12739
+    },
+    {
+      "path": "src/modules/tryouts/ui/single-tryout-notice.tsx",
+      "sha256": "79e16bc09ddf9ece5a5c2aa021e48f0b385a4503b86bf7938cfdd86d12daed88",
+      "bytes": 1442
+    },
+    {
+      "path": "src/modules/tryouts/ui/tryout-action-plan.tsx",
+      "sha256": "25554817c603868ebdfa8783233e505bf1d5b270723fa026ae51f4be4d3cb861",
+      "bytes": 4496
+    },
+    {
+      "path": "src/modules/tryouts/ui/tryout-basics.ts",
+      "sha256": "6afd697efbabf7ce16bc54dd6e6c5f9cc71b8f187a03e3153300ec482e93b3b4",
+      "bytes": 1829
+    },
+    {
+      "path": "src/modules/tryouts/ui/tryout-card.tsx",
+      "sha256": "ceb64048eacc3b7f67ab8178d07ef09e5c0aa6afab70ef02183e9a9e8462dcdd",
+      "bytes": 2658
+    },
+    {
+      "path": "src/modules/tryouts/ui/tryout-journey.tsx",
+      "sha256": "9a2d2408f7af93854f6002c5649d6b7c175a45deba3b62232b248b9e31a5db40",
+      "bytes": 3424
+    },
+    {
+      "path": "src/modules/tryouts/ui/tryout-lifecycle.tsx",
+      "sha256": "3557873862a2ac5235ea5a8d7d046509a36f76d091319c089c5a8ac1cf97c711",
+      "bytes": 1992
+    },
+    {
+      "path": "src/modules/tryouts/ui/tryout-wizard.tsx",
+      "sha256": "d13d6f47ec00c51b482adbfd480d3dac3e37e156751183cf4532871e298e5f79",
+      "bytes": 15322
+    },
+    {
+      "path": "src/modules/tryouts/ui/wizard-progress.tsx",
+      "sha256": "da0110194f7d09de911077973515ac7dfb0fd8843b7a0ef471ca24bb3376ae93",
+      "bytes": 1729
+    },
+    {
+      "path": "src/proxy.ts",
+      "sha256": "ae1bb7ba927595cf30b843f2dabdc282cb545e9985293f1772b6725d735acb13",
+      "bytes": 2930
+    },
+    {
+      "path": "tests/e2e/helpers/visual.ts",
+      "sha256": "e111cba7351be21861fa6b5458afdc13affa0cd7e57fcf4b5aff1190dddf8225",
+      "bytes": 2523
+    },
+    {
+      "path": "tests/e2e/visual/auth-and-onboarding.visual.spec.ts",
+      "sha256": "6e12fb0a7eda15465e304021fe7de602e0d5b50aa0e6646e227a1eab9ff01c70",
+      "bytes": 500
+    },
+    {
+      "path": "tests/fixtures/integrations/the-squad/partial-failure.json",
+      "sha256": "56b52a3a9770927d39e8a38a1a2dbc9d1c883bfaa69709e3d418b0ab5e1e8a73",
+      "bytes": 1845
+    },
+    {
+      "path": "tests/fixtures/integrations/the-squad/success.json",
+      "sha256": "c132ade384002911d8b5843047e136b40fc3fce9ed3bd68da8bf2e4f3e8ca51e",
+      "bytes": 2221
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "f2b3fc7b55585c0f807acdb98dbed68e24eb62a298c75198c4a78fee764d4f5a",
+      "bytes": 708
+    }
+  ],
+  "afterOverlay": [
+    {
+      "path": "src/components/ui/password-input.tsx",
+      "sha256": "6de9d61e5c7bc06709e8a4e2758eb9842989e60121b7d29e7c6be8ba69f57b07",
+      "bytes": 2944
+    },
+    {
+      "path": "src/modules/identity/ui/password-fields.tsx",
+      "sha256": "821200315f89c87e35bcf9c12a5aa6a6b9211bf25989f96e59051d0aa237e4ce",
+      "bytes": 4082
+    },
+    {
+      "path": "src/modules/identity/ui/sign-in-form.tsx",
+      "sha256": "4c37e5f4c8b900c2855ae401798ef71dc762844f8bc0c3f54f4bea4220078210",
+      "bytes": 3245
+    },
+    {
+      "path": "tests/unit/identity/password-visibility.test.tsx",
+      "sha256": "d1cd9db12b1c42a4c1fb44f787086cc90cd582ae5ad93a883e5d8d64f4fbb8b4",
+      "bytes": 7198
+    }
+  ],
+  "baselines": [
+    {
+      "path": "auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-in.png",
+      "sha256": "7f765c1e208f03815c2e4d66454db5d4c9113b1b414c900918465d048c52b61e",
+      "bytes": 82960
+    },
+    {
+      "path": "auth-and-onboarding.visual.spec.ts/desktop-chromium/sign-up.png",
+      "sha256": "a04861cbda5f8d54407ac76d2801d92d35927e46f0edc8d0514b58c8d4c06089",
+      "bytes": 117661
+    },
+    {
+      "path": "auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-in.png",
+      "sha256": "444a2d703c80061e0f5ac24101769ac24caf746e794b926f57bb93cc23aab1cb",
+      "bytes": 82469
+    },
+    {
+      "path": "auth-and-onboarding.visual.spec.ts/mobile-chromium/sign-up.png",
+      "sha256": "e5dc4ee6050fa2724b85a8545f6089851c861a01fa9fa902d27c172e37a23d98",
+      "bytes": 82869
+    }
+  ],
+  "harnesses": [
+    {
+      "path": "password-visibility-auth-screenshots.config.mjs",
+      "sha256": "f4151430bda2a2c05391a47532e18ac092cc7bf8c6fdd6c1550e4d2c80159c70",
+      "bytes": 2684
+    },
+    {
+      "path": "password-visibility-auth-review.capture.spec.mjs",
+      "sha256": "3757355ad838d9e072c99298cf8645dad95ecd492bec0dfe315d70895b179229",
+      "bytes": 2579
+    },
+    {
+      "path": "password-visibility-linux-network-guard.mjs",
+      "sha256": "42761d5ae51fc365bb3c283664832b534c164b0f5b0f80c2608e043150b5d94f",
+      "bytes": 1413
+    },
+    {
+      "path": "run-password-visibility-linux-capture.mjs",
+      "sha256": "ff32c8183921392c38cff7c38a5af5d5f1ff32ef5fcfb327dad0e1f0a8826705",
+      "bytes": 12254
+    }
+  ],
+  "excluded": [
+    "all .env files including .env.example",
+    ".git",
+    ".aws",
+    ".agents",
+    ".codex",
+    "credentials/secrets/key files",
+    "user data/browser profiles",
+    "DB/Supabase data",
+    "native app",
+    "broad test/fixture trees",
+    "build trees",
+    "dependency trees"
+  ],
+  "dependencyTreesCopied": 0,
+  "inputBytesExcludesTransportManifest": true,
+  "inputBytes": 12985698,
+  "preparedUTC": "2026-10-09T12:47:00.271667+00:00",
+  "baseSourceManifestSHA256": "09fcd95181a1f5885341cf0186fbe6388dbc0ae0426be009570479dc21c19d47"
+}
