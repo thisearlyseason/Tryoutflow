@@ -2,7 +2,15 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, statfsSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  statSync,
+  statfsSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, resolve, relative, isAbsolute } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -165,6 +173,21 @@ try {
   // Nested mounts need existing destinations inside the read-only input bind.
   mkdirSync(resolve(review, 'work'), { recursive: true });
   mkdirSync(resolve(review, 'artifacts'), { recursive: true });
+  // Use only the ephemeral runner's public system fonts, never home/user fonts.
+  const fontDirectories = ['/usr/share/fonts', '/etc/fonts', '/usr/share/fontconfig'];
+  if (existsSync('/usr/local/share/fonts')) fontDirectories.push('/usr/local/share/fonts');
+  for (const path of fontDirectories) assert.ok(statSync(path).isDirectory());
+  const fontPatterns = ['system-ui', 'system-ui:weight=bold', 'sans-serif'];
+  const fontFormat = '%{family}|%{style}|%{file}';
+  const hostFonts = fontPatterns.map((pattern) => {
+    const selection = run('fc-match', ['-f', fontFormat, pattern]);
+    const path = selection.split('|').at(-1);
+    assert.ok(
+      ['/usr/share/fonts/', '/usr/local/share/fonts/'].some((root) => path.startsWith(root)),
+      'Selected font must be a public system font',
+    );
+    return { pattern, selection, sha256: fileHash(path) };
+  });
   const flags = [
     'run',
     '--rm',
@@ -190,6 +213,10 @@ try {
     `type=bind,source=${artifacts},target=/review/artifacts`,
     '--mount',
     `type=bind,source=${nodeRoot},target=/runtime/node,readonly`,
+    ...fontDirectories.flatMap((path) => [
+      '--mount',
+      `type=bind,source=${path},target=${path},readonly`,
+    ]),
     '--env=PLAYWRIGHT_BROWSERS_PATH=/ms-playwright',
     '--env=NODE_OPTIONS=--import=/review/password-visibility-linux-network-guard.mjs',
     '--env=PATH=/runtime/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
@@ -197,6 +224,27 @@ try {
     image,
     '/review/run-password-visibility-linux-capture.mjs',
   ];
+  const fontProbe = `const {execFileSync}=require('node:child_process');
+    const {readFileSync}=require('node:fs'); const {createHash}=require('node:crypto');
+    console.log(JSON.stringify(${JSON.stringify(fontPatterns)}.map(pattern=>{
+      const selection=execFileSync('fc-match',['-f',${JSON.stringify(fontFormat)},pattern],{encoding:'utf8'}).trim();
+      return {pattern,selection,sha256:createHash('sha256').update(readFileSync(selection.split('|').at(-1))).digest('hex')};
+    })));`;
+  recordResources('before-font-parity-preflight');
+  assert.equal(run('docker', ['ps', '-aq', '--filter', 'name=^/' + name + '$']), '');
+  const containerFonts = JSON.parse(
+    run('docker', [...flags.slice(0, -1), '-e', fontProbe], {
+      logfile: resolve(artifacts, 'font-parity-docker.log'),
+    }),
+  );
+  assert.deepEqual(containerFonts, hostFonts, 'System font selection differs from the runner');
+  proof.fontEnvironment = {
+    directories: fontDirectories,
+    hostFonts,
+    containerFonts,
+    matched: true,
+  };
+  save();
   for (const mode of ['preflight', 'capture']) {
     recordResources('before-' + mode);
     assert.equal(run('docker', ['ps', '-aq', '--filter', 'name=^/' + name + '$']), '');
