@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PrivateSessionBoundary } from '@/modules/identity/ui/private-session-boundary';
 import { Suspense } from 'react';
 
 import { AuthShell } from '../../../components/layout/auth-shell';
@@ -15,7 +16,13 @@ import { TimezonePicker } from '../../../modules/organizations/ui/timezone-picke
 import { StartPlan } from '../../../modules/organizations/ui/start-plan';
 import { StartErrorMessage } from '../../../modules/organizations/ui/start-error-message';
 
-export default function StartPage() {
+export default async function StartPage() {
+  const client = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) redirect('/sign-in?next=%2Fstart');
+
   async function submit(formData: FormData) {
     'use server';
     const client = await createServerSupabaseClient();
@@ -46,57 +53,59 @@ export default function StartPage() {
   }
 
   return (
-    <AuthShell
-      description="Start with the team, club, or academy that runs your tryouts. You will be its first owner."
-      eyebrow="Organization setup"
-      title="Set up your organization"
-    >
-      <Suspense fallback={null}>
-        <StartErrorMessage />
-      </Suspense>
-      <form action={submit}>
+    <PrivateSessionBoundary userId={user.id}>
+      <AuthShell
+        description="Start with the team, club, or academy that runs your tryouts. You will be its first owner."
+        eyebrow="Organization setup"
+        title="Set up your organization"
+      >
         <Suspense fallback={null}>
-          <StartPlan />
+          <StartErrorMessage />
         </Suspense>
-        <FormField htmlFor="name" label="Organization name" required>
-          {({ describedBy }) => (
-            <Input
-              aria-describedby={describedBy}
-              id="name"
-              name="name"
-              placeholder={FIELD_EXAMPLES.organizationName}
-              required
-            />
-          )}
-        </FormField>
-        <FormField
-          description="This creates your internal TryoutFlow workspace address, such as /app/badlands-hockey-academy. It is not your public website."
-          htmlFor="slug"
-          label="Your TryoutFlow workspace address"
-          required
-        >
-          {({ describedBy }) => (
-            <Input
-              aria-describedby={describedBy}
-              id="slug"
-              name="slug"
-              placeholder={FIELD_EXAMPLES.organizationName.toLowerCase().replaceAll(' ', '-')}
-              required
-            />
-          )}
-        </FormField>
-        <FormField
-          description="Start typing to search timezones. We select your device timezone when it is available."
-          htmlFor="timezone"
-          label="Timezone"
-          required
-        >
-          {({ describedBy }) => <TimezonePicker describedBy={describedBy} />}
-        </FormField>
-        <Button className="mt-2 w-full" type="submit">
-          Create organization
-        </Button>
-      </form>
-    </AuthShell>
+        <form action={submit}>
+          <Suspense fallback={null}>
+            <StartPlan />
+          </Suspense>
+          <FormField htmlFor="name" label="Organization name" required>
+            {({ describedBy }) => (
+              <Input
+                aria-describedby={describedBy}
+                id="name"
+                name="name"
+                placeholder={FIELD_EXAMPLES.organizationName}
+                required
+              />
+            )}
+          </FormField>
+          <FormField
+            description="This creates your internal TryoutFlow workspace address, such as /app/badlands-hockey-academy. It is not your public website."
+            htmlFor="slug"
+            label="Your TryoutFlow workspace address"
+            required
+          >
+            {({ describedBy }) => (
+              <Input
+                aria-describedby={describedBy}
+                id="slug"
+                name="slug"
+                placeholder={FIELD_EXAMPLES.organizationName.toLowerCase().replaceAll(' ', '-')}
+                required
+              />
+            )}
+          </FormField>
+          <FormField
+            description="Start typing to search timezones. We select your device timezone when it is available."
+            htmlFor="timezone"
+            label="Timezone"
+            required
+          >
+            {({ describedBy }) => <TimezonePicker describedBy={describedBy} />}
+          </FormField>
+          <Button className="mt-2 w-full" type="submit">
+            Create organization
+          </Button>
+        </form>
+      </AuthShell>
+    </PrivateSessionBoundary>
   );
 }

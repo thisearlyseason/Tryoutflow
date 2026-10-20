@@ -20,9 +20,7 @@ function uniqueTryouts(authorization: AuthorizationContext, roles: readonly stri
   return [
     ...new Set(
       authorization.assignments
-        .filter(
-          (assignment) => roles.includes(assignment.role) && assignment.scope.kind === 'tryout',
-        )
+        .filter((assignment) => roles.includes(assignment.role))
         .map((assignment) => assignment.scope.tryoutId),
     ),
   ];

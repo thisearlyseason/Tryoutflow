@@ -55,6 +55,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const protectedApplicationPath =
+    request.nextUrl.pathname === '/start' ||
+    request.nextUrl.pathname === '/participant' ||
+    request.nextUrl.pathname.startsWith('/participant/') ||
     request.nextUrl.pathname === '/app' ||
     request.nextUrl.pathname.startsWith('/app/') ||
     request.nextUrl.pathname === '/platform' ||

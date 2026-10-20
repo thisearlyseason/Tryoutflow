@@ -1,4 +1,5 @@
 import { eventNavigationOptions } from '@/modules/organizations/application/event-navigation-options';
+import { PrivateSessionBoundary } from '@/modules/identity/ui/private-session-boundary';
 import { loadWorkspaceNavigation } from '@/modules/organizations/application/team-workspaces';
 import { WorkspaceSwitcher } from '@/modules/organizations/components/workspace-switcher';
 import type { ReactNode } from 'react';
@@ -42,22 +43,24 @@ export default async function OrganizationLayout({
     /* Existing navigation remains available. */
   }
   return (
-    <AppShell
-      events={events}
-      eventStorageKey={`tryoutflow.selected-event.${userId}.${organization.id}`}
-      navigation={buildAppNavigation({
-        authorization,
-        tryoutNames: Object.fromEntries(events.map(({ id, name }) => [id, name])),
-        organizationSlug: organization.slug,
-        hasScoutingAccess: !!hasScoutingAccess,
-        isTeamWorkspace: workspaces.isTeam,
-      })}
-      organization={organization}
-      roleLabel={describeAppRole(authorization)}
-    >
-      <p className="sr-only">{organization.name}</p>
-      <WorkspaceSwitcher currentId={organization.id} navigation={workspaces} />
-      {children}
-    </AppShell>
+    <PrivateSessionBoundary userId={userId}>
+      <AppShell
+        events={events}
+        eventStorageKey={`tryoutflow.selected-event.${userId}.${organization.id}`}
+        navigation={buildAppNavigation({
+          authorization,
+          tryoutNames: Object.fromEntries(events.map(({ id, name }) => [id, name])),
+          organizationSlug: organization.slug,
+          hasScoutingAccess: !!hasScoutingAccess,
+          isTeamWorkspace: workspaces.isTeam,
+        })}
+        organization={organization}
+        roleLabel={describeAppRole(authorization)}
+      >
+        <p className="sr-only">{organization.name}</p>
+        <WorkspaceSwitcher currentId={organization.id} navigation={workspaces} />
+        {children}
+      </AppShell>
+    </PrivateSessionBoundary>
   );
 }
