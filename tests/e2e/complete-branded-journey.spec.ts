@@ -350,7 +350,12 @@ test('isolated owner completes the branded tryout journey and removes the logo c
     'check-in to live navigation RSC request',
   );
   await page.getByRole('link', { name: 'Next: Open live dashboard' }).click();
-  await expect(page.getByRole('heading', { name: 'Live dashboard' })).toBeVisible();
+  await expect(page).toHaveURL(
+    `${baseURL}/app/${scenario.organizationSlug}/tryouts/${authoredTryoutId}/live`,
+  );
+  await expect(
+    page.getByRole('heading', { name: 'Run Tryout', exact: true, level: 2 }),
+  ).toBeVisible();
   await completeAuthoredEvaluation();
   expectCancellableNextRscRequest(
     ownerMonitor,
