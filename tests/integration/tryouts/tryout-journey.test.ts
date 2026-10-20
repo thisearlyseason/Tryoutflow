@@ -1,12 +1,13 @@
 // @vitest-environment node
 
-import { execFile as execFileCallback, execFileSync } from 'node:child_process';
+import { execFile as execFileCallback } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { promisify } from 'node:util';
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { localIntegrationApiKeys } from '../helpers/local-api-keys';
 import type { Database } from '../../../src/infrastructure/supabase/database.types';
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
@@ -22,18 +23,11 @@ let apiUrl = '';
 let publishableKey = '';
 let serviceKey = '';
 
-beforeAll(() => {
-  const config = execFileSync(
-    'docker',
-    ['exec', 'supabase_kong_tryoutflow', 'cat', '/home/kong/kong.yml'],
-    { encoding: 'utf8' },
-  );
-  serviceKey = config.match(/sb_secret_[A-Za-z0-9_-]+/u)?.[0] ?? '';
-  publishableKey = config.match(/sb_publishable_[A-Za-z0-9_-]+/u)?.[0] ?? '';
-  apiUrl = JSON.parse(
-    execFileSync('./node_modules/.bin/supabase', ['status', '-o', 'json'], { encoding: 'utf8' }),
-  ).API_URL;
-  if (!serviceKey || !publishableKey) throw new Error('local Supabase API keys unavailable');
+beforeAll(async () => {
+  const keys = await localIntegrationApiKeys();
+  serviceKey = keys.service;
+  publishableKey = keys.publishable;
+  apiUrl = keys.apiUrl;
 });
 
 function ownerAuthorization(organizationId: OrganizationId, userId: UserId): AuthorizationContext {

@@ -168,19 +168,24 @@ describe('decision batches and provider evidence', () => {
     const createSql = `
       begin;
       set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
-      select outcome||'|'||batch_id||'|'||queued_count from public.create_decision_message_batch_v2(
+      select set_config('tryoutflow.provider_batch_result',
+        concat_ws('|',outcome,coalesce(batch_id::text,'NULL'),queued_count::text),false)
+      from public.create_decision_message_batch_v2(
         '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
       reset role;
       update public.outbox_jobs set available_at='9999-01-01' where organization_id='${ids.organization}' and status='pending';
-      commit;`;
+      commit;
+      select current_setting('tryoutflow.provider_batch_result');`;
     const created = await psql(createSql);
     expect(created.stdout.trim()).toMatch(/^queued\|[0-9a-f-]{36}\|\d+$/u);
+    const [, batchId, queuedCount] = created.stdout.trim().split('|');
     const createdResult = (
       await psql(`select id||'|'||recipient_count from public.communication_batches
         where organization_id='${ids.organization}' and preview_digest='${data.digest}'`)
     ).stdout.trim();
     expect(createdResult).toMatch(/^[0-9a-f-]{36}\|1$/u);
-    await psql(createSql);
+    expect(createdResult).toBe(`${batchId}|${queuedCount}`);
+    expect((await psql(createSql)).stdout.trim()).toBe(`replayed|${batchId}|${queuedCount}`);
     const replayedResult = (
       await psql(`select id||'|'||recipient_count||'|'||
         (select count(*) from public.communication_messages where communication_batch_id=batch.id)

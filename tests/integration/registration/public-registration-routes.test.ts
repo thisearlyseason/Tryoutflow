@@ -7,6 +7,7 @@ import { resolve } from 'node:path';
 import { NextRequest } from 'next/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { localIntegrationApiKeys } from '../helpers/local-api-keys';
 import { recordIntegrationRateKey } from '../../fixtures/integration-lock/record-rate-key';
 import { createDeterministicTestBotToken } from '../../../src/modules/identity/application/bot-protection';
 
@@ -16,7 +17,7 @@ type Route = (request: NextRequest) => Promise<Response>;
 let submitRegistration: Route;
 let consumeConfirmation: Route;
 let reissueConfirmation: Route;
-let apiKeys: ReturnType<typeof localApiKeys>;
+let apiKeys: Awaited<ReturnType<typeof localIntegrationApiKeys>>;
 let directCanonicalRateKey = 'c'.repeat(64);
 
 const origin = 'http://localhost';
@@ -44,18 +45,6 @@ const validSubmission = {
     consent: true,
   },
 };
-
-function localApiKeys() {
-  const config = execFileSync(
-    'docker',
-    ['exec', 'supabase_kong_tryoutflow', 'cat', '/home/kong/kong.yml'],
-    { encoding: 'utf8' },
-  );
-  const service = config.match(/sb_secret_[A-Za-z0-9_-]+/u)?.[0];
-  const publishable = config.match(/sb_publishable_[A-Za-z0-9_-]+/u)?.[0];
-  if (!service || !publishable) throw new Error('local Supabase API keys unavailable');
-  return { service, publishable };
-}
 
 function psql(sql: string) {
   return execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-Atc', sql], {
@@ -113,11 +102,9 @@ function jsonRequest(path: string, body: unknown, headers: Record<string, string
 }
 
 beforeAll(async () => {
-  const keys = localApiKeys();
+  const keys = await localIntegrationApiKeys();
   apiKeys = keys;
-  process.env.NEXT_PUBLIC_SUPABASE_URL = JSON.parse(
-    execFileSync('./node_modules/.bin/supabase', ['status', '-o', 'json'], { encoding: 'utf8' }),
-  ).API_URL;
+  process.env.NEXT_PUBLIC_SUPABASE_URL = keys.apiUrl;
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = keys.publishable;
   process.env.SUPABASE_SERVICE_ROLE_KEY = keys.service;
   process.env.PUBLIC_REGISTRATION_RATE_LIMIT_SECRET = `route-integration-${randomUUID()}`;
