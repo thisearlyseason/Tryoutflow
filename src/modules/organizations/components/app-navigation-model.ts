@@ -7,6 +7,7 @@ export type NavigationItem = Readonly<{
   href: string;
   label: string;
   accessibleLabel?: string;
+  compactLabel?: string;
   icon: NavigationIcon;
 }>;
 
@@ -35,6 +36,7 @@ function scopedItem(
 ): NavigationItem {
   return {
     label,
+    compactLabel: label,
     href: `/app/${organizationSlug}/tryouts/${tryoutId}/${segment}`,
     accessibleLabel: `${label} for tryout ${tryoutId}`,
     icon,

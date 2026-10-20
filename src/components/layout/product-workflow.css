@@ -206,6 +206,20 @@
   padding: 1rem;
 }
 @media (width < 1100px) {
+  .app-frame-workspace .selected-event {
+    overflow: clip;
+  }
+  .app-frame-workspace .mobile-nav-bar {
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .app-frame-workspace .mobile-nav-bar-compact > .app-nav-link {
+    flex-direction: column;
+    padding-block: var(--space-1);
+  }
+  .app-frame-workspace .mobile-nav-bar > .app-nav-link > span:last-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .app-frame-workspace {
     /* First-render fallback; MobileNav replaces this with its rendered height. */
     --mobile-navigation-height: calc(

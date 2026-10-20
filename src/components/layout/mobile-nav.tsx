@@ -115,9 +115,24 @@ export function MobileNav({
           </Link>
         ) : null}
       </div>
-      <div className="mobile-nav-bar" ref={bottomNavigation}>
+      <div
+        className={
+          primaryItems.some((item) => item.compactLabel !== undefined)
+            ? 'mobile-nav-bar mobile-nav-bar-compact'
+            : 'mobile-nav-bar'
+        }
+        ref={bottomNavigation}
+      >
         {primaryItems.map((item) => (
-          <NavigationLink item={item} key={item.href} pathname={pathname} />
+          <NavigationLink
+            item={{
+              ...item,
+              accessibleLabel: item.accessibleLabel ?? item.label,
+              label: item.compactLabel ?? item.label,
+            }}
+            key={item.href}
+            pathname={pathname}
+          />
         ))}
         <div className="mobile-more">
           <FeedbackButton
