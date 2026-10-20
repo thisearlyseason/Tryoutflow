@@ -18,14 +18,17 @@ export function PrivateSessionBoundary({
     const client = createBrowserSupabaseClient();
     let active = true;
     let generation = 0;
+    let departing = false;
     let expiry: ReturnType<typeof setTimeout> | undefined;
     function lock() {
       generation += 1;
       if (!active) return;
       setVerifiedUserId(null);
+      if (departing) return;
       router.replace(`/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`);
     }
     async function verify() {
+      if (departing) return;
       const observed = ++generation;
       setVerifiedUserId(null);
       try {
@@ -51,12 +54,27 @@ export function PrivateSessionBoundary({
         lock();
       else expiry = setTimeout(lock, session.expires_at * 1000 - Date.now());
     });
+    const depart = () => {
+      departing = true;
+      generation += 1;
+      setVerifiedUserId(null);
+    };
     const resume = () => {
+      departing = false;
       void verify();
     };
     const visible = () => {
       if (document.visibilityState === 'visible') resume();
     };
+    // A canceled navigation stays masked until a visible lifecycle event or
+    // trusted interaction requests fresh authority. Never guess with a timer.
+    const interact = (event: Event) => {
+      if (departing && event.isTrusted && document.visibilityState === 'visible') resume();
+    };
+    window.addEventListener('beforeunload', depart);
+    window.addEventListener('pagehide', depart);
+    document.addEventListener('pointerdown', interact);
+    document.addEventListener('keydown', interact);
     window.addEventListener('pageshow', resume);
     document.addEventListener('visibilitychange', visible);
     void verify();
@@ -65,6 +83,10 @@ export function PrivateSessionBoundary({
       generation += 1;
       clearTimeout(expiry);
       subscription.unsubscribe();
+      window.removeEventListener('beforeunload', depart);
+      window.removeEventListener('pagehide', depart);
+      document.removeEventListener('pointerdown', interact);
+      document.removeEventListener('keydown', interact);
       window.removeEventListener('pageshow', resume);
       document.removeEventListener('visibilitychange', visible);
     };

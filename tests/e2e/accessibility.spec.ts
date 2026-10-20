@@ -33,6 +33,7 @@ async function openIntegrationReview(
   monitor: BrowserErrorMonitor,
 ) {
   await page.goto(`/app/${organizationSlug}/organization/integrations`);
+  expectCancellableServerAction(monitor, page, 'Task 31 demo provider connection redirect');
   await page.getByRole('button', { name: 'Connect demo provider' }).click();
   await expect(page.getByText(/demo\/mock connection is ready/i)).toBeVisible();
   await page.waitForLoadState('networkidle');
@@ -216,8 +217,6 @@ test('integration review exposes explicit field approval without critical axe vi
     description: `role=owner; organization=${scenario.organizationSlug}; screen=integration-review; provider=The Squad demo/mock`,
   });
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
-  await page.goto(`/app/${scenario.organizationSlug}/organization/integrations`);
-  expectCancellableServerAction(monitor, page, 'Task 31 demo provider connection redirect');
   await openIntegrationReview(
     page,
     scenario.organizationSlug,

@@ -17,12 +17,24 @@ const viewportMatrix = [
   { name: 'large desktop', width: 1920, height: 1080 },
 ] as const;
 
+async function expectAuthPhotoReady(page: Page) {
+  const photo = page.locator('img.auth-background-image');
+  if ((await photo.count()) === 0) return;
+  await expect(photo).toHaveJSProperty('complete', true);
+  await expect
+    .poll(() => photo.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+    .toBeGreaterThan(0);
+  await photo.evaluate((image) => (image as HTMLImageElement).decode());
+}
+
 async function expectOverflowFreeAtEveryViewport(page: Page, screen: string) {
+  await expectAuthPhotoReady(page);
   for (const viewport of viewportMatrix) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await page.evaluate(
       () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
     );
+    await expectAuthPhotoReady(page);
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
     expect(scrollWidth, `${screen} overflowed at ${viewport.name}`).toBeLessThanOrEqual(
