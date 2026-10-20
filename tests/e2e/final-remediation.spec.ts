@@ -114,7 +114,9 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   // Wait for the destination UI and follow its real link instead of interrupting
   // that stream with a full-document navigation.
   await expect(page.getByRole('heading', { name: 'Ready for the next tryout' })).toBeVisible();
-  await page.getByRole('link', { name: 'Create Tryout', exact: true }).click();
+  const createTryout = page.getByRole('link', { name: 'Create tryout', exact: true });
+  await expect(createTryout).toHaveAttribute('href', `/app/${organizationSlug}/tryouts/new`);
+  await createTryout.click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/tryouts/new$`, 'u'));
   await page.getByLabel('Tryout name').fill('AC01 Verified Owner Tryout');
   await page.getByLabel('Sport').fill('Hockey');
@@ -159,12 +161,18 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
   await expect(page.getByLabel('New cycle name')).toBeVisible();
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`);
-  await expect(page.getByRole('heading', { name: 'Participants' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Manage participants' })).toHaveAttribute(
-    'href',
-    registrationPath,
-  );
-  await expect(page.getByRole('link', { name: 'Share registration link' })).toBeVisible();
+  await page.getByText('View the full event checklist', { exact: true }).click();
+  const participantsStage = page
+    .getByRole('region', { name: 'Tryout journey', exact: true })
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('heading', { name: 'Participants', exact: true }) });
+  await expect(participantsStage.getByRole('heading', { name: 'Participants' })).toBeVisible();
+  await expect(
+    participantsStage.getByRole('link', { name: 'Manage participants' }),
+  ).toHaveAttribute('href', registrationPath);
+  await expect(
+    participantsStage.getByRole('link', { name: 'Share registration link' }),
+  ).toBeVisible();
 
   await page.goto(`${registrationPath}?q=Returning`);
   await expect(
