@@ -325,6 +325,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   ).toBe('1');
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${authoredTryoutId}/overview`);
+  await page.getByText('View the full event checklist', { exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Tryout journey' })).toBeVisible();
   const runStage = page.getByRole('listitem').filter({
     has: page.getByRole('heading', { name: 'Run tryout' }),
@@ -521,7 +522,15 @@ test('isolated owner completes the branded tryout journey and removes the logo c
         `${baseURL}/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}/athletes`,
         'authored assigned-athlete navigation RSC request',
       );
-      await evaluationPage.getByRole('link', { name: 'Assigned athletes' }).click();
+      const assignedAthletesLink = evaluationPage.getByRole('link', {
+        name: 'By athlete / by station',
+        exact: true,
+      });
+      await expect(assignedAthletesLink).toHaveAttribute(
+        'href',
+        `/app/${scenario.organizationSlug}/evaluate/session/${authoredSessionId}/athletes`,
+      );
+      await assignedAthletesLink.click();
       await expect(
         evaluationPage.getByRole('heading', { name: 'Assigned athletes' }),
       ).toBeVisible();

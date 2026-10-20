@@ -6,6 +6,7 @@ test('owner sees bounded Game-Day check-in and live operations', async ({ page }
   await signInDemoOwner(page);
   await page.goto('/app/badlands-hockey-academy/tryouts');
   await openDemoTryout(page);
+  await page.getByText('View the full event checklist', { exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Tryout journey' })).toBeVisible();
   const overviewUrl = page.url();
 
@@ -18,8 +19,10 @@ test('owner sees bounded Game-Day check-in and live operations', async ({ page }
   await expectVisual(page, 'game-day-check-in.png');
 
   await page.goto(overviewUrl.replace('/overview', '/live'));
-  await expect(page.getByRole('heading', { name: 'Live dashboard' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Live dashboard', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Run Tryout', exact: true, level: 2 }),
+  ).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Run Tryout', exact: true })).toBeVisible();
   await expectVisual(page, 'game-day-live-dashboard.png');
 
   await page.setViewportSize({ width: 390, height: 844 });

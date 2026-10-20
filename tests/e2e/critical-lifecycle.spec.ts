@@ -96,9 +96,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   expectCancellableServerAction(monitor, page, 'organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/home$`, 'u'));
-  await expect(
-    page.getByRole('heading', { name: 'Your tryout operations checklist' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ready for the next tryout' })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
@@ -320,7 +318,9 @@ test('scenario 4 — three independent evaluators produce exact 84.0000 aggregat
         await expect(page.locator('body')).not.toContainText(`private ${peer}`);
       }
       // The personal weighted total is now intentionally visible in the profile.
+      await page.getByText('Profile and score summary', { exact: true }).click();
       const profile = page.locator('.athlete-profile-panel');
+      await expect(profile).toBeVisible();
       await expect(profile.getByTestId('profile-overall')).toHaveAttribute(
         'data-value',
         `${expected}.0000`,
@@ -475,19 +475,27 @@ test('scenario 5 — offline evaluator draft survives reload and reconnect synch
     claimed: false,
     status: 'pending',
   });
+  const pendingRevision = await queuedEvaluationMutation(page, clientMutationId);
+  expect(pendingRevision?.clientMutationId).toBe(clientMutationId);
+  expect(pendingRevision?.status).toBe('pending');
+  const retryDueAt = Date.parse(pendingRevision!.nextAttemptAt);
+  expect(Number.isFinite(retryDueAt)).toBe(true);
   mutations = 0;
+  // The background retry may complete while the due-time poll is running.
+  // Observe this exact queued revision before making the network available.
+  const synchronizationResponse = page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === 'POST' &&
+      response.url().includes('/api/evaluations/') &&
+      (request.postDataJSON() as { clientMutationId?: string }).clientMutationId ===
+        clientMutationId
+    );
+  });
   await page.unroute('**/api/evaluations/**');
   await expect
-    .poll(async () => {
-      const mutation = await queuedEvaluationMutation(page, clientMutationId);
-      const now = await page.evaluate(() => new Date().toISOString());
-      return mutation ? mutation.nextAttemptAt <= now : false;
-    })
+    .poll(() => page.evaluate((deadline) => Date.now() >= deadline, retryDueAt))
     .toBe(true);
-  const synchronizationResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'POST' && response.url().includes('/api/evaluations/'),
-  );
   await reconnect(page.context(), page);
   const synchronized = await synchronizationResponse;
   expect(
@@ -789,6 +797,19 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   await expect(page).toHaveURL(/https:\/\/billing\.stripe\.com\/p\/session\/test_/u);
   await expect(page.getByRole('heading', { name: 'Stripe test portal boundary' })).toBeVisible();
 
+  await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/reports`);
+  await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('link', { name: 'Download finalized roster CSV' }).click(),
+  ]);
+  const path = testInfo.outputPath('finalized-roster.csv');
+  await download.saveAs(path);
+  const csv = await readFile(path, 'utf8');
+  expect(csv).toContain('Athlete number,Preferred name,Decision,Team');
+  expect(csv).toContain('Final,selected,Final Blue');
+  expect(csv).not.toMatch(/guardian|email|phone|private note|evaluator/iu);
+
   const canceledBody = eventBody
     .replace('active"', 'canceled"')
     .replace('"customer.subscription.updated"', '"customer.subscription.deleted"')
@@ -822,16 +843,10 @@ test('scenario 12 plus reporting — fake Stripe handoff, verified webhook state
   ).toBe('1');
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/reports`);
-  await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
-  const [download] = await Promise.all([
-    page.waitForEvent('download'),
-    page.getByRole('link', { name: 'Download finalized roster CSV' }).click(),
-  ]);
-  const path = testInfo.outputPath('finalized-roster.csv');
-  await download.saveAs(path);
-  const csv = await readFile(path, 'utf8');
-  expect(csv).toContain('Athlete number,Preferred name,Decision,Team');
-  expect(csv).toContain('Final,selected,Final Blue');
-  expect(csv).not.toMatch(/guardian|email|phone|private note|evaluator/iu);
+  await expect(
+    page.getByRole('heading', { name: 'Reports and exports', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Explore Pro', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Download finalized roster CSV' })).toHaveCount(0);
   monitor.assertClean();
 });

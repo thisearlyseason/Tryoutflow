@@ -1,8 +1,31 @@
 import { expect, type Cookie, type Page } from '@playwright/test';
 
+import {
+  readVisualSession,
+  reserveVisualSessionBootstrap,
+  visualSessionCacheConfiguration,
+  verifyVisualSession,
+  writeVisualSession,
+} from './visual-session-cache';
+
 let demoSessionCookies: Cookie[] | undefined;
 
 export async function signInDemoOwner(page: Page) {
+  const cache = visualSessionCacheConfiguration();
+  const verify = async (cookies: Cookie[]) => {
+    if (!cache) throw new Error('Visual session cache configuration is required.');
+    return verifyVisualSession(cookies, cache);
+  };
+  if (cache) {
+    const cookies = await readVisualSession(cache.path, cache.binding, verify);
+    if (cookies) {
+      await page.context().addCookies(cookies);
+      await page.goto('/app/badlands-hockey-academy/home');
+      await expect(page).toHaveURL(/\/app\/badlands-hockey-academy\/home$/u);
+      return;
+    }
+    reserveVisualSessionBootstrap(cache.path);
+  }
   if (demoSessionCookies) {
     await page.context().addCookies(demoSessionCookies);
     await page.goto('/app/badlands-hockey-academy/home');
@@ -19,6 +42,7 @@ export async function signInDemoOwner(page: Page) {
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL(/\/app\/badlands-hockey-academy\/home$/u);
   demoSessionCookies = await page.context().cookies();
+  if (cache) await writeVisualSession(cache.path, cache.binding, demoSessionCookies, verify);
 }
 
 export async function openDemoTryout(page: Page) {
