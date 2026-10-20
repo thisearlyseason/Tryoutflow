@@ -1,0 +1,102 @@
+import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+
+import { AuthShell } from '../../../components/layout/auth-shell';
+import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
+import { Button } from '../../../components/ui/button';
+import { FormField } from '../../../components/ui/form-field';
+import { Input } from '../../../components/ui/input';
+import { createOrganization } from '../../../modules/organizations/application/create-organization';
+import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
+import { parseUserId } from '../../../lib/ids';
+import { trackSupabaseWorkflowSafely } from '../../../infrastructure/analytics/supabase-analytics-provider';
+import { createCorrelationId } from '../../../modules/observability/domain/correlation-id';
+import { TimezonePicker } from '../../../modules/organizations/ui/timezone-picker';
+import { StartPlan } from '../../../modules/organizations/ui/start-plan';
+import { StartErrorMessage } from '../../../modules/organizations/ui/start-error-message';
+
+export default function StartPage() {
+  async function submit(formData: FormData) {
+    'use server';
+    const client = await createServerSupabaseClient();
+    const {
+      data: { user },
+    } = await client.auth.getUser();
+    const wantsPro = formData.get('plan') === 'pro';
+    if (!user)
+      redirect(wantsPro ? '/sign-in?next=%2Fstart%3Fplan%3Dpro' : '/sign-in?next=%2Fstart');
+    const result = await createOrganization(
+      {
+        name: formData.get('name'),
+        slug: formData.get('slug'),
+        timezone: formData.get('timezone'),
+      },
+      { userId: parseUserId(user.id) },
+    );
+    if (!result.ok) redirect(`/start?error=${result.error.code}${wantsPro ? '&plan=pro' : ''}`);
+    await trackSupabaseWorkflowSafely(client, {
+      name: 'workflow.completed',
+      workflow: 'onboarding',
+      organizationId: result.value.organization.id,
+      correlationId: createCorrelationId(),
+    });
+    redirect(
+      `/app/${result.value.organization.slug}/${wantsPro || process.env.BILLING_ENVIRONMENT ? 'organization/billing' : 'home'}`,
+    );
+  }
+
+  return (
+    <AuthShell
+      description="Start with the team, club, or academy that runs your tryouts. You will be its first owner."
+      eyebrow="Organization setup"
+      title="Set up your organization"
+    >
+      <Suspense fallback={null}>
+        <StartErrorMessage />
+      </Suspense>
+      <form action={submit}>
+        <Suspense fallback={null}>
+          <StartPlan />
+        </Suspense>
+        <FormField htmlFor="name" label="Organization name" required>
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              id="name"
+              name="name"
+              placeholder={FIELD_EXAMPLES.organizationName}
+              required
+            />
+          )}
+        </FormField>
+        <FormField
+          description="This creates your internal TryoutFlow workspace address, such as /app/badlands-hockey-academy. It is not your public website."
+          htmlFor="slug"
+          label="Your TryoutFlow workspace address"
+          required
+        >
+          {({ describedBy }) => (
+            <Input
+              aria-describedby={describedBy}
+              id="slug"
+              name="slug"
+              placeholder={FIELD_EXAMPLES.organizationName.toLowerCase().replaceAll(' ', '-')}
+              required
+            />
+          )}
+        </FormField>
+        <FormField
+          description="Start typing to search timezones. We select your device timezone when it is available."
+          htmlFor="timezone"
+          label="Timezone"
+          required
+        >
+          {({ describedBy }) => <TimezonePicker describedBy={describedBy} />}
+        </FormField>
+        <Button className="mt-2 w-full" type="submit">
+          Create organization
+        </Button>
+      </form>
+    </AuthShell>
+  );
+}

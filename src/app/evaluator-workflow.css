@@ -1,0 +1,142 @@
+.evaluator-toolbar,
+.evaluator-view-switch,
+.evaluator-pager-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.evaluator-toolbar {
+  justify-content: space-between;
+}
+.evaluator-view-switch button,
+.evaluator-pager-shortcuts a,
+.evaluation-clear-score {
+  min-height: 44px;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+  font-weight: 700;
+}
+.evaluator-view-switch button[aria-pressed='true'] {
+  background: var(--color-selection);
+  color: var(--color-selection-foreground);
+  border-color: var(--color-primary);
+}
+.evaluator-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+.evaluator-filters label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+.evaluator-filters input[type='search'],
+.evaluator-station-panel select {
+  min-height: 44px;
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.evaluator-station-panel {
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+}
+.evaluator-grid-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+}
+.evaluator-grid-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+.evaluator-grid-scroll caption {
+  text-align: left;
+  padding: 0.8rem;
+  font-size: 0.875rem;
+}
+.evaluator-grid-scroll th,
+.evaluator-grid-scroll td {
+  padding: 0.8rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.evaluator-grid-scroll a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+.evaluator-number {
+  font-family: var(--font-bib);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.evaluation-profile-disclosure {
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  padding: 0.8rem;
+  background: var(--color-surface);
+}
+.evaluation-profile-disclosure summary {
+  min-height: 44px;
+  display: list-item;
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.65rem;
+}
+.evaluation-clear-score {
+  justify-self: start;
+  font-size: 0.875rem;
+}
+.sport-day-workspace .game-day-athlete-identity h1 {
+  font-size: clamp(1.4rem, 3vw, 2.25rem);
+}
+.evaluator-workspace :is(button, a, input, select):focus-visible,
+.evaluation-profile-disclosure summary:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+@media (max-width: 767px) {
+  .evaluator-pager nav:first-child {
+    font-size: 0.8rem;
+  }
+  .evaluator-pager nav:first-child a {
+    padding: 0.65rem 0.4rem;
+  }
+  .evaluator-toolbar > .button-primary {
+    width: 100%;
+    text-align: center;
+  }
+  .sport-day-workspace {
+    padding-bottom: 3rem;
+  }
+  .sport-day-workspace .evaluation-save-dock {
+    position: sticky;
+  }
+  .evaluator-filters input[type='search'] {
+    width: 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .evaluator-workspace *,
+  .evaluator-pager * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

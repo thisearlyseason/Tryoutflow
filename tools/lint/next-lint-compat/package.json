@@ -1,0 +1,20 @@
+{
+  "name": "@tryoutflow/next-lint-compat",
+  "version": "16.3.8-compat.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@eslint-community/eslint-utils": "4.10.1",
+    "@nodelib/fs.stat": "2.0.5",
+    "@nodelib/fs.walk": "1.2.8",
+    "glob-parent": "5.1.2",
+    "merge2": "1.4.1",
+    "picomatch": "2.3.2",
+    "fill-range": "7.1.1"
+  },
+  "peerDependencies": {
+    "next": "16.3.8"
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "upstream": {
+    "name": "@next/eslint-plugin-next",
+    "version": "16.3.8",
+    "tarball": "https://registry.npmjs.org/@next/eslint-plugin-next/-/eslint-plugin-next-16.3.8.tgz",
+    "integrity": "sha512-eCR9RcLTZrVS+K3+VOhi0xMdUUGNuriCHHhU1ZoABC/QQ/Gp0OWbLKQxV2/9DkmihYdYRcQWFmZXW8M1AMUXYw=="
+  },
+  "upstreamSourceSHA256": {
+    "dist/utils/define-rule.js": "2d490d33f3a9db380fa01452091cb1daf81dbbf0e09fbc4eefdbc379f6aba633",
+    "dist/utils/get-root-dirs.js": "886677432990a735e5ebdfb345ff1cbd40e264f9947a8432eeeb254b3a926bde",
+    "dist/rules/google-font-display.js": "4fd8cd476fae6e37f75ae54e46feee561040a04b01d9c73cab37b778e586f6cd",
+    "dist/rules/google-font-preconnect.js": "7097aedd951e8909265c716323ade6d0887f4b54152774d7cfe3059812ced4d2",
+    "dist/index.js": "d1d7f1de69b3a222f04a0d0485d0cf5552c9c6d614d03a07bd689f4a21c91c06",
+    "dist/rules/inline-script-id.js": "fe7cc4883e52ae135e44eb3d2788b6a54eca0a11b559ff0636b51fcae550b69a",
+    "dist/rules/next-script-for-ga.js": "a1d40c2b48d252f43b4f739d628748a50e4902b8b2f667d7cedb726689055149",
+    "dist/rules/no-assign-module-variable.js": "131993a0f769199a4e1fbcc006a5e798ef5234d344b89146a347cf9ba9703c64",
+    "dist/rules/no-async-client-component.js": "eb8252488bd89335d79c45d53872918f70bb03a98b87f633317a2b13ae294a1f",
+    "dist/rules/no-before-interactive-script-outside-document.js": "b4606784338583e745f50a32da212034be6599513180e6d77ce6295c92d38d3c",
+    "dist/rules/no-css-tags.js": "3ecea24c00cf779b1ce80cdd1176e3a21a4369bac16e2f48c1ec0ccaa8200568",
+    "dist/rules/no-document-import-in-page.js": "aa6622bc04ccc1d7e0289b42cedb5b10b70800d4ad9caa1165a4ce0c9ee2fc00",
+    "dist/rules/no-duplicate-head.js": "2f3fe9b461c45f144e606ab989b409117af0e163edd2c9858d84cbf29426254c",
+    "dist/rules/no-head-element.js": "ce985a88bb226e3688c90c47da71d2c0ce0797d27d1b112d5e8e4f02b3e25a67",
+    "dist/rules/no-head-import-in-document.js": "64c3f1ecbab2a468641f85a2c4b1d746c316c2ba390f6780cc8882c456dd0bd4",
+    "dist/rules/no-html-link-for-pages.js": "3b184e28aa8997eb8e7f7b43c8da327fd3e2a2acf826e6e328632e7006687baa",
+    "dist/rules/no-img-element.js": "e2945047059e846e58d67090de882821a4c39129acb1d51bea80eb955964dc5f",
+    "dist/rules/no-location-assign-relative-destination.js": "61f2e7f61e2e9d72860ca15881533f63b9b169fc7774a5b6241771e32c717010",
+    "dist/rules/no-page-custom-font.js": "e7b6b5dc6834b9eef90e72f024bdf0b1795a2ecfdc3fb37a8a3954556457a346",
+    "dist/rules/no-script-component-in-head.js": "2569a771e8a932ef566bccb49f2f31bd22f22e12bf8b282eca04f35821f4471f",
+    "dist/rules/no-styled-jsx-in-document.js": "dc5ce51b254c4d28a34e2b2b103fb54601e7836d88c5909b2874710e443a906d",
+    "dist/rules/no-sync-scripts.js": "d4b0d7c74cce675107755e5ccf7f02f6c1493cd80296c7eb483ace5f6bab53b0",
+    "dist/rules/no-title-in-document-head.js": "32a809a59b6ea3cb86eb603ccfb36835f2396720ba1553de543271e7e4b2aeca",
+    "dist/rules/no-typos.js": "8e3faf5e72a97234579adcbecf2773082ea38ecc21188d261c2e6db9cdd95d85",
+    "dist/rules/no-unwanted-polyfillio.js": "84d1fe31dc0fba0fd1139b5adcaa9579dd31b33ab35f32faecc5a529edd773ab",
+    "dist/utils/node-attributes.js": "48fd96af82f72bd5ac5fd6e459a60768638d4f4fcd44b222f128c39e7336997a",
+    "dist/utils/url.js": "219194728597d02d8f7cecafd14d91e681c99f9fa169e5b7577bdf866993ef5a"
+  },
+  "changes": {
+    "dist/utils/get-root-dirs.js": "Replace only require(fast-glob) with require(./directory-glob).",
+    "dist/utils/directory-glob.js": "Directory-only contract guard around preserved walker; no alternate glob engine."
+  },
+  "ruleLogicChanged": false,
+  "directoryWalker": {
+    "name": "fast-glob",
+    "version": "3.3.1",
+    "tarball": "https://registry.npmjs.org/fast-glob/-/fast-glob-3.3.1.tgz",
+    "integrity": "sha512-kNFPyjhh5cKjrUltxs+wFx+ZkbRaxxmZ+X0ZU31SOsxCEtP9VPgtq2teZw1DebupL5GmDaNQ6yKMMVcM41iqDg==",
+    "sourceSHA256": {
+      "utils/array.js": "432791ee8fa960a16a5f3864fbfd9fc906078bf6aa44a12eee79049288276854",
+      "providers/async.js": "bb933692e540a7ad5e8e8a31e5c5db6cbfe925054ed4a3bd6a21f626c28441ab",
+      "readers/async.js": "145a6129c92fcb7608c6b6f217bb0f28a22cdc8388d60144a062f397e3353b64",
+      "providers/filters/deep.js": "a928ab99904b45ee1eb02ecccaf44ee82ff459df1e1ab7a6e70272ee7e3612eb",
+      "providers/filters/entry.js": "a64656eb30ff916d5fea53613988bad014ad902f567c270b0ffdbe995298d0cb",
+      "providers/transformers/entry.js": "0d7cd318379269c3ed6c6aaaf84cdc461bd9fc1ed4a4554f4454de8ab291cf03",
+      "utils/errno.js": "1586402affdb743e636de83b34b05417583fe90ae6ebf3415941cc65be84739c",
+      "providers/filters/error.js": "3cef3a07527bd8ee61655eac1463b5a9af89aa69133e7a3b40c82b401953562e",
+      "utils/fs.js": "10fcd66d19070a64fe2eb45a133047c574b045c5cabb860e04472e32341bb1ec",
+      "index.js": "007e6052c85f7ed2ca2eaed4ae0ca5fb14226cd7585a5f096abcf78e28146f96",
+      "types/index.js": "d43aa81f5bc89faa359e0f97c814ba25155591ff078fbb9bfd40f8c7c9683230",
+      "utils/index.js": "8693771308fbb864423813ca7b34158277268b1e19b8c5634a7e9f60910355c4",
+      "providers/matchers/matcher.js": "5dc95497ae47e058b2bd7ecb958097ae389848c71e2ed1d35f6b2b5496007e59",
+      "providers/matchers/partial.js": "5ce00745b96a769556407a282c1fbf303e18421084ee6adac88c4a2715dc50b4",
+      "utils/path.js": "476832af4c4eb88668ee4f52fefcd43845fbc96be18580165bc604eb2e1adb77",
+      "utils/pattern.js": "7f5e77e8b047207114780d33bb3eadbbc921294033eeae15c0fa82eb137bbad3",
+      "providers/provider.js": "205c99df95c8c2756d54b5d447e758cba1106b43aa2435dda13c7949ce17c62c",
+      "readers/reader.js": "a7bdcaf433b5ab696cdc4750ac7916894405c41f3a51ca5f9fac8fb17a00bbec",
+      "settings.js": "e4375b4d4eff9fdb917a9ae5e0453e5be82da7aed7b822dfe7b92c4f7aee49c3",
+      "providers/stream.js": "1483b0b5867ec5abdd0ad5bb70c0fa1045014a75be25249a9f2d3d4a19d3e030",
+      "readers/stream.js": "193806523a3889f3faa6e311aeed3044e0fdeab939bb208a3213fe3bff037360",
+      "utils/stream.js": "fb76a333f0e41061ef1184c0efc6b8efcec8752e7822ef98e2b51bc232b27bef",
+      "utils/string.js": "202e1032fd5cb468710caabf4b1aa18d2e0024aeef1be36750153579ba9a6aa4",
+      "providers/sync.js": "8bfa1b27aeb4810937d921b7ee26b4a434315efbbbffcebde2540947de0885c2",
+      "readers/sync.js": "9538670791926ec8f7f22e87d13e68cd56d7e35cef0b6f51a9016b9295d01aa3",
+      "managers/tasks.js": "2ace07a1b05722a3e6998e0c29002c1fb1db59e73208f2bb60693c1721e2cb7b"
+    },
+    "onlyChange": "utils/pattern.js require(micromatch)\u2192require(../safe-pattern-compiler); exact baseline picomatch scan/makeRe and private bounded-braces security patch preserve expansion semantics.",
+    "lintCommentOnlyChanges": {
+      "index.js": "Remove obsolete no-redeclare suppression; rule is not enabled in this project.",
+      "utils/path.js": "Remove obsolete unavailable typescript-eslint suppression; current checks remain applied to this source."
+    }
+  },
+  "boundedBraces": {
+    "upstream": "braces3.0.3",
+    "tarball": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz",
+    "integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==",
+    "upstreamSourceSHA256": {
+      "lib/compile.js": "dc98f22eee3d511785d92a00758d5f0d48efed5f5813bdecc2de430c529b5c9f",
+      "lib/constants.js": "c18ac5adb57308f1ce42a28552da3a31f5d83709743ebd9a636336813a744d4b",
+      "lib/expand.js": "41ccc196ebfa7b7781a634e721eb744e4e7bcb54cba427a7e3d6806a1b9e58f7",
+      "index.js": "332ea07c7b006361aad12aa994ca75dc1db8e8382b884909e2f38f10b85c88a4",
+      "lib/parse.js": "e572166565f15fa6ad9865ae49d678218e32aabfd1b3720f6d0d43d39800d310",
+      "lib/stringify.js": "379f22d77bfa1478341ccd49c5e4267464aabcbba03558bab332aac23fc6f23a",
+      "lib/utils.js": "b5a7596aa67730412b3c029ef09e84e6b67b8e445cffd35d1d295549c89066c7"
+    },
+    "securityFix": "GHSA-vfj7-8cjw-p6xm/CVE-2026-93687: fixed private local fork, max128 AST levels; enforce parser stack before pushes and iterative AST guards before compile/expand/stringify recursion. No automatic exception/registry patch claim.",
+    "semantics": "Unchanged for in-bound inputs; excessive recursion rejected explicitly before traversal.",
+    "maintenance": "Private dev-only source fork; guards/provenance/parity must be reviewed on upgrades."
+  }
+}

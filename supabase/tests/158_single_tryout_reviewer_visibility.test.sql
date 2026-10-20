@@ -1,0 +1,18 @@
+begin;
+select no_plan();
+insert into auth.users(id,email) values('e1580000-0000-4000-8000-000000000001','lifecycle-owner@example.test'),('e1580000-0000-4000-8000-000000000002','lifecycle-reviewer@example.test');
+insert into public.organizations(id,name,slug) values('e1580000-0000-4000-8000-000000000010','Lifecycle visibility','lifecycle-visibility');
+insert into public.organization_members(organization_id,user_id,role,status) values('e1580000-0000-4000-8000-000000000010','e1580000-0000-4000-8000-000000000001','owner','active'),('e1580000-0000-4000-8000-000000000010','e1580000-0000-4000-8000-000000000002','member','active');
+insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('e1580000-0000-4000-8000-000000000020','e1580000-0000-4000-8000-000000000010','Visibility event','lifecycle-visibility-event','Hockey','UTC');
+insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,granted_by_user_id) values('e1580000-0000-4000-8000-000000000010','e1580000-0000-4000-8000-000000000002','reviewer','tryout','e1580000-0000-4000-8000-000000000020','e1580000-0000-4000-8000-000000000001');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','e1580000-0000-4000-8000-000000000002',true);
+select is(public.can_read_tryout_configuration('e1580000-0000-4000-8000-000000000010','e1580000-0000-4000-8000-000000000020'),false,'reviewer still cannot read setup');
+select lives_ok($$select public.get_single_tryout_lifecycle('e1580000-0000-4000-8000-000000000010','e1580000-0000-4000-8000-000000000020')$$,'reviewer may see lock status');
+select throws_ok($$select public.complete_single_tryout('e1580000-0000-4000-8000-000000000010','e1580000-0000-4000-8000-000000000020',0)$$,'42501','forbidden','reviewer cannot complete event');
+reset role;
+update public.tryout_staff_assignments set revoked_at=now() where organization_id='e1580000-0000-4000-8000-000000000010';
+set local role authenticated;
+select throws_ok($$select public.get_single_tryout_lifecycle('e1580000-0000-4000-8000-000000000010','e1580000-0000-4000-8000-000000000020')$$,'42501','forbidden','revoked reviewer loses lifecycle access');
+select * from finish();
+rollback;

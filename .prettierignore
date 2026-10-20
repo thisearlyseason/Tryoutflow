@@ -1,0 +1,5 @@
+docs/superpowers/
+next-env.d.ts
+
+# Preserve upstream source/provenance bytes in the reviewed development-only compatibility package.
+tools/lint/next-lint-compat/

@@ -1,0 +1,96 @@
+import { randomUUID } from 'node:crypto';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+
+import { getServerTeamManagementProviderRegistry } from '@/infrastructure/integrations/server-provider-registry';
+import { connectDemoProvider } from '@/modules/integrations/application/connect-demo-provider';
+import { SupabaseIntegrationGateway } from '@/modules/integrations/infrastructure/supabase-integration-gateway';
+import { IntegrationCard } from '@/modules/integrations/ui/integration-card';
+import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
+import { PageHeader } from '@/components/layout/page-header';
+
+export default async function IntegrationsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ organizationSlug: string }>;
+  searchParams: Promise<{ connection?: string }>;
+}) {
+  const { organizationSlug } = await params;
+  const query = await searchParams;
+  const scoped = await requireOrganizationRouteContext(organizationSlug);
+  const registry = getServerTeamManagementProviderRegistry();
+  const descriptor = registry.list().find((item) => item.providerKey === 'the-squad');
+  const { data: connection, error: connectionError } = await scoped.client
+    .from('integration_connections')
+    .select('id,display_name,state,mock_data')
+    .eq('organization_id', scoped.organization.id)
+    .eq('created_by_user_id', scoped.userId)
+    .eq('provider_key', 'the-squad')
+    .maybeSingle();
+  // Capture a nullable scalar: Next evaluates action closure bindings during render.
+  const connectionId = connection?.id;
+
+  async function connectAction() {
+    'use server';
+    const current = await requireOrganizationRouteContext(organizationSlug);
+    const nonce = randomUUID();
+    const result = await connectDemoProvider(
+      {
+        organizationId: current.organization.id,
+        correlationId: `connection:${nonce}`,
+        idempotencyKey: `connection:${nonce}`,
+      },
+      current.authorization,
+      {
+        providers: getServerTeamManagementProviderRegistry(),
+        gateway: new SupabaseIntegrationGateway(current.client),
+      },
+    );
+    revalidatePath(`/app/${organizationSlug}/organization/integrations`);
+    redirect(
+      `/app/${organizationSlug}/organization/integrations?connection=${encodeURIComponent(result.outcome)}`,
+    );
+  }
+  async function disconnectAction() {
+    'use server';
+    const current = await requireOrganizationRouteContext(organizationSlug);
+    if (!connectionId) return;
+    const result = await new SupabaseIntegrationGateway(current.client).disconnectConnection(
+      current.organization.id,
+      connectionId,
+    );
+    revalidatePath(`/app/${organizationSlug}/organization/integrations`);
+    redirect(`/app/${organizationSlug}/organization/integrations?connection=${result}`);
+  }
+
+  const notice = connectionError
+    ? 'Connection status is temporarily unavailable. Try again.'
+    : query.connection === 'connected' || query.connection === 'replayed'
+      ? 'The demo/mock connection is ready.'
+      : query.connection
+        ? 'The demo connection could not be completed. Try again.'
+        : undefined;
+
+  return (
+    <div className="workspace-stack">
+      <PageHeader
+        description="Connections, reviewed mappings, and synchronization history are stored per organization."
+        eyebrow="Organization"
+        title="Integrations"
+      />
+      <IntegrationCard
+        providerName="The Squad (demo/mock)"
+        enabled={descriptor !== undefined}
+        connected={connection?.state === 'connected' && connection.mock_data}
+        connectionLabel={connection?.display_name}
+        connectAction={descriptor ? connectAction : undefined}
+        disconnectAction={
+          connection?.state === 'connected' && connection.mock_data ? disconnectAction : undefined
+        }
+        notice={notice}
+      />
+    </div>
+  );
+}

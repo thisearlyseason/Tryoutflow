@@ -1,0 +1,69 @@
+import Link from 'next/link';
+
+const disabledClass =
+  'min-h-[44px] rounded-lg border border-[var(--color-border)] px-4 py-3 text-center font-bold text-[var(--color-text-muted)] opacity-50';
+const linkClass =
+  'min-h-[44px] rounded-lg border border-[var(--color-primary)] px-4 py-3 text-center font-bold text-[var(--color-primary)] focus:outline-3 focus:outline-offset-2 focus:outline-[var(--color-focus)]';
+
+export function AthletePager({
+  ariaLabel = 'Athlete navigation',
+  currentIndex,
+  nextHref,
+  previousHref,
+  total,
+  listHref,
+  nextUnscoredHref,
+}: {
+  ariaLabel?: string;
+  currentIndex: number;
+  nextHref: string | null;
+  previousHref: string | null;
+  total: number;
+  listHref?: string;
+  nextUnscoredHref?: string | null;
+}) {
+  return (
+    <div className="evaluator-pager grid gap-2">
+      <nav
+        aria-label={ariaLabel}
+        className="grid min-w-0 grid-cols-[1fr_auto_1fr] items-center gap-2"
+      >
+        {previousHref ? (
+          <Link className={linkClass} href={previousHref} prefetch={false}>
+            Previous athlete
+          </Link>
+        ) : (
+          <span aria-disabled="true" className={disabledClass}>
+            Previous
+          </span>
+        )}
+        <span className="whitespace-nowrap px-1 text-center text-sm font-bold tabular-nums">
+          {currentIndex + 1} of {total}
+        </span>
+        {nextHref ? (
+          <Link className={linkClass} href={nextHref} prefetch={false}>
+            Next athlete
+          </Link>
+        ) : (
+          <span aria-disabled="true" className={disabledClass}>
+            Next
+          </span>
+        )}
+      </nav>
+      {listHref || nextUnscoredHref ? (
+        <nav className="evaluator-pager-shortcuts" aria-label={`${ariaLabel} shortcuts`}>
+          {listHref ? (
+            <Link href={listHref} prefetch={false}>
+              Assigned athletes / stations
+            </Link>
+          ) : null}
+          {nextUnscoredHref ? (
+            <Link href={nextUnscoredHref} prefetch={false}>
+              Next unscored athlete
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
+    </div>
+  );
+}

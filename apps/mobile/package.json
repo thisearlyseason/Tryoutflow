@@ -1,0 +1,36 @@
+{
+  "name": "tryoutflow-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.4",
+    "expo": "~57.0.25",
+    "expo-crypto": "57.0.3",
+    "expo-dev-client": "57.0.19",
+    "expo-file-system": "~57.0.7",
+    "expo-print": "~57.0.2",
+    "expo-secure-store": "57.0.4",
+    "expo-sharing": "~57.0.22",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-purchases": "10.9.1",
+    "react-native-url-polyfill": "4.0.0",
+    "react-native-webview": "13.16.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "xcode": {
+      "uuid": "11.1.1"
+    }
+  }
+}

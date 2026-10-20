@@ -1,0 +1,110 @@
+import { EventActionSummary } from '@/modules/talent/ui/event-action-summary';
+import { liveSnapshotTime } from '@/modules/talent/application/live-snapshot-time';
+import Link from 'next/link';
+import { LiveRefresh } from '@/modules/talent/ui/live-refresh';
+import { ErrorState } from '@/components/feedback/error-state';
+import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
+import {
+  getLiveDashboard,
+  SupabaseLiveDashboardGateway,
+} from '@/modules/tryouts/application/get-live-dashboard';
+import { TryoutJourneyNavigation } from '@/modules/tryouts/ui/tryout-journey';
+
+export default async function LivePage({
+  params,
+}: {
+  params: Promise<{ organizationSlug: string; tryoutId: string }>;
+}) {
+  const { organizationSlug, tryoutId } = await params;
+  const journeyNavigation = (
+    <TryoutJourneyNavigation
+      nextAction={{
+        label: 'Review rankings',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/rankings`,
+      }}
+      overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
+    />
+  );
+  const current = await requireOrganizationRouteContext(organizationSlug);
+  const result = await getLiveDashboard(
+    { organizationId: current.organization.id, tryoutId },
+    current.authorization,
+    new SupabaseLiveDashboardGateway(current.client),
+  );
+  if (!result.ok)
+    return (
+      <section>
+        {journeyNavigation}
+        <ErrorState
+          title="Live dashboard unavailable"
+          description={
+            result.error.code === 'forbidden'
+              ? 'Your current role cannot view live operations.'
+              : 'Refresh and try again.'
+          }
+        />
+      </section>
+    );
+  const cards = [
+    ['Registrations', result.value.registrations],
+    ['Checked in', result.value.checkedIn],
+    ['Active evaluators', result.value.activeEvaluators],
+    ['Completed evaluations', result.value.completedEvaluations],
+    ['Expected evaluations', result.value.expectedEvaluations],
+    ['Recorded sync exceptions', result.value.recordedSyncExceptions],
+  ] as const;
+  return (
+    <section
+      aria-labelledby="live-heading"
+      className="sport-day-workspace rounded-[var(--radius-surface)] bg-[var(--color-canvas)] p-4 text-[var(--color-text)] shadow-[var(--shadow-raised)] sm:p-6"
+    >
+      {journeyNavigation}
+      <p className="eyebrow">Operational snapshot</p>
+      <h2 id="live-heading">Run Tryout</h2>
+      <EventActionSummary
+        dashboard={result.value}
+        base={`/app/${organizationSlug}/tryouts/${tryoutId}`}
+      />
+      <Link
+        prefetch={false}
+        className="button-primary"
+        href={`/app/${organizationSlug}/tryouts/${tryoutId}/coverage`}
+      >
+        Open athlete × evaluator coverage
+      </Link>
+      <LiveRefresh asOf={liveSnapshotTime()} />
+      <Link
+        prefetch={false}
+        className="button-secondary"
+        href={`/app/${organizationSlug}/tryouts/${tryoutId}/rankings?completion=incomplete`}
+      >
+        Review partially evaluated athletes
+      </Link>
+      <p className="mt-2 text-[var(--color-text-muted)]">
+        Current assignment coverage is a live operational view and can change when staffing changes.
+        Recorded sync exceptions are historical non-synced receipts (including conflicts and
+        forbidden outcomes), not a count of currently unresolved work.
+      </p>
+      <Link
+        prefetch={false}
+        className="button-secondary"
+        href={`/app/${organizationSlug}/tryouts/${tryoutId}/rankings?completion=unscored`}
+      >
+        Review athletes with no completed evaluations
+      </Link>
+      <dl className="workflow-live-metrics mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {cards.map(([label, value]) => (
+          <div
+            className="rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface)] p-5 shadow-[var(--shadow-surface)]"
+            key={label}
+          >
+            <dt className="text-sm text-[var(--color-text-muted)]">{label}</dt>
+            <dd className="mt-2 font-[var(--font-bib)] text-5xl tabular-nums text-[var(--color-performance-text)]">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}

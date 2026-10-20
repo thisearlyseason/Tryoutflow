@@ -1,0 +1,189 @@
+import { nextUnscoredAthlete } from '@/modules/evaluations/domain/evaluator-workspace';
+import { billingUpgradePrompt } from '@/modules/subscriptions/ui/server-feature-gate';
+import { z } from 'zod';
+import { loadAthleteProfileAverage } from '@/modules/evaluations/infrastructure/athlete-profile-loader';
+
+import { completeEvaluationRecord } from '@/modules/evaluations/application/complete-evaluation';
+import { issueAuthoritativeSnapshotProof } from '@/modules/evaluations/application/issue-authoritative-snapshot-proof';
+import {
+  loadEvaluatorSession,
+  loadOwnEvaluationDraft,
+} from '@/modules/evaluations/infrastructure/evaluator-session-loader';
+import { SupabaseEvaluationGateway } from '@/modules/evaluations/infrastructure/supabase-evaluation-gateway';
+import { AthletePager } from '@/modules/evaluations/ui/athlete-pager';
+import { SynchronizedEvaluationForm } from '@/modules/evaluations/ui/synchronized-evaluation-form';
+import { EvaluationRouteMessage } from '@/modules/evaluations/ui/session-state';
+
+const completeSchema = z.strictObject({
+  evaluationId: z.uuid(),
+  expectedVersion: z.number().int().positive(),
+});
+
+export default async function AthleteEvaluationPage({
+  params,
+}: {
+  params: Promise<{ organizationSlug: string; sessionId: string; registrationId: string }>;
+}) {
+  const { organizationSlug, sessionId, registrationId } = await params;
+  const loaded = await loadEvaluatorSession(organizationSlug, sessionId);
+  if (loaded.outcome !== 'ready') return <EvaluationRouteMessage outcome={loaded.outcome} />;
+  const ownDraft = await loadOwnEvaluationDraft(loaded.value, registrationId);
+  if (ownDraft.outcome !== 'ready') {
+    return (
+      <EvaluationRouteMessage
+        outcome={ownDraft.outcome === 'forbidden' ? 'forbidden' : 'unexpected'}
+      />
+    );
+  }
+  const profileUpgrade = await billingUpgradePrompt(
+    loaded.value.current.organization.id,
+    organizationSlug,
+    'radar_charts',
+    loaded.value.session.tryoutId,
+  );
+  const athleteIndex = loaded.value.athletes.findIndex(
+    (athlete) => athlete.registrationId === registrationId,
+  );
+  const basePath = `/app/${organizationSlug}/evaluate/session/${sessionId}`;
+  const nextUnscored = nextUnscoredAthlete(
+    loaded.value.athletes,
+    loaded.value.evaluations,
+    registrationId,
+  );
+  const previous = loaded.value.athletes[athleteIndex - 1];
+  const next = loaded.value.athletes[athleteIndex + 1];
+  const storageScope = {
+    userId: loaded.value.current.userId,
+    evaluatorId: loaded.value.current.userId,
+    organizationId: loaded.value.current.organization.id,
+    tryoutId: loaded.value.session.tryoutId,
+    sessionId,
+    registrationId,
+    rubricVersionId: ownDraft.rubricVersionId,
+  };
+  const profileIdentity = JSON.stringify([
+    storageScope.userId,
+    storageScope.organizationId,
+    storageScope.sessionId,
+    storageScope.registrationId,
+    storageScope.rubricVersionId,
+  ]);
+  const serverDraft = {
+    scores: ownDraft.draft.scores,
+    ...(ownDraft.draft.note ? { note: ownDraft.draft.note } : {}),
+    noteTagIds: ownDraft.draft.noteTagIds,
+    flags: ownDraft.draft.flags,
+  };
+  const serverSnapshotProof =
+    ownDraft.draft.evaluationId && ownDraft.draft.version > 0
+      ? await issueAuthoritativeSnapshotProof({
+          scope: storageScope,
+          evaluationId: ownDraft.draft.evaluationId,
+          version: ownDraft.draft.version,
+          draft: serverDraft,
+        })
+      : undefined;
+
+  async function loadAverage() {
+    'use server';
+    const scoped = await loadEvaluatorSession(organizationSlug, sessionId);
+    if (scoped.outcome !== 'ready') return null;
+    const own = await loadOwnEvaluationDraft(scoped.value, registrationId);
+    if (own.outcome !== 'ready') return null;
+    return loadAthleteProfileAverage(scoped.value, registrationId, own.rubricVersionId);
+  }
+
+  async function onComplete(input: unknown) {
+    'use server';
+    const parsed = completeSchema.safeParse(input);
+    if (!parsed.success) return { outcome: 'unexpected' as const };
+    const scoped = await loadEvaluatorSession(organizationSlug, sessionId);
+    if (scoped.outcome !== 'ready')
+      return { outcome: scoped.outcome as 'forbidden' | 'unexpected' };
+    const athlete = scoped.value.athletes.find(
+      (candidate) => candidate.registrationId === registrationId,
+    );
+    if (!athlete || athlete.sessionId !== sessionId) return { outcome: 'forbidden' as const };
+    const { data: ownedEvaluation, error } = await scoped.value.current.client
+      .from('evaluations')
+      .select('id')
+      .eq('organization_id', scoped.value.current.organization.id)
+      .eq('tryout_id', scoped.value.session.tryoutId)
+      .eq('tryout_registration_id', registrationId)
+      .eq('tryout_session_id', sessionId)
+      .eq('evaluator_user_id', scoped.value.current.userId)
+      .eq('id', parsed.data.evaluationId)
+      .maybeSingle();
+    if (error) return { outcome: 'unexpected' as const };
+    if (!ownedEvaluation) return { outcome: 'forbidden' as const };
+    const result = await completeEvaluationRecord(
+      {
+        organizationId: scoped.value.current.organization.id,
+        tryoutId: scoped.value.session.tryoutId,
+        divisionId: athlete.divisionId,
+        sessionId,
+        groupId: athlete.groupId,
+        evaluationId: ownedEvaluation.id,
+      },
+      scoped.value.current.authorization,
+      parsed.data.expectedVersion,
+      { gateway: new SupabaseEvaluationGateway(scoped.value.current.client) },
+    );
+    return result.ok
+      ? { outcome: 'completed' as const, version: result.value.version }
+      : {
+          outcome:
+            result.error.code === 'invalid_input' ? ('unexpected' as const) : result.error.code,
+        };
+  }
+
+  return (
+    <section aria-labelledby="athlete-heading" className="mx-auto grid min-w-0 max-w-6xl gap-5">
+      <AthletePager
+        ariaLabel="Athlete navigation above scoring"
+        currentIndex={athleteIndex}
+        nextHref={next ? `${basePath}/athletes/${next.registrationId}` : null}
+        previousHref={previous ? `${basePath}/athletes/${previous.registrationId}` : null}
+        total={loaded.value.athletes.length}
+        listHref={`${basePath}/athletes`}
+        nextUnscoredHref={
+          nextUnscored ? `${basePath}/athletes/${nextUnscored.registrationId}` : null
+        }
+      />
+      <SynchronizedEvaluationForm
+        key={profileIdentity}
+        profileUpgrade={profileUpgrade}
+        profileScope={profileIdentity}
+        athlete={{
+          registrationId: ownDraft.athlete.registrationId,
+          displayName: ownDraft.athlete.displayName,
+          identityMode: ownDraft.athlete.identityMode,
+          tryoutNumber: ownDraft.athlete.tryoutNumber,
+          divisionName: ownDraft.athlete.divisionName,
+          sessionName: ownDraft.athlete.sessionName,
+          groupName: ownDraft.athlete.groupName,
+        }}
+        categories={ownDraft.categories}
+        draftCacheKey={`${loaded.value.current.userId}:${loaded.value.current.organization.id}:${loaded.value.session.tryoutId}:${sessionId}:${registrationId}:${ownDraft.rubricVersionId}`}
+        initialDraft={ownDraft.draft}
+        noteTags={loaded.value.noteTags}
+        onComplete={onComplete}
+        loadAverage={loadAverage}
+        serverSnapshotToken={serverSnapshotProof?.renderNonce ?? 'no-authoritative-snapshot'}
+        serverSnapshotProof={serverSnapshotProof}
+        storageScope={storageScope}
+      />
+      <AthletePager
+        ariaLabel="Athlete navigation below scoring"
+        currentIndex={athleteIndex}
+        nextHref={next ? `${basePath}/athletes/${next.registrationId}` : null}
+        previousHref={previous ? `${basePath}/athletes/${previous.registrationId}` : null}
+        total={loaded.value.athletes.length}
+        listHref={`${basePath}/athletes`}
+        nextUnscoredHref={
+          nextUnscored ? `${basePath}/athletes/${nextUnscored.registrationId}` : null
+        }
+      />
+    </section>
+  );
+}

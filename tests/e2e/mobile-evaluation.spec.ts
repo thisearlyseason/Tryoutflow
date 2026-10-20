@@ -1,0 +1,456 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import { saveEvaluationDraft } from './helpers/evaluation-save';
+
+test.beforeEach(async ({ context }, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'x-tryoutflow-fixture-run': `${testInfo.project.name}:${testInfo.testId}:${testInfo.retry}:${testInfo.repeatEachIndex}`,
+  });
+});
+
+test('confirmed autosave needs no repeat mutation and cannot hide an obscured save control', async ({
+  context,
+  page,
+}, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'x-tryoutflow-fixture-run': `${testInfo.project.name}:${testInfo.testId}`,
+    'x-tryoutflow-fixture-navigation': 'mobile',
+  });
+  await page.goto('/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+  const note = page.getByLabel('Private evaluator note');
+  await expect(note).toBeEnabled();
+  await note.fill('Already confirmed synthetic autosave');
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save now' })).toBeDisabled();
+  let repeatMutations = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/evaluations/'))
+      repeatMutations += 1;
+  });
+  await saveEvaluationDraft(page, 'server');
+  expect(repeatMutations).toBe(0);
+  // Negative control: a confirmed autosave must not mask the original hit-target defect.
+  await page.evaluate(() => {
+    const obstruction = document.createElement('div');
+    obstruction.setAttribute('aria-hidden', 'true');
+    obstruction.style.cssText = 'position:fixed;inset:0;z-index:1000';
+    document.body.append(obstruction);
+  });
+  await expect(saveEvaluationDraft(page, 'server')).rejects.toThrow(/must be uncovered/u);
+});
+
+test('mobile navigation leaves manual offline save reachable through resize and text zoom', async ({
+  context,
+  page,
+}, testInfo) => {
+  await context.setExtraHTTPHeaders({
+    'x-tryoutflow-fixture-run': `${testInfo.project.name}:${testInfo.testId}`,
+    'x-tryoutflow-fixture-navigation': 'mobile',
+  });
+  await page.goto('/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+  const note = page.getByLabel('Private evaluator note');
+  const save = page.getByRole('button', { name: 'Save now' });
+  await expect(note).toBeEnabled();
+  for (const width of [320, 375, 390]) {
+    await page.setViewportSize({ width, height: 720 });
+    await save.evaluate((button) => button.scrollIntoView({ block: 'center' }));
+    await expect
+      .poll(async () =>
+        save.evaluate((button) => {
+          const bounds = button.getBoundingClientRect();
+          const navigation = document.querySelector('.mobile-nav-bar')!.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            bounds.left + bounds.width / 2,
+            bounds.top + bounds.height / 2,
+          );
+          return bounds.bottom <= navigation.top && hit !== null && button.contains(hit);
+        }),
+      )
+      .toBe(true);
+  }
+  await page.addStyleTag({ content: 'html { font-size: 200%; }' });
+  await save.evaluate((button) => button.scrollIntoView({ block: 'center' }));
+  await expect
+    .poll(async () =>
+      save.evaluate((button) => {
+        const bounds = button.getBoundingClientRect();
+        const navigation = document.querySelector('.mobile-nav-bar')!.getBoundingClientRect();
+        const hit = document.elementFromPoint(
+          bounds.left + bounds.width / 2,
+          bounds.top + bounds.height / 2,
+        );
+        return bounds.bottom <= navigation.top && hit !== null && button.contains(hit);
+      }),
+    )
+    .toBe(true);
+  let mutations = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/evaluations/')) mutations += 1;
+  });
+  await context.setOffline(true);
+  await note.fill('Local navigation regression draft');
+  // Use ordinary hit-tested interaction, never force or DOM-click past the navigation.
+  await save.click();
+  await expect(page.getByRole('status')).toContainText('Saved on device');
+  expect(mutations).toBe(0);
+  const synchronized = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && response.url().includes('/api/evaluations/'),
+  );
+  await context.setOffline(false);
+  expect((await synchronized).ok()).toBe(true);
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  expect(mutations).toBe(1);
+});
+
+test('scores assigned athletes one-handed without losing an in-page draft', async ({ page }) => {
+  await page.goto('/cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+  await expect(page.getByRole('heading', { name: 'Athlete A1B2C3' })).toBeVisible();
+  await expect(page.getByText('#42')).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('Ava Smith');
+
+  const skating = page.getByRole('radio', { name: 'Skating score 3 of 5' });
+  await expect(skating).toBeEnabled();
+  await skating.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('radio', { name: 'Skating score 4 of 5' })).toBeChecked();
+  await page.getByLabel('Private evaluator note').fill('Strong edge control');
+  await expect(page.getByRole('status')).toContainText('Unsaved changes on this page');
+
+  await page.getByRole('link', { name: 'Next athlete' }).first().click();
+  await expect(page.getByRole('heading', { name: 'Athlete D4E5F6' })).toBeVisible();
+  await page.getByRole('link', { name: 'Previous athlete' }).first().click();
+  await expect(page.getByLabel('Private evaluator note')).toHaveValue('Strong edge control');
+  await expect(page.getByRole('radio', { name: 'Skating score 4 of 5' })).toBeChecked();
+
+  await page.getByRole('button', { name: 'Complete evaluation' }).click();
+  await expect(page.getByText('Choose a Compete score.')).toBeVisible();
+  await expect(page.getByRole('radiogroup', { name: 'Compete score' })).toBeFocused();
+  await page.getByRole('radio', { name: 'Compete score 5 of 5' }).click();
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Complete evaluation' }).click();
+  await expect(page.getByRole('button', { name: 'Evaluation completed' })).toBeDisabled();
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  const controls = await page
+    .locator('main a, main button, main input[type="radio"], main input[type="checkbox"]')
+    .evaluateAll((nodes) =>
+      nodes
+        .filter((node) => {
+          const element = node as HTMLElement;
+          return element.offsetParent !== null;
+        })
+        .map((node) => ({
+          height: node.getBoundingClientRect().height,
+          width: node.getBoundingClientRect().width,
+        })),
+    );
+  expect(
+    controls.every((control) => control.height >= 43.9),
+    JSON.stringify(controls),
+  ).toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations).toEqual([]);
+});
+
+test('states conflict and offline limits without overwriting the page draft', async ({
+  context,
+  page,
+}) => {
+  await page.goto('/dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+  const note = page.getByLabel('Private evaluator note');
+  await expect(note).toBeEnabled();
+  await note.fill('trigger conflict');
+  await expect(page.getByRole('status')).toContainText('Server draft changed');
+  await expect(note).toHaveValue('trigger conflict');
+  await expect(page.getByRole('button', { name: 'Save now' })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'trigger conflict',
+  );
+  await expect(page.getByRole('button', { name: 'Copy local draft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download local draft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save now' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Keep my local draft' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Copy local draft' }).click();
+  await page.getByRole('button', { name: 'Use server draft' }).click();
+  await page.getByRole('button', { name: 'Confirm use server draft' }).click();
+  await note.fill('resolved local draft');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+
+  await page.goto('/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee');
+  await expect(page.getByLabel('Private evaluator note')).toBeEnabled();
+  let mutationRequests = 0;
+  page.on('request', (request) => {
+    if (request.url().includes('/api/evaluations/') && request.method() === 'POST') {
+      mutationRequests += 1;
+    }
+  });
+  await context.setOffline(true);
+  await page.getByRole('radio', { name: 'Skating score 4 of 5' }).click();
+  await page.getByLabel('Private evaluator note').fill('Durable rink-side draft');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('status')).toContainText('Saved on device');
+  expect(mutationRequests).toBe(0);
+  await page.evaluate(async () => {
+    const database = (await indexedDB.databases()).find((candidate) =>
+      candidate.name?.startsWith('tryoutflow-evaluations--u-'),
+    );
+    if (!database?.name) throw new Error('Expected the physical evaluator database.');
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(database.name!);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const connection = request.result;
+        const transaction = connection.transaction('mutations', 'readwrite');
+        transaction.objectStore('mutations').clear();
+        transaction.onerror = () => reject(transaction.error);
+        transaction.oncomplete = () => {
+          connection.close();
+          resolve();
+        };
+      };
+    });
+  });
+  await context.setOffline(false);
+  await page.route('**/api/evaluations/**', (route) => route.abort('failed'));
+  await page.reload();
+  await expect(page.getByLabel('Private evaluator note')).toHaveValue('Durable rink-side draft');
+  await expect(page.getByRole('status')).toContainText('Saved on device');
+  await expect(page.getByRole('button', { name: 'Complete evaluation' })).toBeDisabled();
+  mutationRequests = 0;
+  await page.unroute('**/api/evaluations/**');
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  expect(mutationRequests).toBe(1);
+  await page.reload();
+  await expect(page.getByLabel('Private evaluator note')).toHaveValue('Durable rink-side draft');
+  await page.getByLabel('Private evaluator note').fill('force server conflict');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'force server conflict',
+  );
+});
+
+test('exports a durable conflict, accepts fresh server, then saves deliberate re-entry', async ({
+  context,
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let copied = '';
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        async writeText(value: string) {
+          copied = value;
+        },
+        async readText() {
+          return copied;
+        },
+      },
+    });
+  });
+  let releaseConflict!: () => void;
+  const holdConflict = new Promise<void>((resolve) => {
+    releaseConflict = resolve;
+  });
+  let reportConflictRequest!: () => void;
+  const conflictRequested = new Promise<void>((resolve) => {
+    reportConflictRequest = resolve;
+  });
+  let heldConflict = false;
+  await page.route('**/api/evaluations/**', async (route) => {
+    const requestBody = route.request().postDataJSON() as { draft?: { note?: string } };
+    if (!heldConflict && requestBody.draft?.note?.startsWith('force durable conflict keep local')) {
+      heldConflict = true;
+      const response = await route.fetch();
+      reportConflictRequest();
+      await holdConflict;
+      await route.fulfill({ response });
+      return;
+    }
+    await route.continue();
+  });
+  const mutationUrls: string[] = [];
+  const mutationBodies: { draft?: { note?: string } }[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/evaluations/')) {
+      mutationUrls.push(request.url());
+      mutationBodies.push(request.postDataJSON() as { draft?: { note?: string } });
+    }
+  });
+  await page.goto('/abababab-abab-4bab-8bab-abababababab');
+  const note = page.getByLabel('Private evaluator note');
+  await page.getByRole('radio', { name: 'Skating score 4 of 5' }).click();
+  await page.getByRole('radio', { name: 'Compete score 4 of 5' }).click();
+  await note.fill('force durable conflict keep local');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await conflictRequested;
+  await note.fill('newest edit behind durable conflict');
+  releaseConflict();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'newest edit behind durable conflict',
+  );
+  await page.reload();
+  await expect(note).toHaveValue('newest edit behind durable conflict');
+  await expect(page.getByRole('button', { name: 'Keep my local draft' })).toHaveCount(0);
+  const expectedExport = {
+    scores: [
+      { categoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', value: 4 },
+      { categoryId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', value: 4 },
+    ],
+    note: 'newest edit behind durable conflict',
+    noteTagIds: [],
+    flags: [],
+    request: {
+      scores: [
+        { categoryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', value: 4 },
+        { categoryId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', value: 4 },
+      ],
+      note: 'force durable conflict keep local',
+      noteTagIds: [],
+      flags: [],
+      expectedVersion: 1,
+      revision: 3,
+    },
+  };
+  await page.getByRole('button', { name: 'Copy local draft' }).click();
+  const copiedExport = JSON.parse(
+    await page.evaluate(() => navigator.clipboard.readText()),
+  ) as unknown;
+  expect(copiedExport).toEqual(expectedExport);
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download local draft' }).click();
+  const localDraftDownload = await downloadPromise;
+  expect(localDraftDownload.suggestedFilename()).toBe('evaluation-local-draft.json');
+  const downloadedPath = await localDraftDownload.path();
+  expect(downloadedPath).not.toBeNull();
+  const downloadedExport = JSON.parse(await readFile(downloadedPath!, 'utf8')) as unknown;
+  expect(downloadedExport).toEqual(expectedExport);
+  expect(JSON.stringify(downloadedExport)).not.toMatch(
+    /Athlete K1L2M3|abababab-abab-4bab-8bab-abababababab|tryoutNumber|displayName/u,
+  );
+  await context.setOffline(true);
+  await expect(page.getByRole('button', { name: 'Use server draft' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Complete evaluation' })).toBeDisabled();
+  await context.setOffline(false);
+  await page.getByRole('button', { name: 'Use server draft' }).click();
+  await page.getByRole('button', { name: 'Confirm use server draft' }).click();
+  await expect(page.getByText(/newer local draft was saved in another tab/i)).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Local draft' })).toContainText(
+    'newest edit behind durable conflict',
+  );
+  await page.getByRole('button', { name: 'Use server draft' }).click();
+  await page.getByRole('button', { name: 'Confirm use server draft' }).click();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toHaveCount(
+    0,
+  );
+  await expect(note).not.toHaveValue('newest edit behind durable conflict');
+  await page.reload();
+  await expect(note).not.toHaveValue('newest edit behind durable conflict');
+  await note.fill('newest edit behind durable conflict');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  expect(
+    mutationBodies.some((body) => body.draft?.note === 'newest edit behind durable conflict'),
+  ).toBe(true);
+  expect(mutationUrls.some((url) => url.includes('edededed-eded-4ede-8ede-edededededed'))).toBe(
+    true,
+  );
+  await page.reload();
+  await expect(note).toHaveValue('newest edit behind durable conflict');
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  await note.fill('edited after deliberate conflict re-entry');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByText('Saved on server', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(note).toHaveValue('edited after deliberate conflict re-entry');
+
+  await page.goto('/acacacac-acac-4cac-8cac-acacacacacac');
+  const discarded = page.getByLabel('Private evaluator note');
+  await discarded.fill('force durable conflict discard this');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Use server draft' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Use server draft' }).click();
+  await page.getByRole('button', { name: 'Confirm use server draft' }).click();
+  await expect(discarded).toHaveValue('');
+  await page.reload();
+  await expect(discarded).toHaveValue('');
+  await expect(page.getByText('force durable conflict discard this')).toHaveCount(0);
+});
+
+test('surfaces and resolves a predecessor conflict across two already-mounted tabs', async ({
+  context,
+  page,
+}) => {
+  const sibling = await context.newPage();
+  let releaseConflict!: () => void;
+  const held = new Promise<void>((resolve) => (releaseConflict = resolve));
+  let reportConflict!: () => void;
+  const conflictRequested = new Promise<void>((resolve) => (reportConflict = resolve));
+  let intercepted = false;
+  const successorBodies: { draft?: { note?: string } }[] = [];
+  await context.route('**/api/evaluations/**', async (route) => {
+    const body = route.request().postDataJSON() as { draft?: { note?: string } };
+    if (!intercepted && body.draft?.note === 'force durable conflict across tabs') {
+      intercepted = true;
+      const response = await route.fetch();
+      reportConflict();
+      await held;
+      await route.fulfill({ response });
+      return;
+    }
+    successorBodies.push(body);
+    await route.continue();
+  });
+  await Promise.all([
+    page.goto('/adadadad-adad-4dad-8dad-adadadadadad'),
+    sibling.goto('/adadadad-adad-4dad-8dad-adadadadadad'),
+  ]);
+  const firstNote = page.getByLabel('Private evaluator note');
+  const siblingNote = sibling.getByLabel('Private evaluator note');
+  await firstNote.fill('force durable conflict across tabs');
+  await page.getByRole('button', { name: 'Save now' }).click();
+  await conflictRequested;
+  await siblingNote.fill('newest durable edit from sibling tab');
+  await sibling.getByRole('button', { name: 'Save now' }).click();
+  await expect(sibling.getByRole('status')).toContainText('Saved on device');
+  releaseConflict();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toBeVisible();
+  await expect(
+    sibling.getByRole('heading', { name: 'Review local and server drafts' }),
+  ).toBeVisible();
+  await expect(sibling.getByRole('article', { name: 'Local draft' })).toContainText(
+    'newest durable edit from sibling tab',
+  );
+  await expect(sibling.getByRole('button', { name: 'Keep my local draft' })).toHaveCount(0);
+  await sibling.getByRole('button', { name: 'Copy local draft' }).click();
+  await sibling.getByRole('button', { name: 'Use server draft' }).click();
+  await sibling.getByRole('button', { name: 'Confirm use server draft' }).click();
+  await expect(
+    page.getByText('This evaluation was resolved and saved in another tab.'),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Review local and server drafts' })).toHaveCount(
+    0,
+  );
+  await expect(firstNote).not.toHaveValue('newest durable edit from sibling tab');
+  await siblingNote.fill('newest durable edit from sibling tab');
+  await sibling.getByRole('button', { name: 'Save now' }).click();
+  await expect(sibling.getByText('Saved on server', { exact: true })).toBeVisible();
+  expect(
+    successorBodies.some((body) => body.draft?.note === 'newest durable edit from sibling tab'),
+  ).toBe(true);
+  await Promise.all([page.reload(), sibling.reload()]);
+  await expect(firstNote).toHaveValue('newest durable edit from sibling tab');
+  await expect(siblingNote).toHaveValue('newest durable edit from sibling tab');
+});

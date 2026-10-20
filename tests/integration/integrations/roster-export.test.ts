@@ -1,0 +1,1560 @@
+// @vitest-environment node
+
+import { execFile as execFileCallback, execFileSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
+import { promisify } from 'node:util';
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { dispatchIntegrationJob } from '../../../src/infrastructure/integrations/dispatch-integration-job';
+import { MockTheSquadProvider } from '../../../src/infrastructure/integrations/mock-the-squad-provider';
+import type { IntegrationDispatchGateway } from '../../../src/infrastructure/integrations/dispatch-integration-job';
+import type { Json } from '../../../src/infrastructure/supabase/database.types';
+import { dumpLocalSupabaseSchemas } from '../../../scripts/lib/local-supabase-database.mjs';
+import {
+  confirmedRosterExportSchema,
+  finalizedRosterSnapshotSchema,
+  rosterExportPreviewSchema,
+  syncJobResultSchema,
+} from '../../../src/modules/integrations/domain/contracts';
+
+const execFile = promisify(execFileCallback);
+const primaryDatabaseUrl =
+  process.env.SUPABASE_DB_URL ?? 'postgresql://postgres:postgres@127.0.0.1:58322/postgres';
+const runId = process.env.TRYOUTFLOW_INTEGRATION_RUN_ID;
+if (!runId || !/^[0-9a-f]{16}$/u.test(runId)) {
+  throw new Error('integration export requires a validated run ID');
+}
+const databaseName = `tryoutflow_integrations_${runId}_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+const databaseUrl = new URL(primaryDatabaseUrl);
+databaseUrl.pathname = `/${databaseName}`;
+
+beforeAll(() => {
+  execFileSync('psql', [
+    primaryDatabaseUrl,
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `create database ${databaseName}`,
+  ]);
+  execFileSync('psql', [
+    databaseUrl.toString(),
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `
+      drop schema public;
+      create schema auth;
+      create schema extensions;
+      create table auth.users(id uuid primary key,email text);
+      create function auth.uid() returns uuid language sql stable as
+        'select nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
+      create function auth.role() returns text language sql stable as
+        'select nullif(current_setting(''request.jwt.claim.role'',true),'''')';
+      create function auth.jwt() returns jsonb language sql stable as
+        'select coalesce(nullif(current_setting(''request.jwt.claims'',true),'''')::jsonb,''{}''::jsonb)';
+      create extension citext with schema extensions;
+      create extension pgcrypto with schema extensions;
+      create extension "uuid-ossp" with schema extensions;
+    `,
+  ]);
+  const schema = dumpLocalSupabaseSchemas(primaryDatabaseUrl, ['public', 'private']);
+  execFileSync('psql', [databaseUrl.toString(), '-v', 'ON_ERROR_STOP=1'], {
+    input: schema,
+    maxBuffer: 60 * 1024 * 1024,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+});
+
+afterAll(() => {
+  execFileSync('psql', [
+    primaryDatabaseUrl,
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-c',
+    `drop database if exists ${databaseName} with (force)`,
+  ]);
+});
+
+const psql = (sql: string) =>
+  execFile('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-At', databaseUrl.toString(), '-c', sql]);
+const lastLine = (output: string) => output.trim().split('\n').filter(Boolean).at(-1) ?? '';
+const jsonSql = (value: unknown) => `'${JSON.stringify(value).replaceAll("'", "''")}'::jsonb`;
+const nullableTextSql = (value: string | null) =>
+  value === null ? 'null' : `'${value.replaceAll("'", "''")}'`;
+const textArraySql = (values: readonly string[]) =>
+  `array[${values.map((value) => `'${value.replaceAll("'", "''")}'`).join(',')}]::text[]`;
+const asActor = (actorId: string, sql: string) =>
+  psql(
+    `set role authenticated; select set_config('request.jwt.claim.role','authenticated',false); select set_config('request.jwt.claim.sub','${actorId}',false); ${sql};`,
+  );
+const asService = (sql: string) =>
+  psql(
+    `set role service_role; select set_config('request.jwt.claim.role','service_role',false); ${sql};`,
+  );
+const asAnon = (sql: string) =>
+  psql(`set role anon; select set_config('request.jwt.claim.role','anon',false); ${sql};`);
+
+describe('durable mock roster export', () => {
+  it('deduplicates confirmation and mappings, preserves completed items, and retries only failed items', async () => {
+    const ids = {
+      owner: randomUUID(),
+      backupOwner: randomUUID(),
+      organization: randomUUID(),
+      tryout: randomUUID(),
+      division: randomUUID(),
+      form: randomUUID(),
+      formVersion: randomUUID(),
+      athleteA: randomUUID(),
+      athleteB: randomUUID(),
+      guardianA: randomUUID(),
+      registrationA: '20000000-0000-4000-8000-000000000001',
+      registrationB: '20000000-0000-4000-8000-000000000002',
+      team: randomUUID(),
+      roster: randomUUID(),
+    };
+    await psql(`
+      insert into auth.users(id,email) values
+        ('${ids.owner}','task27-owner@example.test'),
+        ('${ids.backupOwner}','task27-backup-owner@example.test');
+      insert into public.organizations(id,name,slug) values('${ids.organization}','Task 27 Club','task27-${ids.organization.slice(0, 8)}');
+      insert into public.organization_members(organization_id,user_id,role,status) values('${ids.organization}','${ids.owner}','owner','active');
+      insert into public.organization_members(organization_id,user_id,role,status) values('${ids.organization}','${ids.backupOwner}','owner','active');
+      insert into public.tryouts(id,organization_id,name,slug,sport,timezone) values('${ids.tryout}','${ids.organization}','Task 27 Tryout','task27-${ids.tryout.slice(0, 8)}','Hockey','America/Edmonton');
+      insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order) values('${ids.division}','${ids.organization}','${ids.tryout}','U18',0);
+      insert into public.registration_forms(id,organization_id,tryout_id,name) values('${ids.form}','${ids.organization}','${ids.tryout}','Form');
+      insert into public.registration_form_versions(id,organization_id,tryout_id,registration_form_id,version_number,schema,status,published_at)
+        values('${ids.formVersion}','${ids.organization}','${ids.tryout}','${ids.form}',1,'{"fields":[]}','published',clock_timestamp());
+      insert into public.athletes(id,organization_id,given_name,family_name,normalized_given_name,normalized_family_name,birth_date) values
+        ('${ids.athleteA}','${ids.organization}','Synthetic','Athlete One','synthetic','athlete one','2010-01-01'),
+        ('${ids.athleteB}','${ids.organization}','Synthetic','Athlete Two','synthetic','athlete two','2010-01-02');
+      insert into public.guardians(id,organization_id,name,email,normalized_email,phone)
+        values('${ids.guardianA}','${ids.organization}','Private Guardian','withheld-guardian@example.test','withheld-guardian@example.test','+1 403 555 0199');
+      insert into public.athlete_guardians(organization_id,athlete_id,guardian_id,is_primary_contact)
+        values('${ids.organization}','${ids.athleteA}','${ids.guardianA}',true);
+      insert into public.tryout_registrations(id,organization_id,tryout_id,athlete_id,division_id,registration_form_version_id,responses,submission_key_digest,submission_digest) values
+        ('${ids.registrationA}','${ids.organization}','${ids.tryout}','${ids.athleteA}','${ids.division}','${ids.formVersion}','{}',repeat('a',64),repeat('1',64)),
+        ('${ids.registrationB}','${ids.organization}','${ids.tryout}','${ids.athleteB}','${ids.division}','${ids.formVersion}','{}',repeat('b',64),repeat('2',64));
+      set session_replication_role=replica;
+      update public.tryouts set status='published',published_at=clock_timestamp() where id='${ids.tryout}';
+      set session_replication_role=origin;
+      insert into public.tryout_teams(id,organization_id,tryout_id,division_id,name,sort_order) values('${ids.team}','${ids.organization}','${ids.tryout}','${ids.division}','Blue',0);
+      insert into public.roster_versions(id,organization_id,tryout_id,division_id,revision_number,state,version,created_by_user_id)
+        values('${ids.roster}','${ids.organization}','${ids.tryout}','${ids.division}',1,'draft',1,'${ids.owner}');
+      insert into public.roster_decisions(organization_id,tryout_id,division_id,roster_version_id,registration_id) values
+        ('${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${ids.registrationA}'),
+        ('${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${ids.registrationB}');
+      insert into public.roster_assignments(organization_id,tryout_id,division_id,roster_version_id,registration_id,team_id,assigned_by_user_id) values
+        ('${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${ids.registrationA}','${ids.team}','${ids.owner}'),
+        ('${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${ids.registrationB}','${ids.team}','${ids.owner}');
+      update public.roster_versions set state='finalized',version=2,finalized_by_user_id='${ids.owner}',finalized_at=clock_timestamp() where id='${ids.roster}';
+    `);
+
+    const provider = new MockTheSquadProvider({ fixture: 'partial-failure' });
+    const challenge = await provider.beginConnection({
+      organizationId: ids.organization,
+      actorId: ids.owner,
+      correlationId: 'correlation:task27:connect',
+      idempotencyKey: 'connection:task27:0001',
+      callbackUrl: 'https://mock.tryoutflow.invalid/callback',
+    });
+    const connected = await provider.completeConnection({
+      organizationId: ids.organization,
+      actorId: ids.owner,
+      correlationId: 'correlation:task27:connect',
+      idempotencyKey: 'connection:task27:0001',
+      challengeId: challenge.challengeId,
+      callbackParameters: { mockApproval: 'approved' },
+    });
+    expect(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select public.save_integration_connection('${ids.organization}','the-squad','${connected.connectionId}','The Squad (demo/mock)',true)`,
+          )
+        ).stdout,
+      ),
+    ).toBe('connected');
+
+    const destination = (
+      await provider.listDestinations(
+        {
+          organizationId: ids.organization,
+          actorId: ids.owner,
+          connectionId: connected.connectionId,
+          correlationId: 'correlation:task27:list',
+          idempotencyKey: 'destination:task27:0001',
+        },
+        (
+          await provider.listOrganizations({
+            organizationId: ids.organization,
+            actorId: ids.owner,
+            connectionId: connected.connectionId,
+            correlationId: 'correlation:task27:list',
+            idempotencyKey: 'destination:task27:0001',
+          })
+        )[0]!,
+      )
+    )[0]!;
+    const approvedFields = ['first_name', 'last_name', 'team_name'] as const;
+    const source = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(approvedFields)}) result`,
+          )
+        ).stdout,
+      ),
+    ) as { outcome: string; source_id: string; source_digest: string; roster: Json };
+    expect(source.outcome).toBe('ok');
+    const roster = finalizedRosterSnapshotSchema.parse(source.roster);
+    await expect(
+      asActor(
+        ids.owner,
+        `select roster_snapshot from public.integration_export_previews where id='${source.source_id}'`,
+      ),
+    ).rejects.toThrow(/permission denied/iu);
+    const providerContext = {
+      organizationId: ids.organization,
+      actorId: ids.owner,
+      connectionId: connected.connectionId,
+      correlationId: 'correlation:task27:preview',
+      idempotencyKey: 'preview:task27:0000001',
+    };
+    const preview = rosterExportPreviewSchema.parse(
+      await provider.previewRosterExport(providerContext, {
+        destination,
+        approvedFields: [...approvedFields],
+        roster,
+      }),
+    );
+    const issueAdditionalSource = async () =>
+      JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(approvedFields)}) result`,
+            )
+          ).stdout,
+        ),
+      ) as { source_id: string; source_digest: string };
+    const saveVariant = async (
+      suffix: string,
+      mutate: (items: typeof preview.items) => typeof preview.items,
+    ) => {
+      const variantSource = await issueAdditionalSource();
+      const previewId = `preview:task27:cas:${suffix}`;
+      const confirmationToken = `confirmation:task27:cas:${suffix}`;
+      const variant = {
+        ...preview,
+        previewId,
+        confirmationToken,
+        items: mutate(preview.items),
+      };
+      return lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select public.save_roster_export_preview_v2('${ids.organization}','${variantSource.source_id}','${variantSource.source_digest}','${previewId}','${confirmationToken}',${jsonSql(variant)})`,
+          )
+        ).stdout,
+      );
+    };
+    await expect(
+      saveVariant('duplicate-a-omit-b', (items) => [items[0]!, items[0]!]),
+    ).resolves.toBe('conflict');
+    await expect(
+      saveVariant('operation-tamper', (items) => [
+        { ...items[0]!, operation: 'skip' as const },
+        items[1]!,
+      ]),
+    ).resolves.toBe('conflict');
+    await expect(
+      saveVariant('operation-missing', (items) => [
+        { ...items[0]!, operation: undefined } as unknown as (typeof items)[number],
+        items[1]!,
+      ]),
+    ).resolves.toBe('conflict');
+    await expect(
+      saveVariant('label-tamper', (items) => [
+        { ...items[0]!, displayLabel: 'Unapproved label' },
+        items[1]!,
+      ]),
+    ).resolves.toBe('conflict');
+    await expect(saveVariant('reverse-order', (items) => [...items].reverse())).resolves.toBe(
+      'created',
+    );
+    await psql(
+      `update public.athletes set given_name='Changed after immutable source' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    expect(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select public.save_roster_export_preview_v2('${ids.organization}','${source.source_id}','${source.source_digest}','${preview.previewId}','${preview.confirmationToken}',${jsonSql(preview)})`,
+          )
+        ).stdout,
+      ),
+    ).toBe('created');
+    expect(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select public.save_roster_export_preview_v2('${ids.organization}','${source.source_id}','${source.source_digest}','${preview.previewId}','confirmation:task27:changed:01',${jsonSql({ ...preview, confirmationToken: 'confirmation:task27:changed:01' })})`,
+          )
+        ).stdout,
+      ),
+    ).toBe('conflict');
+
+    const changedSourceDigest = `${source.source_digest.startsWith('f') ? 'e' : 'f'}${source.source_digest.slice(1)}`;
+    const outOfScopeOrganization = randomUUID();
+    const callConfirmation = async (input?: {
+      actorId?: string;
+      organizationId?: string | null;
+      previewId?: string | null;
+      sourceDigest?: string | null;
+      confirmationToken?: string | null;
+      idempotencyKey?: string | null;
+    }) =>
+      JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              input?.actorId ?? ids.owner,
+              `select row_to_json(result) from public.confirm_roster_export_preview_v4(${nullableTextSql(input?.organizationId === undefined ? ids.organization : input.organizationId)},${nullableTextSql(input?.previewId === undefined ? preview.previewId : input.previewId)},${nullableTextSql(input?.sourceDigest === undefined ? source.source_digest : input.sourceDigest)},${nullableTextSql(input?.confirmationToken === undefined ? preview.confirmationToken : input.confirmationToken)},${nullableTextSql(input?.idempotencyKey === undefined ? 'export:task27:0000001' : input.idempotencyKey)}) result`,
+            )
+          ).stdout,
+        ),
+      ) as { outcome: string; job_id: string | null };
+
+    await expect(
+      asActor(
+        ids.owner,
+        `select public.confirm_roster_export_preview_v2('${ids.organization}','${preview.previewId}','${preview.confirmationToken}','export:task27:obsolete')`,
+      ),
+    ).rejects.toThrow(/permission denied for function confirm_roster_export_preview_v2/iu);
+    await expect(
+      asService(
+        `select public.confirm_roster_export_preview_v2('${ids.organization}','${preview.previewId}','${preview.confirmationToken}','export:task27:obsolete')`,
+      ),
+    ).rejects.toThrow(/permission denied for function confirm_roster_export_preview_v2/iu);
+    await expect(
+      asAnon(
+        `select public.confirm_roster_export_preview_v2('${ids.organization}','${preview.previewId}','${preview.confirmationToken}','export:task27:obsolete')`,
+      ),
+    ).rejects.toThrow(/permission denied for function confirm_roster_export_preview_v2/iu);
+    const liveRejectedCases = [
+      [{ sourceDigest: null }, 'invalid_input'],
+      [{ confirmationToken: null }, 'invalid_input'],
+      [{ organizationId: null }, 'invalid_input'],
+      [{ idempotencyKey: null }, 'invalid_input'],
+      [{ sourceDigest: changedSourceDigest }, 'conflict'],
+      [{ confirmationToken: 'confirmation:task27:changed:live' }, 'conflict'],
+      [{ actorId: ids.backupOwner }, 'not_found'],
+      [{ organizationId: outOfScopeOrganization }, 'forbidden'],
+    ] as const;
+    for (const [input, outcome] of liveRejectedCases) {
+      expect.soft(await callConfirmation(input)).toMatchObject({ outcome, job_id: null });
+    }
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select count(*) from public.integration_sync_jobs where organization_id='${ids.organization}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('0');
+
+    const confirmationSql = `select row_to_json(result) from public.confirm_roster_export_preview_v4('${ids.organization}','${preview.previewId}','${source.source_digest}','${preview.confirmationToken}','export:task27:0000001') result`;
+    const [firstOutput, secondOutput] = await Promise.all([
+      asActor(ids.owner, confirmationSql),
+      asActor(ids.owner, confirmationSql),
+    ]);
+    const confirmations = [firstOutput, secondOutput].map((output) =>
+      JSON.parse(lastLine(output.stdout)),
+    ) as Array<{
+      outcome: string;
+      job_id: string;
+    }>;
+    const first = confirmations.find((result) => result.outcome === 'queued')!;
+    const second = confirmations.find((result) => result.outcome === 'replayed')!;
+    expect(first.outcome).toBe('queued');
+    expect(second).toMatchObject({ outcome: 'replayed', job_id: first.job_id });
+    expect(await callConfirmation()).toMatchObject({ outcome: 'replayed', job_id: first.job_id });
+    const consumedRejectedCases = [
+      [{ sourceDigest: null }, 'invalid_input'],
+      [{ confirmationToken: null }, 'invalid_input'],
+      [{ organizationId: null }, 'invalid_input'],
+      [{ idempotencyKey: null }, 'invalid_input'],
+      [{ sourceDigest: changedSourceDigest }, 'conflict'],
+      [{ confirmationToken: 'confirmation:task27:changed:02' }, 'conflict'],
+      [{ actorId: ids.backupOwner }, 'not_found'],
+      [{ organizationId: outOfScopeOrganization }, 'forbidden'],
+      [{ idempotencyKey: 'export:task27:changed-scope' }, 'already_consumed'],
+    ] as const;
+    for (const [input, outcome] of consumedRejectedCases) {
+      expect.soft(await callConfirmation(input)).toMatchObject({ outcome, job_id: null });
+    }
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select (select count(*) from public.integration_sync_jobs where organization_id='${ids.organization}')||'|'||
+              (select count(*) from public.integration_outbox_jobs where organization_id='${ids.organization}')`,
+          )
+        ).stdout,
+      ),
+    ).toBe('1|1');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select (roster_snapshot is null and provider_confirmation_token is null and approved_projection::text like '%Synthetic%' and approved_projection::text not like '%Changed after%' and approved_projection::text not like '%withheld-guardian%' and approved_projection::text not like '%@%') from public.integration_sync_jobs where id='${first.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('t');
+
+    let completionFailure = '';
+    const gateway: IntegrationDispatchGateway = {
+      validateExecution: async (input) =>
+        lastLine(
+          (
+            await asService(
+              `select public.validate_integration_outbox_execution('${input.outboxJobId}','${input.leaseToken}',${input.leaseGeneration})`,
+            )
+          ).stdout,
+        ) as Awaited<ReturnType<IntegrationDispatchGateway['validateExecution']>>,
+      authorize: async (input) =>
+        lastLine(
+          (
+            await asService(
+              `select public.authorize_integration_outbox_submission('${input.outboxJobId}','${input.leaseToken}',${input.leaseGeneration})`,
+            )
+          ).stdout,
+        ) as Awaited<ReturnType<IntegrationDispatchGateway['authorize']>>,
+      complete: async (input) => {
+        try {
+          return lastLine(
+            (
+              await asService(
+                `select public.complete_integration_outbox_job('${input.outboxJobId}','${input.leaseToken}',${input.leaseGeneration},'${input.externalJobId}',${jsonSql(syncJobResultSchema.parse(input.result))})`,
+              )
+            ).stdout,
+          ) as Awaited<ReturnType<IntegrationDispatchGateway['complete']>>;
+        } catch (error) {
+          completionFailure = error instanceof Error ? error.message : String(error);
+          throw error;
+        }
+      },
+      fail: async (input) =>
+        lastLine(
+          (
+            await asService(
+              `select public.fail_integration_outbox_job('${input.outboxJobId}','${input.leaseToken}',${input.leaseGeneration},'${input.errorCode}',${input.retryable})`,
+            )
+          ).stdout,
+        ) as Awaited<ReturnType<IntegrationDispatchGateway['fail']>>,
+    };
+    const claim = async () => {
+      const raw = lastLine(
+        (
+          await asService(
+            `select coalesce(json_agg(row_to_json(job)),'[]') from public.claim_integration_outbox_jobs('task27-worker',1,90) job`,
+          )
+        ).stdout,
+      );
+      const rows = JSON.parse(raw) as Array<Record<string, unknown>>;
+      const row = rows[0]!;
+      return {
+        outboxJobId: String(row.outbox_job_id),
+        syncJobId: String(row.sync_job_id),
+        organizationId: String(row.organization_id),
+        connectionId: String(row.connection_id),
+        providerKey: String(row.provider_key),
+        actorUserId: String(row.actor_user_id),
+        leaseToken: String(row.lease_token),
+        leaseGeneration: Number(row.lease_generation),
+        leaseExpiresAt: String(row.lease_expires_at),
+        providerIdempotencyKey: String(row.provider_idempotency_key),
+        attemptNumber: Number(row.attempt_number),
+        itemKeys: row.item_keys as string[],
+        confirmedRequest: confirmedRosterExportSchema.parse(row.confirmed_request),
+      };
+    };
+    const queueExport = async (businessKey: string, previewKey: string) => {
+      const issued = JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(approvedFields)}) result`,
+            )
+          ).stdout,
+        ),
+      ) as {
+        source_id: string;
+        source_digest: string;
+        roster: Json;
+        existing_athlete_ids: string[];
+      };
+      const providerPreview = rosterExportPreviewSchema.parse(
+        await provider.previewRosterExport(
+          {
+            ...providerContext,
+            correlationId: `correlation:${previewKey}`,
+            idempotencyKey: previewKey,
+          },
+          {
+            destination,
+            approvedFields: [...approvedFields],
+            roster: finalizedRosterSnapshotSchema.parse(issued.roster),
+          },
+        ),
+      );
+      const existing = new Set(issued.existing_athlete_ids);
+      const nextPreview = {
+        ...providerPreview,
+        items: providerPreview.items.map((item) =>
+          existing.has(item.registrationId) && item.operation === 'create'
+            ? { ...item, operation: 'update' as const }
+            : item,
+        ),
+      };
+      expect(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select public.save_roster_export_preview_v2('${ids.organization}','${issued.source_id}','${issued.source_digest}','${nextPreview.previewId}','${nextPreview.confirmationToken}',${jsonSql(nextPreview)})`,
+            )
+          ).stdout,
+        ),
+      ).toBe('created');
+      const confirmation = JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select row_to_json(result) from public.confirm_roster_export_preview_v4('${ids.organization}','${nextPreview.previewId}','${issued.source_digest}','${nextPreview.confirmationToken}','${businessKey}') result`,
+            )
+          ).stdout,
+        ),
+      ) as { outcome: string; job_id: string };
+      return {
+        ...confirmation,
+        confirmationToken: nextPreview.confirmationToken,
+        sourceId: issued.source_id,
+      };
+    };
+    const expectSensitivePayloadRedacted = async (jobId: string, confirmationToken: string) => {
+      const tokenSql = nullableTextSql(confirmationToken);
+      expect(
+        lastLine(
+          (
+            await psql(
+              `select preview.stage='redacted'
+                 and preview.roster_snapshot='{}'::jsonb
+                 and preview.preview_snapshot is null
+                 and preview.provider_confirmation_token is null
+                 and preview.redacted_at is not null
+                 and sync.roster_snapshot is null
+                 and sync.provider_confirmation_token is null
+                 and sync.approved_projection='[]'::jsonb
+                 and sync.request_digest ~ '^[0-9a-f]{64}$'
+                 and sync.confirmation_token_digest ~ '^[0-9a-f]{64}$'
+                 and position(${tokenSql} in (
+                   row_to_json(preview)::text||row_to_json(sync)::text||coalesce((
+                     select string_agg(row_to_json(outbox)::text,'')
+                     from public.integration_outbox_jobs outbox where outbox.sync_job_id=sync.id
+                   ),'')
+                 ))=0
+                 and position('withheld-guardian@example.test' in (
+                   row_to_json(preview)::text||row_to_json(sync)::text||coalesce((
+                     select string_agg(row_to_json(outbox)::text,'')
+                     from public.integration_outbox_jobs outbox where outbox.sync_job_id=sync.id
+                   ),'')
+                 ))=0
+                 and position('Private Guardian' in (
+                   row_to_json(preview)::text||row_to_json(sync)::text||coalesce((
+                     select string_agg(row_to_json(outbox)::text,'')
+                     from public.integration_outbox_jobs outbox where outbox.sync_job_id=sync.id
+                   ),'')
+                 ))=0
+               from public.integration_sync_jobs sync
+               join public.integration_export_previews preview on preview.id=sync.source_preview_id
+               where sync.id='${jobId}'`,
+            )
+          ).stdout,
+        ),
+      ).toBe('t');
+    };
+
+    expect(
+      await dispatchIntegrationJob(await claim(), { providers: { get: () => provider }, gateway }),
+      completionFailure,
+    ).toBe('completed');
+    expect(
+      lastLine(
+        (await psql(`select state from public.integration_sync_jobs where id='${first.job_id}'`))
+          .stdout,
+      ),
+    ).toBe('partially_completed');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select count(*) filter(where state='failed' and retry_eligible),count(*) filter(where state='completed' and retry_eligible) from public.integration_sync_items where sync_job_id='${first.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('1|0');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select count(*) from public.external_entity_mappings where organization_id='${ids.organization}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('3');
+
+    const retrySql = `select row_to_json(result) from public.retry_integration_sync_job_v4('${ids.organization}','${first.job_id}','retry:task27:00000001') result`;
+    const retryResults = (
+      await Promise.all([asActor(ids.owner, retrySql), asActor(ids.owner, retrySql)])
+    ).map((output) => JSON.parse(lastLine(output.stdout))) as Array<{
+      outcome: string;
+      job_id: string;
+      state: string;
+      retried_item_count: number;
+      preserved_completed_item_count: number;
+      preserved_skipped_item_count: number;
+      completed_count: number;
+      skipped_count: number;
+      failed_count: number;
+      retry_eligible_count: number;
+    }>;
+    const retry = retryResults.find((result) => result.outcome === 'queued')!;
+    expect(retry).toMatchObject({
+      outcome: 'queued',
+      job_id: first.job_id,
+      state: 'pending',
+      retried_item_count: 1,
+      preserved_completed_item_count: 1,
+      preserved_skipped_item_count: 0,
+      completed_count: 1,
+      skipped_count: 0,
+      failed_count: 0,
+      retry_eligible_count: 0,
+    });
+    expect(retryResults.find((result) => result.outcome === 'replayed')).toMatchObject({
+      job_id: first.job_id,
+      state: 'pending',
+      retried_item_count: 1,
+      preserved_completed_item_count: 1,
+      preserved_skipped_item_count: 0,
+      completed_count: 1,
+      skipped_count: 0,
+      failed_count: 0,
+      retry_eligible_count: 0,
+    });
+    const retryClaim = await claim();
+    expect(retryClaim.itemKeys).toEqual([`athlete:${ids.registrationB}`]);
+    const freshProvider = new MockTheSquadProvider({ fixture: 'partial-failure' });
+    const freshExport = freshProvider.exportFinalizedRoster.bind(freshProvider);
+    let retryTerminalResult: ReturnType<typeof syncJobResultSchema.parse> | undefined;
+    freshProvider.exportFinalizedRoster = async (context, request) => {
+      retryTerminalResult = syncJobResultSchema.parse(await freshExport(context, request));
+      return retryTerminalResult;
+    };
+    expect(
+      await dispatchIntegrationJob(retryClaim, {
+        providers: { get: () => freshProvider },
+        gateway,
+      }),
+    ).toBe('completed');
+    expect(retryTerminalResult).toBeDefined();
+    await expect(
+      gateway.complete({
+        outboxJobId: retryClaim.outboxJobId,
+        leaseToken: retryClaim.leaseToken,
+        leaseGeneration: retryClaim.leaseGeneration,
+        externalJobId: retryTerminalResult!.externalJobId,
+        result: retryTerminalResult!,
+      }),
+    ).resolves.toBe('replayed');
+    await expect(
+      gateway.complete({
+        outboxJobId: retryClaim.outboxJobId,
+        leaseToken: retryClaim.leaseToken,
+        leaseGeneration: retryClaim.leaseGeneration,
+        externalJobId: retryTerminalResult!.externalJobId,
+        result: {
+          ...retryTerminalResult!,
+          entityMappings: [...(retryTerminalResult!.entityMappings ?? [])].reverse(),
+        },
+      }),
+    ).resolves.toBe('terminal_conflict');
+    expect(
+      lastLine(
+        (await psql(`select state from public.integration_sync_jobs where id='${first.job_id}'`))
+          .stdout,
+      ),
+    ).toBe('completed');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select count(*) from public.external_entity_mappings where organization_id='${ids.organization}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('4');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select count(*) from public.integration_sync_items where sync_job_id='${first.job_id}' and state='completed'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('2');
+    await expectSensitivePayloadRedacted(first.job_id, preview.confirmationToken);
+    const nothingToRetry = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.retry_integration_sync_job_v4('${ids.organization}','${first.job_id}','retry:task27:nothing:01') result`,
+          )
+        ).stdout,
+      ),
+    ) as Record<string, unknown>;
+    expect(nothingToRetry).toMatchObject({
+      outcome: 'nothing_to_retry',
+      job_id: first.job_id,
+      state: 'completed',
+      retried_item_count: 0,
+      preserved_completed_item_count: 2,
+      preserved_skipped_item_count: 0,
+      completed_count: 2,
+      skipped_count: 0,
+      failed_count: 0,
+      retry_eligible_count: 0,
+    });
+
+    const emptyDivision = randomUUID();
+    const emptyTeam = randomUUID();
+    const emptyRoster = randomUUID();
+    await psql(`
+      set session_replication_role=replica;
+      insert into public.tryout_divisions(id,organization_id,tryout_id,name,sort_order)
+        values('${emptyDivision}','${ids.organization}','${ids.tryout}','Empty division',1);
+      insert into public.tryout_teams(id,organization_id,tryout_id,division_id,name,sort_order)
+        values('${emptyTeam}','${ids.organization}','${ids.tryout}','${emptyDivision}','Empty team',0);
+      set session_replication_role=origin;
+      insert into public.roster_versions(
+        id,organization_id,tryout_id,division_id,revision_number,state,version,
+        finalized_by_user_id,finalized_at,created_by_user_id
+      ) values(
+        '${emptyRoster}','${ids.organization}','${ids.tryout}','${emptyDivision}',1,'finalized',1,
+        '${ids.owner}',clock_timestamp(),'${ids.owner}'
+      );
+    `);
+    const emptySource = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${emptyRoster}',${jsonSql(destination)},${textArraySql(approvedFields)}) result`,
+          )
+        ).stdout,
+      ),
+    ) as { outcome: string; source_id: string; source_digest: string; roster: Json };
+    const emptySnapshot = finalizedRosterSnapshotSchema.parse(emptySource.roster);
+    const emptyProviderContext = {
+      ...providerContext,
+      correlationId: 'correlation:task27:empty-preview',
+      idempotencyKey: 'preview:task27:empty:0001',
+    };
+    const emptyPreview = rosterExportPreviewSchema.parse(
+      await provider.previewRosterExport(emptyProviderContext, {
+        destination,
+        approvedFields: [...approvedFields],
+        roster: emptySnapshot,
+      }),
+    );
+    expect(emptyPreview.totalItems).toBe(0);
+    expect(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select public.save_roster_export_preview_v2('${ids.organization}','${emptySource.source_id}','${emptySource.source_digest}','${emptyPreview.previewId}','${emptyPreview.confirmationToken}',${jsonSql(emptyPreview)})`,
+          )
+        ).stdout,
+      ),
+    ).toBe('created');
+    const emptyConfirmation = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.confirm_roster_export_preview_v4('${ids.organization}','${emptyPreview.previewId}','${emptySource.source_digest}','${emptyPreview.confirmationToken}','export:task27:empty:0001') result`,
+          )
+        ).stdout,
+      ),
+    ) as { outcome: string; job_id: string | null };
+    expect(emptyConfirmation.outcome).toBe('completed');
+    expect(emptyConfirmation.job_id).not.toBeNull();
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select state from public.integration_sync_jobs where id='${emptyConfirmation.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('completed');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select count(*) from public.integration_outbox_jobs where sync_job_id='${emptyConfirmation.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('0');
+    await expectSensitivePayloadRedacted(emptyConfirmation.job_id!, emptyPreview.confirmationToken);
+
+    const uncertain = await queueExport(
+      'export:task27:uncertain:0001',
+      'preview:task27:uncertain:0001',
+    );
+    const uncertainClaim = await claim();
+    const originalExport = provider.exportFinalizedRoster.bind(provider);
+    let uncertainProviderCalls = 0;
+    provider.exportFinalizedRoster = async (context, request) => {
+      uncertainProviderCalls += 1;
+      const result = await originalExport(context, request);
+      await psql(
+        `update public.integration_connections set state='disconnected',disconnected_at=clock_timestamp() where organization_id='${ids.organization}' and id='${connected.connectionId}'`,
+      );
+      return result;
+    };
+    expect(
+      await dispatchIntegrationJob(uncertainClaim, { providers: { get: () => provider }, gateway }),
+    ).toBe('needs_attention');
+    await expectSensitivePayloadRedacted(uncertain.job_id, uncertain.confirmationToken);
+    expect(uncertainProviderCalls).toBe(1);
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select state from public.integration_sync_jobs where id='${uncertain.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('needs_attention');
+    const unsafeRetry = JSON.parse(
+      lastLine(
+        (
+          await asActor(
+            ids.owner,
+            `select row_to_json(result) from public.retry_integration_sync_job_v4('${ids.organization}','${uncertain.job_id}','retry:task27:uncertain:01') result`,
+          )
+        ).stdout,
+      ),
+    ) as Record<string, unknown>;
+    expect(unsafeRetry).toMatchObject({
+      outcome: 'manual_attention_required',
+      job_id: uncertain.job_id,
+      state: 'needs_attention',
+      retried_item_count: 0,
+      preserved_completed_item_count: 0,
+      preserved_skipped_item_count: 0,
+      completed_count: 0,
+      skipped_count: 0,
+      failed_count: 2,
+      retry_eligible_count: 0,
+    });
+
+    provider.exportFinalizedRoster = originalExport;
+    await psql(
+      `update public.integration_connections set state='connected',disconnected_at=null where organization_id='${ids.organization}' and id='${connected.connectionId}'; update public.athletes set given_name='Changed before revoked source' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+
+    const prepareRacingPreview = async (racingFields: readonly ('first_name' | 'last_name')[]) => {
+      const issued = JSON.parse(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select row_to_json(result) from public.issue_roster_export_source('${ids.organization}','${connected.connectionId}','${ids.roster}',${jsonSql(destination)},${textArraySql(racingFields)}) result`,
+            )
+          ).stdout,
+        ),
+      ) as {
+        source_id: string;
+        source_digest: string;
+        roster: Json;
+        existing_athlete_ids: string[];
+      };
+      const providerRacingPreview = rosterExportPreviewSchema.parse(
+        await provider.previewRosterExport(providerContext, {
+          destination,
+          approvedFields: [...racingFields],
+          roster: finalizedRosterSnapshotSchema.parse(issued.roster),
+        }),
+      );
+      const existing = new Set(issued.existing_athlete_ids);
+      const racingPreview = {
+        ...providerRacingPreview,
+        items: providerRacingPreview.items.map((item) =>
+          existing.has(item.registrationId) && item.operation === 'create'
+            ? { ...item, operation: 'update' as const }
+            : item,
+        ),
+      };
+      expect(
+        lastLine(
+          (
+            await asActor(
+              ids.owner,
+              `select public.save_roster_export_preview_v2('${ids.organization}','${issued.source_id}','${issued.source_digest}','${racingPreview.previewId}','${racingPreview.confirmationToken}',${jsonSql(racingPreview)})`,
+            )
+          ).stdout,
+        ),
+      ).toBe('created');
+      return { ...racingPreview, sourceDigest: issued.source_digest };
+    };
+    const [racingPreviewA, racingPreviewB] = await Promise.all([
+      prepareRacingPreview(['first_name']),
+      prepareRacingPreview(['last_name']),
+    ]);
+    const racingKey = 'export:task27:business-race:01';
+    const racingResults = await Promise.all(
+      [racingPreviewA, racingPreviewB].map((candidate) =>
+        asActor(
+          ids.owner,
+          `select row_to_json(result) from public.confirm_roster_export_preview_v4('${ids.organization}','${candidate.previewId}','${candidate.sourceDigest}','${candidate.confirmationToken}','${racingKey}') result`,
+        ),
+      ),
+    );
+    const racingOutcomes = racingResults.map(
+      (output) => (JSON.parse(lastLine(output.stdout)) as { outcome: string }).outcome,
+    );
+    expect(racingOutcomes.sort()).toEqual(['conflict', 'queued']);
+    expect(
+      await dispatchIntegrationJob(await claim(), { providers: { get: () => provider }, gateway }),
+    ).toBe('completed');
+
+    await psql(
+      `update public.athletes set given_name='Stale handoff lease' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const staleHandoff = await queueExport(
+      'export:task27:stale-handoff:01',
+      'preview:task27:stale-handoff:01',
+    );
+    const staleHandoffClaim = await claim();
+    await expect(gateway.authorize(staleHandoffClaim)).resolves.toBe('authorized');
+    await psql(
+      `update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${staleHandoffClaim.outboxJobId}'`,
+    );
+    await expect(gateway.authorize(staleHandoffClaim)).resolves.toBe('delivery_uncertain');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select state from public.integration_sync_jobs where id='${staleHandoff.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('needs_attention');
+    await expectSensitivePayloadRedacted(staleHandoff.job_id, staleHandoff.confirmationToken);
+
+    await psql(
+      `update public.athletes set given_name='Failure lease edge' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const failureEdge = await queueExport(
+      'export:task27:failure-edge:01',
+      'preview:task27:failure-edge:01',
+    );
+    const failureEdgeClaim = await claim();
+    await expect(gateway.authorize(failureEdgeClaim)).resolves.toBe('authorized');
+    await psql(
+      `update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()+interval '200 milliseconds' where id='${failureEdgeClaim.outboxJobId}'`,
+    );
+    const heldFailureRow = psql(
+      `begin; select id from public.integration_outbox_jobs where id='${failureEdgeClaim.outboxJobId}' for update; select pg_sleep(0.3); commit`,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 40));
+    const failureAtLeaseEdge = gateway.fail({
+      outboxJobId: failureEdgeClaim.outboxJobId,
+      leaseToken: failureEdgeClaim.leaseToken,
+      leaseGeneration: failureEdgeClaim.leaseGeneration,
+      errorCode: 'provider_temporary',
+      retryable: true,
+    });
+    await heldFailureRow;
+    await expect(failureAtLeaseEdge).resolves.toBe('needs_attention');
+    await expectSensitivePayloadRedacted(failureEdge.job_id, failureEdge.confirmationToken);
+
+    await psql(
+      `update public.athletes set given_name='Exhausted claim' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const exhausted = await queueExport(
+      'export:task27:exhausted:0001',
+      'preview:task27:exhausted:0001',
+    );
+    const exhaustedClaim = await claim();
+    await psql(
+      `update public.integration_sync_items set state='completed',completed_at=clock_timestamp()
+         where id=(select id from public.integration_sync_items where sync_job_id='${exhaustedClaim.syncJobId}' order by item_key limit 1);
+       update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second',max_attempts=attempt_count where id='${exhaustedClaim.outboxJobId}';
+       update public.athletes set given_name='Healthy behind exhausted' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    await queueExport('export:task27:healthy-behind:01', 'preview:task27:healthy-behind:01');
+    const healthyBehind = await claim();
+    expect(healthyBehind.outboxJobId).not.toBe(exhaustedClaim.outboxJobId);
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select status||'|'||(attempt_count<=max_attempts)::text from public.integration_outbox_jobs where id='${exhaustedClaim.outboxJobId}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('dead_letter|true');
+    expect
+      .soft(
+        lastLine(
+          (
+            await psql(
+              `select state from public.integration_sync_jobs where id='${exhaustedClaim.syncJobId}'`,
+            )
+          ).stdout,
+        ),
+      )
+      .toBe('partially_completed');
+    await expectSensitivePayloadRedacted(exhausted.job_id, exhausted.confirmationToken);
+    await psql(
+      `update public.integration_outbox_jobs set status='cancelled',cancelled_at=clock_timestamp(),lease_owner=null,lease_token=null,lease_expires_at=null where id='${healthyBehind.outboxJobId}';
+       update public.integration_sync_jobs set state='cancelled',cancelled_at=clock_timestamp() where id='${healthyBehind.syncJobId}';
+       update public.integration_sync_items set state='cancelled',normalized_error='{"code":"test_cleanup","retryable":false}' where sync_job_id='${healthyBehind.syncJobId}' and state not in ('completed','skipped')`,
+    );
+
+    const poisonJobs = [];
+    for (const suffix of ['01', '02']) {
+      await psql(
+        `update public.athletes set given_name='Poison ${suffix}' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+      );
+      poisonJobs.push(
+        await queueExport(
+          `export:task27:claim-poison:${suffix}`,
+          `preview:task27:claim-poison:${suffix}`,
+        ),
+      );
+    }
+    await psql(
+      `update public.athletes set given_name='Never reclaim handoff' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    await queueExport('export:task27:never-reclaim:01', 'preview:task27:never-reclaim:01');
+    const poisonClaims = [await claim(), await claim()];
+    const neverReclaim = await claim();
+    await psql(
+      `update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second',max_attempts=attempt_count
+         where id in (${poisonClaims.map((item) => `'${item.outboxJobId}'`).join(',')})`,
+    );
+    await expect(gateway.authorize(neverReclaim)).resolves.toBe('authorized');
+    await psql(
+      `update public.integration_outbox_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id='${neverReclaim.outboxJobId}';
+       update public.athletes set given_name='Healthy after handoff' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const healthyAfterHandoff = await queueExport(
+      'export:task27:healthy-after:01',
+      'preview:task27:healthy-after:01',
+    );
+    const saturatedClaimRows = JSON.parse(
+      lastLine(
+        (
+          await asService(
+            `select coalesce(json_agg(row_to_json(job)),'[]') from public.claim_integration_outbox_jobs('task27-saturated',1,90) job`,
+          )
+        ).stdout,
+      ),
+    ) as Array<{ outbox_job_id: string; sync_job_id: string }>;
+    expect.soft(saturatedClaimRows).toHaveLength(1);
+    expect.soft(saturatedClaimRows[0]?.sync_job_id).toBe(healthyAfterHandoff.job_id);
+    expect.soft(saturatedClaimRows[0]?.outbox_job_id).not.toBe(neverReclaim.outboxJobId);
+    await psql(
+      `update public.integration_outbox_jobs set status='cancelled',cancelled_at=clock_timestamp(),lease_owner=null,lease_token=null,lease_expires_at=null
+         where (id in ('${neverReclaim.outboxJobId}',${poisonClaims.map((item) => `'${item.outboxJobId}'`).join(',')}) or sync_job_id='${healthyAfterHandoff.job_id}')
+           and status in ('pending','leased');
+       update public.integration_sync_jobs set state='cancelled',cancelled_at=clock_timestamp()
+         where id in ('${neverReclaim.syncJobId}',${poisonJobs.map((item) => `'${item.job_id}'`).join(',')},'${healthyAfterHandoff.job_id}')`,
+    );
+    // Drain bounded legacy/terminal repairs so the next assertions isolate the
+    // explicit three-source expiry batch instead of consuming its limit first.
+    await asService(`select public.purge_expired_integration_previews(500)`);
+
+    const retentionSources = await Promise.all([
+      issueAdditionalSource(),
+      issueAdditionalSource(),
+      issueAdditionalSource(),
+    ]);
+    await psql(
+      `update public.integration_export_previews set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 day' where id in (${retentionSources.map((item) => `'${item.source_id}'`).join(',')})`,
+    );
+    expect(
+      lastLine((await asService(`select public.purge_expired_integration_previews(2)`)).stdout),
+    ).toBe('2');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select count(*) from public.integration_export_previews where id in (${retentionSources.map((item) => `'${item.source_id}'`).join(',')})`,
+          )
+        ).stdout,
+      ),
+    ).toBe('1');
+    await asService(`select public.purge_expired_integration_previews(10)`);
+
+    await psql(
+      `update public.athletes set given_name='Expired before handoff' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const expiredBeforeHandoff = await queueExport(
+      'export:task27:expired-before:01',
+      'preview:task27:expired-before:01',
+    );
+    await psql(
+      `update public.integration_export_previews
+       set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 second'
+       where id='${expiredBeforeHandoff.sourceId}'`,
+    );
+    await asService(`select public.purge_expired_integration_previews(500)`);
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select state from public.integration_sync_jobs where id='${expiredBeforeHandoff.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('cancelled');
+    await expectSensitivePayloadRedacted(
+      expiredBeforeHandoff.job_id,
+      expiredBeforeHandoff.confirmationToken,
+    );
+
+    await psql(
+      `update public.athletes set given_name='Active retention lease' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const activeRetention = await queueExport(
+      'export:task27:active-retain:01',
+      'preview:task27:active-retain:01',
+    );
+    const activeRetentionClaim = await claim();
+    await expect(gateway.authorize(activeRetentionClaim)).resolves.toBe('authorized');
+    const activeRetentionResult = syncJobResultSchema.parse(
+      await provider.exportFinalizedRoster(
+        {
+          organizationId: activeRetentionClaim.organizationId,
+          actorId: activeRetentionClaim.actorUserId,
+          connectionId: activeRetentionClaim.connectionId,
+          correlationId: `integration:${activeRetentionClaim.syncJobId}`,
+          idempotencyKey: activeRetentionClaim.providerIdempotencyKey,
+        },
+        activeRetentionClaim.confirmedRequest,
+      ),
+    );
+    const activeSourceId = lastLine(
+      (
+        await psql(
+          `select source_preview_id from public.integration_sync_jobs where id='${activeRetention.job_id}'`,
+        )
+      ).stdout,
+    );
+    await psql(
+      `update public.integration_export_previews set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 day' where id='${activeSourceId}'`,
+    );
+    expect(
+      lastLine((await asService(`select public.purge_expired_integration_previews(1)`)).stdout),
+    ).toBe('0');
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select stage from public.integration_export_previews where id='${activeSourceId}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('ready');
+    const activePostExpiryAuthorization = await gateway.authorize(activeRetentionClaim);
+    expect.soft(activePostExpiryAuthorization).toBe('authorized');
+    if (activePostExpiryAuthorization === 'authorized') {
+      await expect(
+        gateway.complete({
+          outboxJobId: activeRetentionClaim.outboxJobId,
+          leaseToken: activeRetentionClaim.leaseToken,
+          leaseGeneration: activeRetentionClaim.leaseGeneration,
+          externalJobId: activeRetentionResult.externalJobId,
+          result: activeRetentionResult,
+        }),
+      ).resolves.toBe('completed');
+    }
+
+    await psql(
+      `update public.athletes set given_name='Natural three session lock set' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const lockSetJob = await queueExport('export:task27:lock-set:01', 'preview:task27:lock-set:01');
+    expect(
+      await dispatchIntegrationJob(await claim(), { providers: { get: () => provider }, gateway }),
+    ).toBe('completed');
+    const lockSetSource = lastLine(
+      (
+        await psql(
+          `select source_preview_id from public.integration_sync_jobs where id='${lockSetJob.job_id}'`,
+        )
+      ).stdout,
+    );
+    await psql(
+      `update public.integration_export_previews set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 second' where id='${lockSetSource}'`,
+    );
+    const lockSetSettled = await Promise.allSettled([
+      asActor(
+        ids.owner,
+        `select row_to_json(result) from public.retry_integration_sync_job_v4('${ids.organization}','${lockSetJob.job_id}','retry:task27:lock-set:01') result`,
+      ),
+      asService(`select public.purge_expired_integration_previews(500)`),
+      asService(
+        `select coalesce(json_agg(row_to_json(job)),'[]') from public.claim_integration_outbox_jobs('task27-lock-set',1,90) job`,
+      ),
+    ]);
+    expect.soft(lockSetSettled.every((result) => result.status === 'fulfilled')).toBe(true);
+    expect
+      .soft(
+        lastLine(
+          (
+            await psql(
+              `select not exists(
+               select 1 from public.integration_export_previews preview
+               join public.integration_outbox_jobs outbox on outbox.sync_job_id=preview.sync_job_id
+               where preview.id='${lockSetSource}' and preview.stage='redacted'
+                 and outbox.status in ('pending','leased')
+             )`,
+            )
+          ).stdout,
+        ),
+      )
+      .toBe('t');
+    await psql(
+      `update public.integration_outbox_jobs set status='cancelled',cancelled_at=clock_timestamp(),
+         lease_owner=null,lease_token=null,lease_expires_at=null
+       where sync_job_id='${lockSetJob.job_id}' and status in ('pending','leased');
+       update public.integration_sync_items set state='cancelled',normalized_error='{"code":"test_cleanup","retryable":false}',retry_eligible=false
+       where sync_job_id='${lockSetJob.job_id}' and state not in ('completed','skipped');
+       update public.integration_sync_jobs set state='cancelled',cancelled_at=coalesce(cancelled_at,clock_timestamp()),
+         approved_projection='[]'::jsonb,roster_snapshot=null,provider_confirmation_token=null
+       where id='${lockSetJob.job_id}' and state not in ('completed','needs_attention','cancelled');
+       update public.integration_export_previews set stage='redacted',roster_snapshot='{}'::jsonb,
+         preview_snapshot=null,provider_confirmation_token=null,redacted_at=coalesce(redacted_at,clock_timestamp())
+       where id='${lockSetSource}'`,
+    );
+
+    await psql(
+      `update public.athletes set given_name='Cleanup auth lock race' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const cleanupAuthJob = await queueExport(
+      'export:task27:cleanup-auth:01',
+      'preview:task27:cleanup-auth:01',
+    );
+    const cleanupAuthClaim = await claim();
+    const cleanupAuthSource = lastLine(
+      (
+        await psql(
+          `select source_preview_id from public.integration_sync_jobs where id='${cleanupAuthJob.job_id}'`,
+        )
+      ).stdout,
+    );
+    await psql(
+      `update public.integration_export_previews set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 second' where id='${cleanupAuthSource}'`,
+    );
+    const authLockTransaction = psql(
+      `begin;
+       select id from public.integration_outbox_jobs where id='${cleanupAuthClaim.outboxJobId}' for update;
+       select pg_sleep(0.12);
+       set role service_role;
+       select set_config('request.jwt.claim.role','service_role',false);
+       select public.authorize_integration_outbox_submission('${cleanupAuthClaim.outboxJobId}','${cleanupAuthClaim.leaseToken}',${cleanupAuthClaim.leaseGeneration});
+       reset role;
+       commit`,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    const cleanupDuringAuth = asService(`select public.purge_expired_integration_previews(1)`);
+    const cleanupAuthSettled = await Promise.allSettled([authLockTransaction, cleanupDuringAuth]);
+    expect.soft(cleanupAuthSettled.every((result) => result.status === 'fulfilled')).toBe(true);
+
+    await psql(
+      `update public.athletes set given_name='Cleanup completion lock race' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const cleanupCompletionJob = await queueExport(
+      'export:task27:cleanup-complete:01',
+      'preview:task27:cleanup-complete:01',
+    );
+    const cleanupCompletionClaim = await claim();
+    await expect(gateway.authorize(cleanupCompletionClaim)).resolves.toBe('authorized');
+    const cleanupCompletionResult = syncJobResultSchema.parse(
+      await provider.exportFinalizedRoster(
+        {
+          organizationId: cleanupCompletionClaim.organizationId,
+          actorId: cleanupCompletionClaim.actorUserId,
+          connectionId: cleanupCompletionClaim.connectionId,
+          correlationId: `integration:${cleanupCompletionClaim.syncJobId}`,
+          idempotencyKey: cleanupCompletionClaim.providerIdempotencyKey,
+        },
+        cleanupCompletionClaim.confirmedRequest,
+      ),
+    );
+    const cleanupCompletionSource = lastLine(
+      (
+        await psql(
+          `select source_preview_id from public.integration_sync_jobs where id='${cleanupCompletionJob.job_id}'`,
+        )
+      ).stdout,
+    );
+    await psql(
+      `update public.integration_export_previews set created_at=clock_timestamp()-interval '8 days',expires_at=clock_timestamp()-interval '1 second' where id='${cleanupCompletionSource}'`,
+    );
+    const completionLockTransaction = psql(
+      `begin;
+       select id from public.integration_outbox_jobs where id='${cleanupCompletionClaim.outboxJobId}' for update;
+       select pg_sleep(0.12);
+       set role service_role;
+       select set_config('request.jwt.claim.role','service_role',false);
+       select public.complete_integration_outbox_job('${cleanupCompletionClaim.outboxJobId}','${cleanupCompletionClaim.leaseToken}',${cleanupCompletionClaim.leaseGeneration},'${cleanupCompletionResult.externalJobId}',${jsonSql(cleanupCompletionResult)});
+       reset role;
+       select pg_sleep(0.12);
+       commit`,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 30));
+    const cleanupDuringCompletion = asService(
+      `select public.purge_expired_integration_previews(1)`,
+    );
+    const cleanupCompletionSettled = await Promise.allSettled([
+      completionLockTransaction,
+      cleanupDuringCompletion,
+    ]);
+    expect
+      .soft(cleanupCompletionSettled.every((result) => result.status === 'fulfilled'))
+      .toBe(true);
+    expect
+      .soft(
+        lastLine(
+          (
+            await psql(
+              `select outbox.status||'|'||sync.state||'|'||preview.stage||'|'||
+                 exists(select 1 from public.integration_sync_items item where item.sync_job_id=sync.id and item.retry_eligible)::text||'|'||
+                 (sync.external_job_id is not null)::text
+               from public.integration_sync_jobs sync
+               join public.integration_export_previews preview on preview.id=sync.source_preview_id
+               join public.integration_outbox_jobs outbox on outbox.sync_job_id=sync.id
+               where sync.id='${cleanupCompletionJob.job_id}'`,
+            )
+          ).stdout,
+        ),
+      )
+      .toBe('completed|partially_completed|ready|true|true');
+    await asService(`select public.purge_expired_integration_previews(500)`);
+    expect(
+      lastLine(
+        (
+          await psql(
+            `select preview.stage||'|'||(preview.preview_snapshot is null)::text||'|'||
+               (preview.provider_confirmation_token is null)::text||'|'||
+               (sync.approved_projection='[]'::jsonb)::text
+             from public.integration_sync_jobs sync
+             join public.integration_export_previews preview on preview.id=sync.source_preview_id
+             where sync.id='${cleanupCompletionJob.job_id}'`,
+          )
+        ).stdout,
+      ),
+    ).toBe('redacted|true|true|true');
+    await expectSensitivePayloadRedacted(
+      cleanupCompletionJob.job_id,
+      cleanupCompletionJob.confirmationToken,
+    );
+
+    await psql(
+      `update public.athletes set given_name='Mapping race one' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    await queueExport('export:task27:mapping-race:01', 'preview:task27:mapping-race:01');
+    const mappingClaimA = await claim();
+    await psql(
+      `update public.athletes set given_name='Mapping race two' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    await queueExport('export:task27:mapping-race:02', 'preview:task27:mapping-race:02');
+    const mappingClaimB = await claim();
+    const prepareMappingCompletion = async (candidate: typeof mappingClaimA) => {
+      await gateway.validateExecution(candidate);
+      await gateway.authorize(candidate);
+      return syncJobResultSchema.parse(
+        await provider.exportFinalizedRoster(
+          {
+            organizationId: candidate.organizationId,
+            actorId: candidate.actorUserId,
+            connectionId: candidate.connectionId,
+            correlationId: `integration:${candidate.syncJobId}`,
+            idempotencyKey: candidate.providerIdempotencyKey,
+          },
+          candidate.confirmedRequest,
+        ),
+      );
+    };
+    const [mappingResultA, mappingResultB] = await Promise.all([
+      prepareMappingCompletion(mappingClaimA),
+      prepareMappingCompletion(mappingClaimB),
+    ]);
+    const reversedMappingResult = {
+      ...mappingResultB,
+      items: [...mappingResultB.items].reverse(),
+      entityMappings: [...(mappingResultB.entityMappings ?? [])].reverse(),
+    };
+    await expect(
+      Promise.all([
+        gateway.complete({
+          outboxJobId: mappingClaimA.outboxJobId,
+          leaseToken: mappingClaimA.leaseToken,
+          leaseGeneration: mappingClaimA.leaseGeneration,
+          externalJobId: mappingResultA.externalJobId,
+          result: mappingResultA,
+        }),
+        gateway.complete({
+          outboxJobId: mappingClaimB.outboxJobId,
+          leaseToken: mappingClaimB.leaseToken,
+          leaseGeneration: mappingClaimB.leaseGeneration,
+          externalJobId: reversedMappingResult.externalJobId,
+          result: reversedMappingResult,
+        }),
+      ]),
+    ).resolves.toEqual(['completed', 'completed']);
+
+    const delay = (milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+    const raceKinds = ['membership', 'connection', 'source'] as const;
+    for (const kind of raceKinds) {
+      for (const authorizationFirst of [true, false]) {
+        const raceLabel = `${kind}-${authorizationFirst ? 'auth' : 'revoke'}`;
+        await psql(
+          `update public.organization_members set status='active' where organization_id='${ids.organization}' and user_id='${ids.owner}';
+           update public.integration_connections set state='connected',disconnected_at=null where organization_id='${ids.organization}' and id='${connected.connectionId}';
+           update public.athletes set given_name='Race ${raceLabel}' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+        );
+        const raceJob = await queueExport(
+          `export:task27:lock:${raceLabel}`,
+          `preview:task27:lock:${raceLabel}`,
+        );
+        const raceClaim = await claim();
+        const sourceId = lastLine(
+          (
+            await psql(
+              `select source_preview_id from public.integration_sync_jobs where id='${raceJob.job_id}'`,
+            )
+          ).stdout,
+        );
+        const invalidate =
+          kind === 'membership'
+            ? `update public.organization_members set status='disabled' where organization_id='${ids.organization}' and user_id='${ids.owner}'`
+            : kind === 'connection'
+              ? `update public.integration_connections set state='disconnected',disconnected_at=clock_timestamp() where organization_id='${ids.organization}' and id='${connected.connectionId}'`
+              : `update public.integration_export_previews set expires_at=created_at+interval '1 microsecond' where id='${sourceId}'`;
+        const authorizeSql = `begin; set role service_role; select set_config('request.jwt.claim.role','service_role',false); select public.authorize_integration_outbox_submission('${raceClaim.outboxJobId}','${raceClaim.leaseToken}',${raceClaim.leaseGeneration}); select pg_sleep(0.25); commit`;
+        const invalidateSql = `begin; ${invalidate}; select pg_sleep(0.25); commit`;
+        if (authorizationFirst) {
+          const authorizePromise = psql(authorizeSql);
+          await delay(40);
+          const startedAt = performance.now();
+          const invalidationPromise = psql(invalidateSql);
+          await Promise.all([authorizePromise, invalidationPromise]);
+          expect(performance.now() - startedAt).toBeGreaterThan(150);
+          expect(
+            lastLine(
+              (
+                await psql(
+                  `select provider_submission_started_at is not null from public.integration_outbox_jobs where id='${raceClaim.outboxJobId}'`,
+                )
+              ).stdout,
+            ),
+          ).toBe('t');
+          expect(
+            lastLine(
+              (
+                await asService(
+                  `select public.authorize_integration_outbox_submission('${raceClaim.outboxJobId}','${raceClaim.leaseToken}',${raceClaim.leaseGeneration})`,
+                )
+              ).stdout,
+            ),
+          ).toBe(kind === 'source' ? 'authorized' : 'delivery_uncertain');
+        } else {
+          const invalidationPromise = psql(invalidateSql);
+          await delay(40);
+          const startedAt = performance.now();
+          const authorizePromise = asService(
+            `select public.authorize_integration_outbox_submission('${raceClaim.outboxJobId}','${raceClaim.leaseToken}',${raceClaim.leaseGeneration})`,
+          );
+          await invalidationPromise;
+          expect(lastLine((await authorizePromise).stdout)).toBe('authorization_revoked');
+          expect(performance.now() - startedAt).toBeGreaterThan(150);
+          expect(
+            lastLine(
+              (
+                await psql(
+                  `select provider_submission_started_at is null from public.integration_outbox_jobs where id='${raceClaim.outboxJobId}'`,
+                )
+              ).stdout,
+            ),
+          ).toBe('t');
+        }
+      }
+    }
+
+    await psql(
+      `update public.athletes set given_name='Revoked source final' where organization_id='${ids.organization}' and id='${ids.athleteA}'`,
+    );
+    const revoked = await queueExport(
+      'export:task27:revoked:000001',
+      'preview:task27:revoked:000001',
+    );
+    const revokedClaim = await claim();
+    await psql(
+      `update public.organization_members set status='disabled' where organization_id='${ids.organization}' and user_id='${ids.owner}'`,
+    );
+    const revokedProvider = new MockTheSquadProvider({ fixture: 'success' });
+    const revokedOriginal = revokedProvider.exportFinalizedRoster.bind(revokedProvider);
+    let revokedProviderCalls = 0;
+    revokedProvider.exportFinalizedRoster = async (context, request) => {
+      revokedProviderCalls += 1;
+      return revokedOriginal(context, request);
+    };
+    expect(
+      await dispatchIntegrationJob(revokedClaim, {
+        providers: { get: () => revokedProvider },
+        gateway,
+      }),
+    ).toBe('cancelled');
+    expect(revokedProviderCalls).toBe(0);
+    expect(
+      lastLine(
+        (await psql(`select state from public.integration_sync_jobs where id='${revoked.job_id}'`))
+          .stdout,
+      ),
+    ).toBe('cancelled');
+    await expectSensitivePayloadRedacted(revoked.job_id, revoked.confirmationToken);
+  }, 30_000);
+});

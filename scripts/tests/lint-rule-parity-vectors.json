@@ -1,0 +1,5090 @@
+[
+  {
+    "rule": "google-font-display",
+    "code": "import Head from \"next/head\";\n\n     export default Test = () => {\n      return (\n        <Head>\n          <link href={test} rel=\"test\" />\n          <link\n            href={process.env.NEXT_PUBLIC_CANONICAL_URL}\n            rel=\"canonical\"\n          />\n          <link\n            href={new URL(\"../public/favicon.ico\", import.meta.url).toString()}\n            rel=\"icon\"\n          />\n          <link\n            href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=optional\"\n            rel=\"stylesheet\"\n          />\n        </Head>\n      );\n     };\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "google-font-display",
+    "code": "import Document, { Html, Head } from \"next/document\";\n\n     class MyDocument extends Document {\n      render() {\n        return (\n          <Html>\n            <Head>\n              <link\n                href=\"https://fonts.googleapis.com/css?family=Krona+One&display=swap\"\n                rel=\"stylesheet\"\n              />\n            </Head>\n          </Html>\n        );\n      }\n     }\n\n     export default MyDocument;\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "google-font-display",
+    "code": "import Document, { Html, Head } from \"next/document\";\n\n     class MyDocument extends Document {\n      render() {\n        return (\n          <Html>\n            <Head>\n              <link\n                href=\"https://fonts.googleapis.com/css?family=Krona+One&display=swap\"\n                rel=\"stylesheet\"\n                crossOrigin=\"\"\n              />\n            </Head>\n          </Html>\n        );\n      }\n     }\n\n     export default MyDocument;\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "google-font-display",
+    "code": "import Head from \"next/head\";\n\n      export default Test = () => {\n       return (\n         <Head>\n           <link\n             href=\"https://fonts.googleapis.com/css2?family=Krona+One\"\n             rel=\"stylesheet\"\n           />\n         </Head>\n       );\n      };\n     ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/google-font-display",
+        "severity": 1,
+        "message": "A font-display parameter is missing (adding `&display=optional` is recommended). See: https://nextjs.org/docs/messages/google-font-display",
+        "line": 6,
+        "column": 12,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 9,
+        "endColumn": 14
+      }
+    ]
+  },
+  {
+    "rule": "google-font-display",
+    "code": "import Head from \"next/head\";\n\n      export default Test = () => {\n       return (\n         <Head>\n           <link\n             href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=block\"\n             rel=\"stylesheet\"\n           />\n         </Head>\n       );\n      };\n     ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/google-font-display",
+        "severity": 1,
+        "message": "Block is not recommended. See: https://nextjs.org/docs/messages/google-font-display",
+        "line": 6,
+        "column": 12,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 9,
+        "endColumn": 14
+      }
+    ]
+  },
+  {
+    "rule": "google-font-display",
+    "code": "import Head from \"next/head\";\n\n      export default Test = () => {\n       return (\n         <Head>\n           <link\n             href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=auto\"\n             rel=\"stylesheet\"\n           />\n         </Head>\n       );\n      };\n     ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/google-font-display",
+        "severity": 1,
+        "message": "Auto is not recommended. See: https://nextjs.org/docs/messages/google-font-display",
+        "line": 6,
+        "column": 12,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 9,
+        "endColumn": 14
+      }
+    ]
+  },
+  {
+    "rule": "google-font-display",
+    "code": "import Head from \"next/head\";\n\n      export default Test = () => {\n       return (\n         <Head>\n           <link\n             href=\"https://fonts.googleapis.com/css2?display=fallback&family=Krona+One\"\n             rel=\"stylesheet\"\n           />\n         </Head>\n       );\n      };\n     ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/google-font-display",
+        "severity": 1,
+        "message": "Fallback is not recommended. See: https://nextjs.org/docs/messages/google-font-display",
+        "line": 6,
+        "column": 12,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 9,
+        "endColumn": 14
+      }
+    ]
+  },
+  {
+    "rule": "google-font-preconnect",
+    "code": "export const Test = () => (\n        <div>\n          <link rel=\"preconnect\" href=\"https://fonts.gstatic.com\"/>\n          <link\n            href={process.env.NEXT_PUBLIC_CANONICAL_URL}\n            rel=\"canonical\"\n          />\n          <link\n            href={new URL(\"../public/favicon.ico\", import.meta.url).toString()}\n            rel=\"icon\"\n          />\n        </div>\n      )\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "google-font-preconnect",
+    "code": "\n      export const Test = () => (\n        <div>\n          <link href=\"https://fonts.gstatic.com\"/>\n        </div>\n      )\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/google-font-preconnect",
+        "severity": 1,
+        "message": "`rel=\"preconnect\"` is missing from Google Font. See: https://nextjs.org/docs/messages/google-font-preconnect",
+        "line": 4,
+        "column": 11,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 4,
+        "endColumn": 51
+      }
+    ]
+  },
+  {
+    "rule": "google-font-preconnect",
+    "code": "\n      export const Test = () => (\n        <div>\n          <link rel=\"preload\" href=\"https://fonts.gstatic.com\"/>\n        </div>\n      )\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2020,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/google-font-preconnect",
+        "severity": 1,
+        "message": "`rel=\"preconnect\"` is missing from Google Font. See: https://nextjs.org/docs/messages/google-font-preconnect",
+        "line": 4,
+        "column": 11,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 4,
+        "endColumn": 65
+      }
+    ]
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n\n      export default function TestPage() {\n        return (\n          <Script id=\"test-script\">\n            {`console.log('Hello world');`}\n          </Script>\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n\n      export default function TestPage() {\n        return (\n          <Script\n            id=\"test-script\"\n            dangerouslySetInnerHTML={{\n              __html: `console.log('Hello world');`\n            }}\n          />\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n\n      export default function TestPage() {\n        return (\n          <Script src=\"https://example.com\" />\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import MyScript from 'next/script';\n\n      export default function TestPage() {\n        return (\n          <MyScript id=\"test-script\">\n            {`console.log('Hello world');`}\n          </MyScript>\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import MyScript from 'next/script';\n\n      export default function TestPage() {\n        return (\n          <MyScript\n            id=\"test-script\"\n            dangerouslySetInnerHTML={{\n              __html: `console.log('Hello world');`\n            }}\n          />\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n\n      export default function TestPage() {\n        return (\n          <Script {...{ strategy: \"lazyOnload\" }} id={\"test-script\"}>\n            {`console.log('Hello world');`}\n          </Script>\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n\n      export default function TestPage() {\n        return (\n          <Script {...{ strategy: \"lazyOnload\", id: \"test-script\" }}>\n            {`console.log('Hello world');`}\n          </Script>\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n      const spread = { strategy: \"lazyOnload\" }\n      export default function TestPage() {\n        return (\n          <Script {...spread} id={\"test-script\"}>\n            {`console.log('Hello world');`}\n          </Script>\n        )\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n\n        export default function TestPage() {\n          return (\n            <Script>\n              {`console.log('Hello world');`}\n            </Script>\n          )\n        }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/inline-script-id",
+        "severity": 1,
+        "message": "`next/script` components with inline content must specify an `id` attribute. See: https://nextjs.org/docs/messages/inline-script-id",
+        "line": 5,
+        "column": 13,
+        "nodeType": "JSXElement",
+        "endLine": 7,
+        "endColumn": 22
+      }
+    ]
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import Script from 'next/script';\n\n        export default function TestPage() {\n          return (\n            <Script\n              dangerouslySetInnerHTML={{\n                __html: `console.log('Hello world');`\n              }}\n            />\n          )\n        }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/inline-script-id",
+        "severity": 1,
+        "message": "`next/script` components with inline content must specify an `id` attribute. See: https://nextjs.org/docs/messages/inline-script-id",
+        "line": 5,
+        "column": 13,
+        "nodeType": "JSXElement",
+        "endLine": 9,
+        "endColumn": 15
+      }
+    ]
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import MyScript from 'next/script';\n\n        export default function TestPage() {\n          return (\n            <MyScript>\n              {`console.log('Hello world');`}\n            </MyScript>\n          )\n        }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/inline-script-id",
+        "severity": 1,
+        "message": "`next/script` components with inline content must specify an `id` attribute. See: https://nextjs.org/docs/messages/inline-script-id",
+        "line": 5,
+        "column": 13,
+        "nodeType": "JSXElement",
+        "endLine": 7,
+        "endColumn": 24
+      }
+    ]
+  },
+  {
+    "rule": "inline-script-id",
+    "code": "import MyScript from 'next/script';\n\n        export default function TestPage() {\n          return (\n            <MyScript\n              dangerouslySetInnerHTML={{\n                __html: `console.log('Hello world');`\n              }}\n            />\n          )\n        }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/inline-script-id",
+        "severity": 1,
+        "message": "`next/script` components with inline content must specify an `id` attribute. See: https://nextjs.org/docs/messages/inline-script-id",
+        "line": 5,
+        "column": 13,
+        "nodeType": "JSXElement",
+        "endLine": 9,
+        "endColumn": 15
+      }
+    ]
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "import Script from 'next/script'\n\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <Script\n                src=\"https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID\"\n                strategy=\"lazyOnload\"\n              />\n              <Script id=\"google-analytics\">\n                {`\n                  window.dataLayer = window.dataLayer || [];\n                  function gtag(){window.dataLayer.push(arguments);}\n                  gtag('js', new Date());\n\n                  gtag('config', 'GA_MEASUREMENT_ID');\n                `}\n              </Script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "import Script from 'next/script'\n\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <Script id=\"google-analytics\">\n                {`(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){\n                    (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),\n                    m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)\n                    })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');\n\n                    ga('create', 'UA-XXXXX-Y', 'auto');\n                    ga('send', 'pageview');\n                })`}\n              </Script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "import Script from 'next/script'\n\n        export class Blah extends Head {\n        render() {\n            return (\n            <div>\n                <h1>Hello title</h1>\n                <Script id=\"google-analytics\">\n                    {`window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;\n                    ga('create', 'UA-XXXXX-Y', 'auto');\n                    ga('send', 'pageview');\n                    })`}\n                </Script>\n            </div>\n            );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "export class Blah extends Head {\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script dangerouslySetInnerHTML={{}} />\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "\n        export class Blah extends Head {\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script async src='https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}' />\n                <script\n                  dangerouslySetInnerHTML={{\n                    __html: `\n                      window.dataLayer = window.dataLayer || [];\n                      function gtag(){dataLayer.push(arguments);}\n                      gtag('js', new Date());\n                      gtag('config', '${GA_TRACKING_ID}', {\n                        page_path: window.location.pathname,\n                      });\n                  `,\n                }}/>\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/next-script-for-ga",
+        "severity": 1,
+        "message": "Prefer `GoogleTagManager` component from `@next/third-parties/google` when using the inline script for Google Tag Manager. See: https://nextjs.org/docs/messages/next-script-for-ga",
+        "line": 7,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 7,
+        "endColumn": 101
+      }
+    ]
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "\n        export class Blah extends Head {\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script dangerouslySetInnerHTML={{\n                    __html: `\n                      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){\n                        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),\n                        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)\n                        })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');\n\n                        ga('create', 'UA-XXXXX-Y', 'auto');\n                        ga('send', 'pageview');\n                    `,\n                  }}/>\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/next-script-for-ga",
+        "severity": 1,
+        "message": "Prefer `GoogleAnalytics` component from `@next/third-parties/google` when using the inline script for Google Analytics. See: https://nextjs.org/docs/messages/next-script-for-ga",
+        "line": 7,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 17,
+        "endColumn": 23
+      }
+    ]
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "\n        export class Blah extends Head {\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script dangerouslySetInnerHTML={{\n                    __html: `\n                        window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;\n                        ga('create', 'UA-XXXXX-Y', 'auto');\n                        ga('send', 'pageview');\n                    `,\n                  }}/>\n                <script async src='https://www.google-analytics.com/analytics.js'></script>\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/next-script-for-ga",
+        "severity": 1,
+        "message": "Prefer `GoogleAnalytics` component from `@next/third-parties/google` when using the inline script for Google Analytics. See: https://nextjs.org/docs/messages/next-script-for-ga",
+        "line": 14,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 14,
+        "endColumn": 83
+      }
+    ]
+  },
+  {
+    "rule": "next-script-for-ga",
+    "code": "\n        export class Blah extends Head {\n          createGoogleAnalyticsMarkup() {\n            return {\n              __html: `\n                window.dataLayer = window.dataLayer || [];\n                function gtag(){dataLayer.push(arguments);}\n                gtag('js', new Date());\n                gtag('config', 'UA-148481588-2');`,\n            };\n          }\n\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script dangerouslySetInnerHTML={this.createGoogleAnalyticsMarkup()} />\n                <script async src='https://www.google-analytics.com/analytics.js'></script>\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/next-script-for-ga",
+        "severity": 1,
+        "message": "Prefer `GoogleAnalytics` component from `@next/third-parties/google` when using the inline script for Google Analytics. See: https://nextjs.org/docs/messages/next-script-for-ga",
+        "line": 18,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 18,
+        "endColumn": 83
+      }
+    ]
+  },
+  {
+    "rule": "no-assign-module-variable",
+    "code": "\n      let myModule = {};\n\n      export default function MyComponent() {\n        return <></>\n      }\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-assign-module-variable",
+    "code": "\n      let module = {};\n\n      export default function MyComponent() {\n        return <></>\n      }\n      ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-assign-module-variable",
+        "severity": 1,
+        "message": "Do not assign to the variable `module`. See: https://nextjs.org/docs/messages/no-assign-module-variable",
+        "line": 2,
+        "column": 7,
+        "nodeType": "VariableDeclaration",
+        "endLine": 2,
+        "endColumn": 23
+      }
+    ]
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n    // single line\n    export default async function MyComponent() {\n      return <></>\n    }\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n    // single line capitalization\n    \"use client\"\n\n    export default async function myFunction() {\n      return ''\n    }\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n    // multiple line\n    async function MyComponent() {\n      return <></>\n    }\n\n    export default MyComponent\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n    // multiple line capitalization\n    \"use client\"\n\n    async function myFunction() {\n      return ''\n    }\n\n    export default myFunction\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n    // arrow function\n    \"use client\"\n\n    const myFunction = () => {\n      return ''\n    }\n\n    export default myFunction\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n      // single line\n      \"use client\"\n\n      export default async function MyComponent() {\n        return <></>\n      }\n      ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-async-client-component",
+        "severity": 1,
+        "message": "Prevent Client Components from being async functions. See: https://nextjs.org/docs/messages/no-async-client-component",
+        "line": 5,
+        "column": 7,
+        "nodeType": "ExportDefaultDeclaration",
+        "endLine": 7,
+        "endColumn": 8
+      }
+    ]
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n      // single line capitalization\n      \"use client\"\n\n      export default async function MyFunction() {\n        return ''\n      }\n      ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-async-client-component",
+        "severity": 1,
+        "message": "Prevent Client Components from being async functions. See: https://nextjs.org/docs/messages/no-async-client-component",
+        "line": 5,
+        "column": 7,
+        "nodeType": "ExportDefaultDeclaration",
+        "endLine": 7,
+        "endColumn": 8
+      }
+    ]
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n      // multiple line\n      \"use client\"\n\n      async function MyComponent() {\n        return <></>\n      }\n\n      export default MyComponent\n      ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-async-client-component",
+        "severity": 1,
+        "message": "Prevent Client Components from being async functions. See: https://nextjs.org/docs/messages/no-async-client-component",
+        "line": 5,
+        "column": 7,
+        "nodeType": "FunctionDeclaration",
+        "endLine": 7,
+        "endColumn": 8
+      }
+    ]
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n      // multiple line capitalization\n      \"use client\"\n\n      async function MyFunction() {\n        return ''\n      }\n\n      export default MyFunction\n      ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-async-client-component",
+        "severity": 1,
+        "message": "Prevent Client Components from being async functions. See: https://nextjs.org/docs/messages/no-async-client-component",
+        "line": 5,
+        "column": 7,
+        "nodeType": "FunctionDeclaration",
+        "endLine": 7,
+        "endColumn": 8
+      }
+    ]
+  },
+  {
+    "rule": "no-async-client-component",
+    "code": "\n      // arrow function\n      \"use client\"\n\n      const MyFunction = async () => {\n        return '123'\n      }\n\n      export default MyFunction\n      ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-async-client-component",
+        "severity": 1,
+        "message": "Prevent Client Components from being async functions. See: https://nextjs.org/docs/messages/no-async-client-component",
+        "line": 5,
+        "column": 7,
+        "nodeType": "VariableDeclaration",
+        "endLine": 7,
+        "endColumn": 8
+      }
+    ]
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import Script from 'next/script'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head>\n                <meta charSet=\"utf-8\" />\n              </Head>\n              <body>\n                <Main />\n                <NextScript />\n                <Script\n                  id=\"scriptBeforeInteractive\"\n                  src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n                  strategy=\"beforeInteractive\"\n                ></Script>\n              </body>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import ScriptComponent from 'next/script'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head>\n                <meta charSet=\"utf-8\" />\n              </Head>\n              <body>\n                <Main />\n                <NextScript />\n                <ScriptComponent\n                  id=\"scriptBeforeInteractive\"\n                  src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n                  strategy=\"beforeInteractive\"\n                ></ScriptComponent>\n              </body>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import ScriptComponent from 'next/script'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head>\n                <meta charSet=\"utf-8\" />\n              </Head>\n              <body>\n                <Main />\n                <NextScript />\n                <ScriptComponent\n                  id=\"scriptBeforeInteractive\"\n                  src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n                ></ScriptComponent>\n              </body>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/Users/user_name/projects/project-name/app/layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function test() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/C:\\Users\\username\\projects\\project-name\\app\\layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/Users/user_name/projects/project-name/src/app/layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function test() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/C:\\Users\\username\\projects\\project-name\\src\\app\\layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Head from \"next/head\";\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n          <Script\n            id=\"scriptBeforeInteractive\"\n            src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n            strategy=\"beforeInteractive\"\n          ></Script>\n        );\n      }",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-before-interactive-script-outside-document",
+        "severity": 1,
+        "message": "`next/script`'s `beforeInteractive` strategy should not be used outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-before-interactive-script-outside-document",
+        "line": 7,
+        "column": 11,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 12
+      }
+    ]
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Head from \"next/head\";\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n          <Script\n            id=\"scriptBeforeInteractive\"\n            src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n            strategy=\"beforeInteractive\"\n          ></Script>\n        );\n      }",
+    "filename": "/components/outside-known-dirs.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-before-interactive-script-outside-document",
+        "severity": 1,
+        "message": "`next/script`'s `beforeInteractive` strategy should not be used outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-before-interactive-script-outside-document",
+        "line": 7,
+        "column": 11,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 12
+      }
+    ]
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/Users/user_name/projects/project-name/pages/layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-before-interactive-script-outside-document",
+        "severity": 1,
+        "message": "`next/script`'s `beforeInteractive` strategy should not be used outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-before-interactive-script-outside-document",
+        "line": 8,
+        "column": 13,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 15
+      }
+    ]
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/C:\\Users\\username\\projects\\project-name\\pages\\layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-before-interactive-script-outside-document",
+        "severity": 1,
+        "message": "`next/script`'s `beforeInteractive` strategy should not be used outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-before-interactive-script-outside-document",
+        "line": 8,
+        "column": 13,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 15
+      }
+    ]
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/Users/user_name/projects/project-name/src/pages/layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-before-interactive-script-outside-document",
+        "severity": 1,
+        "message": "`next/script`'s `beforeInteractive` strategy should not be used outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-before-interactive-script-outside-document",
+        "line": 8,
+        "column": 13,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 15
+      }
+    ]
+  },
+  {
+    "rule": "no-before-interactive-script-outside-document",
+    "code": "\n      import Script from \"next/script\";\n\n      export default function test() {\n        return (\n          <html lang=\"en\">\n            <body className={inter.className}>{children}</body>\n            <Script\n              src=\"https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.20/lodash.min.js?a=scriptBeforeInteractive\"\n              strategy='beforeInteractive'\n            />\n          </html>\n        );\n      }",
+    "filename": "/C:\\Users\\username\\projects\\project-name\\src\\pages\\layout.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-before-interactive-script-outside-document",
+        "severity": 1,
+        "message": "`next/script`'s `beforeInteractive` strategy should not be used outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-before-interactive-script-outside-document",
+        "line": 8,
+        "column": 13,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 15
+      }
+    ]
+  },
+  {
+    "rule": "no-css-tags",
+    "code": "import {Head} from 'next/document';\n\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-css-tags",
+    "code": "import {Head} from 'next/document';\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <link href=\"https://fonts.googleapis.com/css?family=Open+Sans&display=swap\" rel=\"stylesheet\" />\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-css-tags",
+    "code": "import {Head} from 'next/document';\n      export class Blah extends Head {\n        render(props) {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <link {...props} />\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-css-tags",
+    "code": "import {Head} from 'next/document';\n      export class Blah extends Head {\n        render(props) {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <link rel=\"stylesheet\" {...props} />\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-css-tags",
+    "code": "\n      import {Head} from 'next/document';\n\n        export class Blah extends Head {\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <link href=\"/_next/static/css/styles.css\" rel=\"stylesheet\" />\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-css-tags",
+        "severity": 1,
+        "message": "Do not include stylesheets manually. See: https://nextjs.org/docs/messages/no-css-tags",
+        "line": 9,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 9,
+        "endColumn": 78
+      }
+    ]
+  },
+  {
+    "rule": "no-css-tags",
+    "code": "\n      <div>\n        <link href=\"/_next/static/css/styles.css\" rel=\"stylesheet\" />\n      </div>",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-css-tags",
+        "severity": 1,
+        "message": "Do not include stylesheets manually. See: https://nextjs.org/docs/messages/no-css-tags",
+        "line": 3,
+        "column": 9,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 3,
+        "endColumn": 70
+      }
+    ]
+  },
+  {
+    "rule": "no-document-import-in-page",
+    "code": "import Document from \"next/document\"\n\n    export default class MyDocument extends Document {\n      render() {\n        return (\n          <Html>\n          </Html>\n        );\n      }\n    }\n    ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-document-import-in-page",
+    "code": "import Document from \"next/document\"\n\n    export default class MyDocument extends Document {\n      render() {\n        return (\n          <Html>\n          </Html>\n        );\n      }\n    }\n    ",
+    "filename": "/pages/_document.page.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-document-import-in-page",
+    "code": "import NDocument from \"next/document\"\n\n    export default class Document extends NDocument {\n      render() {\n        return (\n          <Html>\n          </Html>\n        );\n      }\n    }\n    ",
+    "filename": "/pages/_document/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-document-import-in-page",
+    "code": "import NDocument from \"next/document\"\n\n    export default class Document extends NDocument {\n      render() {\n        return (\n          <Html>\n          </Html>\n        );\n      }\n    }\n    ",
+    "filename": "/pages/_document/index.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-document-import-in-page",
+    "code": "import Document from \"next/document\"\n\n    export default class MyDocument extends Document {\n      render() {\n        return (\n          <Html>\n          </Html>\n        );\n      }\n    }\n    ",
+    "filename": "/pagesapp/src/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-document-import-in-page",
+    "code": "import Document from \"next/document\"\n\n      export const Test = () => <p>Test</p>\n      ",
+    "filename": "/components/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-document-import-in-page",
+        "severity": 1,
+        "message": "`<Document />` from `next/document` should not be imported outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-document-import-in-page",
+        "line": 1,
+        "column": 1,
+        "nodeType": "ImportDeclaration",
+        "endLine": 1,
+        "endColumn": 37
+      }
+    ]
+  },
+  {
+    "rule": "no-document-import-in-page",
+    "code": "import Document from \"next/document\"\n\n      export const Test = () => <p>Test</p>\n      ",
+    "filename": "/pages/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-document-import-in-page",
+        "severity": 1,
+        "message": "`<Document />` from `next/document` should not be imported outside of `pages/_document.js`. See: https://nextjs.org/docs/messages/no-document-import-in-page",
+        "line": 1,
+        "column": 1,
+        "nodeType": "ImportDeclaration",
+        "endLine": 1,
+        "endColumn": 37
+      }
+    ]
+  },
+  {
+    "rule": "no-duplicate-head",
+    "code": "import Document, { Html, Head, Main, NextScript } from 'next/document'\n\n      class MyDocument extends Document {\n        static async getInitialProps(ctx) {\n          //...\n        }\n\n        render() {\n          return (\n            <Html>\n              <Head/>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n    ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-duplicate-head",
+    "code": "import Document, { Html, Head, Main, NextScript } from 'next/document'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head>\n                <meta charSet=\"utf-8\" />\n                <link\n                  href=\"https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,700;1,400;1,700&display=swap\"\n                  rel=\"stylesheet\"\n                />\n              </Head>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n    ",
+    "filename": "/pages/_document.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-duplicate-head",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import Head from 'next/head'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head />\n              <Head />\n              <Head />\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-duplicate-head",
+        "severity": 1,
+        "message": "Do not include multiple instances of `<Head/>`. See: https://nextjs.org/docs/messages/no-duplicate-head",
+        "line": 10,
+        "column": 15,
+        "nodeType": "JSXElement",
+        "endLine": 10,
+        "endColumn": 23
+      },
+      {
+        "ruleId": "@next/next/no-duplicate-head",
+        "severity": 1,
+        "message": "Do not include multiple instances of `<Head/>`. See: https://nextjs.org/docs/messages/no-duplicate-head",
+        "line": 11,
+        "column": 15,
+        "nodeType": "JSXElement",
+        "endLine": 11,
+        "endColumn": 23
+      }
+    ]
+  },
+  {
+    "rule": "no-duplicate-head",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import Head from 'next/head'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head>\n                <meta charSet=\"utf-8\" />\n                <link\n                  href=\"https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,700;1,400;1,700&display=swap\"\n                  rel=\"stylesheet\"\n                />\n              </Head>\n              <body>\n                <Main />\n                <NextScript />\n              </body>\n              <Head>\n                <script\n                  dangerouslySetInnerHTML={{\n                    __html: '',\n                  }}\n                />\n              </Head>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document.page.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-duplicate-head",
+        "severity": 1,
+        "message": "Do not include multiple instances of `<Head/>`. See: https://nextjs.org/docs/messages/no-duplicate-head",
+        "line": 20,
+        "column": 15,
+        "nodeType": "JSXElement",
+        "endLine": 26,
+        "endColumn": 22
+      }
+    ]
+  },
+  {
+    "rule": "no-head-element",
+    "code": "import Head from 'next/head';\n\n      export class MyComponent {\n        render() {\n          return (\n            <div>\n              <Head>\n                <title>My page title</title>\n              </Head>\n            </div>\n          );\n        }\n      }\n    ",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-head-element",
+    "code": "import Head from 'next/head';\n\n      export class MyComponent {\n        render() {\n          return (\n            <div>\n              <Head>\n                <title>My page title</title>\n              </Head>\n            </div>\n          );\n        }\n      }\n    ",
+    "filename": "/pages/index.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-head-element",
+    "code": "\n      export default function Layout({ children }) {\n        return (\n          <html>\n            <head>\n              <title>layout</title>\n            </head>\n            <body>{children}</body>\n          </html>\n        );\n      }\n    ",
+    "filename": "/./app/layout.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-head-element",
+    "code": "\n      export class MyComponent {\n        render() {\n          return (\n            <div>\n              <head>\n                <title>My page title</title>\n              </head>\n            </div>\n          );\n        }\n      }",
+    "filename": "/./pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-head-element",
+        "severity": 1,
+        "message": "Do not use `<head>` element. Use `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-head-element",
+        "line": 6,
+        "column": 15,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 6,
+        "endColumn": 21
+      }
+    ]
+  },
+  {
+    "rule": "no-head-element",
+    "code": "import Head from 'next/head';\n\n      export class MyComponent {\n        render() {\n          return (\n            <div>\n              <head>\n                <title>My page title</title>\n              </head>\n              <Head>\n                <title>My page title</title>\n              </Head>\n            </div>\n          );\n        }\n      }",
+    "filename": "/pages/index.ts",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-head-element",
+        "severity": 1,
+        "message": "Do not use `<head>` element. Use `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-head-element",
+        "line": 7,
+        "column": 15,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 7,
+        "endColumn": 21
+      }
+    ]
+  },
+  {
+    "rule": "no-head-import-in-document",
+    "code": "import Document, { Html, Head, Main, NextScript } from 'next/document'\n\n      class MyDocument extends Document {\n        static async getInitialProps(ctx) {\n          //...\n        }\n\n        render() {\n          return (\n            <Html>\n              <Head>\n              </Head>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n    ",
+    "filename": "/pages/_document.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-head-import-in-document",
+    "code": "import Head from \"next/head\";\n\n      export default function IndexPage() {\n        return (\n          <Head>\n            <title>My page title</title>\n            <meta name=\"viewport\" content=\"initial-scale=1.0, width=device-width\" />\n          </Head>\n        );\n      }\n    ",
+    "filename": "/pages/index.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-head-import-in-document",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import Head from 'next/head'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head />\n              <body>\n                <Main />\n                <NextScript />\n              </body>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-head-import-in-document",
+        "severity": 1,
+        "message": "`next/head` should not be imported in `pages/_document.js`. Use `<Head />` from `next/document` instead. See: https://nextjs.org/docs/messages/no-head-import-in-document",
+        "line": 3,
+        "column": 7,
+        "nodeType": "ImportDeclaration",
+        "endLine": 3,
+        "endColumn": 35
+      }
+    ]
+  },
+  {
+    "rule": "no-head-import-in-document",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import Head from 'next/head'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head />\n              <body>\n                <Main />\n                <NextScript />\n              </body>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document.page.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-head-import-in-document",
+        "severity": 1,
+        "message": "`next/head` should not be imported in `pages/_document.page.tsx`. Use `<Head />` from `next/document` instead. See: https://nextjs.org/docs/messages/no-head-import-in-document",
+        "line": 3,
+        "column": 7,
+        "nodeType": "ImportDeclaration",
+        "endLine": 3,
+        "endColumn": 35
+      }
+    ]
+  },
+  {
+    "rule": "no-head-import-in-document",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import Head from 'next/head'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head />\n              <body>\n                <Main />\n                <NextScript />\n              </body>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-head-import-in-document",
+        "severity": 1,
+        "message": "`next/head` should not be imported in `pages/_document/index.js`. Use `<Head />` from `next/document` instead. See: https://nextjs.org/docs/messages/no-head-import-in-document",
+        "line": 3,
+        "column": 7,
+        "nodeType": "ImportDeclaration",
+        "endLine": 3,
+        "endColumn": 35
+      }
+    ]
+  },
+  {
+    "rule": "no-head-import-in-document",
+    "code": "\n      import Document, { Html, Main, NextScript } from 'next/document'\n      import Head from 'next/head'\n\n      class MyDocument extends Document {\n        render() {\n          return (\n            <Html>\n              <Head />\n              <body>\n                <Main />\n                <NextScript />\n              </body>\n            </Html>\n          )\n        }\n      }\n\n      export default MyDocument\n      ",
+    "filename": "/pages/_document/index.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-head-import-in-document",
+        "severity": 1,
+        "message": "`next/head` should not be imported in `pages/_document/index.tsx`. Use `<Head />` from `next/document` instead. See: https://nextjs.org/docs/messages/no-head-import-in-document",
+        "line": 3,
+        "column": 7,
+        "nodeType": "ImportDeclaration",
+        "endLine": 3,
+        "endColumn": 35
+      }
+    ]
+  },
+  {
+    "rule": "no-img-element",
+    "code": "import { Image } from 'next/image';\n\n      export class MyComponent {\n        render() {\n          return (\n            <div>\n              <Image\n                src=\"/test.png\"\n                alt=\"Test picture\"\n                width={500}\n                height={500}\n              />\n            </div>\n          );\n        }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-img-element",
+    "code": "export class MyComponent {\n        render() {\n          return (\n            <picture>\n              <img\n                src=\"/test.png\"\n                alt=\"Test picture\"\n                width={500}\n                height={500}\n              />\n            </picture>\n          );\n        }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-img-element",
+    "code": "export class MyComponent {\n        render() {\n          return (\n            <div>\n              <picture>\n                <source media=\"(min-width:650px)\" srcset=\"/test.jpg\"/>\n                <img\n                  src=\"/test.png\"\n                  alt=\"Test picture\"\n                  style=\"width:auto;\"\n                />\n              </picture>\n            </div>\n          );\n        }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-img-element",
+    "code": "import { ImageResponse } from \"next/og\";\n\nexport default function icon() {\n  return new ImageResponse(\n    (\n      <img\n        alt=\"avatar\"\n        style={{ borderRadius: \"100%\" }}\n        width=\"100%\"\n        height=\"100%\"\n        src=\"https://example.com/image.png\"\n      />\n    )\n  );\n}\n",
+    "filename": "/src/app/icon.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-img-element",
+    "code": "import { ImageResponse } from \"next/og\";\n\nexport default function Image() {\n  return new ImageResponse(\n    (\n      <img\n        alt=\"avatar\"\n        style={{ borderRadius: \"100%\" }}\n        width=\"100%\"\n        height=\"100%\"\n        src=\"https://example.com/image.png\"\n      />\n    )\n  );\n}\n",
+    "filename": "/app/opengraph-image.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-img-element",
+    "code": "\n      export class MyComponent {\n        render() {\n          return (\n            <div>\n              <img\n                src=\"/test.png\"\n                alt=\"Test picture\"\n                width={500}\n                height={500}\n              />\n            </div>\n          );\n        }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-img-element",
+        "severity": 1,
+        "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element",
+        "line": 6,
+        "column": 15,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 17
+      }
+    ]
+  },
+  {
+    "rule": "no-img-element",
+    "code": "\n      export class MyComponent {\n        render() {\n          return (\n            <img\n              src=\"/test.png\"\n              alt=\"Test picture\"\n              width={500}\n              height={500}\n            />\n          );\n        }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-img-element",
+        "severity": 1,
+        "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element",
+        "line": 5,
+        "column": 13,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 10,
+        "endColumn": 15
+      }
+    ]
+  },
+  {
+    "rule": "no-img-element",
+    "code": "import { ImageResponse } from \"next/og\";\n\nexport default function Image() {\nreturn new ImageResponse(\n  (\n    <img\n      alt=\"avatar\"\n      style={{ borderRadius: \"100%\" }}\n      width=\"100%\"\n      height=\"100%\"\n      src=\"https://example.com/image.png\"\n    />\n  )\n);\n}\n",
+    "filename": "/some/non-metadata-route-image.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-img-element",
+        "severity": 1,
+        "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element",
+        "line": 6,
+        "column": 5,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 12,
+        "endColumn": 7
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = 'https://example.com'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = 'https://example.com/path?q=1'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.href = 'https://example.com'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "globalThis.location.href = 'https://example.com'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign('https://example.com')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.assign('https://example.com')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "globalThis.location.assign('https://example.com')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = '//example.com/path'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign('//cdn.example.com/file.js')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = 'ftp://files.example.com'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = 'mailto:user@example.com'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = `https://example.com/${path}`",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign(`https://example.com/${path}`)",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = someVariable",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign(someVariable)",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.href = computedUrl()",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.assign(computedUrl())",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n      const url = 'https://example.com';\n      location.href = url;\n      location.assign(url);\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n      const url = 'https://example.com/' + someVariable;\n      location.href = url;\n      location.assign(url);\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n      const url = `https://example.com/${someVariable}`;\n      location.href = url;\n      location.assign(url);\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "foo.location.href = '/path'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "foo.location.assign('/path')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n      const location = { href: '' };\n      location.href = '/foo'\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "function handler(location) { location.href = '/foo'; location.assign('/foo') }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n      const window = { location: { href: '' } };\n      window.location.href = '/foo'\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n      function handler(globalThis) {\n        globalThis.location.assign('/foo')\n      }\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n      import { location } from './my-module';\n      location.href = '/foo'\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = '/foo'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 23
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location['href'] = '/foo'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location['href']` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 26
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = `/users/${id}`",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 31
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.href = '/foo'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 30
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.href = '/dashboard'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 36
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location['href'] = '/foo'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location['href']` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 33
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location['href'] = '/dashboard'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location['href']` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 39
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "globalThis.location.href = '/foo'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `globalThis.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 34
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "globalThis.location.href = '/dashboard'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `globalThis.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 40
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign('/foo')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 24
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign('/dashboard')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 30
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location['assign']('/foo')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location['assign']()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 27
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location['assign']('/dashboard')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location['assign']()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 33
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign(`/users/${id}/profile`)",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 40
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.assign('/foo')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 31
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location.assign('/dashboard')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 37
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "window.location['assign']('/foo')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location['assign']()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 34
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "globalThis.location.assign('/foo')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `globalThis.location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 35
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "globalThis.location.assign('/dashboard')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `globalThis.location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 41
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = './page'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 25
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.href = '../page'",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 26
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign('?tab=settings')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 33
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "location.assign('#section')",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 1,
+        "column": 1,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 1,
+        "endColumn": 28
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n          const url = '/dashboard';\n          location.href = url;\n        ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 3,
+        "column": 11,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 3,
+        "endColumn": 30
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n          const url = '/dashboard/' + someVariable;\n          location.href = url;\n        ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 3,
+        "column": 11,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 3,
+        "endColumn": 30
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n          const url = `/dashboard/${someVariable}`;\n          location.href = url;\n        ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 3,
+        "column": 11,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 3,
+        "endColumn": 30
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n          let url = 'https://example.com';\n          url = '/other-path';\n          location.href = url;\n        ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 4,
+        "column": 11,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 4,
+        "endColumn": 30
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n          function handleClick() {\n            window.location.href = '/dashboard'\n          }\n        ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `window.location.href` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 3,
+        "column": 13,
+        "nodeType": "AssignmentExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 3,
+        "endColumn": 48
+      }
+    ]
+  },
+  {
+    "rule": "no-location-assign-relative-destination",
+    "code": "\n          function handleClick() {\n            location.assign('/dashboard')\n          }\n        ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      },
+      "globals": {
+        "location": "readonly",
+        "window": "readonly",
+        "globalThis": "readonly",
+        "document": "readonly",
+        "self": "readonly"
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-location-assign-relative-destination",
+        "severity": 1,
+        "message": "Do not use `location.assign()` to navigate to internal Next.js pages. Use `redirect()` in the render phase, or `useRouter().push()` in Client Components' event handlers instead. See: https://nextjs.org/docs/messages/no-location-assign-relative-destination",
+        "line": 3,
+        "column": 13,
+        "nodeType": "CallExpression",
+        "messageId": "noLocationAssign",
+        "endLine": 3,
+        "endColumn": 42
+      }
+    ]
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "import Document, { Html, Head } from \"next/document\";\n    class MyDocument extends Document {\n      render() {\n        return (\n          <Html>\n            <Head>\n              <link\n                href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=swap\"\n                rel=\"stylesheet\"\n              />\n            </Head>\n          </Html>\n        );\n      }\n    }\n    export default MyDocument;",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "import NextDocument, { Html, Head } from \"next/document\";\n    class Document extends NextDocument {\n      render() {\n        return (\n          <Html>\n            <Head>\n              <link\n                href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=swap\"\n                rel=\"stylesheet\"\n              />\n            </Head>\n          </Html>\n        );\n      }\n    }\n    export default Document;\n    ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "export default function CustomDocument() {\n      return (\n        <Html>\n          <Head>\n            <link\n              href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=swap\"\n              rel=\"stylesheet\"\n            />\n          </Head>\n        </Html>\n      )\n    }",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "function CustomDocument() {\n      return (\n        <Html>\n          <Head>\n            <link\n              href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=swap\"\n              rel=\"stylesheet\"\n            />\n          </Head>\n        </Html>\n      )\n    }\n\n    export default CustomDocument;\n    ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "\n      import Document, { Html, Head } from \"next/document\";\n      class MyDocument {\n        render() {\n          return (\n            <Html>\n              <Head>\n                <link\n                  href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=swap\"\n                  rel=\"stylesheet\"\n                />\n              </Head>\n            </Html>\n          );\n        }\n      }\n\n      export default MyDocument;",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "export default function() {\n      return (\n        <Html>\n          <Head>\n            <link\n              href=\"https://fonts.googleapis.com/css2?family=Krona+One&display=swap\"\n              rel=\"stylesheet\"\n            />\n          </Head>\n        </Html>\n      )\n    }",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "\n      import Head from 'next/head'\n      export default function IndexPage() {\n        return (\n          <div>\n            <Head>\n              <link\n                href=\"https://fonts.googleapis.com/css2?family=Inter\"\n                rel=\"stylesheet\"\n              />\n            </Head>\n            <p>Hello world!</p>\n          </div>\n        )\n      }\n      ",
+    "filename": "/pages/index.tsx",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-page-custom-font",
+        "severity": 1,
+        "message": "Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font",
+        "line": 7,
+        "column": 15,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 10,
+        "endColumn": 17
+      }
+    ]
+  },
+  {
+    "rule": "no-page-custom-font",
+    "code": "\n      import Head from 'next/head'\n\n\n      function Links() {\n        return (\n          <>\n            <link\n              href=\"https://fonts.googleapis.com/css2?family=Inter\"\n              rel=\"stylesheet\"\n            />\n            <link\n              href=\"https://fonts.googleapis.com/css2?family=Open+Sans\"\n              rel=\"stylesheet\"\n              />\n          </>\n        )\n      }\n\n      export default function IndexPage() {\n        return (\n          <div>\n            <Head>\n              <Links />\n            </Head>\n            <p>Hello world!</p>\n          </div>\n        )\n      }\n      ",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-page-custom-font",
+        "severity": 1,
+        "message": "Using `<link />` outside of `<Head>` will disable automatic font optimization. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font",
+        "line": 8,
+        "column": 13,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 11,
+        "endColumn": 15
+      },
+      {
+        "ruleId": "@next/next/no-page-custom-font",
+        "severity": 1,
+        "message": "Using `<link />` outside of `<Head>` will disable automatic font optimization. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font",
+        "line": 12,
+        "column": 13,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 15,
+        "endColumn": 17
+      }
+    ]
+  },
+  {
+    "rule": "no-script-component-in-head",
+    "code": "import Script from \"next/script\";\n     const Head = ({children}) => children\n\n    export default function Index() {\n      return (\n        <Head>\n          <Script></Script>\n        </Head>\n      );\n    }\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-script-component-in-head",
+    "code": "\n      import Head from \"next/head\";\n      import Script from \"next/script\";\n\n      export default function Index() {\n        return (\n            <Head>\n              <Script></Script>\n            </Head>\n        );\n      }",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-script-component-in-head",
+        "severity": 1,
+        "message": "`next/script` should not be used in `next/head` component. Move `<Script />` outside of `<Head>` instead. See: https://nextjs.org/docs/messages/no-script-component-in-head",
+        "line": 7,
+        "column": 13,
+        "nodeType": "JSXElement",
+        "endLine": 9,
+        "endColumn": 20
+      }
+    ]
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "import Document, { Html, Head, Main, NextScript } from 'next/document'\n\n        export class MyDocument extends Document {\n          static async getInitialProps(ctx) {\n            const initialProps = await Document.getInitialProps(ctx)\n            return { ...initialProps }\n          }\n\n          render() {\n            return (\n              <Html>\n                <Head />\n                <body>\n                  <Main />\n                  <NextScript />\n                </body>\n              </Html>\n            )\n          }\n        }",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "import Document, { Html, Head, Main, NextScript } from 'next/document'\n\n        export class MyDocument extends Document {\n          static async getInitialProps(ctx) {\n            const initialProps = await Document.getInitialProps(ctx)\n            return { ...initialProps }\n          }\n\n          render() {\n            return (\n              <Html>\n                <Head />\n                <style>{\"                  body{                    color:red;                  }                \"}</style>\n                <style {...{nonce: '123' }}></style>\n                <body>\n                  <Main />\n                  <NextScript />\n                </body>\n              </Html>\n            )\n          }\n        }",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "\n          export default function Page() {\n            return (\n              <>\n                <p>Hello world</p>\n                <style jsx>{`\n                  p {\n                    color: orange;\n                  }\n                `}</style>\n              </>\n            )\n          }\n          ",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "\n            import Document, { Html, Head, Main, NextScript } from 'next/document'\n\n            export class MyDocument extends Document {\n              static async getInitialProps(ctx) {\n                const initialProps = await Document.getInitialProps(ctx)\n                return { ...initialProps }\n              }\n\n              render() {\n                return (\n                  <Html>\n                    <Head />\n                    <style jsx>{\"                    body{                      color:red;                    }                    \"}</style>\n                    <body>\n                      <Main />\n                      <NextScript />\n                    </body>\n                  </Html>\n                )\n              }\n            }",
+    "filename": "/pages/_document.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-styled-jsx-in-document",
+        "severity": 1,
+        "message": "`styled-jsx` should not be used in `pages/_document.js`. See: https://nextjs.org/docs/messages/no-styled-jsx-in-document",
+        "line": 14,
+        "column": 21,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 14,
+        "endColumn": 32
+      }
+    ]
+  },
+  {
+    "rule": "no-sync-scripts",
+    "code": "import {Head} from 'next/document';\n\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <script src='https://blah.com' async></script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-sync-scripts",
+    "code": "import {Head} from 'next/document';\n\n      export class Blah extends Head {\n        render(props) {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <script {...props} ></script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-sync-scripts",
+    "code": "\n      import {Head} from 'next/document';\n\n        export class Blah extends Head {\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script src='https://blah.com'></script>\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-sync-scripts",
+        "severity": 1,
+        "message": "Synchronous scripts should not be used. See: https://nextjs.org/docs/messages/no-sync-scripts",
+        "line": 9,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 9,
+        "endColumn": 48
+      }
+    ]
+  },
+  {
+    "rule": "no-sync-scripts",
+    "code": "\n      import {Head} from 'next/document';\n\n        export class Blah extends Head {\n          render(props) {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script src={props.src}></script>\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-sync-scripts",
+        "severity": 1,
+        "message": "Synchronous scripts should not be used. See: https://nextjs.org/docs/messages/no-sync-scripts",
+        "line": 9,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 9,
+        "endColumn": 41
+      }
+    ]
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import Head from \"next/head\";\n\n     class Test {\n      render() {\n        return (\n          <Head>\n            <title>My page title</title>\n          </Head>\n        );\n      }\n     }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import Document, { Html, Head } from \"next/document\";\n\n     class MyDocument extends Document {\n      render() {\n        return (\n          <Html>\n            <Head>\n            </Head>\n          </Html>\n        );\n      }\n     }\n\n     export default MyDocument;\n     ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "\n      import { Head } from \"next/document\";\n\n      class Test {\n        render() {\n          return (\n            <Head>\n              <title>My page title</title>\n            </Head>\n          );\n        }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-title-in-document-head",
+        "severity": 1,
+        "message": "Do not use `<title>` element with `<Head />` component from `next/document`. Titles should defined at the page-level using `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-title-in-document-head",
+        "line": 8,
+        "column": 15,
+        "nodeType": "JSXElement",
+        "endLine": 8,
+        "endColumn": 43
+      }
+    ]
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n      export default function Page() {\n        return <div></div>;\n      }\n      export const getStaticPaths = async () => {};\n      export const getStaticProps = async () => {};\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n      export default function Page() {\n        return <div></div>;\n      }\n      export const getServerSideProps = async () => {};\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n      export default function Page() {\n        return <div></div>;\n      }\n      export async function getStaticPaths() {};\n      export async function getStaticProps() {};\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n      export default function Page() {\n        return <div></div>;\n      }\n      export async function getServerSideProps() {};\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n      export default function Page() {\n        return <div></div>;\n      }\n      export async function getServerSidePropsss() {};\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n      export default function Page() {\n        return <div></div>;\n      }\n      export async function getstatisPath() {};\n    ",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n        export default function Page() {\n          return <div></div>;\n        }\n        export const getStaticpaths = async () => {};\n        export const getStaticProps = async () => {};\n      ",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-typos",
+        "severity": 1,
+        "message": "getStaticpaths may be a typo. Did you mean getStaticPaths?",
+        "line": 5,
+        "column": 9,
+        "nodeType": "ExportNamedDeclaration",
+        "endLine": 5,
+        "endColumn": 54
+      }
+    ]
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n        export default function Page() {\n          return <div></div>;\n        }\n        export async function getStaticPathss(){};\n        export async function getStaticPropss(){};\n      ",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-typos",
+        "severity": 1,
+        "message": "getStaticPathss may be a typo. Did you mean getStaticPaths?",
+        "line": 5,
+        "column": 9,
+        "nodeType": "ExportNamedDeclaration",
+        "endLine": 5,
+        "endColumn": 50
+      },
+      {
+        "ruleId": "@next/next/no-typos",
+        "severity": 1,
+        "message": "getStaticPropss may be a typo. Did you mean getStaticProps?",
+        "line": 6,
+        "column": 9,
+        "nodeType": "ExportNamedDeclaration",
+        "endLine": 6,
+        "endColumn": 50
+      }
+    ]
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n        export default function Page() {\n          return <div></div>;\n        }\n        export async function getServurSideProps(){};\n      ",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-typos",
+        "severity": 1,
+        "message": "getServurSideProps may be a typo. Did you mean getServerSideProps?",
+        "line": 5,
+        "column": 9,
+        "nodeType": "ExportNamedDeclaration",
+        "endLine": 5,
+        "endColumn": 53
+      }
+    ]
+  },
+  {
+    "rule": "no-typos",
+    "code": "\n        export default function Page() {\n          return <div></div>;\n        }\n        export const getServurSideProps = () => {};\n      ",
+    "filename": "/pages/index.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-typos",
+        "severity": 1,
+        "message": "getServurSideProps may be a typo. Did you mean getServerSideProps?",
+        "line": 5,
+        "column": 9,
+        "nodeType": "ExportNamedDeclaration",
+        "endLine": 5,
+        "endColumn": 52
+      }
+    ]
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "import {Head} from 'next/document';\n\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <script src='https://polyfill.io/v3/polyfill.min.js?features=AbortController'></script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "import {Head} from 'next/document';\n\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <script src='https://polyfill.io/v3/polyfill.min.js?features=IntersectionObserver'></script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "import Script from 'next/script';\n\n      export function MyApp({ Component, pageProps }) {\n          return (\n            <div>\n              <Component {...pageProps} />\n              <Script src='https://polyfill.io/v3/polyfill.min.js?features=IntersectionObserver' />\n            </div>\n          );\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "import Script from 'next/script';\n\n      export function MyApp({ Component, pageProps }) {\n          return (\n            <div>\n              <Component {...pageProps} />\n              <Script src='https://polyfill-fastly.io/v3/polyfill.min.js?features=IntersectionObserver' />\n            </div>\n          );\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "import {Head} from 'next/document';\n\n      export class Blah extends Head {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <script src='https://polyfill.io/v3/polyfill.min.js?features=WeakSet%2CPromise%2CPromise.prototype.finally%2Ces2015%2Ces5%2Ces6'></script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-unwanted-polyfillio",
+        "severity": 1,
+        "message": "No duplicate polyfills from Polyfill.io are allowed. WeakSet, Promise, Promise.prototype.finally, es2015, es5, es6 are already shipped with Next.js. See: https://nextjs.org/docs/messages/no-unwanted-polyfillio",
+        "line": 8,
+        "column": 15,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 8,
+        "endColumn": 144
+      }
+    ]
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "\n      export class Blah {\n        render() {\n          return (\n            <div>\n              <h1>Hello title</h1>\n              <script src='https://polyfill.io/v3/polyfill.min.js?features=Array.prototype.copyWithin'></script>\n            </div>\n          );\n        }\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-unwanted-polyfillio",
+        "severity": 1,
+        "message": "No duplicate polyfills from Polyfill.io are allowed. Array.prototype.copyWithin is already shipped with Next.js. See: https://nextjs.org/docs/messages/no-unwanted-polyfillio",
+        "line": 7,
+        "column": 15,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 7,
+        "endColumn": 104
+      }
+    ]
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "import NextScript from 'next/script';\n\n      export function MyApp({ Component, pageProps }) {\n          return (\n            <div>\n              <Component {...pageProps} />\n              <NextScript src='https://polyfill.io/v3/polyfill.min.js?features=Array.prototype.copyWithin' />\n            </div>\n          );\n    }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-unwanted-polyfillio",
+        "severity": 1,
+        "message": "No duplicate polyfills from Polyfill.io are allowed. Array.prototype.copyWithin is already shipped with Next.js. See: https://nextjs.org/docs/messages/no-unwanted-polyfillio",
+        "line": 7,
+        "column": 15,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 7,
+        "endColumn": 110
+      }
+    ]
+  },
+  {
+    "rule": "no-unwanted-polyfillio",
+    "code": "import {Head} from 'next/document';\n\n        export class ES2019Features extends Head {\n          render() {\n            return (\n              <div>\n                <h1>Hello title</h1>\n                <script src='https://polyfill.io/v3/polyfill.min.js?features=Object.fromEntries'></script>\n              </div>\n            );\n          }\n      }",
+    "filename": "/test.js",
+    "languageOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "modules": true,
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-unwanted-polyfillio",
+        "severity": 1,
+        "message": "No duplicate polyfills from Polyfill.io are allowed. Object.fromEntries is already shipped with Next.js. See: https://nextjs.org/docs/messages/no-unwanted-polyfillio",
+        "line": 8,
+        "column": 17,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 8,
+        "endColumn": 98
+      }
+    ]
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import {Head} from 'next/document'; export default function Document(){return <Head><title>Title</title></Head>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-title-in-document-head",
+        "severity": 1,
+        "message": "Do not use `<title>` element with `<Head />` component from `next/document`. Titles should defined at the page-level using `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-title-in-document-head",
+        "line": 1,
+        "column": 85,
+        "nodeType": "JSXElement",
+        "endLine": 1,
+        "endColumn": 105
+      }
+    ]
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import {Html, Head} from 'next/document'; export default function Document(){return <Head><title>Title</title></Head>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-title-in-document-head",
+        "severity": 1,
+        "message": "Do not use `<title>` element with `<Head />` component from `next/document`. Titles should defined at the page-level using `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-title-in-document-head",
+        "line": 1,
+        "column": 91,
+        "nodeType": "JSXElement",
+        "endLine": 1,
+        "endColumn": 111
+      }
+    ]
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import {Head, Html} from 'next/document'; export default function Document(){return <Head><title>Title</title></Head>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-title-in-document-head",
+        "severity": 1,
+        "message": "Do not use `<title>` element with `<Head />` component from `next/document`. Titles should defined at the page-level using `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-title-in-document-head",
+        "line": 1,
+        "column": 91,
+        "nodeType": "JSXElement",
+        "endLine": 1,
+        "endColumn": 111
+      }
+    ]
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import {Head as DocumentHead} from 'next/document'; export default function Document(){return <DocumentHead><title>Title</title></DocumentHead>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import {Html as Head} from 'next/document'; export default function Document(){return <Head><title>Title</title></Head>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-title-in-document-head",
+        "severity": 1,
+        "message": "Do not use `<title>` element with `<Head />` component from `next/document`. Titles should defined at the page-level using `<Head />` from `next/head` instead. See: https://nextjs.org/docs/messages/no-title-in-document-head",
+        "line": 1,
+        "column": 93,
+        "nodeType": "JSXElement",
+        "endLine": 1,
+        "endColumn": 113
+      }
+    ]
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import Head from 'next/head'; export default function Document(){return <Head><title>Title</title></Head>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-title-in-document-head",
+    "code": "import {Head} from 'other-module'; export default function Document(){return <Head><title>Title</title></Head>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/pages/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-styled-jsx-in-document",
+        "severity": 1,
+        "message": "`styled-jsx` should not be used in `pages/_document.js`. See: https://nextjs.org/docs/messages/no-styled-jsx-in-document",
+        "line": 1,
+        "column": 43,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 1,
+        "endColumn": 54
+      }
+    ]
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/pages/_document.tsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-styled-jsx-in-document",
+        "severity": 1,
+        "message": "`styled-jsx` should not be used in `pages/_document.js`. See: https://nextjs.org/docs/messages/no-styled-jsx-in-document",
+        "line": 1,
+        "column": 43,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 1,
+        "endColumn": 54
+      }
+    ]
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/pages/_document/index.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-styled-jsx-in-document",
+        "severity": 1,
+        "message": "`styled-jsx` should not be used in `pages/_document.js`. See: https://nextjs.org/docs/messages/no-styled-jsx-in-document",
+        "line": 1,
+        "column": 43,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 1,
+        "endColumn": 54
+      }
+    ]
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/src/pages/_document/index.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-styled-jsx-in-document",
+        "severity": 1,
+        "message": "`styled-jsx` should not be used in `pages/_document.js`. See: https://nextjs.org/docs/messages/no-styled-jsx-in-document",
+        "line": 1,
+        "column": 43,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 1,
+        "endColumn": 54
+      }
+    ]
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/pages/_document-extra.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": [
+      {
+        "ruleId": "@next/next/no-styled-jsx-in-document",
+        "severity": 1,
+        "message": "`styled-jsx` should not be used in `pages/_document.js`. See: https://nextjs.org/docs/messages/no-styled-jsx-in-document",
+        "line": 1,
+        "column": 43,
+        "nodeType": "JSXOpeningElement",
+        "endLine": 1,
+        "endColumn": 54
+      }
+    ]
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/pages/index.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/app/_document.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  },
+  {
+    "rule": "no-styled-jsx-in-document",
+    "code": "export default function Document(){return <style jsx>{`body {color:red}`}</style>}",
+    "filename": "/pages/_document/nested.jsx",
+    "languageOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "module",
+      "parserOptions": {
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      }
+    },
+    "options": [],
+    "settings": {},
+    "expectedDiagnostics": []
+  }
+]

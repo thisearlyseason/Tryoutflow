@@ -1,0 +1,290 @@
+/* Workspace navigation: preference only changes presentation, never capabilities. */
+.app-content {
+  min-width: 0;
+}
+.app-navigation-collapse,
+.app-navigation-reopen {
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid currentColor;
+  border-radius: 0.5rem;
+  background: #07182b;
+  color: #f8fbff;
+  cursor: pointer;
+}
+.app-navigation-reopen {
+  display: none;
+}
+.mobile-more-panel {
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  width: min(23rem, calc(100vw - 1rem));
+  max-width: calc(100vw - 1rem);
+  height: 100dvh;
+  max-height: 100dvh;
+  align-content: start;
+  overflow-wrap: anywhere;
+  border-radius: 0;
+  color: #f8fbff;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.mobile-more-panel:not([open]) {
+  display: none;
+}
+.mobile-more-panel::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+.mobile-more-panel .app-nav-link {
+  justify-content: flex-start;
+  font-size: 1rem;
+}
+@media (min-width: 1100px) {
+  .app-frame-workspace:has(.app-sidebar[data-collapsed='true']) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .app-sidebar[data-collapsed='true'] {
+    display: none;
+  }
+  .app-navigation-reopen:not([hidden]) {
+    position: fixed;
+    z-index: 32;
+    inset: 0.5rem auto auto 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .app-frame-workspace:has(.app-sidebar[data-collapsed='true']) .app-content {
+    padding-top: 3.75rem;
+  }
+  .app-content > .app-main {
+    grid-column: auto;
+  }
+}
+
+@media (min-width: 1100px) {
+  .app-frame-workspace > .app-content {
+    grid-column: 2;
+  }
+  .app-frame-workspace:has(.app-sidebar[data-collapsed='true']) > .app-content {
+    grid-column: 1;
+  }
+}
+@media (900px <= width < 1100px) {
+  .app-frame-workspace > .app-content {
+    grid-column: auto;
+  }
+  .app-frame-workspace .app-topbar {
+    display: none;
+  }
+  .app-frame-workspace .app-main {
+    padding: 6rem var(--space-4) 7rem;
+  }
+}
+
+/* Product workflow: compact hierarchy, explicit stages and touch-sized controls. */
+.selected-event {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+}
+.selected-event label {
+  display: grid;
+  gap: 0.3rem;
+  flex: 1 1 15rem;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.selected-event select {
+  width: 100%;
+  min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+.workflow-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.workflow-page-heading h1 {
+  font-size: clamp(1.6rem, 3vw, 2.25rem);
+  line-height: 1.2;
+  margin: 0.25rem 0 0.5rem;
+}
+.workflow-page-heading p {
+  max-width: 65ch;
+}
+.workflow-launches {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.workflow-launches > a {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+  min-height: 88px;
+  padding: 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.workflow-launches > a:hover {
+  border-color: var(--color-performance-text);
+}
+.workflow-launches span {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.workflow-metrics .metric {
+  padding: 1rem;
+}
+.workflow-live-metrics dd {
+  font-size: 2rem;
+}
+.workflow-setup-progress {
+  padding: 1rem;
+}
+.workflow-setup-progress summary,
+.workflow-settings summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 700;
+}
+.workflow-settings summary {
+  color: #cbd5e1;
+  padding-inline: 0.75rem;
+}
+.talent-event-groups {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.talent-event-groups a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+}
+.talent-event-groups a[aria-current='true'] {
+  background: var(--color-performance-text);
+  color: var(--color-surface);
+}
+.talent-event-sections {
+  flex-wrap: wrap;
+}
+.workflow-event-plan .tryout-plan-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+.workflow-event-plan .tryout-plan-card {
+  padding: 1rem;
+}
+@media (width < 1100px) {
+  .app-frame-workspace {
+    /* First-render fallback; MobileNav replaces this with its rendered height. */
+    --mobile-navigation-height: calc(
+      var(--target-mobile) + var(--space-2) +
+        max(var(--space-2), env(safe-area-inset-bottom, 0px)) + 1px
+    );
+  }
+  .app-frame-workspace .evaluation-save-dock {
+    bottom: var(--mobile-navigation-height);
+  }
+  .app-frame-workspace :is(input, button, a, select, textarea) {
+    scroll-margin-top: 6rem;
+    scroll-margin-bottom: calc(var(--mobile-navigation-height) + 6rem);
+  }
+  html:has(.app-frame-workspace) {
+    scroll-padding-top: 6rem;
+    scroll-padding-bottom: calc(10rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-frame-workspace {
+    display: block;
+  }
+  .app-frame-workspace .app-sidebar {
+    display: none;
+  }
+  .app-frame-workspace .mobile-navigation {
+    display: block;
+  }
+  .app-frame-workspace .app-topbar {
+    display: none;
+  }
+  .app-frame-workspace .app-main {
+    padding: 6.5rem var(--space-4) calc(var(--mobile-navigation-height) + 6rem);
+  }
+}
+@media (min-width: 1100px) {
+  .app-sidebar {
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  }
+  .app-navigation {
+    overflow-y: auto;
+    min-height: 0;
+  }
+}
+@media (max-width: 639px) {
+  .talent-event-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .selected-event > a {
+    width: 100%;
+    justify-content: center;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .workflow-launches > a {
+    transition:
+      border-color 120ms ease,
+      background-color 120ms ease;
+  }
+}
+
+.workflow-next-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.75rem;
+  background: var(--color-surface);
+}
+.workflow-next-action h2 {
+  font-size: 1.25rem;
+  margin-block: 0.25rem;
+}
+.workflow-dashboard .metric-card {
+  padding: 1rem;
+}
+.workflow-dashboard .metric-value {
+  font-size: 2rem;
+}
