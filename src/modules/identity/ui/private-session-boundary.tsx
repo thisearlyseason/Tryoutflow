@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/infrastructure/supabase/client';
 
 /** Server routes authorize first; this removes stale UI when that browser session ends. */
@@ -14,30 +15,47 @@ export function PrivateSessionBoundary({
 }) {
   const router = useRouter();
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
+  const [waitingForConnection, setWaitingForConnection] = useState(false);
+  const retryVerification = useRef<(() => void) | null>(null);
   useEffect(() => {
     const client = createBrowserSupabaseClient();
     let active = true;
     let generation = 0;
     let departing = false;
+    let retryOnConnection = false;
     let expiry: ReturnType<typeof setTimeout> | undefined;
     function lock() {
+      retryOnConnection = false;
+      setWaitingForConnection(false);
       generation += 1;
       if (!active) return;
       setVerifiedUserId(null);
       if (departing) return;
       router.replace(`/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`);
     }
+    function unavailable(error: unknown) {
+      if (!isAuthRetryableFetchError(error) || error.status !== 0) return false;
+      // A transport failure is not proof of logout. Stay masked on this
+      // route; only a fresh successful getUser may restore private children.
+      retryOnConnection = true;
+      setWaitingForConnection(true);
+      return true;
+    }
     async function verify() {
       if (departing) return;
       const observed = ++generation;
+      retryOnConnection = false;
+      setWaitingForConnection(false);
       setVerifiedUserId(null);
       try {
         const { data, error } = await client.auth.getUser();
         if (!active || generation !== observed) return;
-        if (error || data.user?.id !== userId) lock();
+        if (error) {
+          if (!unavailable(error)) lock();
+        } else if (data.user?.id !== userId) lock();
         else setVerifiedUserId(userId);
-      } catch {
-        if (active && generation === observed) lock();
+      } catch (error) {
+        if (active && generation === observed && !unavailable(error)) lock();
       }
     }
     const {
@@ -71,6 +89,13 @@ export function PrivateSessionBoundary({
     const interact = (event: Event) => {
       if (departing && event.isTrusted && document.visibilityState === 'visible') resume();
     };
+    const reconnect = () => {
+      if (retryOnConnection && !departing && document.visibilityState === 'visible') void verify();
+    };
+    retryVerification.current = () => {
+      if (retryOnConnection && !departing && document.visibilityState === 'visible') void verify();
+    };
+    window.addEventListener('online', reconnect);
     window.addEventListener('beforeunload', depart);
     window.addEventListener('pagehide', depart);
     document.addEventListener('pointerdown', interact);
@@ -80,9 +105,11 @@ export function PrivateSessionBoundary({
     void verify();
     return () => {
       active = false;
+      retryVerification.current = null;
       generation += 1;
       clearTimeout(expiry);
       subscription.unsubscribe();
+      window.removeEventListener('online', reconnect);
       window.removeEventListener('beforeunload', depart);
       window.removeEventListener('pagehide', depart);
       document.removeEventListener('pointerdown', interact);
@@ -92,7 +119,18 @@ export function PrivateSessionBoundary({
     };
   }, [router, userId]);
   return verifiedUserId !== userId ? (
-    <p role="status">Sign in to continue to your private workspace.</p>
+    <div>
+      <p role="status">
+        {waitingForConnection
+          ? 'Reconnect to verify your session and continue to your private workspace.'
+          : 'Sign in to continue to your private workspace.'}
+      </p>
+      {waitingForConnection && (
+        <button type="button" onClick={() => retryVerification.current?.()}>
+          Retry session verification
+        </button>
+      )}
+    </div>
   ) : (
     children
   );
