@@ -20,9 +20,9 @@ export default async function EvaluatorLandingPage({
   return (
     <section aria-labelledby="evaluation-landing-heading" className="grid min-w-0 gap-5">
       <PageHeader
-        description="Only active evaluator assignments are listed. Athlete details stay inside each assigned session."
+        description="Choose your assigned session, then an athlete to score. Only your active assignments appear here."
         eyebrow="Evaluator workspace"
-        title="Your assigned sessions"
+        title="My scoring"
         actions={
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
@@ -50,7 +50,7 @@ export default async function EvaluatorLandingPage({
                 been included.
               </p>
               <Link href={`/app/${organizationSlug}/evaluate`} prefetch={false}>
-                View all my assigned events
+                View all my scoring sessions
               </Link>
             </>
           ) : null}

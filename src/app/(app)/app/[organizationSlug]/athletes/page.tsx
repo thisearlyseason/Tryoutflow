@@ -62,10 +62,10 @@ export default async function AthletesPage({
             <div className="flex gap-2">
               <Link
                 prefetch={false}
-                className="button-secondary"
+                className="button-primary"
                 href={`/app/${organizationSlug}/athletes/new`}
               >
-                Add prospect
+                Add athlete
               </Link>
               <Link
                 className="button-secondary"
@@ -75,16 +75,16 @@ export default async function AthletesPage({
                 Review duplicates
               </Link>
               <Link
-                className="button-primary"
+                className="button-secondary"
                 href={`/app/${organizationSlug}/athletes/import`}
                 prefetch={false}
               >
-                Import CSV
+                Import spreadsheet
               </Link>
             </div>
           ) : null
         }
-        description="Review participants, registration details, and evaluation history in one place."
+        description="Your organization’s athlete directory. Adding an athlete here is separate from registering them for a tryout."
         eyebrow="People"
         title="Athletes"
       />

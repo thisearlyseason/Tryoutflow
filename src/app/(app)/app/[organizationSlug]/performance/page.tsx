@@ -77,14 +77,20 @@ export default async function PerformancePage({
           <Upload size={16} aria-hidden="true" />
           Import CSV
         </Link>
-        <EditRecord
-          slug={slug}
-          table="performance_results"
-          title="Record a measurement"
-          triggerClassName="button-primary"
-          defaults={{ ...resultDefaults, measured_at: new Date().toISOString() }}
-          fields={resultFields(athletes, w.metrics, sessions)}
-        />
+        {w.metrics.length > 0 ? (
+          <EditRecord
+            slug={slug}
+            table="performance_results"
+            title="Record a measurement"
+            triggerClassName="button-primary"
+            defaults={{ ...resultDefaults, measured_at: new Date().toISOString() }}
+            fields={resultFields(athletes, w.metrics, sessions)}
+          />
+        ) : (
+          <a className="button-primary" href="#define-metrics">
+            Define your first measurement
+          </a>
+        )}
       </WorkspaceHeader>
       <WorkspaceStats
         items={[
@@ -202,6 +208,7 @@ export default async function PerformancePage({
       />
       <PerformanceView slug={slug} athletes={w.athletes} metrics={metrics} results={results} />
       <section className="talent-catalog">
+        <span id="define-metrics" />
         <SectionHeading
           title="Metric catalog"
           description="Define what your staff measures before collecting results."
@@ -209,7 +216,7 @@ export default async function PerformancePage({
           <EditRecord
             slug={slug}
             table="performance_metrics"
-            title="Create a metric"
+            title="Define a measurement"
             defaults={metricDefaults}
             fields={metricFields}
           />

@@ -82,7 +82,7 @@ export default async function Page({
       {!scenarios.data.length && (
         <EmptyState
           title="Build a selection scenario"
-          description="Create a draft roster to compare athletes, document role fit and review a balanced selection with your staff."
+          description="Compare draft rosters and discuss selections with your staff. Approving a scenario does not finalize the official roster."
         />
       )}
       <DecisionWorkflow

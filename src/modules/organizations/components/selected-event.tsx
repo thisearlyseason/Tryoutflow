@@ -46,13 +46,14 @@ export function SelectedEvent({
   }, [storageKey, events, routeEvent, hasEventScope]);
   const event = events.find(({ id }) => id === selected);
   // Session routes carry no verified event ID here. Their own server-loaded header supplies context.
-  if (!events.length || pathname.includes('/evaluate/session/')) return null;
+  if (!events.length || pathname.includes('/evaluate/session/') || pathname.includes('/tryouts/'))
+    return null;
   return (
     <div className="selected-event">
       <label>
-        <span>Selected event</span>
+        <span>Tryout shortcut</span>
         <select
-          aria-label="Selected event"
+          aria-label="Tryout shortcut"
           value={event?.id ?? ''}
           onChange={(e) => {
             const next = events.find(({ id }) => id === e.target.value);
@@ -65,7 +66,7 @@ export function SelectedEvent({
             }
           }}
         >
-          <option value="">Choose an event</option>
+          <option value="">Choose a tryout</option>
           {events.map(({ id, name }) => (
             <option key={id} value={id}>
               {name}
@@ -80,7 +81,7 @@ export function SelectedEvent({
           className="button-secondary"
           aria-label={`Open ${event.name}`}
         >
-          Open event →
+          Open tryout →
         </Link>
       ) : null}
     </div>

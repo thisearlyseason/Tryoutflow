@@ -3,12 +3,12 @@ import Link from 'next/link';
 import { tryoutSetupSteps, type TryoutSetupStep } from '../application/save-tryout-setup-step';
 
 const labels: Record<TryoutSetupStep, string> = {
-  basics: 'Basics',
+  basics: 'Tryout details',
   divisions: 'Divisions',
   sessions: 'Sessions',
   registration: 'Registration',
-  rubrics: 'Rubrics',
-  review: 'Review',
+  rubrics: 'Scoring criteria',
+  review: 'Check setup',
   publish: 'Publish',
 };
 
@@ -23,6 +23,10 @@ export function WizardProgress({
 }) {
   return (
     <nav aria-label="Tryout setup progress" className="wizard-progress overflow-x-auto pb-2">
+      <p className="mb-2 text-sm font-bold">
+        Step {tryoutSetupSteps.indexOf(currentStep) + 1} of {tryoutSetupSteps.length}:{' '}
+        {labels[currentStep]}
+      </p>
       <ol className="flex min-w-max gap-2">
         {tryoutSetupSteps.map((step, index) => {
           const complete = completedSteps.includes(step);

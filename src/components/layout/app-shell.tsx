@@ -4,6 +4,7 @@ import {
 } from '../../modules/organizations/components/selected-event';
 import { Suspense, type ReactNode } from 'react';
 
+import { WorkspaceReturn } from './workspace-return';
 import { AppTopbar } from './app-topbar';
 import { AppNavigation } from './app-navigation';
 import type { NavigationGroup } from '../../modules/organizations/components/app-navigation-model';
@@ -53,6 +54,7 @@ export function AppShell({
         <AppTopbar groups={groupedNavigation} organization={organization} roleLabel={roleLabel} />
         <main className="app-main" id="main-content">
           <Suspense fallback={null}>
+            <WorkspaceReturn groups={groupedNavigation} events={events} />
             <SelectedEvent events={events} storageKey={eventStorageKey} />
           </Suspense>
           {children}

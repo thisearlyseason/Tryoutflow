@@ -99,7 +99,15 @@ export function MobileNav({
   if (!groups || !organization || !roleLabel) return null;
   const items = flattenNavigation(groups);
   const billingItem = items.find(({ href }) => href.endsWith('/organization/billing'));
-  const primaryItems = items.slice(0, 3);
+  const scoringItem = items.find(({ href }) => href.endsWith('/evaluate'));
+  const prioritizedItems = scoringItem
+    ? [
+        ...items.filter(({ href }) => href.endsWith('/home')),
+        scoringItem,
+        ...items.filter((item) => item !== scoringItem && !item.href.endsWith('/home')),
+      ]
+    : items;
+  const primaryItems = prioritizedItems.slice(0, 3);
   const close = () => setMoreOpen(false);
   return (
     <nav aria-label="Mobile navigation" className="mobile-navigation">
@@ -111,7 +119,7 @@ export function MobileNav({
         </span>
         {billingItem ? (
           <Link className="mobile-upgrade-link" href={billingItem.href} prefetch={false}>
-            Upgrade &amp; billing
+            Billing
           </Link>
         ) : null}
       </div>

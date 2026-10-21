@@ -11,11 +11,13 @@ export function OrganizationCommandCenter({
   projection,
   activity,
   showManagementActions = false,
+  canScore = false,
 }: {
   organizationSlug?: string;
   projection: OrganizationDashboardProjection;
   activity?: DashboardActivityData;
   showManagementActions?: boolean;
+  canScore?: boolean;
 }) {
   const base = organizationSlug && showManagementActions ? `/app/${organizationSlug}` : null;
   return (
@@ -23,14 +25,17 @@ export function OrganizationCommandCenter({
       <header className="workflow-page-heading">
         <div>
           <p className="eyebrow">Your workspace</p>
-          <h1>Ready for the next tryout</h1>
+          <h1>What would you like to do?</h1>
           <p>
-            Choose an event above to continue setup, run the floor, review evidence or share
-            approved results.
+            Organize a tryout or open your assigned scoring sessions. These are separate tasks, even
+            when you are both an organizer and an evaluator.
           </p>
         </div>
         {base ? (
-          <LinkButton href={`${base}/tryouts/new`}>
+          <LinkButton
+            href={`${base}/tryouts/new`}
+            variant={activity?.tryouts?.length ? 'secondary' : 'primary'}
+          >
             <Plus size={18} aria-hidden="true" />
             Create tryout
           </LinkButton>
@@ -38,17 +43,45 @@ export function OrganizationCommandCenter({
       </header>
       {base ? (
         <section className="workflow-launches" aria-label="Continue your work">
-          <Link href={`${base}/tryouts`} prefetch={false}>
-            <strong>Open an event →</strong>
-            <span>Setup · Run Tryout · Review Results · Share Results</span>
+          <Link
+            href={
+              activity?.tryouts?.[0]
+                ? `${base}/tryouts/${activity.tryouts[0].id}/overview`
+                : `${base}/tryouts`
+            }
+            prefetch={false}
+          >
+            <strong>
+              {activity?.tryouts?.[0]
+                ? `Continue ${activity.tryouts[0].name} →`
+                : 'Organize a tryout →'}
+            </strong>
+            <span>Set up sessions, add athletes, assign evaluators and review results.</span>
           </Link>
-          <Link href={`${base}/athletes/import`} prefetch={false}>
-            <strong>Import players →</strong>
-            <span>Map columns, preview changes, then confirm.</span>
-          </Link>
-          <Link href={`${base}/evaluators`} prefetch={false}>
-            <strong>Check staffing →</strong>
-            <span>Assignments, readiness and calibration.</span>
+          {canScore ? (
+            <Link href={`${base}/evaluate`} prefetch={false}>
+              <strong>My scoring →</strong>
+              <span>Choose an assigned session and open an athlete’s scorecard.</span>
+            </Link>
+          ) : (
+            <Link
+              href={
+                activity?.tryouts?.[0]
+                  ? `${base}/tryouts/${activity.tryouts[0].id}/staff`
+                  : `${base}/tryouts`
+              }
+              prefetch={false}
+            >
+              <strong>Set up evaluator assignments →</strong>
+              <span>
+                To score athletes, you also need an evaluator assignment. Being an organizer does
+                not assign you automatically.
+              </span>
+            </Link>
+          )}
+          <Link href={`${base}/athletes`} prefetch={false}>
+            <strong>Manage athletes →</strong>
+            <span>Add one athlete or import a spreadsheet.</span>
           </Link>
         </section>
       ) : null}
@@ -82,8 +115,8 @@ export function OrganizationCommandCenter({
         />
       </section>
       <p className="workspace-note">
-        These are program totals. Open an event’s Run Tryout dashboard for check-in, observation
-        coverage and recorded sync receipts.
+        These are organization totals. Open a tryout’s Run Tryout dashboard to check arrivals,
+        scoring progress and save status.
       </p>
       {base && activity ? (
         <div className="dashboard-columns">

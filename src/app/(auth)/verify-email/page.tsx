@@ -22,7 +22,9 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
         ? 'Check your inbox and verify your email to open your athlete and family portal.'
         : 'Check your inbox and verify your email before continuing to organization setup.'
       : parameters.confirmed === '1'
-        ? 'Your email is verified. You can continue to your organization.'
+        ? participant
+          ? 'Your email is verified. You can continue to your athlete and family portal.'
+          : 'Your email is verified. You can continue to your organization.'
         : parameters.sent === '1'
           ? 'If that email belongs to an account, we sent a verification link.'
           : 'Enter your email to receive another verification link.';

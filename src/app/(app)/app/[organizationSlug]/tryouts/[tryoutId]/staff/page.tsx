@@ -228,7 +228,7 @@ export default async function TryoutStaffPage({
   return (
     <section aria-labelledby="staffing-heading" className="workspace-stack">
       <PageHeader
-        description="Invite organization members, then grant only the division, session, or group they evaluate."
+        description="Invite evaluators, then assign the sessions, divisions or groups they will score. Once accepted and assigned, they open My scoring."
         eyebrow="Tryout staffing"
         title={`${tryout.name} evaluators`}
       />

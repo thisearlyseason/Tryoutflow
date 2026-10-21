@@ -66,21 +66,23 @@ export function buildAppNavigation({
       {
         id: 'overview',
         label: 'Overview',
-        items: [{ href: `${base}/home`, label: 'Home', icon: 'home' }],
+        items: [
+          { href: `${base}/home`, label: 'Home', icon: 'home' },
+          ...(authorization.assignments.some(({ role }) => role === 'evaluator')
+            ? [{ href: `${base}/evaluate`, label: 'My scoring', icon: 'evaluate' as const }]
+            : []),
+        ],
       },
       {
         id: 'operations',
-        label: 'Program',
+        label: 'Organize tryouts',
         items: [
           { href: `${base}/tryouts`, label: 'Tryouts', icon: 'tryouts' },
           { href: `${base}/athletes`, label: 'Athletes', icon: 'athletes' },
           { href: `${base}/scouting`, label: 'Scouting', icon: 'evaluate' },
           { href: `${base}/performance`, label: 'Performance', icon: 'reports' },
-          { href: `${base}/evaluators`, label: 'Evaluators', icon: 'evaluate' },
+          { href: `${base}/evaluators`, label: 'Evaluator team', icon: 'evaluate' },
           { href: `${base}/reports`, label: 'Reports', icon: 'reports' },
-          ...(authorization.assignments.some(({ role }) => role === 'evaluator')
-            ? [{ href: `${base}/evaluate`, label: 'Evaluate', icon: 'evaluate' as const }]
-            : []),
         ],
       },
       {
@@ -132,7 +134,7 @@ export function buildAppNavigation({
         ]
       : []),
     ...(evaluator
-      ? [{ href: `${base}/evaluate`, label: 'Evaluate', icon: 'evaluate' as const }]
+      ? [{ href: `${base}/evaluate`, label: 'My scoring', icon: 'evaluate' as const }]
       : []),
     ...checkinTryouts.map((tryoutId) =>
       scopedItem(organizationSlug, tryoutId, 'check-in', 'Check-in', 'tryouts'),

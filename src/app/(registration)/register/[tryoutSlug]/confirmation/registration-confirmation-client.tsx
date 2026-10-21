@@ -223,7 +223,20 @@ export function RegistrationConfirmationClient({
           Checking confirmation status…
         </p>
       ) : status === 'confirmed' || status === 'already_confirmed' ? (
-        <p className="mt-3">Your registration is confirmed.</p>
+        <section className="mt-3 grid gap-3">
+          <p>Your registration is confirmed.</p>
+          <p>
+            Check the organizer’s instructions for session times and what to bring. Contact the
+            organizer if you need to change your registration.
+          </p>
+          <Link className="underline" href="/participant" prefetch={false}>
+            Open the family portal
+          </Link>
+          <p className="text-sm">
+            The portal requires sign-in and a linked athlete account. Confirmation does not
+            automatically link an account.
+          </p>
+        </section>
       ) : status === 'email_sent' ? (
         <p className="mt-3" role="status">
           Your confirmation link has been queued to your email. Open that one-time link to finish

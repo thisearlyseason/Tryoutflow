@@ -49,8 +49,11 @@ export function IdentityForm({
         }
       }}
     >
-      <h3>{athlete ? 'Correct athlete identity' : 'Add a prospect'}</h3>
-      <p className="talent-meta">A prospect can be scouted before registering for a tryout.</p>
+      <h3>{athlete ? 'Correct athlete identity' : 'Add an athlete'}</h3>
+      <p className="talent-meta">
+        Add an athlete to your organization’s directory. Registering them for a tryout is a separate
+        step.
+      </p>
       <div className="talent-form-grid">
         <label>
           First name
@@ -67,7 +70,7 @@ export function IdentityForm({
       </div>
       <div className="talent-form-footer">
         <FeedbackButton busy={busy} disabled={busy} className="button-primary">
-          {busy ? 'Saving…' : athlete ? 'Save identity' : 'Add prospect'}
+          {busy ? 'Saving…' : athlete ? 'Save identity' : 'Add athlete'}
         </FeedbackButton>
         <p role="status">{message}</p>
       </div>

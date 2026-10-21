@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createHash } from 'node:crypto';
 
 import { notFound } from 'next/navigation';
@@ -139,7 +140,18 @@ export default async function CheckinPage({
     return (
       <section aria-labelledby="checkin-empty">
         <h2 id="checkin-empty">No check-in sessions configured</h2>
-        <p>Complete tryout setup before checking in registrations.</p>
+        <p>A session must be set up before athletes can check in.</p>
+        {['owner', 'administrator'].includes(current.authorization.organizationRole) ? (
+          <Link
+            className="button-primary"
+            href={`/app/${organizationSlug}/tryouts/${tryoutId}/setup/sessions`}
+            prefetch={false}
+          >
+            Set up sessions
+          </Link>
+        ) : (
+          <p>Ask your organizer to add a session and confirm your check-in assignment.</p>
+        )}
       </section>
     );
   if (placements.length === 0)

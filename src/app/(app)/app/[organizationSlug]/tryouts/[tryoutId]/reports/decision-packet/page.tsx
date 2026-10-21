@@ -70,6 +70,17 @@ export default async function Page({
         </div>
         <PrintReport />
       </header>
+      <Link
+        className="button-secondary talent-no-print"
+        href={`/app/${slug}/tryouts/${tryoutId}/reports`}
+        prefetch={false}
+      >
+        Back to tryout reports
+      </Link>
+      <p>
+        This confidential packet brings scoring evidence and draft selections together for staff
+        review. It does not finalize a roster or publish results to families.
+      </p>
       <p>
         Scores use completed, active evaluations. Blank results mean no completed evidence.{' '}
         {w.scoutingIncluded

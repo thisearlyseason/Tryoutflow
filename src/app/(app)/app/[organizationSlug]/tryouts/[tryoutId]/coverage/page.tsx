@@ -116,7 +116,7 @@ export default async function Page({
               <Link
                 href={`/app/${slug}/tryouts/${tryoutId}/rankings?search=${encodeURIComponent(r.name)}`}
               >
-                Score evidence
+                View scores
               </Link>
             </div>
           </article>

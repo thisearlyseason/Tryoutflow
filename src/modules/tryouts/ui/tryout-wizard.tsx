@@ -14,6 +14,7 @@ import { RegistrationFormEditor, type EditableRegistrationForm } from './registr
 
 import type { TryoutSetupStep } from '../application/save-tryout-setup-step';
 import type { TryoutBasicsField, TryoutBasicsInput } from '../application/validate-tryout-basics';
+import { publicationBlockerGuidance } from './publication-blocker-guidance';
 import type { TryoutBasicsValues } from './tryout-basics';
 
 export type TryoutWizardActionState =
@@ -45,8 +46,9 @@ const guidance: Record<TryoutSetupStep, { title: string; description: string }> 
     description: 'Create the public form athletes and guardians will use.',
   },
   rubrics: {
-    title: 'Evaluation rubrics',
-    description: 'Attach one published, 100-point rubric to every session.',
+    title: 'Scoring criteria',
+    description:
+      'Choose published scoring criteria for every session. The category weights must total 100%.',
   },
   review: {
     title: 'Review setup',
@@ -114,7 +116,8 @@ export function TryoutWizard({
             conflict: 'This tryout changed in another tab. Refresh and review it again.',
             subscription_required: 'An active subscription is required before publishing.',
             registration_closed: 'Set a future registration closing time before publishing.',
-            rubric_invalid: 'Every session needs a valid 100-point rubric before publishing.',
+            rubric_invalid:
+              'Every session needs published scoring criteria with category weights totaling 100% before publishing.',
             registration_form_missing: 'Create a registration form before publishing.',
             division_missing: 'Add at least one division before publishing.',
             session_missing: 'Add at least one session before publishing.',
@@ -172,7 +175,17 @@ export function TryoutWizard({
           <h3>Publishing is blocked</h3>
           <ul className="mt-2 list-disc pl-5">
             {blockers.map((blocker) => (
-              <li key={blocker}>{blocker.replaceAll('_', ' ')}</li>
+              <li key={blocker}>
+                {publicationBlockerGuidance(blocker).label}{' '}
+                {overviewHref && publicationBlockerGuidance(blocker).step ? (
+                  <Link
+                    className="underline"
+                    href={`${overviewHref.replace(/\/overview$/, '')}/setup/${publicationBlockerGuidance(blocker).step}`}
+                  >
+                    Review this step
+                  </Link>
+                ) : null}
+              </li>
             ))}
           </ul>
         </div>

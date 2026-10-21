@@ -11,7 +11,7 @@ export default async function ForgotPasswordPage({ searchParams }: ForgotPasswor
 
   return (
     <AuthShell
-      description="Enter your coaching account email and we’ll send secure reset instructions."
+      description="Enter your account email and we’ll send secure reset instructions."
       eyebrow="Account recovery"
       footer={<a href="/sign-in">Return to sign in</a>}
       title="Reset your password"

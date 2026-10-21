@@ -3,10 +3,9 @@ import { PrivateSessionBoundary } from '@/modules/identity/ui/private-session-bo
 import { Suspense } from 'react';
 
 import { AuthShell } from '../../../components/layout/auth-shell';
-import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
+import { OrganizationNameFields } from '@/modules/organizations/ui/organization-name-fields';
 import { Button } from '../../../components/ui/button';
 import { FormField } from '../../../components/ui/form-field';
-import { Input } from '../../../components/ui/input';
 import { createOrganization } from '../../../modules/organizations/application/create-organization';
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
 import { parseUserId } from '../../../lib/ids';
@@ -66,33 +65,7 @@ export default async function StartPage() {
           <Suspense fallback={null}>
             <StartPlan />
           </Suspense>
-          <FormField htmlFor="name" label="Organization name" required>
-            {({ describedBy }) => (
-              <Input
-                aria-describedby={describedBy}
-                id="name"
-                name="name"
-                placeholder={FIELD_EXAMPLES.organizationName}
-                required
-              />
-            )}
-          </FormField>
-          <FormField
-            description="This creates your internal TryoutFlow workspace address, such as /app/badlands-hockey-academy. It is not your public website."
-            htmlFor="slug"
-            label="Your TryoutFlow workspace address"
-            required
-          >
-            {({ describedBy }) => (
-              <Input
-                aria-describedby={describedBy}
-                id="slug"
-                name="slug"
-                placeholder={FIELD_EXAMPLES.organizationName.toLowerCase().replaceAll(' ', '-')}
-                required
-              />
-            )}
-          </FormField>
+          <OrganizationNameFields />
           <FormField
             description="Start typing to search timezones. We select your device timezone when it is available."
             htmlFor="timezone"

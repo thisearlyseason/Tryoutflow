@@ -946,6 +946,10 @@ export function EvaluationForm({
           {athlete.divisionName} · {athlete.sessionName ?? 'Session'}
           {athlete.groupName ? ` · ${athlete.groupName}` : ''}
         </p>
+        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+          Scores save automatically as drafts. Check the device or server save status below.
+          Complete the evaluation only when you have finished scoring this athlete.
+        </p>
         <div className="evaluation-progress-row">
           <span>
             <Zap size={15} aria-hidden="true" />

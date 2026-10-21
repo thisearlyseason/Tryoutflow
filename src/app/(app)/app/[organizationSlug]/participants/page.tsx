@@ -158,7 +158,10 @@ export default async function Page({ params }: { params: Promise<{ organizationS
       ) : (
         <p>No correction requests.</p>
       )}
-      <SectionHeading title="Scouting access" />
+      <SectionHeading
+        title="Staff scouting permissions"
+        description="Separate from family portal links. These permissions let staff use scouting tools; they do not link a family to an athlete."
+      />
       <p>
         Scouting grants allow access to sporting profiles, performance and shared scouting records
         across this organization. Financial, guardian and evaluator qualification records remain

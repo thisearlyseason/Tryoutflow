@@ -132,7 +132,7 @@ export default async function TryoutOverviewPage({
               </Link>
             </section>
             <details className="workflow-setup-progress">
-              <summary>View the full event checklist</summary>
+              <summary>View the full tryout checklist</summary>
               <TryoutJourney journey={journey} />
             </details>
           </div>
@@ -142,7 +142,7 @@ export default async function TryoutOverviewPage({
         <div className="flex flex-wrap gap-3">
           {tryout.status === 'draft' ? (
             <Link
-              className="button-primary"
+              className="button-secondary"
               href={`/app/${organizationSlug}/tryouts/${tryoutId}/setup/publish`}
               prefetch={false}
             >
