@@ -23,15 +23,37 @@ export function PrivateSessionBoundary({
     let generation = 0;
     let departing = false;
     let retryOnConnection = false;
+    let denied = false;
+    let needsExpiryProof = false;
     let expiry: ReturnType<typeof setTimeout> | undefined;
     function lock() {
+      denied = true;
       retryOnConnection = false;
       setWaitingForConnection(false);
       generation += 1;
       if (!active) return;
       setVerifiedUserId(null);
       if (departing) return;
+      if (navigator.onLine === false) {
+        retryOnConnection = true;
+        setWaitingForConnection(true);
+        return;
+      }
       router.replace(`/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`);
+    }
+    function waitForConnection() {
+      if (denied) return;
+      needsExpiryProof = true;
+      generation += 1;
+      setVerifiedUserId(null);
+      retryOnConnection = true;
+      setWaitingForConnection(true);
+    }
+    function expire() {
+      // Expiry never authorizes cached content. An offline document stays masked
+      // until fresh online proof, rather than navigating to a browser error page.
+      if (navigator.onLine === false) waitForConnection();
+      else lock();
     }
     function unavailable(error: unknown) {
       if (!isAuthRetryableFetchError(error) || error.status !== 0) return false;
@@ -42,7 +64,7 @@ export function PrivateSessionBoundary({
       return true;
     }
     async function verify() {
-      if (departing) return;
+      if (departing || denied) return;
       const observed = ++generation;
       retryOnConnection = false;
       setWaitingForConnection(false);
@@ -53,24 +75,50 @@ export function PrivateSessionBoundary({
         if (error) {
           if (!unavailable(error)) lock();
         } else if (data.user?.id !== userId) lock();
-        else setVerifiedUserId(userId);
+        else {
+          if (needsExpiryProof) {
+            // getUser is the fresh authority. getSession is used only to restore
+            // expiry timing, never as a substitute for that server verification.
+            const current = await client.auth.getSession();
+            if (!active || generation !== observed) return;
+            if (current.error) {
+              if (!unavailable(current.error)) lock();
+              return;
+            }
+            const session = current.data.session;
+            if (
+              !session ||
+              session.user.id !== userId ||
+              !session.expires_at ||
+              session.expires_at * 1000 <= Date.now()
+            ) {
+              lock();
+              return;
+            }
+            clearTimeout(expiry);
+            expiry = setTimeout(expire, session.expires_at * 1000 - Date.now());
+            needsExpiryProof = false;
+          }
+          setVerifiedUserId(userId);
+        }
       } catch (error) {
         if (active && generation === observed && !unavailable(error)) lock();
       }
     }
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => {
-      if (!active) return;
+    } = client.auth.onAuthStateChange((event, session) => {
+      if (!active || denied) return;
       clearTimeout(expiry);
-      if (
-        !session ||
-        session.user.id !== userId ||
-        !session.expires_at ||
-        session.expires_at * 1000 <= Date.now()
-      )
+      if (event === 'INITIAL_SESSION' && !session && navigator.onLine === false) {
+        // The SDK also emits INITIAL_SESSION null after a transport failure.
+        // This is not a logout signal; require fresh proof when back online.
+        waitForConnection();
+      } else if (!session || session.user.id !== userId || !session.expires_at) {
         lock();
-      else expiry = setTimeout(lock, session.expires_at * 1000 - Date.now());
+      } else if (session.expires_at * 1000 <= Date.now()) {
+        expire();
+      } else expiry = setTimeout(expire, session.expires_at * 1000 - Date.now());
     });
     const depart = () => {
       departing = true;
@@ -79,7 +127,8 @@ export function PrivateSessionBoundary({
     };
     const resume = () => {
       departing = false;
-      void verify();
+      if (denied) lock();
+      else void verify();
     };
     const visible = () => {
       if (document.visibilityState === 'visible') resume();
@@ -90,10 +139,16 @@ export function PrivateSessionBoundary({
       if (departing && event.isTrusted && document.visibilityState === 'visible') resume();
     };
     const reconnect = () => {
-      if (retryOnConnection && !departing && document.visibilityState === 'visible') void verify();
+      if (retryOnConnection && !departing && document.visibilityState === 'visible') {
+        if (denied) lock();
+        else void verify();
+      }
     };
     retryVerification.current = () => {
-      if (retryOnConnection && !departing && document.visibilityState === 'visible') void verify();
+      if (retryOnConnection && !departing && document.visibilityState === 'visible') {
+        if (denied) lock();
+        else void verify();
+      }
     };
     window.addEventListener('online', reconnect);
     window.addEventListener('beforeunload', depart);
