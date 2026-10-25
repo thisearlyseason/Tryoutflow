@@ -257,7 +257,8 @@ export async function verifyVisualSession(
     cookies: {
       getAll: () => cookies,
       setAll: () => {
-        throw new Error('Visual cached session requires refresh.');
+        // Reject after SDK callbacks complete; never throw through its auth lock.
+        denied = true;
       },
     },
   });
