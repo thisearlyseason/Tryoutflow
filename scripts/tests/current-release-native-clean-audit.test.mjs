@@ -227,3 +227,76 @@ for (const [exitCode, expected] of [
     }
   });
 }
+
+for (const [label, mutate] of [
+  [
+    'file link',
+    (entry) => {
+      entry.link = true;
+    },
+  ],
+  [
+    'bundled code',
+    (entry) => {
+      entry.inBundle = true;
+    },
+  ],
+  [
+    'missing integrity',
+    (entry) => {
+      delete entry.integrity;
+    },
+  ],
+  [
+    'invalid integrity',
+    (entry) => {
+      entry.integrity = 'not-an-integrity';
+    },
+  ],
+  [
+    'local source',
+    (entry) => {
+      entry.resolved = 'file:../patched-source';
+    },
+  ],
+  [
+    'unrecognized registry',
+    (entry) => {
+      entry.resolved = 'https://example.invalid/package.tgz';
+    },
+  ],
+  [
+    'Git source',
+    (entry) => {
+      entry.resolved = 'git+https://github.com/example/package.git#main';
+    },
+  ],
+  [
+    'missing version',
+    (entry) => {
+      delete entry.version;
+    },
+  ],
+])
+  test(`zero report cannot conceal unaudited native dependency: ${label}`, () => {
+    const changed = structuredClone(lock);
+    mutate(changed.packages['node_modules/node-forge']);
+    assert.throws(
+      () => verifyNativeReleaseAudit('/not-a-repository', clean, changed, undefined, undefined),
+      /coverage/u,
+    );
+  });
+test('zero report with a linked vulnerable package and missing registry coverage is rejected', () => {
+  const linked = {
+    lockfileVersion: 3,
+    packages: {
+      '': { name: 'synthetic-audit-proof' },
+      '../local/node-forge': { name: 'node-forge', version: '1.4.0' },
+      'node_modules/node-forge': { resolved: '../local/node-forge', link: true },
+    },
+  };
+  assert.throws(
+    () => verifyNativeReleaseAudit('/not-a-repository', clean, linked, undefined, undefined),
+    /coverage/u,
+  );
+});

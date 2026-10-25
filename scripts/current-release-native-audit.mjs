@@ -69,11 +69,48 @@ export function verifyNativeAudit(audit, lock, pins) {
     throw new Error('Native root advisory drift.');
 }
 
+// npm can report zero vulnerabilities for file/workspace links without auditing
+// the linked package. A native clean result is meaningful only for frozen,
+// integrity-pinned registry packages; local/fork coverage needs separate review.
+export function verifyNativeLockfileCoverage(lock) {
+  if (lock?.lockfileVersion !== 3 || !lock.packages?.[''])
+    throw new Error('Missing frozen native lockfile.');
+  for (const [path, entry] of Object.entries(lock.packages)) {
+    if (path === '') continue;
+    let url;
+    try {
+      url = new URL(entry?.resolved);
+    } catch {
+      throw new Error('Native dependency is outside registry audit coverage.');
+    }
+    if (
+      !path.startsWith('node_modules/') ||
+      path.split('/').includes('..') ||
+      /[\\\x00-\x1f\x7f]/u.test(path) ||
+      entry.link ||
+      entry.inBundle ||
+      typeof entry.version !== 'string' ||
+      !entry.version ||
+      url.protocol !== 'https:' ||
+      url.hostname !== 'registry.npmjs.org' ||
+      url.username ||
+      url.password ||
+      url.port ||
+      url.search ||
+      url.hash ||
+      typeof entry.integrity !== 'string' ||
+      !/^(?:sha512|sha384|sha256|sha1)-[A-Za-z0-9+/]+={0,2}(?: (?:sha512|sha384|sha256|sha1)-[A-Za-z0-9+/]+={0,2})*$/u.test(
+        entry.integrity,
+      )
+    )
+      throw new Error('Native dependency is outside registry audit coverage.');
+  }
+}
+
 // A clean report needs no advisory exception. Validate it before considering the
 // historical, exact-source exception; malformed reports can never enter either path.
 export function verifyNativeAuditReport(audit, lock) {
-  if (lock?.lockfileVersion !== 3 || !lock.packages?.[''])
-    throw new Error('Missing frozen native lockfile.');
+  verifyNativeLockfileCoverage(lock);
   const severities = ['info', 'low', 'moderate', 'high', 'critical'];
   const counts = audit?.metadata?.vulnerabilities;
   const findings = audit?.vulnerabilities;
