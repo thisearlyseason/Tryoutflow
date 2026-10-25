@@ -1,6 +1,6 @@
 'use client';
 import { ManagedBillingCountryField } from './managed-billing-country-field';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useCheckoutReturn } from './use-checkout-return';
 import { trackBilling } from './billing-analytics';
 import { useRouter } from 'next/navigation';
@@ -14,7 +14,10 @@ import {
   type AvailableBillingProduct,
 } from '../domain/billing-dashboard';
 const formatDate = (value: string) =>
-  new Intl.DateTimeFormat('en-CA', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(value));
+  new Intl.DateTimeFormat('en-CA', {
+    dateStyle: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(value));
 export function BillingDashboardPanel({
   initial,
   organizationId,
@@ -46,6 +49,17 @@ export function BillingDashboardPanel({
     [message, setMessage] = useState(''),
     [tryout, setTryout] = useState('');
   const lock = useRef(false);
+  const [planError, setPlanError] = useState<{
+    product: string;
+    message: string;
+  } | null>(null);
+  const planErrorElement = useRef<HTMLParagraphElement>(null);
+  const planErrorId = useId();
+  useEffect(() => {
+    if (!planError) return;
+    planErrorElement.current?.focus({ preventScroll: true });
+    planErrorElement.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [planError]);
   const [billingCountry, setBillingCountry] = useState('');
   useEffect(() => {
     try {
@@ -93,11 +107,16 @@ export function BillingDashboardPanel({
   }, [expiry]);
   const remaining = expiry === null ? 0 : Math.max(0, Math.ceil((expiry - clock) / 60_000));
   const trialActive = expiry !== null && remaining > 0;
-  async function action(input: Record<string, unknown>, planChange = false) {
+  async function action(
+    input: Record<string, unknown>,
+    planChange = false,
+    feedbackProduct?: string,
+  ) {
     if (lock.current || readOnly || (checkoutReturn && returnStatus !== 'confirmed')) return;
     lock.current = true;
     setBusy(true);
     setMessage('');
+    setPlanError(null);
     try {
       if (
         input.action === 'purchase' &&
@@ -153,7 +172,9 @@ export function BillingDashboardPanel({
       setMessage(result.message ?? 'Subscription updated.');
       router.refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Please try again.';
+      if (feedbackProduct) setPlanError({ product: feedbackProduct, message: errorMessage });
+      else setMessage(errorMessage);
     } finally {
       lock.current = false;
       setBusy(false);
@@ -488,6 +509,7 @@ export function BillingDashboardPanel({
                 ) : null}
                 <Button
                   busy={busy}
+                  aria-describedby={planError?.product === product.key ? planErrorId : undefined}
                   disabled={
                     readOnly ||
                     (checkoutReturn && returnStatus !== 'confirmed') ||
@@ -496,7 +518,7 @@ export function BillingDashboardPanel({
                   }
                   onClick={() =>
                     canChangePlan && product.key !== 'single_tryout_pro'
-                      ? action({ action: 'preview', product: product.key }, true)
+                      ? action({ action: 'preview', product: product.key }, true, product.key)
                       : action(
                           hasSubscription
                             ? { action: 'manage' }
@@ -506,6 +528,8 @@ export function BillingDashboardPanel({
                                 provider: 'stripe',
                                 tryoutId: product.key === 'single_tryout_pro' ? tryout : null,
                               },
+                          false,
+                          product.key,
                         )
                   }
                 >
@@ -517,6 +541,17 @@ export function BillingDashboardPanel({
                         ? 'Manage current subscription'
                         : 'Choose plan'}
                 </Button>
+                {planError?.product === product.key ? (
+                  <p
+                    id={planErrorId}
+                    ref={planErrorElement}
+                    role="alert"
+                    tabIndex={-1}
+                    className="mt-3 rounded-lg bg-amber-50 p-3 text-amber-950"
+                  >
+                    {planError.message}
+                  </p>
+                ) : null}
                 <p className="mt-3 text-xs text-[var(--color-text-muted)]">
                   {hasSubscription
                     ? current?.provider === 'stripe'
