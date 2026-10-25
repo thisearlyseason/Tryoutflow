@@ -3,11 +3,44 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  verify:
+  scope:
     runs-on: ubuntu-latest
-    # Measured setup plus the complete zero-retry five-browser gate and final cleanup.
+    timeout-minutes: 10
+    outputs:
+      web: ${{ steps.classify.outputs.web }}
+      native: ${{ steps.classify.outputs.native }}
+      reason: ${{ steps.classify.outputs.reason }}
+      sha: ${{ steps.classify.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: corepack enable
+      - run: corepack npm@11.12.1 ci
+      - name: Test scope classification and required-status policy
+        run: node --test scripts/tests/ci-release-scope.test.mjs
+      - name: Classify exact checked-out source
+        id: classify
+        run: node scripts/ci-release-scope.mjs classify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tryoutflow-release-scope-${{ github.sha }}
+          path: .next/release-audit/scope-classify.json
+          if-no-files-found: error
+          retention-days: 7
+
+  web:
+    needs: scope
+    if: needs.scope.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    # Preserve the complete zero-retry browser, database and cleanup gate.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -17,15 +50,15 @@ jobs:
           cache: npm
       - run: corepack enable
       - run: corepack npm@11.12.1 ci
-      - name: Audit web and native dependencies
+      - name: Audit website and test-tool dependencies
         run: |
           node scripts/current-release-dependency-audit.mjs
           node --test scripts/tests/current-release-source-binding.test.mjs
-          node --test scripts/tests/current-release-native-audit.test.mjs
-          node scripts/current-release-native-audit.mjs
+      - name: Hosted-content native compatibility tests
+        run: corepack npm@11.12.1 exec -- vitest run tests/unit/identity/native-workspace-bridge.test.tsx
       - run: corepack npm@11.12.1 exec -- playwright install --with-deps chromium firefox webkit
       - run: corepack npm@11.12.1 exec -- supabase start
-      - name: Production readiness gate
+      - name: Website production readiness gate
         run: bash scripts/verify-production-readiness.sh
       - name: Retain synthetic browser and visual evidence on failure
         if: failure() || cancelled()
@@ -39,5 +72,67 @@ jobs:
             output/playwright/visual-results/**/*-expected.png
             output/playwright/visual-results/**/*-diff.png
             output/playwright/test-results/**/trace.zip
-            output/playwright/test-results/**/error-context.md
             output/playwright/test-results/**/test-failed-*.png
+
+  native:
+    needs: scope
+    if: needs.scope.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/mobile/package-lock.json
+      - run: corepack enable
+      - run: corepack npm@11.12.1 ci
+      - run: corepack npm@11.12.1 ci --prefix apps/mobile
+      - name: Audit native and shared test-tool dependencies without a new exception
+        run: |
+          node scripts/current-release-dependency-audit.mjs
+          node --test scripts/tests/current-release-source-binding.test.mjs
+          node --test scripts/tests/current-release-native-audit.test.mjs
+          node scripts/current-release-native-audit.mjs
+      - name: Native typecheck
+        run: corepack npm@11.12.1 run --prefix apps/mobile typecheck
+      - name: Native behavioral tests
+        run: corepack npm@11.12.1 exec -- vitest run --config apps/mobile/vitest.config.mts
+      - name: Compile iOS and Android JavaScript bundles without signing or publication
+        working-directory: apps/mobile
+        env:
+          CI: '1'
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_NO_DOTENV: '1'
+          EXPO_PUBLIC_API_URL: https://release.tryoutflow.test
+          EXPO_PUBLIC_SUPABASE_URL: http://127.0.0.1:58321
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local-ci-placeholder
+        run: |
+          corepack npm@11.12.1 exec -- expo export --platform ios --output-dir ../../output/native-ci/ios
+          corepack npm@11.12.1 exec -- expo export --platform android --output-dir ../../output/native-ci/android
+
+  # Preserve the existing required status name. A skipped dependency is not a pass
+  # unless the successful, exact-SHA classifier explicitly excluded that scope.
+  verify:
+    if: ${{ always() }}
+    needs: [scope, web, native]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - name: Require every selected scope to succeed
+        env:
+          CI_NEEDS_JSON: ${{ toJSON(needs) }}
+        run: node scripts/ci-release-scope.mjs verify
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tryoutflow-required-gate-${{ github.sha }}
+          path: .next/release-audit/scope-verify.json
+          if-no-files-found: error
+          retention-days: 7

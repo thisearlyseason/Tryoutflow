@@ -8,6 +8,6 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['apps/mobile/tests/**/*.test.tsx'],
+    include: ['apps/mobile/tests/**/*.test.{ts,tsx}'],
   },
 });
