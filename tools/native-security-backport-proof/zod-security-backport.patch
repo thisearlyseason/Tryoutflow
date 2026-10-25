@@ -1,0 +1,30 @@
+--- a/zod/v3/types.cjs
++++ b/zod/v3/types.cjs
+@@ -1793,0 +1794 @@
++                if (tooBig) return parseUtil_js_1.INVALID;
+@@ -1819 +1820 @@
+-                status.dirty();
++                return parseUtil_js_1.INVALID;
+@@ -2846 +2847 @@
+-                status.dirty();
++                return parseUtil_js_1.INVALID;
+--- a/zod/v3/types.js
++++ b/zod/v3/types.js
+@@ -1772,0 +1773 @@
++                if (tooBig) return INVALID;
+@@ -1798 +1799 @@
+-                status.dirty();
++                return INVALID;
+@@ -2817 +2818 @@
+-                status.dirty();
++                return INVALID;
+--- a/zod/src/v3/types.ts
++++ b/zod/src/v3/types.ts
+@@ -2266,0 +2267 @@
++        if (tooBig) return INVALID;
+@@ -2294 +2295 @@
+-        status.dirty();
++        return INVALID;
+@@ -3726 +3727 @@
+-        status.dirty();
++        return INVALID;

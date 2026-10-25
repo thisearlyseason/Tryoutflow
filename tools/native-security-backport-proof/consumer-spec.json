@@ -1,0 +1,60 @@
+{
+  "files": [
+    {
+      "path": "evidence/upstream-inspection/expo-cli/package__build__src__start__server__DevToolsPlugin.schema.js",
+      "sha256": "4da5edad8daa6eda49fecc646934d372008952004b2c19abc03e27bcffc904a5"
+    },
+    {
+      "path": "evidence/upstream-inspection/expo-cli/package__build__src__start__server__createMCPDevToolsExtensionSchema.js",
+      "sha256": "9feffc368c805c3188bb1a4dd88617a3986cd71a4f3358821a1ab6da8e44b10d"
+    },
+    {
+      "path": "evidence/upstream-inspection/expo-code-signing-certificates/package__build__main.js",
+      "sha256": "3670cfbd69934b475257649886517d0314890ca4139708d2c812efaab04bc6d1"
+    },
+    {
+      "path": "evidence/upstream-inspection/expo-code-signing-certificates/package__build__utils.js",
+      "sha256": "ee9d39791f178d43286fb5c374404cae8d782a09ddce9fce30e6b02ba7734417"
+    }
+  ],
+  "packages": [
+    {
+      "directory": "expo-cli",
+      "name": "@expo/cli",
+      "version": "57.0.27",
+      "registryTarball": "https://registry.npmjs.org/@expo/cli/-/cli-57.0.27.tgz",
+      "registryIntegrity": "sha512-Jauk4chxmpVG5ElrMLTCwjFP20jbYU7PB4l3LYV8j+4e/3HU5jdl7qTQ4eVy1AaDUE9Ia2NCQ5A9kar2V1gaLg==",
+      "files": [
+        {
+          "path": "evidence/upstream-inspection/expo-cli/package__build__src__start__server__DevToolsPlugin.schema.js",
+          "archivePath": "package/build/src/start/server/DevToolsPlugin.schema.js",
+          "sha256": "4da5edad8daa6eda49fecc646934d372008952004b2c19abc03e27bcffc904a5"
+        },
+        {
+          "path": "evidence/upstream-inspection/expo-cli/package__build__src__start__server__createMCPDevToolsExtensionSchema.js",
+          "archivePath": "package/build/src/start/server/createMCPDevToolsExtensionSchema.js",
+          "sha256": "9feffc368c805c3188bb1a4dd88617a3986cd71a4f3358821a1ab6da8e44b10d"
+        }
+      ]
+    },
+    {
+      "directory": "expo-code-signing-certificates",
+      "name": "@expo/code-signing-certificates",
+      "version": "0.0.6",
+      "registryTarball": "https://registry.npmjs.org/@expo/code-signing-certificates/-/code-signing-certificates-0.0.6.tgz",
+      "registryIntegrity": "sha512-iNe0puxwBNEcuua9gmTGzq+SuMDa0iATai1FlFTMHJ/vUmKvN/V//drXoLJkVb5i5H3iE/n/qIJxyoBnXouD0w==",
+      "files": [
+        {
+          "path": "evidence/upstream-inspection/expo-code-signing-certificates/package__build__main.js",
+          "archivePath": "package/build/main.js",
+          "sha256": "3670cfbd69934b475257649886517d0314890ca4139708d2c812efaab04bc6d1"
+        },
+        {
+          "path": "evidence/upstream-inspection/expo-code-signing-certificates/package__build__utils.js",
+          "archivePath": "package/build/utils.js",
+          "sha256": "ee9d39791f178d43286fb5c374404cae8d782a09ddce9fce30e6b02ba7734417"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+--- a/node-forge/lib/rsa.js
++++ b/node-forge/lib/rsa.js
+@@ -1175 +1175,8 @@
+-            obj.value.length !== 2) {
++            obj.value.length !== 2 ||
++            !Array.isArray(obj.value[0].value) ||
++            obj.value[0].value.length < 1 || obj.value[0].value.length > 2 ||
++            (obj.value[0].value.length === 2 &&
++              (obj.value[0].value[1].tagClass !== asn1.Class.UNIVERSAL ||
++               obj.value[0].value[1].type !== asn1.Type.NULL ||
++               obj.value[0].value[1].constructed ||
++               obj.value[0].value[1].value !== ''))) {

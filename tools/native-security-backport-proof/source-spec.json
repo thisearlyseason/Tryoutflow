@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "packages": [
+    {
+      "name": "node-forge",
+      "version": "1.4.0",
+      "directory": "node-forge-1.4.0",
+      "registryTarball": "https://registry.npmjs.org/node-forge/-/node-forge-1.4.0.tgz",
+      "registryIntegrity": "sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==",
+      "sourceTreeSHA256": "9f6bbd2fecf18845ecefd2af5d9a10cdc02975fc334189b9cc191f4d7243455a",
+      "patchFiles": ["lib/rsa.js"]
+    },
+    {
+      "name": "zod",
+      "version": "3.25.76",
+      "directory": "zod-3.25.76",
+      "registryTarball": "https://registry.npmjs.org/zod/-/zod-3.25.76.tgz",
+      "registryIntegrity": "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==",
+      "sourceTreeSHA256": "8358b78fe6f29a05fac072961411cef6acf2df7f987326857e2a830759206751",
+      "patchFiles": ["v3/types.cjs", "v3/types.js", "src/v3/types.ts"]
+    }
+  ]
+}
