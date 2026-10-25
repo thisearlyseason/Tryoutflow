@@ -266,6 +266,7 @@ test('workflow retains stable required verify status and always inspects exact s
   assert(web.includes('tests/unit/identity/native-workspace-bridge.test.tsx'));
   assert(native.includes('current-release-native-audit.mjs'));
   assert(native.includes('current-release-native-audit.test.mjs'));
+  assert(native.includes('current-release-native-clean-audit.test.mjs'));
   assert(native.includes('typecheck'));
   assert(native.includes('vitest'));
   assert(native.includes('expo export --platform ios'));

@@ -96,6 +96,7 @@ jobs:
           node scripts/current-release-dependency-audit.mjs
           node --test scripts/tests/current-release-source-binding.test.mjs
           node --test scripts/tests/current-release-native-audit.test.mjs
+          node --test scripts/tests/current-release-native-clean-audit.test.mjs
           node scripts/current-release-native-audit.mjs
       - name: Native typecheck
         run: corepack npm@11.12.1 run --prefix apps/mobile typecheck

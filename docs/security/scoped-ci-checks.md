@@ -21,6 +21,6 @@ There are no workflow path filters, `continue-on-error` steps, advisory waivers 
 
 ## Current limitation
 
-This candidate changes root dependencies, CI and security policy, so it selects **both** scopes. The existing native audit/source binding is unchanged and still fails for the unresolved native dependency findings. The CI split does not grant an exception for its own introduction or qualify this combined candidate for release.
+This candidate changes root dependencies, CI and security policy, so it selects **both** scopes. The native advisory-exception binding and pins remain unchanged. The unresolved native findings still fail that exact-release policy. A complete zero-finding audit may pass without an advisory exception; malformed or nonzero reports cannot use that clean path. The CI split does not grant an exception for its own introduction or qualify this combined candidate for release.
 
 A future website-only change can omit native package auditing only when the classifier proves its scope. The native audit still blocks any selected native/shared scope and any native release. Existing exact-source audit exceptions have not been regenerated or extended.
