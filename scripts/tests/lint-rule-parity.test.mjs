@@ -30,12 +30,12 @@ for (const [index, vector] of vectors.entries())
     assert.deepEqual(actual, vector.expectedDiagnostics);
   });
 
-test('parser is supplied by the unchanged runtime Next package', () => {
+test('parser is supplied by the pinned patched runtime Next package', () => {
   const wrapper = require('@tryoutflow/next-lint-compat/parser.js');
   const compiled = require('next/dist/compiled/babel/eslint-parser');
   assert.equal(wrapper.parse, compiled.parse);
   assert.equal(wrapper.parseForESLint, compiled.parseForESLint);
-  assert.equal(wrapper.meta.version, '16.3.8');
+  assert.equal(wrapper.meta.version, '16.4.1');
 });
 test('existing namespaced suppression remains effective', () => {
   const messages = new Linter().verify(

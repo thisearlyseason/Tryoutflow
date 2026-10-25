@@ -6,7 +6,7 @@
     "FAST-GLOB-LICENSE": "9363d160bf41d46d83901a5d24fc3fe2094c2afc17b4a2378914b273977ee2de",
     "LICENSE": "ee765244e2d59f5234d474f62e0766fa0c8b99af967fdd4c0cb8dcb0c76ea224",
     "PROVENANCE.json": "406fb98dca0a28a91dd5ee6b7991a30cfbf6d472f642ef067bea5ea1c4d69da8",
-    "README.md": "48466fc3495a640792f97222bca3050f357ae27233def0c0cd37b8ad5dd7d979",
+    "README.md": "47d25b40a08b0360e95a90af3be8eeea63a32b4570136ed5885c36009de4b00f",
     "dist/index.js": "d1d7f1de69b3a222f04a0d0485d0cf5552c9c6d614d03a07bd689f4a21c91c06",
     "dist/rules/google-font-display.js": "4fd8cd476fae6e37f75ae54e46feee561040a04b01d9c73cab37b778e586f6cd",
     "dist/rules/google-font-preconnect.js": "7097aedd951e8909265c716323ade6d0887f4b54152774d7cfe3059812ced4d2",
@@ -70,7 +70,7 @@
     "dist/utils/get-root-dirs.js": "954bdf79d3f2120a3ba9813f79ae9507f8f251e52933e69b6e73b0648fa5a940",
     "dist/utils/node-attributes.js": "48fd96af82f72bd5ac5fd6e459a60768638d4f4fcd44b222f128c39e7336997a",
     "dist/utils/url.js": "219194728597d02d8f7cecafd14d91e681c99f9fa169e5b7577bdf866993ef5a",
-    "package.json": "55fe2f904f041f3966f05baabb5474357f79c6ce35db95c3e8e1082f86b4bb3e",
-    "parser.js": "40b88d2c429154a64534958ebe663186508db5a1243fe24baec5de49b47d7d74"
+    "package.json": "1d201b82e82e84ac2bed1910a5becebcff44574231cb754da867b68de4eeb887",
+    "parser.js": "ff90c90df3284df6e40fa6c1e42f3b989fa7d70ffdaee1550aa94463bb7db13c"
   }
 }
