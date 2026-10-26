@@ -13,6 +13,10 @@ const state = vi.hoisted(() => ({
   print: vi.fn(async () => ({ uri: '/cache/report.pdf' })),
   hardwareBack: null as null | (() => boolean),
 }));
+vi.mock('react-native-safe-area-context', () => ({
+  SafeAreaView: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock('react-native-webview', () => ({
   WebView: React.forwardRef((props: Record<string, any>, ref) => {
     state.props = props;

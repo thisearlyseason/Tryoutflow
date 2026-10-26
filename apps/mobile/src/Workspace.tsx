@@ -5,13 +5,13 @@ import {
   BackHandler,
   Linking,
   Platform,
-  SafeAreaView,
   StyleSheet,
   StatusBar,
   Text,
   View,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WebViewMessageEvent } from 'react-native-webview';
 import { v4 as randomUUID } from 'uuid';
 import NativeBilling from './NativeBilling';
@@ -290,12 +290,7 @@ export default function Workspace() {
     }
   }
   return (
-    <SafeAreaView
-      style={[
-        styles.safe,
-        Platform.OS === 'android' && { paddingTop: StatusBar.currentHeight ?? 0 },
-      ]}
-    >
+    <SafeAreaView style={styles.safe}>
       {Platform.OS === 'android' ? <StatusBar barStyle="dark-content" /> : null}
       {billing && session ? (
         <NativeBilling

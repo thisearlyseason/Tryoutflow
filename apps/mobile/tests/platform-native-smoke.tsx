@@ -2,7 +2,7 @@
 // Build explicitly with ENTRY_FILE=tests/platform-native-smoke.tsx.
 import 'react-native-get-random-values';
 import React, { useEffect, useState } from 'react';
-import { AppRegistry, Text, View } from 'react-native';
+import { AppRegistry, Platform, Text, View } from 'react-native';
 import BlobUtil from 'react-native-blob-util';
 import { v4 as uuid } from 'uuid';
 import * as Store from '../src/platform/secure-store';
@@ -18,6 +18,21 @@ function Smoke() {
       let failure: string | undefined;
       const checks: string[] = [];
       try {
+        if (Platform.OS === 'android') {
+          for (const format of ['old', 'current']) {
+            const legacyKey = `native-migration-legacy-${format}`;
+            try {
+              if ((await Store.getItemAsync(legacyKey)) !== `fictional-legacy-${format}`)
+                throw new Error(`Legacy ${format} secure-store read`);
+              await Store.setItemAsync(legacyKey, `fictional-updated-${format}`);
+              if ((await Store.getItemAsync(legacyKey)) !== `fictional-updated-${format}`)
+                throw new Error(`Legacy ${format} secure-store update`);
+            } finally {
+              await Store.deleteItemAsync(legacyKey);
+            }
+          }
+          checks.push('legacy Expo Android encryption formats read/update/delete');
+        }
         if ((await Store.getItemAsync(key)) !== null)
           throw new Error('Unexpected existing fixture');
         const value = `fictional-${uuid()}`;
