@@ -40,8 +40,9 @@ jobs:
     needs: scope
     if: needs.scope.outputs.web == 'true'
     runs-on: ubuntu-latest
-    # Preserve the complete zero-retry browser, database and cleanup gate.
-    timeout-minutes: 45
+    # The zero-retry browser matrix alone takes about 30 minutes on hosted runners;
+    # retain time for database checks and mandatory cleanup without skipping stages.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
