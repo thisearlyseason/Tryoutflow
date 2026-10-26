@@ -1,0 +1,907 @@
+import 'fake-indexeddb/auto';
+
+import { describe, expect, it, vi } from 'vitest';
+
+import { createEvaluationOfflineRepository } from '../../../src/modules/evaluations/offline/repository';
+import {
+  createEvaluationMutationSender,
+  EvaluationMutationSendError,
+  EvaluationSynchronizer,
+} from '../../../src/modules/evaluations/offline/synchronizer';
+
+const scope = {
+  userId: '72000000-0000-4000-8000-000000000001',
+  evaluatorId: '72000000-0000-4000-8000-000000000001',
+  organizationId: '72000000-0000-4000-8000-000000000002',
+  tryoutId: '72000000-0000-4000-8000-000000000003',
+  sessionId: '72000000-0000-4000-8000-000000000004',
+  registrationId: '72000000-0000-4000-8000-000000000005',
+  rubricVersionId: '72000000-0000-4000-8000-000000000006',
+};
+const evaluationId = '72000000-0000-4000-8000-000000000007';
+const categoryId = '72000000-0000-4000-8000-000000000008';
+
+async function queuedRepository(databaseName = `sync-test-${crypto.randomUUID()}`) {
+  const repository = createEvaluationOfflineRepository({
+    authenticatedUserId: scope.userId,
+    databaseName,
+  });
+  await repository.saveSessionContext({
+    scope,
+    tryoutNumber: 42,
+    categories: [{ id: categoryId, scaleMin: 1, scaleMax: 5, required: true }],
+  });
+  await repository.saveDraftLocally({
+    scope,
+    evaluationId,
+    expectedVersion: 0,
+    draft: { scores: [{ categoryId, value: 4 }], noteTagIds: [], flags: [] },
+  });
+  await repository.enqueueEvaluationMutation({
+    scope,
+    evaluationId,
+    expectedVersion: 0,
+    draft: { scores: [{ categoryId, value: 4 }], noteTagIds: [], flags: [] },
+  });
+  return repository;
+}
+
+describe('EvaluationSynchronizer', () => {
+  it.each([
+    [401, 'unauthorized', 'forbidden'],
+    [403, 'forbidden', 'forbidden'],
+    [409, 'mutation_id_conflict', 'conflict'],
+    [400, 'invalid_input', 'invalid_input'],
+    [413, 'invalid_request', 'invalid_input'],
+    [415, 'invalid_request', 'invalid_input'],
+    [429, 'rate_limited', 'rate_limited'],
+    [503, 'temporarily_unavailable', 'transient'],
+  ] as const)('maps HTTP %s to the typed non-oracle outcome %s', async (status, code, category) => {
+    const repository = await queuedRepository();
+    const entry = (await repository.nextPendingMutation(scope))!;
+    const sender = createEvaluationMutationSender(
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ error: code }), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ) as never,
+    );
+    await expect(sender(entry)).rejects.toMatchObject({
+      name: 'EvaluationMutationSendError',
+      category,
+    });
+    repository.close();
+  });
+
+  it('rejects malformed or oversized error bodies as transient without reflecting details', async () => {
+    const repository = await queuedRepository();
+    const entry = (await repository.nextPendingMutation(scope))!;
+    for (const body of ['{"error":"secret_internal_value"}', 'x'.repeat(5_000)]) {
+      const sender = createEvaluationMutationSender(
+        vi.fn(
+          async () =>
+            new Response(body, {
+              status: 400,
+              headers: { 'content-type': 'application/json' },
+            }),
+        ) as never,
+      );
+      await expect(sender(entry)).rejects.toEqual(
+        expect.objectContaining({
+          category: 'transient',
+          message: 'sync_response_invalid',
+        }),
+      );
+    }
+    repository.close();
+  });
+
+  it('stream-caps lying success and error envelopes by actual bytes and cancels early', async () => {
+    const repository = await queuedRepository();
+    const entry = (await repository.nextPendingMutation(scope))!;
+    for (const status of [200, 400]) {
+      const cancelled = vi.fn();
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array((status === 200 ? 64 : 4) * 1_024));
+            controller.enqueue(new Uint8Array([1]));
+          },
+          cancel: cancelled,
+        }),
+        {
+          status,
+          headers: {
+            'content-type': 'application/json',
+            'content-length': '1',
+          },
+        },
+      );
+      const sender = createEvaluationMutationSender(vi.fn(async () => response) as never);
+      await expect(sender(entry)).rejects.toMatchObject({
+        category: 'transient',
+        message: 'sync_response_invalid',
+      });
+      expect(cancelled).toHaveBeenCalledOnce();
+    }
+    repository.close();
+  });
+
+  it('decodes split multibyte UTF-8 before rejecting a non-schema success envelope', async () => {
+    const repository = await queuedRepository();
+    const entry = (await repository.nextPendingMutation(scope))!;
+    const body = new TextEncoder().encode(
+      JSON.stringify({
+        receipt: {
+          outcome: 'synced',
+          clientMutationId: entry.clientMutationId,
+          evaluationId: entry.evaluationId,
+          expectedVersion: entry.expectedVersion,
+          serverVersion: entry.expectedVersion + 1,
+          payloadDigest: entry.payloadDigest,
+          acknowledgedAt: '2026-08-29T12:00:00.000Z',
+        },
+        ignored: 'rink 😀',
+      }),
+    );
+    const split = body.findIndex((byte) => byte === 0xf0) + 2;
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(body.slice(0, split));
+          controller.enqueue(body.slice(split));
+          controller.close();
+        },
+      }),
+      { headers: { 'content-type': 'application/json' } },
+    );
+    const sender = createEvaluationMutationSender(vi.fn(async () => response) as never);
+    await expect(sender(entry)).rejects.toMatchObject({
+      category: 'transient',
+      message: 'sync_response_invalid',
+    });
+    repository.close();
+  });
+
+  it('does not resend acknowledged work on a repeated flush', async () => {
+    const repository = await queuedRepository();
+    let requests = 0;
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send: async (entry) => {
+        requests += 1;
+        return {
+          outcome: 'synced',
+          clientMutationId: entry.clientMutationId,
+          evaluationId: entry.evaluationId,
+          expectedVersion: entry.expectedVersion,
+          serverVersion: entry.expectedVersion + 1,
+          payloadDigest: entry.payloadDigest,
+          acknowledgedAt: '2026-08-29T12:00:00.000Z',
+        };
+      },
+    });
+    await synchronizer.flush();
+    await synchronizer.flush();
+    expect(requests).toBe(1);
+    await expect(repository.getSyncState(scope)).resolves.toBe('synced');
+    repository.close();
+  });
+
+  it('backs off and safely replays the same mutation after a lost HTTP response', async () => {
+    const repository = await queuedRepository();
+    let now = new Date();
+    let retry: (() => void) | null = null;
+    let retryDelay = 0;
+    let requests = 0;
+    let serverWrites = 0;
+    let storedReceipt: {
+      outcome: 'synced';
+      clientMutationId: string;
+      evaluationId: string;
+      expectedVersion: number;
+      serverVersion: number;
+      payloadDigest: string;
+      acknowledgedAt: string;
+    } | null = null;
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      now: () => now,
+      schedule(callback, delayMs) {
+        retry = callback;
+        retryDelay = delayMs;
+        return 'retry-timer';
+      },
+      cancel: vi.fn(),
+      send: async (entry) => {
+        requests += 1;
+        if (!storedReceipt) {
+          serverWrites += 1;
+          storedReceipt = {
+            outcome: 'synced',
+            clientMutationId: entry.clientMutationId,
+            evaluationId: entry.evaluationId,
+            expectedVersion: entry.expectedVersion,
+            serverVersion: entry.expectedVersion + 1,
+            payloadDigest: entry.payloadDigest,
+            acknowledgedAt: '2026-08-29T12:00:00.000Z',
+          };
+          throw new Error('response lost after commit');
+        }
+        return storedReceipt;
+      },
+    });
+    synchronizer.start();
+    await synchronizer.flush();
+    expect(requests).toBe(1);
+    expect(retryDelay).toBeGreaterThan(0);
+    expect(retry).not.toBeNull();
+    now = new Date(now.getTime() + retryDelay + 1);
+    retry!();
+    await synchronizer.flush();
+    expect(requests).toBe(2);
+    expect(serverWrites).toBe(1);
+    await expect(repository.getSyncState(scope)).resolves.toBe('synced');
+    synchronizer.stop();
+    repository.close();
+  });
+
+  it('retains stale-version work as needs attention instead of acknowledging it', async () => {
+    const repository = await queuedRepository();
+    const authoritativeId = '72000000-0000-4000-8000-000000000099';
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send: async (entry) => ({
+        outcome: 'conflict',
+        clientMutationId: entry.clientMutationId,
+        evaluationId: entry.evaluationId,
+        serverEvaluationId: authoritativeId,
+        expectedVersion: entry.expectedVersion,
+        payloadDigest: entry.payloadDigest,
+        serverVersion: 3,
+        acknowledgedAt: '2026-08-29T12:00:00.000Z',
+      }),
+    });
+    await synchronizer.flush();
+    expect((await repository.listMutations(scope))[0]).toMatchObject({
+      status: 'needs_attention',
+      errorCategory: 'conflict',
+      conflictServerEvaluationId: authoritativeId,
+      conflictServerVersion: 3,
+    });
+    repository.close();
+  });
+
+  it('moves deterministic transport failures directly to attention and publishes scoped events', async () => {
+    const repository = await queuedRepository();
+    const events: { state: string; evaluationId: string }[] = [];
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send: async () => {
+        throw new EvaluationMutationSendError('forbidden', 'sync_forbidden');
+      },
+    });
+    const unsubscribe = synchronizer.subscribe((event) => {
+      events.push({ state: event.state, evaluationId: event.evaluationId });
+      throw new Error('subscriber isolation');
+    });
+    await synchronizer.flush();
+    expect((await repository.listMutations(scope))[0]).toMatchObject({
+      status: 'needs_attention',
+      attemptCount: 1,
+      errorCategory: 'forbidden',
+    });
+    expect(events).toEqual([{ state: 'needs_attention', evaluationId }]);
+    unsubscribe();
+    repository.close();
+  });
+
+  it('publishes scheduled retry success without an online event', async () => {
+    const repository = await queuedRepository();
+    let now = new Date();
+    let timer: (() => void) | null = null;
+    let attempts = 0;
+    const states: string[] = [];
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      now: () => now,
+      schedule(callback) {
+        timer = callback;
+        return 'timer';
+      },
+      send: async (entry) => {
+        attempts += 1;
+        if (attempts === 1) throw new EvaluationMutationSendError('transient', 'temporary');
+        return {
+          outcome: 'synced',
+          clientMutationId: entry.clientMutationId,
+          evaluationId: entry.evaluationId,
+          expectedVersion: entry.expectedVersion,
+          serverVersion: entry.expectedVersion + 1,
+          payloadDigest: entry.payloadDigest,
+          acknowledgedAt: now.toISOString(),
+        };
+      },
+    });
+    synchronizer.subscribe((event) => states.push(event.state));
+    synchronizer.start();
+    await synchronizer.flush();
+    expect(states).toEqual(['saved_device']);
+    now = new Date(now.getTime() + 3_000);
+    timer!();
+    await synchronizer.flush();
+    expect(states).toEqual(['saved_device', 'synced']);
+    synchronizer.stop();
+    repository.close();
+  });
+
+  it('fences an in-flight generation after stop and never claims a later FIFO head', async () => {
+    const repository = await queuedRepository();
+    await repository.enqueueEvaluationMutation({
+      scope,
+      evaluationId,
+      expectedVersion: 1,
+      draft: { scores: [{ categoryId, value: 5 }], noteTagIds: [], flags: [] },
+    });
+    let release!: () => void;
+    const deferred = new Promise<void>((resolve) => (release = resolve));
+    const sent: string[] = [];
+    const events: string[] = [];
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send: async (entry) => {
+        sent.push(entry.clientMutationId);
+        await deferred;
+        return {
+          outcome: 'synced',
+          clientMutationId: entry.clientMutationId,
+          evaluationId: entry.evaluationId,
+          expectedVersion: entry.expectedVersion,
+          serverVersion: entry.expectedVersion + 1,
+          payloadDigest: entry.payloadDigest,
+          acknowledgedAt: new Date().toISOString(),
+        };
+      },
+    });
+    synchronizer.subscribe((event) => events.push(event.state));
+    synchronizer.start();
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    synchronizer.stop();
+    release();
+    await synchronizer.flush();
+    expect(sent).toHaveLength(1);
+    expect(events).toEqual([]);
+    expect(
+      (await repository.listMutations(scope)).filter((row) => row.status === 'pending'),
+    ).toHaveLength(1);
+    repository.close();
+  });
+
+  it('starts a new generation after StrictMode cleanup and replays the stale lease at expiry', async () => {
+    const repository = await queuedRepository();
+    let now = new Date();
+    let release!: () => void;
+    const deferred = new Promise<void>((resolve) => (release = resolve));
+    let timer: (() => void) | null = null;
+    let sends = 0;
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      now: () => now,
+      schedule(callback) {
+        timer = callback;
+        return 'restart-timer';
+      },
+      send: async (entry) => {
+        sends += 1;
+        if (sends === 1) await deferred;
+        return {
+          outcome: 'synced',
+          clientMutationId: entry.clientMutationId,
+          evaluationId: entry.evaluationId,
+          expectedVersion: entry.expectedVersion,
+          serverVersion: entry.expectedVersion + 1,
+          payloadDigest: entry.payloadDigest,
+          acknowledgedAt: now.toISOString(),
+        };
+      },
+    });
+    synchronizer.start();
+    await vi.waitFor(() => expect(sends).toBe(1));
+    synchronizer.stop();
+    synchronizer.start();
+    const newGenerationEvents: string[] = [];
+    synchronizer.subscribe((event) => newGenerationEvents.push(event.state));
+    release();
+    await vi.waitFor(() => expect(timer).not.toBeNull());
+    expect(newGenerationEvents).toEqual([]);
+    now = new Date(now.getTime() + 31_000);
+    timer!();
+    await vi.waitFor(() => expect(sends).toBe(2));
+    await vi.waitFor(() => expect(newGenerationEvents).toEqual(['synced']));
+    await expect(repository.getSyncState(scope)).resolves.toBe('synced');
+    synchronizer.stop();
+    repository.close();
+  });
+
+  it('recovers a predecessor lease after expiry without a new online event or edit', async () => {
+    const repository = await queuedRepository();
+    let now = new Date();
+    let release!: () => void;
+    const deferred = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const receiptFor = (
+      entry: Parameters<ReturnType<typeof createEvaluationMutationSender>>[0],
+    ) => ({
+      outcome: 'synced' as const,
+      clientMutationId: entry.clientMutationId,
+      evaluationId: entry.evaluationId,
+      expectedVersion: entry.expectedVersion,
+      serverVersion: entry.expectedVersion + 1,
+      payloadDigest: entry.payloadDigest,
+      acknowledgedAt: now.toISOString(),
+    });
+    const predecessorSend = vi.fn(async (entry) => {
+      await deferred;
+      return receiptFor(entry);
+    });
+    const predecessor = new EvaluationSynchronizer({
+      repository,
+      scope,
+      now: () => now,
+      send: predecessorSend,
+      channelFactory: () => null,
+      poll: () => null,
+    });
+    let pollPulse!: () => void;
+    const send = vi.fn(async (entry) => receiptFor(entry));
+    let online = true;
+    const successor = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send,
+      now: () => now,
+      online: () => online,
+      poll(callback) {
+        pollPulse = callback;
+        return 'replacement-poll';
+      },
+      cancelPoll() {},
+      channelFactory: () => null,
+    });
+    try {
+      predecessor.start();
+      await vi.waitFor(() => expect(predecessorSend).toHaveBeenCalledOnce());
+      const abandoned = predecessorSend.mock.calls[0]?.[0];
+      if (!abandoned) throw new Error('Expected the predecessor mutation to be sent');
+      predecessor.stop();
+      successor.start();
+      await successor.flush();
+      release();
+      await predecessor.flush();
+      expect(send).not.toHaveBeenCalled();
+      await expect(repository.getReceipt(scope, abandoned.clientMutationId)).resolves.toBeNull();
+      pollPulse();
+      await successor.flush();
+      expect(send).not.toHaveBeenCalled();
+      now = new Date(now.getTime() + 31_000);
+      online = false;
+      pollPulse();
+      await successor.flush();
+      expect(send).not.toHaveBeenCalled();
+      online = true;
+      pollPulse();
+      await vi.waitFor(() => expect(send).toHaveBeenCalledOnce(), {
+        timeout: 1_000,
+      });
+      await successor.flush();
+      const replacement = send.mock.calls[0]?.[0];
+      if (!replacement) throw new Error('Expected the successor mutation to be sent');
+      expect(replacement).toMatchObject({
+        clientMutationId: abandoned.clientMutationId,
+        evaluationId: abandoned.evaluationId,
+        expectedVersion: abandoned.expectedVersion,
+        payloadDigest: abandoned.payloadDigest,
+      });
+      expect(replacement.claimToken).not.toBe(abandoned.claimToken);
+      await expect(repository.getReceipt(scope, abandoned.clientMutationId)).resolves.toMatchObject(
+        { serverVersion: 1 },
+      );
+      await expect(repository.getSyncState(scope)).resolves.toBe('synced');
+      successor.stop();
+      pollPulse();
+      await successor.flush();
+      expect(send).toHaveBeenCalledOnce();
+    } finally {
+      predecessor.stop();
+      successor.stop();
+      release();
+      repository.close();
+    }
+  });
+
+  it('respects persisted retry backoff while polling for recoverable work', async () => {
+    const repository = await queuedRepository();
+    let now = new Date();
+    let pollPulse!: () => void;
+    let tries = 0;
+    const send = vi.fn(async (entry) => {
+      if (++tries === 1)
+        throw new EvaluationMutationSendError('transient', 'sync_network_unconfirmed');
+      return {
+        outcome: 'synced' as const,
+        clientMutationId: entry.clientMutationId,
+        evaluationId: entry.evaluationId,
+        expectedVersion: entry.expectedVersion,
+        serverVersion: entry.expectedVersion + 1,
+        payloadDigest: entry.payloadDigest,
+        acknowledgedAt: now.toISOString(),
+      };
+    });
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send,
+      now: () => now,
+      poll(callback) {
+        pollPulse = callback;
+        return 'backoff-poll';
+      },
+      cancelPoll() {},
+      schedule: () => 'unfired-retry',
+      cancel() {},
+      channelFactory: () => null,
+    });
+    try {
+      synchronizer.start();
+      await synchronizer.flush();
+      expect(send).toHaveBeenCalledOnce();
+      const failed = (await repository.listMutations(scope))[0];
+      if (!failed) throw new Error('Expected the failed mutation to remain queued');
+      expect(failed.status).toBe('pending');
+      now = new Date(new Date(failed.nextAttemptAt).getTime() - 1);
+      pollPulse();
+      await synchronizer.flush();
+      expect(send).toHaveBeenCalledOnce();
+      now = new Date(failed.nextAttemptAt);
+      pollPulse();
+      await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(2));
+      await synchronizer.flush();
+      const firstAttempt = send.mock.calls[0]?.[0];
+      const retriedAttempt = send.mock.calls[1]?.[0];
+      if (!firstAttempt || !retriedAttempt) throw new Error('Expected both mutation attempts');
+      expect(retriedAttempt.clientMutationId).toBe(firstAttempt.clientMutationId);
+      await expect(repository.getSyncState(scope)).resolves.toBe('synced');
+    } finally {
+      synchronizer.stop();
+      repository.close();
+    }
+  });
+
+  it('makes flush inert after stop until an explicit new start generation', async () => {
+    const repository = await queuedRepository();
+    let sends = 0;
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send: async (entry) => {
+        sends += 1;
+        return {
+          outcome: 'synced',
+          clientMutationId: entry.clientMutationId,
+          evaluationId: entry.evaluationId,
+          expectedVersion: entry.expectedVersion,
+          serverVersion: entry.expectedVersion + 1,
+          payloadDigest: entry.payloadDigest,
+          acknowledgedAt: new Date().toISOString(),
+        };
+      },
+    });
+    synchronizer.start();
+    await synchronizer.flush();
+    synchronizer.stop();
+    await repository.enqueueEvaluationMutation({
+      scope,
+      evaluationId,
+      expectedVersion: 1,
+      draft: { scores: [{ categoryId, value: 5 }], noteTagIds: [], flags: [] },
+    });
+    await synchronizer.flush();
+    expect(sends).toBe(1);
+    expect((await repository.listMutations(scope)).some((row) => row.status === 'pending')).toBe(
+      true,
+    );
+    synchronizer.start();
+    await synchronizer.flush();
+    expect(sends).toBe(2);
+    synchronizer.stop();
+    repository.close();
+  });
+
+  it('does not misclassify a local acknowledgement failure as a network failure', async () => {
+    const repository = await queuedRepository();
+    vi.spyOn(repository, 'acknowledgeMutation').mockRejectedValue(new Error('local write failed'));
+    const failure = vi.spyOn(repository, 'recordMutationFailure');
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      send: async (entry) => ({
+        outcome: 'synced',
+        clientMutationId: entry.clientMutationId,
+        evaluationId: entry.evaluationId,
+        expectedVersion: entry.expectedVersion,
+        serverVersion: entry.expectedVersion + 1,
+        payloadDigest: entry.payloadDigest,
+        acknowledgedAt: '2026-08-29T12:00:00.000Z',
+      }),
+    });
+    const events: string[] = [];
+    synchronizer.subscribe((event) => events.push(`${event.state}:${event.category}`));
+    await expect(synchronizer.flush()).rejects.toThrow('local write failed');
+    expect(failure).not.toHaveBeenCalled();
+    expect(events).toEqual(['needs_attention:corrupt_record']);
+    repository.close();
+  });
+
+  it('lets only one tab send a FIFO head through the shared lease', async () => {
+    const databaseName = `sync-tabs-${crypto.randomUUID()}`;
+    const firstRepository = await queuedRepository(databaseName);
+    const secondRepository = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName,
+    });
+    let requests = 0;
+    const send = async (entry: Awaited<ReturnType<typeof firstRepository.nextPendingMutation>>) => {
+      if (!entry) throw new Error('missing entry');
+      requests += 1;
+      return {
+        outcome: 'synced' as const,
+        clientMutationId: entry.clientMutationId,
+        evaluationId: entry.evaluationId,
+        expectedVersion: entry.expectedVersion,
+        serverVersion: entry.expectedVersion + 1,
+        payloadDigest: entry.payloadDigest,
+        acknowledgedAt: '2026-08-29T12:00:00.000Z',
+      };
+    };
+    await Promise.all([
+      new EvaluationSynchronizer({
+        repository: firstRepository,
+        scope,
+        send,
+      }).flush(),
+      new EvaluationSynchronizer({
+        repository: secondRepository,
+        scope,
+        send,
+      }).flush(),
+    ]);
+    expect(requests).toBe(1);
+    await expect(firstRepository.getSyncState(scope)).resolves.toBe('synced');
+    firstRepository.close();
+    secondRepository.close();
+  });
+
+  it('propagates a predecessor conflict to an already-mounted sibling tab without PII', async () => {
+    type Listener = (event: { data: unknown }) => void;
+    const listeners = new Map<string, Set<Listener>>();
+    const posted: unknown[] = [];
+    const channelFactory = (name: string) => {
+      const own = new Set<Listener>();
+      listeners.set(name, new Set([...(listeners.get(name) ?? []), ...own]));
+      return {
+        postMessage(message: unknown) {
+          posted.push(message);
+          for (const listener of listeners.get(name) ?? []) listener({ data: message });
+        },
+        addEventListener(_type: 'message', listener: Listener) {
+          own.add(listener);
+          listeners.set(name, new Set([...(listeners.get(name) ?? []), listener]));
+        },
+        removeEventListener(_type: 'message', listener: Listener) {
+          own.delete(listener);
+          listeners.get(name)?.delete(listener);
+        },
+        close() {
+          for (const listener of own) listeners.get(name)?.delete(listener);
+          own.clear();
+        },
+      };
+    };
+    const databaseName = `sync-conflict-tabs-${crypto.randomUUID()}`;
+    const firstRepository = await queuedRepository(databaseName);
+    await firstRepository.saveDraftAndEnqueueMutation({
+      scope,
+      evaluationId,
+      expectedVersion: 1,
+      draft: {
+        scores: [{ categoryId, value: 5 }],
+        note: 'newest private edit',
+        noteTagIds: [],
+        flags: [],
+      },
+    });
+    const secondRepository = createEvaluationOfflineRepository({
+      authenticatedUserId: scope.userId,
+      databaseName,
+    });
+    const tabA = new EvaluationSynchronizer({
+      repository: firstRepository,
+      scope,
+      online: () => false,
+      send: async () => {
+        throw new Error('offline tab must not send');
+      },
+      channelFactory,
+    });
+    const tabB = new EvaluationSynchronizer({
+      repository: secondRepository,
+      scope,
+      send: async (entry) => ({
+        outcome: 'conflict',
+        clientMutationId: entry.clientMutationId,
+        evaluationId: entry.evaluationId,
+        serverEvaluationId: entry.evaluationId,
+        expectedVersion: entry.expectedVersion,
+        payloadDigest: entry.payloadDigest,
+        serverVersion: 3,
+        acknowledgedAt: '2026-08-29T12:00:00.000Z',
+      }),
+      channelFactory,
+    });
+    const tabAEvents: { state: string; clientMutationId: string }[] = [];
+    tabA.subscribe((event) =>
+      tabAEvents.push({
+        state: event.state,
+        clientMutationId: event.clientMutationId,
+      }),
+    );
+    tabA.start();
+    tabB.start();
+    await tabB.flush();
+    await vi.waitFor(() => expect(tabAEvents).toHaveLength(1));
+    expect(tabAEvents[0]).toMatchObject({ state: 'needs_attention' });
+    const newest = await firstRepository.reconcileDraftLineage(scope);
+    expect(newest).toMatchObject({
+      state: 'needs_attention',
+      draft: { draft: { note: 'newest private edit' } },
+      blockingMutation: { clientMutationId: tabAEvents[0]!.clientMutationId },
+    });
+    expect(JSON.stringify(posted)).not.toContain('newest private edit');
+    tabA.stop();
+    tabB.stop();
+    firstRepository.close();
+    secondRepository.close();
+  });
+
+  it('requires an exact per-source sequence and uses polling to recover dropped channel pulses', async () => {
+    const repository = await queuedRepository();
+    let listener: ((event: { data: unknown }) => void) | null = null;
+    let pollPulse: (() => void) | null = null;
+    const close = vi.fn();
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      online: () => false,
+      send: async () => {
+        throw new Error('offline');
+      },
+      sourceInstanceId: '72000000-0000-4000-8000-000000000090',
+      poll(callback) {
+        pollPulse = callback;
+        return 'poll-token';
+      },
+      channelFactory: () => ({
+        postMessage: vi.fn(),
+        addEventListener(_type, next) {
+          listener = next;
+        },
+        removeEventListener(_type, next) {
+          if (listener === next) listener = null;
+        },
+        close,
+      }),
+    });
+    const events: string[] = [];
+    synchronizer.subscribe((event) => events.push(event.state));
+    synchronizer.start();
+    const message = {
+      protocol: 'tryoutflow-evaluation-change-v2',
+      userBinding: scope.userId,
+      sourceInstanceId: '72000000-0000-4000-8000-000000000091',
+      sequence: 1,
+      scopeKey: Object.values(scope).join('|'),
+      evaluationId,
+      clientMutationId: crypto.randomUUID(),
+      state: 'needs_attention',
+    };
+    const deliver = listener!;
+    deliver({
+      data: { ...message, privateNote: 'must reject unknown fields' },
+    });
+    deliver({
+      data: {
+        ...message,
+        scopeKey: Object.values({ ...scope, userId: crypto.randomUUID() }).join('|'),
+      },
+    });
+    deliver({ data: message });
+    deliver({ data: message });
+    deliver({ data: { ...message, sequence: 3, state: 'synced' } });
+    deliver({ data: { ...message, sequence: 2, state: 'synced' } });
+    deliver({ data: { ...message, sequence: 4, state: 'saved_device' } });
+    deliver({
+      data: {
+        ...message,
+        sourceInstanceId: '72000000-0000-4000-8000-000000000090',
+      },
+    });
+    deliver({
+      data: { ...message, userBinding: crypto.randomUUID(), sequence: 3 },
+    });
+    deliver({
+      data: {
+        ...message,
+        sourceInstanceId: '72000000-0000-4000-8000-000000000092',
+        sequence: 1,
+        state: 'synced',
+      },
+    });
+    pollPulse!();
+    expect(events).toEqual(['needs_attention', 'synced', 'synced', 'saved_device']);
+    synchronizer.stop();
+    deliver({ data: message });
+    expect(events).toEqual(['needs_attention', 'synced', 'synced', 'saved_device']);
+    expect(close).toHaveBeenCalledOnce();
+    repository.close();
+  });
+
+  it('falls back to a deterministic scoped re-query pulse when BroadcastChannel is unavailable', async () => {
+    const repository = await queuedRepository();
+    let pulse: (() => void) | null = null;
+    const cancelPoll = vi.fn();
+    const synchronizer = new EvaluationSynchronizer({
+      repository,
+      scope,
+      online: () => false,
+      send: async () => {
+        throw new Error('offline');
+      },
+      channelFactory: () => null,
+      poll(callback) {
+        pulse = callback;
+        return 'poll-token';
+      },
+      cancelPoll,
+    });
+    const events: { scopeKey: string; state: string; origin?: string }[] = [];
+    synchronizer.subscribe((event) =>
+      events.push({
+        scopeKey: event.scopeKey,
+        state: event.state,
+        origin: event.origin,
+      }),
+    );
+    synchronizer.start();
+    pulse!();
+    expect(events).toEqual([
+      {
+        scopeKey: Object.values(scope).join('|'),
+        state: 'saved_device',
+        origin: 'poll',
+      },
+    ]);
+    synchronizer.stop();
+    expect(cancelPoll).toHaveBeenCalledWith('poll-token');
+    repository.close();
+  });
+});

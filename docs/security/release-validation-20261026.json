@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "at": "2026-10-26T05:43:43.839151+00:00",
+  "baseCommit": "da2c11f6b3addea4d804ff6356eb9bf26dbaf567",
+  "releaseDecision": "HOLD",
+  "changes": [
+    "Restored 182 existing test inputs unchanged from the prior security candidate: unit suite, setup, stubs, config and two imported fixture modules.",
+    "Declared only the app default Keychain access group using AppIdentifierPrefix and PRODUCT_BUNDLE_IDENTIFIER.",
+    "Made offline native smoke evidence include final cleanup and retain a fictional two-page PDF for visual verification."
+  ],
+  "toolchain": {
+    "node": "v24.12.0",
+    "npm": "11.12.1",
+    "supabase": "2.116.0",
+    "nodeSource": "Existing cached official Node binary; global system Node unchanged",
+    "freshFrozenInstall": "PASS after compiler-output cleanup; root lock unchanged"
+  },
+  "passed": {
+    "webFullAndProductionAudit": "zero findings",
+    "nativeRegistryAudit": "zero findings; frozen registry coverage; no advisory exception",
+    "sourceChecks": ["format", "lint", "web TypeScript", "native TypeScript"],
+    "pureUnitDiagnostic": {
+      "files": 174,
+      "tests": 1846,
+      "excludedFile": "tests/unit/infrastructure/integration-command-lock.test.ts",
+      "reason": "This file requires a verified responsive disposable database. The full suite remains required; it was not waived."
+    },
+    "nativeBehaviorTests": 39,
+    "nativeAuditPolicyTests": 73,
+    "lintToolchainSecurityTests": 305,
+    "htmlRuleParityCases": 17,
+    "productionMarketingArtifactGate": "PASS: Next production build, anonymous and mocked-auth request-specific account navigation, canonical/HTTP/cache/near-miss checks. This is not real account or tenant-data acceptance.",
+    "iosRuntime": {
+      "runtime": "iOS 26.5 / iPhone 16e isolated fresh simulator",
+      "smoke": {
+        "passed": true,
+        "at": "2026-10-26T05:32:26.441Z",
+        "checks": [
+          "native secure-store create/read/update/delete",
+          "native private-cache PDF generated",
+          "native PDF cleanup"
+        ]
+      },
+      "pdf": {
+        "pages": 2,
+        "text": [
+          "Fictional native migration report\nNo account, player, payment or production data.",
+          "Second page"
+        ]
+      },
+      "visualReview": "Both rendered pages checked: text legible, expected page separation, no clipping",
+      "build": "Xcode build succeeded with normal signing and app-scoped source entitlement; arm64 simulator; no provisioning credential created",
+      "notProven": [
+        "Installed-user signed-device upgrade",
+        "Native store purchase/restore",
+        "Android runtime"
+      ],
+      "files": {
+        "apps/mobile/ios/TryOutFlow/TryOutFlow.entitlements": "0c9e6c8c16034fe8cc92b2640710c375b03baba606dee55f8152e247eee48e5f",
+        "apps/mobile/ios/TryOutFlow.xcodeproj/project.pbxproj": "3de1957d0450638b8eb939cd409dec92656e3ac9be0a6e0096c76f59f68a2f6d",
+        "apps/mobile/ios/TryOutFlow/TryOutSecureStore.m": "713fa39e2347a109eb125dd3f8b41cda8b0e1981010ca78ad97278f4b765f6c8",
+        "apps/mobile/ios/TryOutFlow/TryOutReports.m": "c23ef43cb888f6edd99df398d3045e9f2083643c36a3084980f3c615fccdf9b2",
+        "apps/mobile/tests/platform-native-smoke.tsx": "d61fc374b6c5c860b69e868a8fa8d55827f24e17e44caac63b7a0675dfff0e25",
+        "apps/mobile/package-lock.json": "4a19ab8a89187373a6ca63f51a9ea50ee666ea2183465e3d324bde214a8fedf2"
+      },
+      "terminateExit": 0,
+      "shutdownExit": 0,
+      "deleteExit": 0,
+      "removedRebuildablePaths": [
+        "output/native-runtime-signed",
+        "apps/mobile/ios/Pods",
+        "apps/mobile/ios/build"
+      ]
+    },
+    "providerContracts": {
+      "files": 4,
+      "tests": 147,
+      "transport": "Injected mocks and fake providers only; no real payment, email or provider request"
+    }
+  },
+  "notPassed": {
+    "fullReleaseRunner": "Pinned Node/npm preflight passed. Runner stopped during npm ci with ENOSPC; frozen install later passed independently. No release database reset ran.",
+    "remainingGates": [
+      "Complete unit suite with its DB-backed supervisor cases",
+      "pgTAP and generated-type reproduction",
+      "two supervised integration passes",
+      "canonical visual and five-browser zero-retry suite"
+    ],
+    "docker": "Still unresponsive in final read-only check at 2026-10-26T05:53:37Z. Restart approval requested because multiple unrelated products share Docker. No restart performed.",
+    "nativeStore": [
+      "Signed installed-user upgrade/session/purchase identity continuity",
+      "Real store sandbox purchase/restore/management",
+      "Android runtime and physical-device acceptance"
+    ]
+  },
+  "isolation": {
+    "ownedFreshProject": "tryoutflow-lint-verify-929df5a8b2b4",
+    "ownedProjectProof": "supabase/.temp/isolated-release-proof.json",
+    "pendingOwnedDatabaseCleanup": "Retained until Docker responds and identity can be reverified; no blind reset or global prune",
+    "originalSupabaseConfigRestored": true,
+    "primaryCheckout": "Still b26a854 on codex/tryoutflow-ui-redesign-20260913 with 217 tracked dirty files; no changes made there",
+    "otherProjects": "No stop/reset/delete command targeted any preexisting project"
+  },
+  "storage": {
+    "nativeCompilerOutputsRemoved": true,
+    "disposableSimulatorDeleted": true,
+    "freeGiB": 10.04,
+    "newPreflight": "Task release wrapper now requires 6 GiB free and cleanup cannot be skipped by evidence-write failure",
+    "webCompilerOutputRemoved": true
+  },
+  "payment": "Prior genuine isolated sandbox payment/activation/replay/refund proof preserved. No additional transactions, keys or destinations.",
+  "production": "No deployment. Alias metadata rechecked against dpl_3mhT1zkiXY9bEHs6uCAAofqhvuuH; live site is not claimed patched.",
+  "evidenceDirectory": "evidence/release-validation-20261026/",
+  "nextAction": "Approve restart of shared Docker Desktop, then verify all project identities, clean only the retained fresh test project and resume the complete guarded release gate.",
+  "manualChecklist": [
+    "Verify a signed upgrade retains the installed session, pending purchase attempt and RevenueCat identity.",
+    "On both platforms check sign-in/out, account switching, Back/deep links and warm offline/reconnect. Cold offline entry remains separate.",
+    "Check real report styling, recipient readback, share cancellation/interruption and cache cleanup for PDF/CSV/JSON.",
+    "Use approved store sandbox identities for native purchase/restore; preserve the owner trial and real entitlements."
+  ],
+  "nativeRuntimeProof": "evidence/release-validation-20261026/native-runtime-proof.json",
+  "sourceGuidance": [
+    "https://developer.apple.com/library/archive/technotes/tn2415/",
+    "https://developer.apple.com/forums/thread/114456"
+  ],
+  "rollback": "Revert this continuation commit for source rollback. No production/provider rollback is needed. Cleanup of the retained fresh database remains separately guarded by its recorded identity.",
+  "localRunnerSafety": "Do not invoke the raw reset-capable release command against the restored default config. Resume only with the fresh-project ownership wrapper after Docker recovery."
+}

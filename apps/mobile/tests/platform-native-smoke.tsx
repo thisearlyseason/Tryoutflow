@@ -15,6 +15,7 @@ function Smoke() {
     void (async () => {
       const key = `native-migration-smoke-${uuid()}`;
       let uri: string | undefined;
+      let failure: string | undefined;
       const checks: string[] = [];
       try {
         if ((await Store.getItemAsync(key)) !== null)
@@ -33,28 +34,29 @@ function Smoke() {
         }));
         const pdf = await BlobUtil.fs.readFile(uri.slice('file://'.length), 'base64');
         if (!pdf.startsWith('JVBER')) throw new Error('PDF header');
+        const preview = `${BlobUtil.fs.dirs.CacheDir}/native-migration-smoke-preview.pdf`;
+        if (await BlobUtil.fs.exists(preview)) await BlobUtil.fs.unlink(preview);
+        await BlobUtil.fs.cp(uri.slice('file://'.length), preview);
         checks.push('native private-cache PDF generated');
         await Files.deleteAsync(uri, { idempotent: true });
         if (await BlobUtil.fs.exists(uri.slice('file://'.length))) throw new Error('PDF cleanup');
         checks.push('native PDF cleanup');
-        await BlobUtil.fs.writeFile(
-          `${BlobUtil.fs.dirs.CacheDir}/native-migration-smoke.json`,
-          JSON.stringify({ passed: true, checks }),
-          'utf8',
-        );
-        setMessage('Offline native smoke passed');
       } catch (error) {
-        const result = { passed: false, checks, error: String(error) };
-        await BlobUtil.fs.writeFile(
-          `${BlobUtil.fs.dirs.CacheDir}/native-migration-smoke.json`,
-          JSON.stringify(result),
-          'utf8',
-        );
-        setMessage('Offline native smoke failed');
+        failure = String(error);
       } finally {
-        await Store.deleteItemAsync(key);
-        if (uri) await Files.deleteAsync(uri, { idempotent: true });
+        try {
+          await Store.deleteItemAsync(key);
+          if (uri) await Files.deleteAsync(uri, { idempotent: true });
+        } catch (error) {
+          failure ??= `Cleanup failed: ${String(error)}`;
+        }
       }
+      await BlobUtil.fs.writeFile(
+        `${BlobUtil.fs.dirs.CacheDir}/native-migration-smoke.json`,
+        JSON.stringify({ passed: !failure, at: new Date().toISOString(), checks, error: failure }),
+        'utf8',
+      );
+      setMessage(failure ? 'Offline native smoke failed' : 'Offline native smoke passed');
     })();
   }, []);
   return (
