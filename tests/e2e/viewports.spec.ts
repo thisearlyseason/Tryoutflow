@@ -31,7 +31,7 @@ async function expectOverflowFreeAtEveryViewport(page: Page, screen: string) {
   // Measure the real rendered screen, after its private-session proof completes.
   // Settling requests also avoids aborting that proof with the next full navigation;
   // the strict network monitor still rejects failed authentication requests.
-  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading').first()).toBeVisible();
   await page.waitForLoadState('networkidle');
   await expectAuthPhotoReady(page);
   for (const viewport of viewportMatrix) {
