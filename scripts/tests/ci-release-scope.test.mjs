@@ -269,8 +269,18 @@ test('workflow retains stable required verify status and always inspects exact s
   assert(native.includes('current-release-native-clean-audit.test.mjs'));
   assert(native.includes('typecheck'));
   assert(native.includes('vitest'));
-  assert(native.includes('expo export --platform ios'));
-  assert(native.includes('expo export --platform android'));
+  const mobile = JSON.parse(
+    readFileSync(new URL('../../apps/mobile/package.json', import.meta.url), 'utf8'),
+  );
+  for (const platform of ['ios', 'android']) {
+    assert(native.includes(`run bundle:${platform}`));
+    assert(
+      mobile.scripts[`bundle:${platform}`].startsWith(
+        `react-native bundle --entry-file index.ts --platform ${platform} --dev false `,
+      ),
+    );
+  }
+  assert(!native.includes('expo export'));
   assert(!/deploy|submit|eas build|git push/u.test(native));
   assert.equal(
     readFileSync(new URL('../../apps/mobile/vitest.config.mts', import.meta.url), 'utf8').includes(
