@@ -18,7 +18,7 @@ const config = {
     },
   },
   android: {
-    versionCode: 18,
+    versionCode: 19,
     package: process.env.TRYOUTFLOW_ANDROID_PACKAGE ?? 'agency.tryout.mobile',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',
