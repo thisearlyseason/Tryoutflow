@@ -1,32 +1,29 @@
 {
-  "schemaVersion": 1,
-  "at": "2026-10-26T05:43:43.839151+00:00",
+  "schemaVersion": 2,
+  "at": "2026-10-26T14:18:10.108760+00:00",
   "baseCommit": "da2c11f6b3addea4d804ff6356eb9bf26dbaf567",
   "releaseDecision": "HOLD",
   "changes": [
     "Restored 182 existing test inputs unchanged from the prior security candidate: unit suite, setup, stubs, config and two imported fixture modules.",
     "Declared only the app default Keychain access group using AppIdentifierPrefix and PRODUCT_BUNDLE_IDENTIFIER.",
-    "Made offline native smoke evidence include final cleanup and retain a fictional two-page PDF for visual verification."
+    "Made offline native smoke evidence include final cleanup and retain a fictional two-page PDF for visual verification.",
+    "Guarded isolated Supabase resets now verify replacement image, mounts, project/workdir, config, port and network, restore explicit loopback binding and then refresh identity proof.",
+    "Kept synthetic release-runner fixture environments independent of the real isolated database scope; added success/failure path tests.",
+    "Added only the exact isolated backend port 62321 with a strict task-project marker to existing production-browser test boundaries; existing production predicates and owner-port rejection remain."
   ],
   "toolchain": {
     "node": "v24.12.0",
     "npm": "11.12.1",
     "supabase": "2.116.0",
     "nodeSource": "Existing cached official Node binary; global system Node unchanged",
-    "freshFrozenInstall": "PASS after compiler-output cleanup; root lock unchanged"
+    "freshFrozenInstall": "PASS on final source; lockfile and generated types preserved"
   },
   "passed": {
     "webFullAndProductionAudit": "zero findings",
     "nativeRegistryAudit": "zero findings; frozen registry coverage; no advisory exception",
     "sourceChecks": ["format", "lint", "web TypeScript", "native TypeScript"],
-    "pureUnitDiagnostic": {
-      "files": 174,
-      "tests": 1846,
-      "excludedFile": "tests/unit/infrastructure/integration-command-lock.test.ts",
-      "reason": "This file requires a verified responsive disposable database. The full suite remains required; it was not waived."
-    },
     "nativeBehaviorTests": 39,
-    "nativeAuditPolicyTests": 73,
+    "nativeAuditPolicyTests": 68,
     "lintToolchainSecurityTests": 305,
     "htmlRuleParityCases": 17,
     "productionMarketingArtifactGate": "PASS: Next production build, anonymous and mocked-auth request-specific account navigation, canonical/HTTP/cache/near-miss checks. This is not real account or tenant-data acceptance.",
@@ -75,54 +72,146 @@
     "providerContracts": {
       "files": 4,
       "tests": 147,
-      "transport": "Injected mocks and fake providers only; no real payment, email or provider request"
-    }
+      "transport": "Existing injected fake providers; no real provider transaction"
+    },
+    "fullUnitSuite": {
+      "files": 175,
+      "tests": 1908,
+      "exclusions": []
+    },
+    "pgTAP": {
+      "files": 101,
+      "assertions": 2881
+    },
+    "generatedTypes": "Both generation passes match tracked bytes",
+    "supervisedIntegration": {
+      "passes": 2,
+      "filesPerPass": 35,
+      "testsPerPass": 229
+    },
+    "productionBuild": "PASS",
+    "trackedSecretBoundary": "PASS",
+    "finalDisposableResidue": "Zero; app port closed; fresh project then removed"
   },
   "notPassed": {
-    "fullReleaseRunner": "Pinned Node/npm preflight passed. Runner stopped during npm ci with ENOSPC; frozen install later passed independently. No release database reset ran.",
-    "remainingGates": [
-      "Complete unit suite with its DB-backed supervisor cases",
-      "pgTAP and generated-type reproduction",
-      "two supervised integration passes",
-      "canonical visual and five-browser zero-retry suite"
+    "canonicalFullReleaseRunner": {
+      "exit": 1,
+      "failedStage": "25 canonical visual regression",
+      "precedingStages": "1 through 24 passed",
+      "cleanup": "PASS: guarded unseeded reset and zero-residue audit"
+    },
+    "linuxVisual": {
+      "failed": 10,
+      "passed": 2,
+      "retries": 0,
+      "baselinesChanged": false,
+      "browser": "Existing mcr.microsoft.com/playwright:v1.62.1-noble; supported remote connection; exact frozen runtime packages"
+    },
+    "fiveBrowserDiagnostic": {
+      "passed": 28,
+      "failed": 16,
+      "interrupted": 1,
+      "didNotRun": 125,
+      "total": 170,
+      "retries": 0,
+      "complete": false,
+      "exit": 130,
+      "stop": "Owned process received SIGINT after combined canonical plus diagnostic run exceeded existing 45-minute CI job budget; unexecuted cases are unverified"
+    },
+    "failureGroups": [
+      "Existing UI/test mismatch: home heading, workspace-address field and full event checklist expectations",
+      "Linux screenshot differences in auth, administration, decision, game-day and tryout surfaces; no baseline waiver/update",
+      "Firefox application-chunk NS_BINDING_ABORTED cancellations",
+      "Fixture setup and browser context teardown timeouts"
     ],
-    "docker": "Still unresponsive in final read-only check at 2026-10-26T05:53:37Z. Restart approval requested because multiple unrelated products share Docker. No restart performed.",
     "nativeStore": [
-      "Signed installed-user upgrade/session/purchase identity continuity",
-      "Real store sandbox purchase/restore/management",
+      "Signed installed-user upgrade/session/pending-purchase/RevenueCat identity continuity",
+      "Native store sandbox purchase/restore/management",
       "Android runtime and physical-device acceptance"
     ]
   },
   "isolation": {
-    "ownedFreshProject": "tryoutflow-lint-verify-929df5a8b2b4",
-    "ownedProjectProof": "supabase/.temp/isolated-release-proof.json",
-    "pendingOwnedDatabaseCleanup": "Retained until Docker responds and identity can be reverified; no blind reset or global prune",
+    "oldInterruptedDisposableRemoved": true,
+    "latestDisposableRemoved": true,
+    "latestProject": "tryoutflow-lint-verify-37439c5c8444",
     "originalSupabaseConfigRestored": true,
-    "primaryCheckout": "Still b26a854 on codex/tryoutflow-ui-redesign-20260913 with 217 tracked dirty files; no changes made there",
-    "otherProjects": "No stop/reset/delete command targeted any preexisting project"
+    "originalConfigSHA256": "ea30e41795598bf27a58d027f72c453c803d6fb730a99e495a777e8478a783b5",
+    "ownedPortsClosed": {
+      "3112": true,
+      "62321": true,
+      "62322": true,
+      "62324": true,
+      "63111": true
+    },
+    "primaryCheckout": "b26a854 on original branch; original 217 tracked dirty files preserved",
+    "existingProjectVolumes": "Unchanged identities and mounts; no existing project reset/delete targeted"
   },
   "storage": {
-    "nativeCompilerOutputsRemoved": true,
-    "disposableSimulatorDeleted": true,
-    "freeGiB": 10.04,
-    "newPreflight": "Task release wrapper now requires 6 GiB free and cleanup cannot be skipped by evidence-write failure",
-    "webCompilerOutputRemoved": true
+    "freeGiB": 12.06,
+    "taskCreatedBuildAndBrowserRuntimeRemoved": true,
+    "latestUsefulScreenshotSetsRetained": true,
+    "ephemeralSessionTraceAndVideoArchivesRemoved": true,
+    "localEphemeralAuthHeaderLogsRedacted": true,
+    "noGlobalPrune": true
   },
-  "payment": "Prior genuine isolated sandbox payment/activation/replay/refund proof preserved. No additional transactions, keys or destinations.",
-  "production": "No deployment. Alias metadata rechecked against dpl_3mhT1zkiXY9bEHs6uCAAofqhvuuH; live site is not claimed patched.",
+  "payment": {
+    "result": "PASS",
+    "sandbox": "acct_1UBERCKFGD4sbm5r",
+    "sourceCommit": "5964579667a826f0345d87c2f13301eb2a00fbc2",
+    "signedHandler": "200 applied",
+    "activation": "Purchased fictional tryout Free to Pro; organization and other tryout remained Free",
+    "replay": "200 replayed; one contract; receipt attempts 1",
+    "refund": "Succeeded and real handler reconciled",
+    "existingRecordsUnchanged": true,
+    "newTransactionsThisContinuation": 0,
+    "newProviderKeysOrDestinationsThisContinuation": 0,
+    "proof": "evidence/launch-readiness-20261025/GENUINE-PAYMENT-RESULT.json"
+  },
+  "production": {
+    "deployed": false,
+    "existingReadyDeployment": "dpl_3mhT1zkiXY9bEHs6uCAAofqhvuuH",
+    "alias": "https://www.tryout.agency",
+    "liveSiteClaimedPatched": false,
+    "inspection": "evidence/release-validation-20261026/production-alias-after-docker.log",
+    "webOnlyReleasableScope": "Not established: visual gate failed and browser matrix is incomplete"
+  },
   "evidenceDirectory": "evidence/release-validation-20261026/",
-  "nextAction": "Approve restart of shared Docker Desktop, then verify all project identities, clean only the retained fresh test project and resume the complete guarded release gate.",
+  "nextAction": "Review existing UI/test-contract and Linux screenshot differences; repair confirmed defects while preserving intended work, then rerun complete zero-retry gates. Finish native signed-upgrade/device/store acceptance separately.",
   "manualChecklist": [
-    "Verify a signed upgrade retains the installed session, pending purchase attempt and RevenueCat identity.",
-    "On both platforms check sign-in/out, account switching, Back/deep links and warm offline/reconnect. Cold offline entry remains separate.",
-    "Check real report styling, recipient readback, share cancellation/interruption and cache cleanup for PDF/CSV/JSON.",
-    "Use approved store sandbox identities for native purchase/restore; preserve the owner trial and real entitlements."
+    "Exercise signup/email verification, automatic workspace address, onboarding and tryout publication against the intended current UI.",
+    "Exercise athlete/staff registration, QR/check-in, scoring, offline/reconnect, rankings/roster and role/tenant denial boundaries.",
+    "Check checkout failure recovery and sandbox activation evidence; preserve owner trial and real entitlements; no additional Stripe charge is required by this continuation.",
+    "Check reports and real share/cancel/cleanup on devices; verify signed installed-user session and purchase identity continuity, then approved native store sandbox purchase/restore."
   ],
   "nativeRuntimeProof": "evidence/release-validation-20261026/native-runtime-proof.json",
   "sourceGuidance": [
     "https://developer.apple.com/library/archive/technotes/tn2415/",
     "https://developer.apple.com/forums/thread/114456"
   ],
-  "rollback": "Revert this continuation commit for source rollback. No production/provider rollback is needed. Cleanup of the retained fresh database remains separately guarded by its recorded identity.",
-  "localRunnerSafety": "Do not invoke the raw reset-capable release command against the restored default config. Resume only with the fresh-project ownership wrapper after Docker recovery."
+  "rollback": {
+    "continuationSource": "git revert 5ccfe8a 3e2c5bf (unpromoted local continuation only)",
+    "production": "No deployment occurred; existing production deployment remains rollback target dpl_3mhT1zkiXY9bEHs6uCAAofqhvuuH",
+    "database": "No existing product reset or production migration; only positively owned disposable databases removed"
+  },
+  "localRunnerSafety": "Raw default resets remain prohibited against retained owner data; reuse the strict fresh-project wrapper. The interrupted diagnostic is not release acceptance.",
+  "testedSourceCommit": "5ccfe8a3756a1c5f9c5c875d525fc43d9aa8726c",
+  "continuationCommits": [
+    {
+      "commit": "3e2c5bf83831f9eba3f590a5fe3087a183533f36",
+      "purpose": "Guard reset replacement ownership and fixture isolation"
+    },
+    {
+      "commit": "5ccfe8a3756a1c5f9c5c875d525fc43d9aa8726c",
+      "purpose": "Exact isolated browser backend boundary"
+    }
+  ],
+  "dockerRecovery": {
+    "authorized": true,
+    "supportedRestart": "CLI restart hung; supported force-stop succeeded; supported start succeeded",
+    "existingContainersReverified": 85,
+    "existingIdentitiesAndMountsPreserved": true,
+    "mainProductDatabases": "TryOutFlow, payment-proof backend, Scorekeeper, PracticeAssist, BOLD and Lumen healthy after restart",
+    "preexistingUnhealthyScratchContainers": "Retained; no reset, prune or blind deletion",
+    "cleanupProof": "evidence/release-validation-20261026/final-cleanup-preservation.json"
+  }
 }
