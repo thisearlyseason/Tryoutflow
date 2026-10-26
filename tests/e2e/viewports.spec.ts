@@ -28,6 +28,11 @@ async function expectAuthPhotoReady(page: Page) {
 }
 
 async function expectOverflowFreeAtEveryViewport(page: Page, screen: string) {
+  // Measure the real rendered screen, after its private-session proof completes.
+  // Settling requests also avoids aborting that proof with the next full navigation;
+  // the strict network monitor still rejects failed authentication requests.
+  await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible();
+  await page.waitForLoadState('networkidle');
   await expectAuthPhotoReady(page);
   for (const viewport of viewportMatrix) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -41,6 +46,7 @@ async function expectOverflowFreeAtEveryViewport(page: Page, screen: string) {
       clientWidth,
     );
   }
+  await page.waitForLoadState('networkidle');
 }
 
 async function createDraftForWizard(page: Page, organizationSlug: string, name: string) {
