@@ -325,7 +325,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   ).toBe('1');
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${authoredTryoutId}/overview`);
-  await page.getByText('View the full event checklist', { exact: true }).click();
+  await page.getByText('View the full tryout checklist', { exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Tryout journey' })).toBeVisible();
   const runStage = page.getByRole('listitem').filter({
     has: page.getByRole('heading', { name: 'Run tryout' }),

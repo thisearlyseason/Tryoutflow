@@ -104,7 +104,8 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await page.goto(await confirmationUrl(request, email));
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(`AC01 ${testInfo.project.name} Hockey`);
-  await page.getByLabel('Your TryoutFlow workspace address').fill(organizationSlug);
+  await expect(page.getByLabel('Workspace address', { exact: true })).not.toBeEmpty();
+  await page.getByLabel('Workspace address', { exact: true }).fill(organizationSlug);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'anonymous owner organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
@@ -113,7 +114,7 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   // A redirect updates the URL before its Server Action stream has finished.
   // Wait for the destination UI and follow its real link instead of interrupting
   // that stream with a full-document navigation.
-  await expect(page.getByRole('heading', { name: 'Ready for the next tryout' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toBeVisible();
   const createTryout = page.getByRole('link', { name: 'Create tryout', exact: true });
   await expect(createTryout).toHaveAttribute('href', `/app/${organizationSlug}/tryouts/new`);
   await createTryout.click();
@@ -161,7 +162,7 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
   await expect(page.getByLabel('New cycle name')).toBeVisible();
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`);
-  await page.getByText('View the full event checklist', { exact: true }).click();
+  await page.getByText('View the full tryout checklist', { exact: true }).click();
   const participantsStage = page
     .getByRole('region', { name: 'Tryout journey', exact: true })
     .getByRole('listitem')

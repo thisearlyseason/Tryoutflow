@@ -9,7 +9,7 @@ test('owner sees lifecycle-led tryout administration', async ({ page }) => {
   await expectVisual(page, 'tryout-list.png');
 
   await openDemoTryout(page);
-  await page.getByText('View the full event checklist', { exact: true }).click();
+  await page.getByText('View the full tryout checklist', { exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Tryout journey' })).toBeVisible();
   await expectVisual(page, 'published-tryout-overview.png');
 

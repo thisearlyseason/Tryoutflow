@@ -6,7 +6,7 @@ test('owner sees bounded Game-Day check-in and live operations', async ({ page }
   await signInDemoOwner(page);
   await page.goto('/app/badlands-hockey-academy/tryouts');
   await openDemoTryout(page);
-  await page.getByText('View the full event checklist', { exact: true }).click();
+  await page.getByText('View the full tryout checklist', { exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Tryout journey' })).toBeVisible();
   const overviewUrl = page.url();
 

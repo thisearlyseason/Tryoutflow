@@ -91,12 +91,13 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   const monitor = await signInAs(page, newOwner);
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
-  await page.getByLabel('Your TryoutFlow workspace address').fill(organizationSlug);
+  await expect(page.getByLabel('Workspace address', { exact: true })).not.toBeEmpty();
+  await page.getByLabel('Workspace address', { exact: true }).fill(organizationSlug);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/home$`, 'u'));
-  await expect(page.getByRole('heading', { name: 'Ready for the next tryout' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
