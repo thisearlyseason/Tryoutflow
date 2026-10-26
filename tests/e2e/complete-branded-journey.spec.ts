@@ -504,9 +504,18 @@ test('isolated owner completes the branded tryout journey and removes the logo c
         `${baseURL}/app/${scenario.organizationSlug}/evaluate`,
         'evaluator workspace navigation RSC request',
       );
-      await evaluationPage.getByRole('link', { name: 'Evaluate' }).click();
+      await evaluationPage
+        .getByRole('main')
+        .getByRole('link', { name: 'My scoring', exact: true })
+        .click();
+      await expect(evaluationPage).toHaveURL(
+        `${baseURL}/app/${scenario.organizationSlug}/evaluate`,
+      );
       await expect(
-        evaluationPage.getByRole('heading', { name: 'Your assigned sessions', level: 1 }),
+        evaluationPage.getByRole('heading', { name: 'My scoring', level: 1 }),
+      ).toBeVisible();
+      await expect(
+        evaluationPage.getByRole('heading', { name: 'Your assigned sessions', level: 2 }),
       ).toBeVisible();
       await evaluationPage.waitForLoadState('networkidle');
       const authoredSessionCard = evaluationPage
@@ -528,7 +537,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
         'authored assigned-athlete navigation RSC request',
       );
       const assignedAthletesLink = evaluationPage.getByRole('link', {
-        name: 'By athlete / by station',
+        name: 'Search athletes or score by station',
         exact: true,
       });
       await expect(assignedAthletesLink).toHaveAttribute(

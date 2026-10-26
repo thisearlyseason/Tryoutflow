@@ -247,7 +247,7 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
   ).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Task 30 Exact Scoring' })).toBeVisible();
   await page.goto(`/app/${scenario.organizationSlug}/evaluators`);
-  await expect(page.getByRole('heading', { name: 'Evaluator directory' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Evaluator team' })).toBeVisible();
   await page.goto(`/app/${scenario.organizationSlug}/athletes/${scenario.ids.athleteA}`);
   await expect(page.getByRole('heading', { name: 'Exact Aggregate' })).toBeVisible();
   await page.goto(`/app/${scenario.organizationSlug}/evaluate/profile`);
@@ -265,7 +265,7 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
     'loader retry followed by membership navigation',
   );
   await page.getByRole('link', { name: 'Retry' }).click();
-  await expect(page.getByRole('heading', { name: 'Tryouts' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tryouts', exact: true })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
   await page.goto(

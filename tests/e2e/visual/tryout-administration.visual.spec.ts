@@ -5,7 +5,7 @@ import { expectVisual, openDemoTryout, signInDemoOwner } from '../helpers/visual
 test('owner sees lifecycle-led tryout administration', async ({ page }) => {
   await signInDemoOwner(page);
   await page.goto('/app/badlands-hockey-academy/tryouts');
-  await expect(page.getByRole('heading', { name: 'Tryouts' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tryouts', exact: true })).toBeVisible();
   await expectVisual(page, 'tryout-list.png');
 
   await openDemoTryout(page);
