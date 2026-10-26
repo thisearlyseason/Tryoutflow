@@ -109,6 +109,7 @@ async function createReleaseFixture() {
 set -euo pipefail
 printf 'node %s\\n' "$*" >> "$TRYOUTFLOW_COMMAND_LOG"
 if [[ "$*" == "--version" ]]; then printf '%s\\n' "\${TRYOUTFLOW_NODE_VERSION:-v24.12.0}"; exit 0; fi
+if [[ "$*" == scripts/reset-isolated-release-database.mjs* && "\${TRYOUTFLOW_ALLOW_ISOLATED_RESET:-}" == 1 ]]; then exit "\${TRYOUTFLOW_RESET_EXIT_CODE:-0}"; fi
 if [[ "$*" == "scripts/current-release-dependency-audit.mjs" ]]; then exit "\${TRYOUTFLOW_AUDIT_EXIT_CODE:-0}"; fi
 exit 64
 `,
@@ -168,6 +169,8 @@ exec "$TRYOUTFLOW_REAL_GIT" "$@"
     commandLog,
     environment: {
       ...process.env,
+      // This synthetic repository has fake commands and no real database.
+      TRYOUTFLOW_ISOLATED_RELEASE_PROJECT: '',
       PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
       TRYOUTFLOW_COMMAND_LOG: commandLog,
       TRYOUTFLOW_REAL_GIT: '/usr/bin/git',
@@ -237,6 +240,46 @@ describe('production readiness release gate', () => {
     expect(script).toContain("run_stage 'canonical visual regression'");
     expect(script).not.toContain('--update-snapshots');
     expect(gitignore).toContain('output/playwright/*-results/');
+  });
+
+  it('uses the guarded isolated reset path for each canonical reset', async () => {
+    const fixture = await createReleaseFixture();
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: {
+        ...fixture.environment,
+        TRYOUTFLOW_ISOLATED_RELEASE_PROJECT: 'tryoutflow-lint-verify-012345abcdef',
+        TRYOUTFLOW_ALLOW_ISOLATED_RESET: '1',
+      },
+    });
+    expect(result.code, `${result.stdout}\n${result.stderr}`).toBe(0);
+    const commands = await loggedCommands(fixture.commandLog);
+    expect(
+      commands.filter((command) =>
+        command.startsWith('node scripts/reset-isolated-release-database.mjs'),
+      ),
+    ).toEqual([
+      'node scripts/reset-isolated-release-database.mjs --local --no-seed',
+      'node scripts/reset-isolated-release-database.mjs --local',
+      'node scripts/reset-isolated-release-database.mjs --local --no-seed',
+    ]);
+    expect(commands.some((command) => command.includes('exec -- supabase db reset'))).toBe(false);
+  });
+
+  it('preserves a guarded isolated reset failure', async () => {
+    const fixture = await createReleaseFixture();
+    const result = await run('bash', [fixture.script], {
+      cwd: fixture.root,
+      env: {
+        ...fixture.environment,
+        TRYOUTFLOW_ISOLATED_RELEASE_PROJECT: 'tryoutflow-lint-verify-012345abcdef',
+        TRYOUTFLOW_ALLOW_ISOLATED_RESET: '1',
+        TRYOUTFLOW_RESET_EXIT_CODE: '43',
+      },
+    });
+    expect(result.code).toBe(43);
+    expect(result.stderr).toContain('FAILED: clean unseeded database reset (exit 43)');
+    expect(result.stdout).not.toContain('full pgTAP database suite');
   });
 
   it('rejects the wrong Node before checking npm or installing dependencies', async () => {

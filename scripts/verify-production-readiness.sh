@@ -137,6 +137,10 @@ reset_local_database() {
   # Revalidate the exact local database/API ownership immediately before each
   # destructive reset, including failure cleanup.
   "${NPM[@]}" run release:state:preflight || return $?
+  if [[ -n "${TRYOUTFLOW_ISOLATED_RELEASE_PROJECT:-}" ]]; then
+    node scripts/reset-isolated-release-database.mjs "$@"
+    return $?
+  fi
   "${NPM[@]}" exec -- supabase db reset "$@"
 }
 

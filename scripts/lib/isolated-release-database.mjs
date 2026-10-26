@@ -170,3 +170,33 @@ export function verifyIsolatedReleaseTargets(databaseUrl, apiUrl, environment = 
   });
   return verifyIsolatedReleaseDatabase(databaseUrl, environment);
 }
+
+/** A new identity is accepted only immediately after our verified local reset. */
+export function assertIsolatedResetReplacement({
+  proof,
+  before,
+  after,
+  databasePort,
+  currentConfigHash,
+  proofUnchanged,
+}) {
+  const mounts = (row) =>
+    row.Mounts.map((mount) => [mount.Type, mount.Name ?? mount.Source, mount.Destination]).sort();
+  const networks = Object.values(after.NetworkSettings.Networks);
+  if (
+    currentConfigHash !== proof.configSHA256 ||
+    !proofUnchanged ||
+    after.Config.Labels['com.supabase.cli.project'] !== proof.projectId ||
+    after.Config.Labels['com.supabase.cli.workdir'] !== proof.workdir ||
+    after.Image !== before.Image ||
+    JSON.stringify(mounts(after)) !== JSON.stringify(mounts(before)) ||
+    networks.length !== 1 ||
+    networks[0].NetworkID !== proof.networkId ||
+    !after.HostConfig.PortBindings['5432/tcp']?.length ||
+    after.HostConfig.PortBindings['5432/tcp'].some(
+      (binding) => binding.HostPort !== databasePort,
+    ) ||
+    Object.keys(after.HostConfig.PortBindings).some((port) => port !== '5432/tcp')
+  )
+    throw new Error('Replacement database is not the exact owned reset target.');
+}

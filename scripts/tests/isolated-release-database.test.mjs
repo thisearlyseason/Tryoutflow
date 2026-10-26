@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   assertIsolatedReleaseDatabaseUrl,
+  assertIsolatedResetReplacement,
   assertIsolatedReleaseDatabaseProof,
   assertIsolatedReleaseApiProof,
 } from '../lib/isolated-release-database.mjs';
@@ -216,4 +217,94 @@ for (const [name, change] of [
     const value = apiFixture();
     change(value);
     assert.throws(() => assertIsolatedReleaseApiProof(value));
+  });
+
+const resetFixture = () => {
+  const base = fixture();
+  const before = {
+    Image: 'same-image',
+    Mounts: [{ Type: 'volume', Name: 'fresh-volume', Destination: '/var/lib/postgresql/data' }],
+  };
+  return {
+    proof: base.proof,
+    before,
+    after: {
+      ...structuredClone(before),
+      Config: { Labels: base.selected.labels },
+      NetworkSettings: { Networks: { fresh: { NetworkID: 'fresh-network' } } },
+      HostConfig: { PortBindings: { '5432/tcp': [{ HostIp: '0.0.0.0', HostPort: '43132' }] } },
+    },
+    databasePort: '43132',
+    currentConfigHash: base.configHash,
+    proofUnchanged: true,
+  };
+};
+test('accept only the expected CLI replacement before restoring loopback binding', () =>
+  assertIsolatedResetReplacement(resetFixture()));
+for (const [name, change] of [
+  [
+    'config mutation',
+    (x) => {
+      x.currentConfigHash = 'b'.repeat(64);
+    },
+  ],
+  [
+    'proof mutation',
+    (x) => {
+      x.proofUnchanged = false;
+    },
+  ],
+  [
+    'owner project',
+    (x) => {
+      x.after.Config.Labels['com.supabase.cli.project'] = 'tryoutflow';
+    },
+  ],
+  [
+    'owner checkout',
+    (x) => {
+      x.after.Config.Labels['com.supabase.cli.workdir'] = '/owner';
+    },
+  ],
+  [
+    'different image',
+    (x) => {
+      x.after.Image = 'different';
+    },
+  ],
+  [
+    'owner volume',
+    (x) => {
+      x.after.Mounts[0].Name = 'owner-data';
+    },
+  ],
+  [
+    'owner network',
+    (x) => {
+      x.after.NetworkSettings.Networks.fresh.NetworkID = 'owner-network';
+    },
+  ],
+  [
+    'extra network',
+    (x) => {
+      x.after.NetworkSettings.Networks.extra = { NetworkID: 'extra' };
+    },
+  ],
+  [
+    'owner port',
+    (x) => {
+      x.after.HostConfig.PortBindings['5432/tcp'][0].HostPort = '58322';
+    },
+  ],
+  [
+    'extra port',
+    (x) => {
+      x.after.HostConfig.PortBindings['9999/tcp'] = [];
+    },
+  ],
+])
+  test(`reject reset replacement ${name}`, () => {
+    const value = resetFixture();
+    change(value);
+    assert.throws(() => assertIsolatedResetReplacement(value));
   });
