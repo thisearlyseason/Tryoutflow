@@ -306,7 +306,7 @@ export default function Workspace() {
               Preparing report for sharing…
             </Text>
           ) : null}
-          {loading ? (
+          {loading && !error ? (
             <Text accessibilityLiveRegion="polite" style={styles.status}>
               Loading your workspace…
             </Text>
@@ -390,7 +390,7 @@ export default function Workspace() {
         }}
         onLoadStart={() => {
           setLoading(true);
-          setError('');
+          // Android may start its internal error page after onError. Keep retry visible.
         }}
         onLoadEnd={() => setLoading(false)}
         onFileDownload={(event) => {
@@ -414,6 +414,7 @@ export default function Workspace() {
           }
         }}
         renderLoading={() => <ActivityIndicator accessibilityLabel="Loading workspace" />}
+        renderError={() => <View />}
       />
     </SafeAreaView>
   );

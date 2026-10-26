@@ -182,9 +182,13 @@ test('network interruption exposes retry and explicit iOS history preserves hard
     render(<Workspace />);
   });
   act(() => state.props.onError());
+  // Android can emit another load-start event for its generated network-error page.
+  act(() => state.props.onLoadStart());
   expect(screen.getByRole('alert').textContent).toContain('Check your connection');
+  expect(screen.queryByText('Loading your workspace…')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Retry workspace' }));
   expect(state.reload).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('alert')).toBeNull();
   act(() => {
     state.props.onNavigationStateChange({
       url: `${origin}/app/club/home`,
