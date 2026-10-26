@@ -11,10 +11,11 @@ TRYOUTFLOW_LOCAL_DEMO_PASSWORD='<local demo password>' corepack npm run demo:loc
 TRYOUTFLOW_LOCAL_DEMO_PASSWORD='<local demo password>' corepack npm run test:visual
 ```
 
-The opt-in `--visual` preparation freezes only the two known synthetic tryout
-`updated_at` values. It rejects unknown or remote database origins and missing
+The opt-in `--visual` preparation freezes the two known synthetic tryout
+`updated_at` values and gives seven known fictional athletes distinct `created_at`
+values to make the recent-athlete order repeatable. It rejects unknown or remote database origins and missing
 fixtures, runs in one bounded transaction, restores timestamp/version triggers,
-and proves every other tryout field is unchanged. Ordinary demo provisioning does
+and proves every other tryout and athlete field is unchanged. Ordinary demo provisioning does
 not freeze dates.
 
 Screenshot comparisons record all image mismatches with soft assertions so later
@@ -24,7 +25,7 @@ CI retains only synthetic expected/actual/diff PNGs for one day on failure, not
 browser traces, cookies, or credentials. Review Linux CI evidence before updating
 its canonical snapshots; a macOS rendering alone does not prove pixel parity.
 
-Comparison mode is the only mode used by the production-readiness controller. It must never modify tracked PNGs.
+The production-readiness controller runs comparison mode twice to check repeatability. It must never modify tracked PNGs.
 
 ## Intentionally update a baseline
 

@@ -220,6 +220,7 @@ run_stage 'production build' env NEXT_PUBLIC_APP_URL="$PUBLIC_BUILD_ORIGIN" "${N
 run_stage 'production marketing artifact gate' "${NPM[@]}" run test:marketing:production
 run_stage 'local visual demo identity' env TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$VISUAL_DEMO_PASSWORD" "${NPM[@]}" run demo:local -- --visual
 run_stage 'canonical visual regression' env TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$VISUAL_DEMO_PASSWORD" "${NPM[@]}" run test:visual
+run_stage 'canonical visual repeatability' env TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$VISUAL_DEMO_PASSWORD" "${NPM[@]}" run test:visual
 run_stage 'strict five-project browser gate' "${NPM[@]}" run test:e2e -- --retries=0
 
 run_stage 'current-release scoped dependency audit' node scripts/current-release-dependency-audit.mjs
