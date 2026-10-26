@@ -3,3 +3,15 @@ next-env.d.ts
 
 # Preserve upstream source/provenance bytes in the reviewed development-only compatibility package.
 tools/lint/next-lint-compat/
+
+# Rebuildable native dependency and compiler output.
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/.cxx/
+apps/mobile/android/build/
+apps/mobile/android/app/build/
+
+# Local-only research evidence and rebuildable output are not release source.
+/evidence/
+/output/

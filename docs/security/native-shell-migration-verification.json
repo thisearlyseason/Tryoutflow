@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "at": "2026-10-26T04:49:32.403176+00:00",
+  "releaseDecision": "HOLD",
+  "baseCommit": "e94bd46ee263f46f4498f0540b0474fa0f04d8e8",
+  "branch": "codex/native-shell-migration-20261025",
+  "scope": "Owner-approved Expo shell migration after no compatible drop-in upstream fix; no React Native version bump, package renaming, advisory waiver, provider changes or deployment.",
+  "identity": {
+    "packageName": "tryoutflow-mobile",
+    "reactNative": "0.86.3",
+    "bundleAndApplicationId": "agency.tryout.mobile",
+    "scheme": "tryoutflow",
+    "storedSessionAndPurchaseAttemptFormat": "Retains default Expo SecureStore iOS services/attributes and Android AES-GCM aliases/JSON; signed installed-user upgrade validation remains required."
+  },
+  "native": {
+    "beforeHigh": 5,
+    "afterVulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "registryCoverage": "PASS: frozen registry URL/integrity/version coverage and npm ci; no exception accepted",
+    "lockSHA256": "4a19ab8a89187373a6ca63f51a9ea50ee666ea2183465e3d324bde214a8fedf2",
+    "typecheck": "PASS: application, native tests and app configuration included",
+    "behaviorTests": 39,
+    "auditPolicyTests": 73,
+    "iosJavaScriptBundle": "PASS",
+    "androidJavaScriptBundle": "PASS",
+    "iosBuild": "PASS: Debug iOS Simulator, code signing disabled",
+    "androidBuild": "PASS: assembleDebug; not a store release",
+    "runtimeSmoke": "INCOMPLETE: disposable iOS 26.5 simulator stalled in first-boot migration; launch timed out; test simulator deleted",
+    "signedDevicePurchaseAndUpgradeQA": "NOT PROVEN"
+  },
+  "web": {
+    "fullAndProductionAudit": "PASS: zero findings",
+    "format": "PASS",
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "lintToolchainSecurityTests": 305,
+    "htmlRuleParityCases": 17,
+    "unitSuite": "BLOCKED: referenced vitest.config.ts and tracked tests/unit suite are absent in this candidate checkout",
+    "fullReleaseRunner": "STOPPED at pinned Node preflight: expected v24.12.0, installed v24.22.1; no DB reset or later release stage ran",
+    "databaseAndBrowserReleaseGates": "NOT PASSED for this migration; require pinned toolchain, complete test inputs and a newly owned disposable DB. Retained payment proof DB must not be reset."
+  },
+  "production": {
+    "deployment": "dpl_3mhT1zkiXY9bEHs6uCAAofqhvuuH",
+    "domain": "https://www.tryout.agency",
+    "deploymentAndAliasReverified": "Ready, same deployment via Vercel inspect",
+    "publicHealth": 200,
+    "deployedThisRun": false,
+    "liveSitePatchedByThisRun": false
+  },
+  "payment": {
+    "existingEvidenceState": "PASS",
+    "evidence": "evidence/launch-readiness-20261025/GENUINE-PAYMENT-RESULT.json",
+    "sandbox": "acct_1UBERCKFGD4sbm5r",
+    "replay": {
+      "status": 200,
+      "outcome": "replayed",
+      "contractCount": 1,
+      "receipt": {
+        "processing_status": "processed",
+        "attempts": 1
+      }
+    },
+    "cleanup": "verified",
+    "transactionsThisMigration": 0,
+    "newKeysOrDestinations": 0
+  },
+  "preservation": {
+    "primaryCheckout": "Unchanged branch codex/tryoutflow-ui-redesign-20260913 at b26a85488f28104ce0903dc3d0e630642611211b; 217 tracked dirty files retained",
+    "originalUntrackedPreflight": "tools/stripe-isolated-activation/preflight.py preserved",
+    "oldResearchFixtures": "Archived with SHA256 manifest in ignored evidence; unique proof source remains committed under tools/native-security-backport-proof"
+  },
+  "rollback": "Revert this migration commit to restore the Expo shell; no production, database or provider rollback required. Production remains on the known deployment.",
+  "manualChecklist": [
+    "Install as an upgrade over the existing signed app; verify session, WebView cookies, pending purchase attempt and RevenueCat app-user identity survive.",
+    "Exercise sign-in/out, deep links, account switch, offline/reconnect, Back navigation and account deletion confirmation on both platforms.",
+    "Generate and share multi-page PDF, CSV and JSON; verify print styling, recipient readback, cancellation, interrupted export and cache cleanup.",
+    "On authorized store sandbox devices, verify purchase, cancellation, restore, management and account isolation; preserve owner trial and real entitlements.",
+    "Run the complete pinned web/database/contracts/visual/five-browser release gate on disposable data before considering deployment."
+  ],
+  "evidenceDirectory": "evidence/native-shell-migration-preflight/"
+}

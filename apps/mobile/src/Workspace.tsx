@@ -1,4 +1,4 @@
-import * as Print from 'expo-print';
+import * as Print from './platform/reports';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebViewMessageEvent } from 'react-native-webview';
-import { randomUUID } from 'expo-crypto';
+import { v4 as randomUUID } from 'uuid';
 import NativeBilling from './NativeBilling';
 import { Action } from './Action';
 import {
@@ -22,8 +22,8 @@ import {
   setWorkspaceSession,
   type WorkspaceSession,
 } from './workspace-session';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
+import * as FileSystem from './platform/files';
+import * as Sharing from './platform/sharing';
 import { cleanupTemporaryReports } from './temporary-reports';
 import { reportDownload, workspaceNavigation } from './workspace-navigation';
 const origin = new URL(process.env.EXPO_PUBLIC_API_URL ?? 'https://www.tryout.agency').origin;

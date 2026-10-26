@@ -3,7 +3,17 @@ import nextParser from '@tryoutflow/next-lint-compat/parser.js';
 
 export default [
   {
-    ignores: ['.next/**', 'tests/fixtures/**/.next/**', 'coverage/**', 'playwright-report/**'],
+    ignores: [
+      '.next/**',
+      'tests/fixtures/**/.next/**',
+      'coverage/**',
+      'playwright-report/**',
+      'apps/mobile/ios/Pods/**',
+      'apps/mobile/ios/build/**',
+      'apps/mobile/android/.gradle/**',
+      'apps/mobile/android/build/**',
+      'apps/mobile/android/app/build/**',
+    ],
   },
   {
     files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],

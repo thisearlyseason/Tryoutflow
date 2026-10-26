@@ -39,8 +39,8 @@ vi.mock('../src/native-billing', () => ({
   purchasePackage: services.purchase,
   restorePurchases: services.restore,
 }));
-vi.mock('expo-crypto', () => ({ randomUUID: () => 'attempt-id' }));
-vi.mock('expo-secure-store', () => ({
+vi.mock('uuid', () => ({ v4: () => 'attempt-id' }));
+vi.mock('../src/platform/secure-store', () => ({
   getItemAsync: async (k: string) => services.storage.get(k) ?? null,
   setItemAsync: async (k: string, v: string) => {
     services.storage.set(k, v);

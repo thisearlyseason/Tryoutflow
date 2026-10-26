@@ -28,8 +28,8 @@ vi.mock('../src/native-billing', () => ({
   purchasePackage: async () => {},
   restorePurchases: async () => {},
 }));
-vi.mock('expo-crypto', () => ({ randomUUID: () => 'attempt-id' }));
-vi.mock('expo-secure-store', () => ({}));
+vi.mock('uuid', () => ({ v4: () => 'attempt-id' }));
+vi.mock('../src/platform/secure-store', () => ({}));
 vi.mock('react-native', () => {
   const Container = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   return {

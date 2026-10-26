@@ -17,8 +17,8 @@ import {
 } from 'react-native';
 import type { Session } from '@supabase/supabase-js';
 import type { PurchasesPackage } from 'react-native-purchases';
-import { randomUUID } from 'expo-crypto';
-import * as SecureStore from 'expo-secure-store';
+import { v4 as randomUUID } from 'uuid';
+import * as SecureStore from './platform/secure-store';
 import { api as requestApi, supabase } from './client';
 import {
   getOfferings,

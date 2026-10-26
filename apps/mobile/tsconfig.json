@@ -1,6 +1,11 @@
 {
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": { "strict": true, "noUncheckedIndexedAccess": true },
+  "extends": "@react-native/typescript-config",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["react", "node"],
+    "lib": ["ESNext", "DOM", "DOM.Iterable"]
+  },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "ios", "android"]
 }

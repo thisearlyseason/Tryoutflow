@@ -3,7 +3,7 @@ const session = vi.hoisted(() => vi.fn());
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({ auth: { getSession: session } }),
 }));
-vi.mock('expo-secure-store', () => ({}));
+vi.mock('../src/platform/secure-store', () => ({}));
 vi.mock('react-native-url-polyfill/auto', () => ({}));
 import { api } from '../src/client';
 afterEach(() => {

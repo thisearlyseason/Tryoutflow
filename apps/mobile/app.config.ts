@@ -1,5 +1,4 @@
-import type { ExpoConfig } from 'expo/config';
-const config: ExpoConfig = {
+const config = {
   name: 'TryOutFlow',
   slug: 'tryoutflow',
   owner: 'thisearlyseason',
@@ -26,7 +25,6 @@ const config: ExpoConfig = {
       backgroundColor: '#111e2c',
     },
   },
-  plugins: ['expo-secure-store', 'expo-sharing'],
   extra: {
     privacyPolicyUrl: 'https://www.tryout.agency/privacy',
     supportUrl: 'https://www.tryout.agency/support',

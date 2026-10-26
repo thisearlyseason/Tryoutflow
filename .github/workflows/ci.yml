@@ -106,14 +106,13 @@ jobs:
         working-directory: apps/mobile
         env:
           CI: '1'
-          EXPO_NO_TELEMETRY: '1'
-          EXPO_NO_DOTENV: '1'
           EXPO_PUBLIC_API_URL: https://release.tryoutflow.test
           EXPO_PUBLIC_SUPABASE_URL: http://127.0.0.1:58321
           EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local-ci-placeholder
         run: |
-          corepack npm@11.12.1 exec -- expo export --platform ios --output-dir ../../output/native-ci/ios
-          corepack npm@11.12.1 exec -- expo export --platform android --output-dir ../../output/native-ci/android
+          mkdir -p ../../output/native-ci/ios ../../output/native-ci/android
+          corepack npm@11.12.1 run bundle:ios
+          corepack npm@11.12.1 run bundle:android
 
   # Preserve the existing required status name. A skipped dependency is not a pass
   # unless the successful, exact-SHA classifier explicitly excluded that scope.

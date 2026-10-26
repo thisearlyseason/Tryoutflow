@@ -1,7 +1,7 @@
 import { getWorkspaceSession, isWorkspaceSessionMode } from './workspace-session';
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './platform/secure-store';
 const storage = {
   getItem: (key: string) => SecureStore.getItemAsync(key),
   setItem: (key: string, value: string) => SecureStore.setItemAsync(key, value),
@@ -36,20 +36,26 @@ export async function api<T>(path: string, body?: unknown, expectedUserId?: stri
   const origin = process.env.EXPO_PUBLIC_API_URL!;
   if (!origin.startsWith('https://') && !__DEV__)
     throw new Error('A secure service connection is required.');
-  const response = await fetch(`${origin}${path}`, {
-    method: body ? 'POST' : 'GET',
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(20000),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    const error = new Error(data.error ?? 'Please try again.');
-    if (data.code === 'intent_expired') error.name = 'IntentExpired';
-    throw error;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+  try {
+    const response = await fetch(`${origin}${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: controller.signal,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(data.error ?? 'Please try again.');
+      if (data.code === 'intent_expired') error.name = 'IntentExpired';
+      throw error;
+    }
+    return data as T;
+  } finally {
+    clearTimeout(timeout);
   }
-  return data as T;
 }

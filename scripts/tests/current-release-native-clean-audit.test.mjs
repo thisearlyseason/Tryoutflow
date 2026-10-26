@@ -21,6 +21,8 @@ import {
 } from '../current-release-native-audit.mjs';
 const load = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
 const lock = load('../../apps/mobile/package-lock.json');
+// Historical exception fixture must remain independent of the current clean graph.
+const reviewedLock = load('./fixtures/native-reviewed-exception-lock.json');
 const pins = load('../../docs/security/current-release-native-audit-pins.json');
 const clean = {
   auditReportVersion: 2,
@@ -59,12 +61,12 @@ test('a complete zero-finding report passes without consulting an exception or i
 test('changed source can pass only a genuinely clean report, not inherit the old exception', () =>
   fixture((root, record) => {
     assert.equal(
-      verifyNativeReleaseAudit(root, oldAudit, lock, pins, record),
+      verifyNativeReleaseAudit(root, oldAudit, reviewedLock, pins, record),
       'exact-release-exception',
     );
     writeFileSync(join(root, 'source.js'), 'changed source\n');
     assert.throws(
-      () => verifyNativeReleaseAudit(root, oldAudit, lock, pins, record),
+      () => verifyNativeReleaseAudit(root, oldAudit, reviewedLock, pins, record),
       /exception is inactive/,
     );
     assert.equal(verifyNativeReleaseAudit(root, clean, lock, pins, record), 'clean');
@@ -73,7 +75,7 @@ test('a changed finding still fails on an exactly bound source', () =>
   fixture((root, record) => {
     const audit = structuredClone(oldAudit);
     audit.vulnerabilities['node-forge'].via[0].source = 0;
-    assert.throws(() => verifyNativeReleaseAudit(root, audit, lock, pins, record), /drift/);
+    assert.throws(() => verifyNativeReleaseAudit(root, audit, reviewedLock, pins, record), /drift/);
   }));
 for (const [label, mutate] of [
   [
@@ -280,7 +282,7 @@ for (const [label, mutate] of [
 ])
   test(`zero report cannot conceal unaudited native dependency: ${label}`, () => {
     const changed = structuredClone(lock);
-    mutate(changed.packages['node_modules/node-forge']);
+    mutate(changed.packages[Object.keys(changed.packages).find((path) => path !== '')]);
     assert.throws(
       () => verifyNativeReleaseAudit('/not-a-repository', clean, changed, undefined, undefined),
       /coverage/u,

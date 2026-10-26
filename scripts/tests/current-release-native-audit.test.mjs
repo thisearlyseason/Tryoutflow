@@ -5,7 +5,7 @@ import { verifyNativeAudit } from '../current-release-native-audit.mjs';
 
 const load = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
 const pins = load('../../docs/security/current-release-native-audit-pins.json');
-const lock = load('../../apps/mobile/package-lock.json');
+const lock = load('./fixtures/native-reviewed-exception-lock.json');
 const audit = {
   auditReportVersion: 2,
   metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 17, critical: 0, total: 17 } },

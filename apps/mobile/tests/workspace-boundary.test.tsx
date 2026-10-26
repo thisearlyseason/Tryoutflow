@@ -33,8 +33,8 @@ vi.mock('../src/NativeBilling', () => ({
     </div>
   ),
 }));
-vi.mock('expo-crypto', () => ({ randomUUID: () => 'trusted-instance-nonce' }));
-vi.mock('expo-file-system/legacy', () => ({
+vi.mock('uuid', () => ({ v4: () => 'trusted-instance-nonce' }));
+vi.mock('../src/platform/files', () => ({
   cacheDirectory: '/cache/',
   readDirectoryAsync: async () => [],
   moveAsync: async () => undefined,
@@ -42,8 +42,11 @@ vi.mock('expo-file-system/legacy', () => ({
   writeAsStringAsync: state.write,
   deleteAsync: state.remove,
 }));
-vi.mock('expo-print', () => ({ printToFileAsync: state.print }));
-vi.mock('expo-sharing', () => ({ isAvailableAsync: async () => true, shareAsync: state.share }));
+vi.mock('../src/platform/reports', () => ({ printToFileAsync: state.print }));
+vi.mock('../src/platform/sharing', () => ({
+  isAvailableAsync: async () => true,
+  shareAsync: state.share,
+}));
 vi.mock('react-native', () => {
   const Box = ({ children }: any) => <div>{children}</div>;
   return {
