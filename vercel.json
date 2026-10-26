@@ -6,7 +6,15 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/account-deletion", "schedule": "0 13 * * *" },
-    { "path": "/api/jobs/process", "schedule": "*/5 * * * *" }
-  ]
+    {
+      "path": "/api/cron/account-deletion",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/jobs/process",
+      "schedule": "*/5 * * * *"
+    }
+  ],
+  "installCommand": "corepack npm@11.12.1 ci",
+  "buildCommand": "corepack npm@11.12.1 run build"
 }

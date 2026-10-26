@@ -1,9 +1,13 @@
 node_modules
 .next
-tests/unit
-tests/stubs
-tests/setup.ts
-vitest.config.ts
 AGENTS.md
 *.tsbuildinfo
 .env*
+
+# Local test evidence and native-only sources are not part of the website upload.
+work
+evidence
+output
+playwright-report
+apps/mobile
+tools/stripe-isolated-activation

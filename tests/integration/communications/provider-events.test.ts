@@ -168,10 +168,14 @@ describe('decision batches and provider evidence', () => {
     const createSql = `
       begin;
       set role authenticated; set "request.jwt.claim.role" = 'authenticated'; set "request.jwt.claim.sub" = '${ids.owner}';
-      select set_config('tryoutflow.provider_batch_result',
-        concat_ws('|',outcome,coalesce(batch_id::text,'NULL'),queued_count::text),false)
-      from public.create_decision_message_batch_v2(
-        '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
+      -- Only the final SELECT is a result row, including on newer psql clients
+      -- that print every result from a multi-statement -c command.
+      do $batch_result$ begin
+        perform set_config('tryoutflow.provider_batch_result',
+          concat_ws('|',outcome,coalesce(batch_id::text,'NULL'),queued_count::text),false)
+        from public.create_decision_message_batch_v2(
+          '${ids.organization}','${ids.tryout}','${ids.division}','${ids.roster}','${data.previewToken}','${data.digest}','SEND EXACT BATCH');
+      end $batch_result$;
       reset role;
       update public.outbox_jobs set available_at='9999-01-01' where organization_id='${ids.organization}' and status='pending';
       commit;
