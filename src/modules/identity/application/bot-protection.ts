@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { isBrowserTestBackend } from '../../../lib/browser-test-backend';
+
 import { z } from 'zod';
 
 export const DETERMINISTIC_TEST_BOT_TOKEN = 'tryoutflow-deterministic-bot-token-v1';
@@ -169,9 +171,7 @@ export function isExactDeterministicBotTestEnvironment(
     environment.NODE_ENV === 'production' &&
     environment.TRYOUTFLOW_SERVER_TEST_ENV === 'task30-playwright' &&
     environment.NEXT_PUBLIC_APP_URL === 'https://task30.e2e.example.test' &&
-    /^http:\/\/(?:127\.0\.0\.1|localhost):54321\/?$/u.test(
-      environment.NEXT_PUBLIC_SUPABASE_URL ?? '',
-    )
+    isBrowserTestBackend(environment)
   )
     return true;
   return false;

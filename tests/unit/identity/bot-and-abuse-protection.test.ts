@@ -444,6 +444,39 @@ describe('production request origin', () => {
     ).toBe('https://task30.e2e.example.test');
   });
 
+  it('allows only the exact isolated browser backend with every production test predicate', () => {
+    const request = new NextRequest('http://internal:3000/auth/sign-up', {
+      headers: { host: '127.0.0.1:3112', 'x-forwarded-proto': 'http' },
+    });
+    const exact = {
+      NODE_ENV: 'production',
+      TRYOUTFLOW_SERVER_TEST_ENV: 'task30-playwright',
+      TRYOUTFLOW_BOT_PROTECTION_MODE: 'deterministic-test',
+      NEXT_PUBLIC_APP_URL: 'https://task30.e2e.example.test',
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:62321',
+      TRYOUTFLOW_ISOLATED_RELEASE_PROJECT: 'tryoutflow-lint-verify-012345abcdef',
+    };
+    expect(isExactDeterministicBotTestEnvironment(exact)).toBe(true);
+    expect(getTrustedRequestOrigin(request, exact)).toBe('http://127.0.0.1:3112');
+    for (const key of Object.keys(exact)) {
+      const changed = { ...exact, [key]: `${exact[key as keyof typeof exact]}-other` };
+      expect(isExactDeterministicBotTestEnvironment(changed)).toBe(false);
+      if (key !== 'NODE_ENV')
+        expect(getTrustedRequestOrigin(request, changed)).not.toBe('http://127.0.0.1:3112');
+    }
+    for (const backend of [
+      'http://127.0.0.1:58321',
+      'http://127.0.0.1:59321',
+      'http://example.com:62321',
+      'http://127.0.0.1:62321?host=example.com',
+      'http://user:pass@127.0.0.1:62321',
+    ]) {
+      const changed = { ...exact, NEXT_PUBLIC_SUPABASE_URL: backend };
+      expect(isExactDeterministicBotTestEnvironment(changed)).toBe(false);
+      expect(getTrustedRequestOrigin(request, changed)).toBe('https://task30.e2e.example.test');
+    }
+  });
+
   it('accepts an explicitly configured alternate loopback E2E origin without trusting another port', () => {
     const alternate = new NextRequest('http://internal:3000/auth/sign-up', {
       headers: { host: '127.0.0.1:3217', 'x-forwarded-proto': 'http' },

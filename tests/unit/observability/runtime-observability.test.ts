@@ -32,6 +32,19 @@ describe('runtime observability adapters', () => {
       }),
     ).toBe(false);
     expect(shouldInjectTestLoaderFailure('messages', 'tryouts', exact)).toBe(false);
+    const isolated = {
+      ...exact,
+      NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:62321',
+      TRYOUTFLOW_ISOLATED_RELEASE_PROJECT: 'tryoutflow-lint-verify-012345abcdef',
+    };
+    expect(shouldInjectTestLoaderFailure('tryouts', 'tryouts', isolated)).toBe(true);
+    expect(
+      shouldInjectTestLoaderFailure('tryouts', 'tryouts', {
+        ...isolated,
+        TRYOUTFLOW_ISOLATED_RELEASE_PROJECT: 'tryoutflow',
+      }),
+    ).toBe(false);
+
     for (const key of Object.keys(exact))
       expect(
         shouldInjectTestLoaderFailure('tryouts', 'tryouts', {
