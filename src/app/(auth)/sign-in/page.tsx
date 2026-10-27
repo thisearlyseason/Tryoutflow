@@ -78,17 +78,19 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           {message}
         </p>
       ) : null}
-      {!participant ? (
-        <a className="auth-create-account" href="/participant">
-          Family portal
+      <nav aria-label="Account access" className="flex flex-wrap gap-3">
+        {!participant ? (
+          <a className="auth-create-account" href="/participant">
+            Family portal
+          </a>
+        ) : null}
+        <a
+          className="auth-create-account"
+          href={participant ? '/sign-up?purpose=participant' : '/sign-up'}
+        >
+          New here? Create an account
         </a>
-      ) : null}
-      <a
-        className="auth-create-account"
-        href={parameters.next === '/participant' ? '/sign-up?purpose=participant' : '/sign-up'}
-      >
-        New here? Create an account
-      </a>
+      </nav>
       <SignInForm next={parameters.next} {...getBotChallengeConfiguration()} />
     </AuthShell>
   );
