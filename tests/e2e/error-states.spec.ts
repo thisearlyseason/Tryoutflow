@@ -1,3 +1,5 @@
+import type { Response } from '@playwright/test';
+
 import { signInAs } from './helpers/auth';
 import { saveEvaluationDraft } from './helpers/evaluation-save';
 import { expect, test } from './helpers/fixtures';
@@ -179,6 +181,19 @@ test('failed checkout reports exact recovery copy, restores focus, and double-cl
   page,
   scenario,
 }) => {
+  const brandResponses: Response[] = [];
+  const captureBrandResponse = (response: Response) => {
+    const url = new URL(response.url());
+    if (
+      response.request().method() === 'GET' &&
+      response.request().resourceType() === 'image' &&
+      url.pathname === '/_next/image' &&
+      url.searchParams.get('url') === '/brand/tryoutflow-logo.png' &&
+      url.searchParams.get('w') === '48'
+    )
+      brandResponses.push(response);
+  };
+  if (browserName === 'firefox') page.on('response', captureBrandResponse);
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   const checkoutUrl = `http://127.0.0.1:3112/api/organizations/${scenario.ids.organization}/billing/checkout`;
   monitor.expectRequestFailure({
@@ -226,6 +241,25 @@ test('failed checkout reports exact recovery copy, restores focus, and double-cl
   await page.route('https://checkout.stripe.com/**', (route) =>
     route.fulfill({ contentType: 'text/html', body: '<h1>Stripe recovery boundary</h1>' }),
   );
+  if (browserName === 'firefox') {
+    page.off('response', captureBrandResponse);
+    const logo = brandResponses.at(-1);
+    expect(logo, 'the compact workspace logo was requested by this browser').toBeDefined();
+    expect(logo!.ok(), 'the exact compact logo was served successfully').toBe(true);
+    expect(logo!.headers()['content-type']).toContain('image/png');
+    expect(await logo!.finished(), 'the logo completed before checkout departure').toBeNull();
+    // beforeunload masks the workspace. Firefox can cancel its cached logo
+    // revalidation while leaving for checkout; only this verified image and
+    // one navigation cancellation are expected. Other failures remain strict.
+    monitor.allowOptionalRequestFailure({
+      errorText: 'NS_BINDING_ABORTED',
+      headers: { 'sec-fetch-dest': 'image' },
+      label: 'one Firefox checkout-departure cancellation of the verified compact logo',
+      maxCount: 1,
+      method: 'GET',
+      url: logo!.url(),
+    });
+  }
   await chooseTeam.click();
   await expect(page.getByRole('heading', { name: 'Stripe recovery boundary' })).toBeVisible();
   monitor.assertClean();

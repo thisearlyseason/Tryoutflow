@@ -71,6 +71,9 @@ export async function signInAs(
   await page.getByRole('button', { name: 'Sign in' }).click();
   if (expectedOrganizationSlug) {
     await expect(page).toHaveURL(new RegExp(`/app/${expectedOrganizationSlug}/home$`, 'u'));
+    // Network idle can precede the SDK's queued initial verification. Wait for
+    // authorized content before the caller deliberately leaves this document.
+    await expect(page.locator('main#main-content')).toBeVisible();
     await page.waitForLoadState('networkidle');
     return monitor;
   }
