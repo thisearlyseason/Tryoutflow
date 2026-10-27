@@ -44,12 +44,6 @@ jobs:
         run: |
           corepack npm@11.12.1 run release:state:preflight
           corepack npm@11.12.1 exec -- supabase db reset --local
-      - name: Capture candidate references for human review
-        run: |
-          export TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("base64url")+"Aa9!")')"
-          corepack npm@11.12.1 run demo:local -- --visual
-          corepack npm@11.12.1 run test:visual:update
-          echo "Candidate evidence only. The strict CI release gate must pass separately."
       - name: Exercise the fictional family invitation journey in all five projects
         run: corepack npm@11.12.1 run test:e2e -- --grep "coach invitation verifies" --retries=0
       - name: Retain only candidate images and failure context

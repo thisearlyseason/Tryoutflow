@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { Copy, Link2, Share2, ShieldCheck, UserRoundPlus } from 'lucide-react';
 import { FeedbackButton } from '@/components/ui/button';
 import { createFamilyInvitation, revokeFamilyInvitation } from '../application/family-invitations';
@@ -16,6 +17,7 @@ export function FamilyInvitationForm({
   selectedAthlete?: string;
   unavailableInvitationIds?: string[];
 }) {
+  const router = useRouter();
   const [athlete, setAthlete] = useState(
     athletes.some((a) => a.id === selectedAthlete) ? selectedAthlete! : '',
   );
@@ -66,6 +68,7 @@ export function FamilyInvitationForm({
             if (result.ok) {
               setShareUrl(result.shareUrl);
               setSharedId(result.invitationId);
+              startTransition(() => router.refresh());
             }
           } catch {
             setMessage(
@@ -231,6 +234,7 @@ export function FamilyInvitationForm({
 }
 
 export function RevokeFamilyInvitationButton({ slug, id }: { slug: string; id: string }) {
+  const router = useRouter();
   const [submitting, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
   const busy = submitting || pending;
@@ -249,6 +253,7 @@ export function RevokeFamilyInvitationButton({ slug, id }: { slug: string; id: s
             try {
               const r = await revokeFamilyInvitation(slug, id);
               setMessage(r.message);
+              if (r.ok) startTransition(() => router.refresh());
             } catch {
               setMessage('Could not connect. Try again.');
             } finally {
