@@ -1539,3 +1539,36 @@
     min-height: 3.9em;
   }
 }
+
+/* Keep directory summaries and filters readable on narrow phones. */
+@media screen and (max-width: 700px) {
+  .talent-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .talent-summary > :is(div, a) {
+    padding: 1rem;
+    border-right: 1px solid var(--color-border);
+  }
+  .talent-summary > :nth-child(2n) {
+    border-right: 0;
+  }
+  .talent-summary > :nth-child(n + 3) {
+    border-top: 1px solid var(--color-border) !important;
+  }
+  .talent-summary span {
+    min-height: 0;
+    overflow-wrap: anywhere;
+  }
+  .talent-filter-panel.talent-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .talent-search label,
+  .talent-search .talent-search-main {
+    width: 100%;
+    min-width: 0;
+  }
+  .talent-filter-panel.talent-search > :is(button, a) {
+    width: 100%;
+  }
+}
