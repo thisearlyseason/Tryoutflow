@@ -32,8 +32,8 @@ export function DecisionWorkflow({
         ))}
       </nav>
       <p>
-        Review evidence first. Approving an alternative does not finalize a roster or send messages.
-        Share only approved feedback; private notes stay private.
+        Review evidence first. Approving an alternative does not finalize a roster or send a
+        message. Share only approved feedback; private notes stay private.
       </p>
     </aside>
   );
