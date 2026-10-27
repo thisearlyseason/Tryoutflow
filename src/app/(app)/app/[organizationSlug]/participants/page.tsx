@@ -53,15 +53,15 @@ export default async function Page({
     return a ? `${a.given_name} ${a.family_name}` : id;
   };
   return (
-    <section className="talent-stack">
+    <section className="talent-stack family-access-workspace">
       <WorkspaceHeader
         eyebrow="Access & communication"
         title="Families & access"
         description="Invite a family. Connect the right athlete. Keep their access clear."
       >
-        <Link className="button-secondary" href="/participant">
+        <a className="button-secondary" href="/participant">
           Open family portal →
-        </Link>
+        </a>
       </WorkspaceHeader>
       <WorkspaceStats
         items={[
