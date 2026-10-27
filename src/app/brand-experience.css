@@ -149,6 +149,11 @@
   gap: 1.5rem;
   padding-block: 1.5rem 3rem;
 }
+@media screen {
+  .participant-content.family-workspace .family-hero > div > p:not(.eyebrow) {
+    color: #dce9ff;
+  }
+}
 .family-hero .eyebrow {
   display: flex;
   align-items: center;
@@ -546,7 +551,7 @@
     border-color: #aaa;
     padding: 1rem;
   }
-  .family-hero :is(h1, p, .eyebrow) {
+  .family-workspace > .family-hero :is(h1, p, .eyebrow) {
     color: #000;
   }
   .family-hero::before {

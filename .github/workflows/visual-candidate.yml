@@ -4,7 +4,11 @@ on:
   workflow_dispatch:
   push:
     branches: [codex/native-shell-migration-20261025]
-    paths: [.github/workflows/visual-candidate.yml]
+    paths:
+      - .github/workflows/visual-candidate.yml
+      - src/app/brand-experience.css
+      - src/modules/talent/ui/family-workspace.tsx
+      - src/modules/talent/ui/family-invitation-form.tsx
 
 jobs:
   capture:
