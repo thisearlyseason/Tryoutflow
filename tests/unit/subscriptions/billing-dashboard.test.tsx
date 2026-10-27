@@ -362,7 +362,7 @@ describe('plan-local checkout feedback', () => {
     );
     expect(button.parentElement).toContainElement(error);
     expect(button).toHaveAttribute('aria-describedby', error.id);
-    expect(error).toHaveFocus();
+    await waitFor(() => expect(error).toHaveFocus());
     expect(fetcher).not.toHaveBeenCalled();
   });
   it('shows server rejection locally and preserves one-request locking and purchase scope', async () => {
@@ -378,7 +378,8 @@ describe('plan-local checkout feedback', () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(await screen.findByRole('alert')).toHaveTextContent('Checkout temporarily unavailable.');
-    expect(screen.getByRole('alert')).toHaveFocus();
+    // Alert insertion can precede the passive effect that moves keyboard focus.
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveFocus());
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(JSON.parse(fetcher.mock.calls[0]![1].body)).toMatchObject({
       action: 'purchase',
