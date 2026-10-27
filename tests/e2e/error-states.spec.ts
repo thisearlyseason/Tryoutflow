@@ -246,7 +246,8 @@ test('failed checkout reports exact recovery copy, restores focus, and double-cl
     const logo = brandResponses.at(-1);
     expect(logo, 'the compact workspace logo was requested by this browser').toBeDefined();
     expect(logo!.ok(), 'the exact compact logo was served successfully').toBe(true);
-    expect(logo!.headers()['content-type']).toContain('image/png');
+    // Next Image negotiates its default WebP format, retaining PNG as fallback.
+    expect(logo!.headers()['content-type']).toMatch(/^image\/(?:png|webp)(?:;|$)/u);
     expect(await logo!.finished(), 'the logo completed before checkout departure').toBeNull();
     // beforeunload masks the workspace. Firefox can cancel its cached logo
     // revalidation while leaving for checkout; only this verified image and
