@@ -96,7 +96,7 @@ export default async function Page() {
               <p>Your linked athletes, approved feedback and event updates.</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Link className="button-secondary" href="/how-to?audience=parents">
+              <Link className="button-secondary" href="/how-to?audience=parents" prefetch={false}>
                 How to use the family portal
               </Link>
               <PrintReport />
@@ -188,7 +188,9 @@ export default async function Page() {
                   )
                   .map((o) => (
                     <p key={o.slug}>
-                      <Link href={`/register/${o.slug}?athlete=${p.athlete_id}`}>{o.name}</Link>
+                      <Link href={`/register/${o.slug}?athlete=${p.athlete_id}`} prefetch={false}>
+                        {o.name}
+                      </Link>
                     </p>
                   ))}
               </details>
