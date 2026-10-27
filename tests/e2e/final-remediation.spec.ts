@@ -469,6 +469,7 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
       .filter({ hasText: email });
     await invitationCard.getByRole('button', { name: 'Revoke invitation' }).click();
     await expect(invitationCard.getByText('Revoked', { exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Share family invitation' })).toHaveCount(0);
     await family.waitForLoadState('networkidle');
     await family.goto(revokedPath);
     await family.waitForLoadState('networkidle');

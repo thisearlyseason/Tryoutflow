@@ -9,10 +9,12 @@ export function FamilyInvitationForm({
   slug,
   athletes,
   selectedAthlete,
+  unavailableInvitationIds = [],
 }: {
   slug: string;
   athletes: { id: string; given_name: string; family_name: string }[];
   selectedAthlete?: string;
+  unavailableInvitationIds?: string[];
 }) {
   const [athlete, setAthlete] = useState(
     athletes.some((a) => a.id === selectedAthlete) ? selectedAthlete! : '',
@@ -23,12 +25,21 @@ export function FamilyInvitationForm({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [shareUrl, setShareUrl] = useState('');
+  const [sharedId, setSharedId] = useState('');
   const [canShare, setCanShare] = useState(false);
   useEffect(() => setCanShare(typeof navigator.share === 'function'), []);
+  useEffect(() => {
+    if (sharedId && unavailableInvitationIds.includes(sharedId)) {
+      setShareUrl('');
+      setSharedId('');
+      setMessage('This invitation is no longer pending. Check its status below.');
+    }
+  }, [sharedId, unavailableInvitationIds]);
   const person = athletes.find((a) => a.id === athlete);
   function changed() {
     setConfirmed(false);
     setShareUrl('');
+    setSharedId('');
     setMessage('');
   }
   return (
@@ -50,6 +61,7 @@ export function FamilyInvitationForm({
           setMessage(result.message);
           if (result.ok) {
             setShareUrl(result.shareUrl);
+            setSharedId(result.invitationId);
           }
         } catch {
           setMessage(
@@ -73,6 +85,7 @@ export function FamilyInvitationForm({
         <label>
           Athlete
           <select
+            disabled={busy}
             required
             value={athlete}
             onChange={(e) => {
@@ -93,6 +106,7 @@ export function FamilyInvitationForm({
           <input
             required
             type="email"
+            disabled={busy}
             autoComplete="email"
             maxLength={254}
             value={email}
@@ -106,6 +120,7 @@ export function FamilyInvitationForm({
         <label>
           Relationship
           <select
+            disabled={busy}
             value={relationship}
             onChange={(e) => {
               setRelationship(e.target.value);
@@ -132,6 +147,7 @@ export function FamilyInvitationForm({
       <label className="family-confirm">
         <input
           type="checkbox"
+          disabled={busy}
           required
           checked={confirmed}
           onChange={(e) => setConfirmed(e.target.checked)}

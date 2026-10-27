@@ -1,4 +1,4 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { familyInvitationPath, isFamilyDestination } from '@/lib/family-invitation-path';
@@ -48,11 +48,89 @@ describe('family invitation identity and continuation', () => {
     expect(document.querySelector('input[name="next"]')).toHaveValue(path);
     expect(screen.queryByText(/After verification, you’ll create your organization/)).toBeNull();
   });
+  it('locks the reviewed athlete and email while the invitation is being created', async () => {
+    const user = userEvent.setup();
+    let complete!: (value: {
+      ok: true;
+      shareUrl: string;
+      invitationId: string;
+      message: string;
+    }) => void;
+    actions.create.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render(
+      <FamilyInvitationForm
+        slug="fictional"
+        athletes={athletes}
+        selectedAthlete={athletes[0]!.id}
+      />,
+    );
+    await user.type(screen.getByLabelText('Family email'), 'guardian@example.test');
+    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: 'Create family invitation' }));
+    try {
+      expect(screen.getByLabelText('Athlete')).toBeDisabled();
+      expect(screen.getByLabelText('Family email')).toBeDisabled();
+      expect(screen.getByLabelText('Relationship')).toBeDisabled();
+      expect(screen.getByRole('checkbox')).toBeDisabled();
+    } finally {
+      await act(async () => {
+        complete({
+          ok: true,
+          shareUrl: 'https://app.example.test' + path,
+          invitationId: 'invitation-1',
+          message: 'No email has been sent.',
+        });
+      });
+    }
+    expect(screen.getByLabelText('Family email')).toHaveValue('guardian@example.test');
+    expect(screen.getByLabelText('Family email')).toBeEnabled();
+    expect(screen.getByRole('region', { name: 'Share family invitation' })).toHaveTextContent(
+      'guardian@example.test',
+    );
+  });
+
+  it('removes the share link when refreshed invitation status is revoked or accepted', async () => {
+    const user = userEvent.setup();
+    actions.create.mockResolvedValue({
+      ok: true,
+      invitationId: 'invitation-1',
+      shareUrl: 'https://app.example.test' + path,
+      message: 'No email has been sent.',
+    });
+    const view = render(
+      <FamilyInvitationForm
+        slug="fictional"
+        athletes={athletes}
+        selectedAthlete={athletes[0]!.id}
+      />,
+    );
+    await user.type(screen.getByLabelText('Family email'), 'guardian@example.test');
+    await user.click(screen.getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: 'Create family invitation' }));
+    expect(screen.getByRole('region', { name: 'Share family invitation' })).toBeVisible();
+    view.rerender(
+      <FamilyInvitationForm
+        slug="fictional"
+        athletes={athletes}
+        selectedAthlete={athletes[0]!.id}
+        unavailableInvitationIds={['invitation-1']}
+      />,
+    );
+    expect(screen.queryByRole('region', { name: 'Share family invitation' })).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent('This invitation is no longer pending.');
+  });
+
   it('requires confirmation again when the selected athlete changes', async () => {
     const user = userEvent.setup();
     actions.create.mockResolvedValue({
       ok: true,
       shareUrl: 'https://app.example.test' + path,
+      invitationId: 'invitation-1',
       message: 'No email has been sent.',
     });
     render(

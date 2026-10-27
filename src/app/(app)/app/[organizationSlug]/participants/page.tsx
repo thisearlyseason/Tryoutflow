@@ -82,7 +82,19 @@ export default async function Page({
           },
         ]}
       />
-      <FamilyInvitationForm slug={slug} athletes={w.athletes} selectedAthlete={selected} />
+      <FamilyInvitationForm
+        slug={slug}
+        athletes={w.athletes}
+        selectedAthlete={selected}
+        unavailableInvitationIds={(invitations.data ?? [])
+          .filter(
+            (invitation) =>
+              invitation.accepted_at ||
+              invitation.revoked_at ||
+              new Date(invitation.expires_at).getTime() <= Date.now(),
+          )
+          .map((invitation) => invitation.id)}
+      />
       <SectionHeading
         title="Family invitations"
         description="Latest 100 invitations. Pending links expire after 7 days."

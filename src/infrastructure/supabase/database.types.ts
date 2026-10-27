@@ -5278,7 +5278,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
-      accept_family_invitation: { Args: { p_token_digest: string }; Returns: string };
+      accept_family_invitation: {
+        Args: { p_token_digest: string };
+        Returns: string;
+      };
       accept_organization_invitation: {
         Args: { p_token_digest: string };
         Returns: {

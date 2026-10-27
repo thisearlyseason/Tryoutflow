@@ -26,14 +26,14 @@ export async function createFamilyInvitation(slug: string, input: unknown) {
     return { ok: false as const, message: 'Organizer access is required.' };
   const token = randomBytes(32).toString('base64url');
   const shareUrl = new URL(`/invite/family/${token}`, getPublicAppOrigin(process.env)).toString();
-  const { error } = await c.client.rpc('create_family_invitation', {
+  const { data, error } = await c.client.rpc('create_family_invitation', {
     p_organization_id: c.organization.id,
     p_athlete_id: parsed.data.athlete_id,
     p_email: parsed.data.email,
     p_relationship: parsed.data.relationship,
     p_token_digest: createHash('sha256').update(token).digest('hex'),
   });
-  if (error)
+  if (error || !data)
     return {
       ok: false as const,
       message: 'The invitation could not be created. Check the athlete and try again.',
@@ -42,6 +42,7 @@ export async function createFamilyInvitation(slug: string, input: unknown) {
   return {
     ok: true as const,
     shareUrl,
+    invitationId: data,
     message:
       'Invitation created. Copy and share it privately with the email you entered. No email has been sent.',
   };
