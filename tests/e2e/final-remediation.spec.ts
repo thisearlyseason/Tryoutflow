@@ -386,7 +386,19 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
   await inviteForm
     .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
     .check();
+  // Next's Flight stream can be canceled after its returned data and UI have
+  // committed. Declare only this exact action request, then require HTTP 200,
+  // a Flight response and the persisted UI/database outcomes below.
+  expectCancellableServerAction(monitor, page, 'coach invitation creation and metadata refresh');
+  const createdResponse = page.waitForResponse(
+    (r) =>
+      r.url() === page.url() &&
+      r.request().method() === 'POST' &&
+      !!r.request().headers()['next-action'],
+  );
   await page.getByRole('button', { name: 'Create family invitation', exact: true }).click();
+  expect((await createdResponse).status()).toBe(200);
+  expect((await createdResponse).headers()['content-type']).toContain('text/x-component');
   await expect(page.getByRole('region', { name: 'Share family invitation' })).toBeVisible();
   const shareUrl = await page.getByLabel('Private invitation link').inputValue();
   expect(new URL(shareUrl).origin).toBe('https://task30.e2e.example.test');
@@ -470,7 +482,16 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
     await inviteForm
       .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
       .check();
+    expectCancellableServerAction(monitor, page, 'second coach invitation and metadata refresh');
+    const secondResponse = page.waitForResponse(
+      (r) =>
+        r.url() === page.url() &&
+        r.request().method() === 'POST' &&
+        !!r.request().headers()['next-action'],
+    );
     await page.getByRole('button', { name: 'Create family invitation', exact: true }).click();
+    expect((await secondResponse).status()).toBe(200);
+    expect((await secondResponse).headers()['content-type']).toContain('text/x-component');
     await expect(page.getByRole('region', { name: 'Share family invitation' })).toBeVisible();
     const revokedPath = new URL(await page.getByLabel('Private invitation link').inputValue())
       .pathname;
@@ -478,7 +499,20 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
       .getByRole('article')
       .filter({ has: page.getByRole('heading', { name: athleteBName, exact: true }) })
       .filter({ hasText: email });
+    expectCancellableServerAction(
+      monitor,
+      page,
+      'coach invitation revocation and metadata refresh',
+    );
+    const revokedResponse = page.waitForResponse(
+      (r) =>
+        r.url() === page.url() &&
+        r.request().method() === 'POST' &&
+        !!r.request().headers()['next-action'],
+    );
     await invitationCard.getByRole('button', { name: 'Revoke invitation' }).click();
+    expect((await revokedResponse).status()).toBe(200);
+    expect((await revokedResponse).headers()['content-type']).toContain('text/x-component');
     await expect(invitationCard.getByText('Revoked', { exact: true })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Share family invitation' })).toHaveCount(0);
     await family.waitForLoadState('networkidle');

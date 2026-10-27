@@ -1,7 +1,7 @@
 'use server';
 
 import { createHash, randomBytes } from 'node:crypto';
-import { revalidatePath } from 'next/cache';
+import { refresh, revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 import { getPublicAppOrigin } from '@/lib/env';
@@ -38,6 +38,7 @@ export async function createFamilyInvitation(slug: string, input: unknown) {
       ok: false as const,
       message: 'The invitation could not be created. Check the athlete and try again.',
     };
+  refresh();
   return {
     ok: true as const,
     shareUrl,
@@ -56,6 +57,7 @@ export async function revokeFamilyInvitation(slug: string, id: string) {
   });
   if (error || !data)
     return { ok: false, message: 'Could not revoke this invitation. Refresh and try again.' };
+  refresh();
   return { ok: true, message: 'Invitation revoked.' };
 }
 
