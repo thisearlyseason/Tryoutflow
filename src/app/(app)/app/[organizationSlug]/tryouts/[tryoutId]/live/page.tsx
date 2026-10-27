@@ -81,9 +81,8 @@ export default async function LivePage({
         Review partially evaluated athletes
       </Link>
       <p className="mt-2 text-[var(--color-text-muted)]">
-        Current assignment coverage is a live operational view and can change when staffing changes.
-        Recorded sync exceptions are historical non-synced receipts (including conflicts and
-        forbidden outcomes), not a count of currently unresolved work.
+        Coverage follows current assignments. Sync exceptions are historical receipts, not a count
+        of unresolved work.
       </p>
       <Link
         prefetch={false}

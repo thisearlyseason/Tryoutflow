@@ -51,15 +51,15 @@ export function OrganizationCommandCenter({
             <CalendarDays className="workflow-launch-icon" size={22} aria-hidden="true" />
             <strong>
               {activity?.tryouts?.[0]
-                ? `Continue ${activity.tryouts[0].name} →`
-                : 'Organize a tryout →'}
+                ? `Continue ${activity.tryouts[0].name}`
+                : 'Organize a tryout'}
             </strong>
             <span>Sessions, athletes and results.</span>
           </Link>
           {canScore ? (
             <Link href={`${base}/evaluate`} prefetch={false}>
               <ClipboardCheck className="workflow-launch-icon" size={22} aria-hidden="true" />
-              <strong>My scoring →</strong>
+              <strong>My scoring</strong>
               <span>Open your assigned scorecards.</span>
             </Link>
           ) : (
@@ -72,13 +72,13 @@ export function OrganizationCommandCenter({
               prefetch={false}
             >
               <ClipboardCheck className="workflow-launch-icon" size={22} aria-hidden="true" />
-              <strong>Set up evaluator assignments →</strong>
+              <strong>Set up evaluator assignments</strong>
               <span>Scoring requires an evaluator assignment.</span>
             </Link>
           )}
           <Link href={`${base}/athletes`} prefetch={false}>
             <Users className="workflow-launch-icon" size={22} aria-hidden="true" />
-            <strong>Manage athletes →</strong>
+            <strong>Manage athletes</strong>
             <span>Add athletes or import a roster.</span>
           </Link>
         </section>

@@ -598,8 +598,8 @@ export function RosterBuilder({
                 : `Draft roster · version ${snapshot.version}`}
             </h2>
             <p className="mt-1 max-w-3xl text-sm text-[var(--color-text-muted)]">
-              Scores, coverage, and flags are decision evidence. Placement and decision status are
-              separate human choices; rankings never select athletes automatically.
+              Scores guide your decision. Placement and decision status are separate choices;
+              rankings never select athletes automatically.
             </p>
             {snapshot.state === 'finalized' ? (
               <p className="mt-2 text-sm">

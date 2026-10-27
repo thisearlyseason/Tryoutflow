@@ -63,14 +63,14 @@ function statusCopy(account: SubscriptionStatusAccount) {
       label: account.plan === 'trial' ? 'Trial active' : `${name} trial active`,
       detail: account.trialEnd
         ? `Trial ends ${dateLabel(account.trialEnd)}.`
-        : 'Trial access is active from verified subscription state.',
+        : 'Your trial access is active.',
       badge: 'complete' as const,
     };
   return {
     label: `${name} plan active`,
     detail: account.currentPeriodEnd
       ? `Current period ends ${dateLabel(account.currentPeriodEnd)}.`
-      : 'Subscription access is active from verified provider state.',
+      : 'Your subscription is active.',
     badge: 'complete' as const,
   };
 }

@@ -26,13 +26,16 @@ export function TryoutActionPlan({
           <p className="eyebrow">Your operating plan</p>
           <h2 id="tryout-plan-heading">What to do next</h2>
         </div>
+        <p className="workspace-note">
+          Work from left to right. Return here whenever you need direction.
+        </p>
       </div>
       <ol className="tryout-plan-grid">
         <li className="tryout-plan-card">
           <span className="tryout-plan-number">1</span>
           <div>
             <h3>Prepare</h3>
-            <p>Sessions, rubrics and staff.</p>
+            <p>Basics, divisions, forms, sessions, rubrics, and staff.</p>
           </div>
           {status === 'draft' ? (
             <>
@@ -77,7 +80,7 @@ export function TryoutActionPlan({
           <span className="tryout-plan-number">3</span>
           <div>
             <h3>Run tryout</h3>
-            <p>Check-in, sessions and scoring.</p>
+            <p>Check in athletes, manage sessions, and collect evaluations.</p>
           </div>
           {intakeAvailable ? (
             <div className="tryout-plan-links">
@@ -94,7 +97,7 @@ export function TryoutActionPlan({
           <span className="tryout-plan-number">4</span>
           <div>
             <h3>Make decisions</h3>
-            <p>Rankings and team rosters.</p>
+            <p>Review evidence, rank athletes, and build rosters.</p>
           </div>
           {intakeAvailable ? (
             <div className="tryout-plan-links">
@@ -111,7 +114,7 @@ export function TryoutActionPlan({
           <span className="tryout-plan-number">5</span>
           <div>
             <h3>Complete</h3>
-            <p>Decisions and final reports.</p>
+            <p>Send decisions, review reports, and preserve the final record.</p>
           </div>
           {intakeAvailable ? (
             <div className="tryout-plan-links">

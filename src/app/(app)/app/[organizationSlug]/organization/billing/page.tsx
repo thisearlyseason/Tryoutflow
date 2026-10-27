@@ -165,7 +165,7 @@ export default async function BillingPage({
   return (
     <section aria-labelledby="billing-heading" className="workspace-stack">
       <PageHeader
-        description="Subscription access changes only after TryoutFlow processes a verified provider webhook."
+        description="Review your plan and manage billing."
         eyebrow="Owner-only"
         title="Billing"
       />
@@ -174,8 +174,8 @@ export default async function BillingPage({
       </h2>
       <div className="workspace-card">
         <p className="max-w-3xl text-[var(--color-text-muted)]">
-          Subscription access changes only after TryoutFlow processes a verified provider webhook.
-          Returning from checkout does not activate a plan by itself.
+          Access updates after payment is confirmed. Returning from checkout alone does not activate
+          a plan.
         </p>
         {returnState === 'complete' ? (
           <p

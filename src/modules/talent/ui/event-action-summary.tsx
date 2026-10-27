@@ -13,21 +13,21 @@ export function EventActionSummary({
   return (
     <section aria-label="Event actions" className="workflow-launches">
       <Link href={`${base}/check-in`} prefetch={false}>
-        <strong>Check in players →</strong>
+        <strong>Check in players</strong>
         <span>
           {dashboard.checkedIn} checked in · {dashboard.registrations} registrations
         </span>
       </Link>
       <Link href={`${base}/coverage`} prefetch={false}>
-        <strong>Review observation coverage →</strong>
+        <strong>Review observation coverage</strong>
         <span>{outstanding} expected scorecards not complete</span>
       </Link>
       <Link href={`${base}/staff`} prefetch={false}>
-        <strong>Check evaluator assignments →</strong>
+        <strong>Check evaluator assignments</strong>
         <span>{dashboard.activeEvaluators} active evaluators</span>
       </Link>
       <Link href={`${base}/rankings?completion=unscored`} prefetch={false}>
-        <strong>Find athletes without completed scores →</strong>
+        <strong>Find athletes without completed scores</strong>
         <span>
           Missing work stays separate from zero scores, skipped observations and absences.
         </span>

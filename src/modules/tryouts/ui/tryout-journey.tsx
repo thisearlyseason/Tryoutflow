@@ -25,9 +25,6 @@ export function TryoutJourney({ journey }: { journey: TryoutJourneyModel }) {
           <p className="eyebrow">Your operating plan</p>
           <h2 id="tryout-journey-heading">Tryout journey</h2>
         </div>
-        <p className="workspace-note">
-          These stages come from saved tryout records. Return here whenever you need direction.
-        </p>
       </div>
       <section aria-label="Recommended next action" className="tryout-journey-recommendation">
         <div>

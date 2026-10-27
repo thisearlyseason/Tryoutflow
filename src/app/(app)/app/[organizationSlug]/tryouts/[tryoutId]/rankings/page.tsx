@@ -72,8 +72,7 @@ export default async function RankingsPage({
       <p className="eyebrow">Decision evidence</p>
       <h1 id="rankings-heading">Rankings</h1>
       <p className="mb-6 mt-2 max-w-3xl text-[var(--color-text-muted)]">
-        Competition ranks use completed evaluations only. Scores inform a human decision and never
-        select an athlete automatically.
+        Ranks use completed evaluations only. Coaches make the final selection.
       </p>
       {result.ok ? (
         <>

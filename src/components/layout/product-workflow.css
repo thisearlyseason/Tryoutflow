@@ -137,7 +137,7 @@
 }
 .workflow-launches > a {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-content: center;
   column-gap: 0.85rem;
   row-gap: 0.4rem;
@@ -153,7 +153,10 @@
   border-color: var(--color-primary);
   background: color-mix(in srgb, var(--color-selection) 25%, var(--color-surface));
 }
-.workflow-launches > a > :is(strong, span) {
+.workflow-dashboard .workflow-launches > a {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+.workflow-dashboard .workflow-launches > a > :is(strong, span) {
   grid-column: 2;
 }
 .workflow-launches strong {
