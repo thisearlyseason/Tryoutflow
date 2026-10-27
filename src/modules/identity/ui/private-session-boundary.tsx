@@ -17,9 +17,11 @@ export function PrivateSessionBoundary({
   const router = useRouter();
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [waitingForConnection, setWaitingForConnection] = useState(false);
+  const [signInRequired, setSignInRequired] = useState(false);
   const [signInHref, setSignInHref] = useState('/sign-in');
   const retryVerification = useRef<(() => void) | null>(null);
   useEffect(() => {
+    setSignInRequired(false);
     setSignInHref(`/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`);
     const client = createBrowserSupabaseClient();
     let active = true;
@@ -36,6 +38,7 @@ export function PrivateSessionBoundary({
       generation += 1;
       if (!active) return;
       setVerifiedUserId(null);
+      setSignInRequired(true);
       if (departing) return;
       if (navigator.onLine === false) {
         retryOnConnection = true;
@@ -150,7 +153,7 @@ export function PrivateSessionBoundary({
       }
     };
     retryVerification.current = () => {
-      if (retryOnConnection && !departing && document.visibilityState === 'visible') {
+      if (!departing && document.visibilityState === 'visible') {
         if (denied) lock();
         else void verify();
       }
@@ -188,10 +191,12 @@ export function PrivateSessionBoundary({
             <p role="status">
               {waitingForConnection
                 ? 'Reconnect to verify your session and continue to your private workspace.'
-                : 'Sign in to continue to your private workspace.'}
+                : signInRequired
+                  ? 'Sign in to continue to your private workspace.'
+                  : 'Your private workspace stays hidden until your session is verified.'}
             </p>
           </header>
-          {waitingForConnection ? (
+          {waitingForConnection || !signInRequired ? (
             <button
               className="button-primary"
               type="button"
