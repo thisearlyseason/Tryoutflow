@@ -49,41 +49,44 @@ export function SelectedEvent({
   if (!events.length || pathname.includes('/evaluate/session/') || pathname.includes('/tryouts/'))
     return null;
   return (
-    <div className="selected-event">
-      <label>
-        <span>Tryout shortcut</span>
-        <select
-          aria-label="Tryout shortcut"
-          value={event?.id ?? ''}
-          onChange={(e) => {
-            const next = events.find(({ id }) => id === e.target.value);
-            if (!next) return;
-            setSelected(next.id);
-            try {
-              localStorage.setItem(storageKey, next.id);
-            } catch {
-              /* Optional preference. */
-            }
-          }}
-        >
-          <option value="">Choose a tryout</option>
-          {events.map(({ id, name }) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {event ? (
-        <Link
-          href={event.href}
-          prefetch={false}
-          className="button-secondary"
-          aria-label={`Open ${event.name}`}
-        >
-          Open tryout →
-        </Link>
-      ) : null}
-    </div>
+    <details className="tryout-shortcut" open={evaluatorRoute}>
+      <summary>Tryout shortcut</summary>
+      <div className="selected-event">
+        <label>
+          <span>Tryout shortcut</span>
+          <select
+            aria-label="Tryout shortcut"
+            value={event?.id ?? ''}
+            onChange={(e) => {
+              const next = events.find(({ id }) => id === e.target.value);
+              if (!next) return;
+              setSelected(next.id);
+              try {
+                localStorage.setItem(storageKey, next.id);
+              } catch {
+                /* Optional preference. */
+              }
+            }}
+          >
+            <option value="">Choose a tryout</option>
+            {events.map(({ id, name }) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {event ? (
+          <Link
+            href={event.href}
+            prefetch={false}
+            className="button-secondary"
+            aria-label={`Open ${event.name}`}
+          >
+            Open tryout →
+          </Link>
+        ) : null}
+      </div>
+    </details>
   );
 }

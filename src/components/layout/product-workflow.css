@@ -368,3 +368,18 @@
     display: block;
   }
 }
+
+.tryout-shortcut {
+  margin-bottom: 1rem;
+}
+.tryout-shortcut > summary {
+  cursor: pointer;
+  min-height: 44px;
+  align-content: center;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.tryout-shortcut .selected-event {
+  margin-block: 0.5rem 0;
+}

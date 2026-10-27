@@ -93,6 +93,8 @@ describe('four-stage event workflow and persistence', () => {
     localStorage.setItem('owner.org', 'forbidden');
     const view = render(<SelectedEvent events={events} storageKey="owner.org" />);
     expect(screen.queryByRole('link', { name: /Open Basketball/ })).toBeNull();
+    expect(screen.getByLabelText('Tryout shortcut')).not.toBeVisible();
+    await userEvent.click(screen.getByText('Tryout shortcut', { selector: 'summary' }));
     await userEvent.selectOptions(screen.getByRole('combobox'), 'two');
     expect(localStorage.getItem('owner.org')).toBe('two');
     expect(screen.getByRole('link', { name: 'Open Basketball U16' })).toHaveAttribute(
@@ -102,6 +104,7 @@ describe('four-stage event workflow and persistence', () => {
     expect(push).not.toHaveBeenCalled();
     view.unmount();
     render(<SelectedEvent events={events} storageKey="owner.org" />);
+    await userEvent.click(screen.getByText('Tryout shortcut', { selector: 'summary' }));
     await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue('two'));
   });
   it('follows direct navigation/back and isolates organization/account preferences', async () => {
@@ -115,6 +118,7 @@ describe('four-stage event workflow and persistence', () => {
     expect(screen.queryByRole('combobox')).toBeNull();
     pathname = '/app/club/home';
     view.rerender(<SelectedEvent events={[events[0]!]} storageKey="new-user.org" />);
+    await userEvent.click(screen.getByText('Tryout shortcut', { selector: 'summary' }));
     await waitFor(() => expect(screen.getByRole('combobox')).toHaveValue(''));
     expect(screen.queryByRole('link', { name: 'Open Basketball U16' })).toBeNull();
   });
@@ -122,6 +126,7 @@ describe('four-stage event workflow and persistence', () => {
     pathname = '/app/club/evaluate';
     query = 'tryout=two';
     const view = render(<SelectedEvent events={events} storageKey="user.org" />);
+    expect(screen.getByLabelText('Tryout shortcut')).toBeVisible();
     expect(screen.getByRole('combobox')).toHaveValue('two');
     query = 'tryout=one';
     view.rerender(<SelectedEvent events={events} storageKey="user.org" />);
@@ -149,6 +154,7 @@ describe('four-stage event workflow and persistence', () => {
       throw Error('blocked');
     });
     render(<SelectedEvent events={events} storageKey="blocked" />);
+    await userEvent.click(screen.getByText('Tryout shortcut', { selector: 'summary' }));
     const select = screen.getByRole('combobox');
     select.focus();
     await userEvent.selectOptions(select, 'one');
