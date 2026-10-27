@@ -1,3 +1,4 @@
+import { familyInvitationPath, isFamilyDestination } from '@/lib/family-invitation-path';
 import { getBotChallengeConfiguration } from '../../../modules/identity/ui/bot-challenge';
 import { AuthShell } from '../../../components/layout/auth-shell';
 import { SignInForm } from '../../../modules/identity/ui/sign-in-form';
@@ -20,7 +21,10 @@ const messages: Record<string, string> = {
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const parameters = await searchParams;
-  const participant = parameters.next === '/participant';
+  const participant = isFamilyDestination(parameters.next);
+  const invitation = familyInvitationPath(parameters.next);
+  const invitationSuffix = invitation ? `&next=${encodeURIComponent(invitation)}` : '';
+  const familySignup = `/sign-up?purpose=participant${invitationSuffix}`;
   const message = parameters.error
     ? ((Object.hasOwn(messages, parameters.error) ? messages[parameters.error] : undefined) ??
       'Sign-in could not be completed. Check your email and password, then try again.')
@@ -39,7 +43,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           : undefined
       }
       description={
-        parameters.next === '/participant'
+        participant
           ? 'Sign in to your athlete and family portal. New to TryoutFlow? Create an athlete or family account first.'
           : 'Sign in to return to your organization. New to TryoutFlow? Create an organization account first.'
       }
@@ -47,19 +51,15 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       footer={
         <nav aria-label="Account help">
           {participant ? <a href="/sign-in">Coach & staff sign-in</a> : null}
-          <a
-            href={parameters.next === '/participant' ? '/sign-up?purpose=participant' : '/sign-up'}
-          >
-            {parameters.next === '/participant'
+          <a href={participant ? familySignup : '/sign-up'}>
+            {participant
               ? 'Create an athlete or family account'
               : 'New to TryoutFlow? Create an organization account'}
           </a>
           <a href="/forgot-password">Forgot your password?</a>
           <a
             href={
-              parameters.next === '/participant'
-                ? '/verify-email?purpose=participant'
-                : '/verify-email'
+              participant ? `/verify-email?purpose=participant${invitationSuffix}` : '/verify-email'
             }
           >
             Need a new verification link?
@@ -84,10 +84,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             Family portal
           </a>
         ) : null}
-        <a
-          className="auth-create-account"
-          href={participant ? '/sign-up?purpose=participant' : '/sign-up'}
-        >
+        <a className="auth-create-account" href={participant ? familySignup : '/sign-up'}>
           New here? Create an account
         </a>
       </nav>

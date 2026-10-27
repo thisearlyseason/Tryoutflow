@@ -1,3 +1,4 @@
+import { familyInvitationPath } from '@/lib/family-invitation-path';
 import { AuthEmailRequestForm } from '../../../modules/identity/ui/auth-email-request-form';
 import { getBotChallengeConfiguration } from '../../../modules/identity/ui/bot-challenge';
 import { AuthShell } from '../../../components/layout/auth-shell';
@@ -9,12 +10,14 @@ type VerifyEmailPageProps = {
     sent?: string;
     signup?: string;
     purpose?: string;
+    next?: string;
   }>;
 };
 
 export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageProps) {
   const parameters = await searchParams;
   const participant = parameters.purpose === 'participant';
+  const invitation = participant ? familyInvitationPath(parameters.next) : undefined;
   const status = parameters.error
     ? 'Verification email is temporarily unavailable. Please try again later.'
     : parameters.signup === '1'
@@ -34,7 +37,15 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
       description="Keep your organization secure by confirming the email connected to your account."
       eyebrow="Account security"
       footer={
-        <a href={participant ? '/sign-in?next=/participant' : '/sign-in'}>Return to sign in</a>
+        <a
+          href={
+            participant
+              ? `/sign-in?next=${encodeURIComponent(invitation ?? '/participant')}`
+              : '/sign-in'
+          }
+        >
+          Return to sign in
+        </a>
       }
       title="Verify your email"
     >
@@ -47,13 +58,16 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
       {parameters.signup === '1' ? (
         <p className="auth-description">
           {participant
-            ? 'The verification link will open your athlete and family portal.'
+            ? invitation
+              ? 'The verification link will return you to your family invitation.'
+              : 'The verification link will open your athlete and family portal.'
             : 'We’ll take you to organization setup automatically when you open the verification link.'}
         </p>
       ) : (
         <AuthEmailRequestForm
           action="verification"
           participant={participant}
+          next={invitation}
           {...getBotChallengeConfiguration()}
         />
       )}

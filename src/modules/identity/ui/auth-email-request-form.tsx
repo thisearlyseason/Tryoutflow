@@ -10,11 +10,13 @@ import { useBotProtectedSubmission } from './use-bot-protected-submission';
 export function AuthEmailRequestForm({
   action,
   participant = false,
+  next,
   siteKey,
   deterministicToken,
 }: {
   action: 'recovery' | 'verification';
   participant?: boolean;
+  next?: string;
   siteKey?: string;
   deterministicToken?: string;
 }) {
@@ -49,6 +51,9 @@ export function AuthEmailRequestForm({
       ) : null}
       {action === 'verification' && participant ? (
         <input type="hidden" name="purpose" value="participant" />
+      ) : null}
+      {action === 'verification' && participant && next ? (
+        <input type="hidden" name="next" value={next} />
       ) : null}
       <FormField htmlFor="email" label="Email" required>
         {({ describedBy }) => (

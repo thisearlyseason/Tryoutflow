@@ -1,0 +1,568 @@
+/* Shared TryoutFlow identity: court lines, confident blue actions and readable surfaces. */
+.brand-workspace :is(.card, .workspace-card, .admin-card, .talent-card) {
+  border-color: color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
+  border-radius: 1.2rem;
+  box-shadow: 0 10px 30px -25px #07182b66;
+}
+.brand-workspace :is(.talent-page-header, .page-header, .workflow-page-heading) {
+  position: relative;
+  border-radius: 1.4rem;
+  padding: 1.5rem;
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--color-primary) 7%, var(--color-surface)),
+    var(--color-surface)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
+}
+.brand-workspace :is(.talent-page-header, .page-header) .eyebrow {
+  display: inline-flex;
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.45rem;
+  background: #eaf0ff;
+  color: #1645af;
+}
+.workflow-dashboard > .workflow-page-heading,
+.family-hero {
+  isolation: isolate;
+  position: relative;
+  overflow: hidden;
+  padding: clamp(1.4rem, 4vw, 2.5rem);
+  border: 1px solid #3768c4;
+  border-radius: 1.5rem;
+  background: linear-gradient(120deg, #081b32 0%, #123575 65%, #164ddb 100%);
+  color: #fff;
+}
+.brand-workspace .workflow-dashboard > .workflow-page-heading {
+  background: linear-gradient(120deg, #081b32, #123575 65%, #164ddb);
+  border-color: #3768c4;
+}
+:is(.workflow-dashboard > .workflow-page-heading, .family-hero)::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  right: -4rem;
+  top: -7rem;
+  width: 23rem;
+  aspect-ratio: 1;
+  border: 1px solid #ffffff2b;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 3.4rem #ffffff08,
+    0 0 0 7rem #ffffff07;
+}
+:is(.workflow-dashboard > .workflow-page-heading, .family-hero) :is(h1, .eyebrow) {
+  color: #fff;
+}
+:is(.workflow-dashboard > .workflow-page-heading, .family-hero) p {
+  color: #dce9ff;
+}
+:is(.workflow-dashboard > .workflow-page-heading, .family-hero) .eyebrow {
+  color: #bdff6b;
+}
+:is(.workflow-dashboard > .workflow-page-heading, .family-hero) .button-secondary {
+  background: #fff;
+  color: #123575;
+  border-color: #fff;
+}
+.brand-workspace .workflow-launches {
+  gap: 1rem;
+}
+.brand-workspace .workflow-dashboard .workflow-launches > a {
+  padding: 1.4rem;
+  border-radius: 1.1rem;
+  min-height: 140px;
+  border-color: #d5e0f4;
+  box-shadow: 0 12px 28px -24px #07182b80;
+}
+.brand-workspace .workflow-dashboard .workflow-launches > a:first-child {
+  background: linear-gradient(130deg, #0656ff, #2442bc);
+  border-color: #164ddb;
+  color: #fff;
+}
+.brand-workspace .workflow-dashboard .workflow-launches > a:first-child :is(span, svg) {
+  color: #edf4ff;
+}
+.brand-workspace .workflow-launch-icon {
+  box-sizing: content-box;
+  padding: 0.6rem;
+  border-radius: 0.8rem;
+  background: #edf3ff;
+  color: #0057ff;
+}
+.brand-workspace .workflow-launches > a:first-child .workflow-launch-icon {
+  background: #ffffff20;
+}
+.brand-workspace .workflow-dashboard .family-launch {
+  border-bottom: 3px solid #0057ff;
+}
+.brand-workspace .metric-card {
+  border-radius: 1rem;
+}
+.brand-workspace .talent-summary {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 0.75rem;
+  overflow: visible;
+}
+.brand-workspace .talent-summary > :is(div, a) {
+  border: 1px solid var(--color-border);
+  border-top: 3px solid #0057ff;
+  border-radius: 1rem;
+  background: var(--color-surface);
+  padding: 1rem 1.1rem;
+}
+.brand-workspace .talent-summary strong {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+}
+:is(.brand-workspace, .participant-shell) .button-primary {
+  background: linear-gradient(120deg, #0057ff, #2442bc);
+  border: 1px solid #1649d6;
+  border-radius: 0.75rem;
+  box-shadow: 0 5px 14px -8px #0057ff99;
+  color: #fff;
+}
+:is(.brand-workspace, .participant-shell) .button-secondary {
+  border-radius: 0.75rem;
+}
+.brand-workspace .talent-editor {
+  border-radius: 1rem;
+}
+.brand-workspace .talent-editor > summary {
+  min-height: 44px;
+  align-content: center;
+}
+.brand-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 0.85rem;
+  background: #edf3ff;
+  color: #0057ff;
+}
+.family-workspace {
+  gap: 1.5rem;
+  padding-block: 1.5rem 3rem;
+}
+.family-hero .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.family-hero h1 {
+  max-width: 20ch;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  line-height: 1.15;
+  margin-block: 0.65rem;
+}
+.family-invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+.family-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.family-overview > div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.3rem 0.75rem;
+  padding: 1.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background: var(--color-surface);
+}
+.family-overview svg {
+  grid-row: 1/3;
+  color: #0057ff;
+}
+.family-overview strong {
+  font-size: 1.8rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.family-overview span {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+.family-athlete {
+  gap: 1.1rem;
+  padding-top: 0.5rem;
+}
+.family-athlete-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.4rem;
+  border: 1px solid var(--color-border);
+  border-left: 4px solid #0057ff;
+  border-radius: 1.2rem;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--color-primary) 6%, var(--color-surface)),
+    var(--color-surface)
+  );
+}
+.family-athlete-header > div {
+  flex: 1;
+  min-width: min(100%, 12rem);
+}
+.family-athlete-header h2 {
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  line-height: 1.2;
+  margin: 0.3rem 0;
+  overflow-wrap: anywhere;
+}
+.family-athlete-avatar {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 1rem 1rem 1rem 0.3rem;
+  background: #123575;
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.5rem;
+}
+.family-access-pill,
+.family-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  background: #eaf0ff;
+  color: #1645af;
+  font-size: 0.78rem;
+  font-weight: 750;
+  text-transform: capitalize;
+}
+.family-sport-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.family-sport-tags span {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.4rem;
+}
+.family-profile-details {
+  font-size: 0.8rem;
+  margin-top: 0.4rem;
+  color: var(--color-text-muted);
+}
+.family-profile-details summary {
+  min-height: 44px;
+  align-content: center;
+  cursor: pointer;
+}
+.family-workspace .talent-card {
+  border-radius: 1.2rem;
+  padding: clamp(1.15rem, 3vw, 1.6rem);
+  border-color: color-mix(in srgb, var(--color-primary) 12%, var(--color-border));
+  box-shadow: 0 12px 26px -25px #07182b99;
+}
+.family-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  margin: 0 0 1rem;
+}
+.family-record-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  justify-content: space-between;
+  align-items: center;
+  padding-block: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+.family-record-row strong {
+  flex: 1;
+  min-width: min(100%, 12rem);
+  overflow-wrap: anywhere;
+  font-size: 0.95rem;
+}
+.family-muted {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+.family-notice + .family-notice {
+  border-top: 1px solid var(--color-border);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+.family-notice h4,
+.family-session h4 {
+  margin-block: 0.25rem;
+  font-size: 1rem;
+}
+.family-notice time {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+.family-schedule {
+  border-top: 3px solid #0057ff;
+}
+.family-session {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  padding-block: 1rem;
+  border-top: 1px solid var(--color-border);
+}
+.family-session > div {
+  flex: 1;
+  min-width: min(100%, 12rem);
+}
+.family-session p {
+  margin-block: 0.3rem;
+  font-size: 0.85rem;
+}
+.family-date {
+  width: 64px;
+  display: grid;
+  text-align: center;
+  padding: 0.6rem;
+  border-radius: 0.8rem;
+  background: #edf3ff;
+  color: #1645af;
+}
+.family-date span {
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.family-date strong {
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+.family-footnote {
+  display: flex;
+  align-items: start;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin-block: 0.65rem;
+}
+.family-feedback-card {
+  border-left: 4px solid #0057ff;
+}
+.family-feedback-card h4 {
+  font-size: 1.25rem;
+  margin-block: 0.45rem 1rem;
+}
+.family-feedback-body {
+  line-height: 1.7;
+  max-width: 70ch;
+}
+.family-feedback-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.75rem;
+}
+.family-feedback-grid > div {
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+  padding: 1rem;
+}
+.family-feedback-grid strong {
+  font-size: 0.8rem;
+}
+.family-feedback-grid p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+.family-empty-line {
+  padding: 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: 0.8rem;
+}
+.family-balance {
+  display: block;
+  font-size: 1.8rem;
+  letter-spacing: -0.03em;
+  margin-block: 0.5rem;
+}
+.family-fee summary {
+  min-height: 44px;
+  align-content: center;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.family-offer {
+  border-top: 4px solid #0057ff;
+}
+.family-more summary {
+  min-height: 44px;
+  align-content: center;
+  cursor: pointer;
+}
+.family-access-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.family-empty {
+  padding: 2rem;
+  border-top: 3px solid #0057ff;
+}
+.family-empty > svg {
+  color: #0057ff;
+  margin-bottom: 1rem;
+}
+.family-connection-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+.family-form-heading {
+  display: flex;
+  gap: 0.8rem;
+  align-items: start;
+}
+.family-form-heading h2 {
+  margin: 0 0 0.3rem;
+  font-size: 1.3rem;
+}
+.family-form-heading p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+.family-invite-review {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  margin-block: 1rem;
+  padding: 1rem;
+  background: #edf3ff;
+  color: #123575;
+  border-radius: 0.8rem;
+}
+.family-invitation-form .family-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-block: 1rem;
+  line-height: 1.5;
+}
+.family-confirm input {
+  flex: 0 0 auto;
+}
+.family-share-card {
+  margin-top: 1rem;
+  padding: 1.25rem;
+  border: 1px solid #b8cbff;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+}
+.family-share-card p {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+.family-share-card .family-invite-actions {
+  margin-block: 1rem;
+}
+.family-share-card small {
+  display: block;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+.family-invite-welcome {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: #edf3ff;
+  color: #123575;
+  margin-bottom: 1rem;
+}
+.family-access-card > .family-state {
+  margin-bottom: 0.8rem;
+}
+@media (max-width: 600px) {
+  .brand-workspace :is(.talent-page-header, .page-header, .workflow-page-heading) {
+    padding: 1.25rem;
+  }
+  .family-overview {
+    gap: 0.5rem;
+  }
+  .family-overview > div {
+    grid-template-columns: 1fr;
+    padding: 0.9rem;
+    gap: 0.4rem;
+  }
+  .family-overview svg {
+    grid-row: auto;
+    width: 19px;
+    height: 19px;
+  }
+  .family-overview strong {
+    font-size: 1.5rem;
+  }
+  .family-overview span {
+    font-size: 0.75rem;
+  }
+  .family-athlete-header {
+    padding: 1.1rem;
+  }
+  .family-access-pill {
+    margin-left: 0;
+  }
+  .family-session > .family-state {
+    margin-left: 80px;
+  }
+}
+@media print {
+  .family-hero {
+    background: #fff;
+    color: #000;
+    border-color: #aaa;
+    padding: 1rem;
+  }
+  .family-hero :is(h1, p, .eyebrow) {
+    color: #000;
+  }
+  .family-hero::before {
+    display: none;
+  }
+  .family-hero .family-invite-actions,
+  .family-more {
+    display: none;
+  }
+  .family-athlete-header,
+  .family-workspace .talent-card {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  .family-profile-details::details-content,
+  .family-fee details::details-content {
+    content-visibility: visible;
+  }
+}

@@ -1,3 +1,4 @@
+import { familyInvitationPath } from '@/lib/family-invitation-path';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { captureOperationalError } from '../../../../infrastructure/observability/server-observability';
@@ -10,9 +11,12 @@ import { guardAuthFormRequest } from '../../../../modules/identity/application/g
 import { requestEmailVerification } from '../../../../modules/identity/application/request-email-verification';
 import { AppError } from '../../../../modules/observability/domain/app-error';
 
-function callbackUrl(request: NextRequest, participant = false) {
+function callbackUrl(request: NextRequest, participant = false, next?: string) {
   const url = trustedRequestUrl(request, '/auth/callback');
-  url.searchParams.set('next', participant ? '/participant' : '/verify-email?confirmed=1');
+  url.searchParams.set(
+    'next',
+    participant ? (familyInvitationPath(next) ?? '/participant') : '/verify-email?confirmed=1',
+  );
   return url.toString();
 }
 
@@ -24,7 +28,7 @@ export async function handleEmailVerification(
   } = {},
 ) {
   const guarded = await guardAuthFormRequest(request, {
-    allowedFields: ['email', 'cf-turnstile-response', 'purpose'],
+    allowedFields: ['email', 'cf-turnstile-response', 'purpose', 'next'],
   });
   if (!guarded.ok)
     return NextResponse.redirect(
@@ -32,6 +36,10 @@ export async function handleEmailVerification(
       303,
     );
   const participant = guarded.fields.get('purpose') === 'participant';
+  const invitation = participant ? familyInvitationPath(guarded.fields.get('next')) : undefined;
+  const purposeSuffix = participant
+    ? `&purpose=participant${invitation ? `&next=${encodeURIComponent(invitation)}` : ''}`
+    : '';
   const email = guarded.fields.get('email') ?? '';
   try {
     const decision = await (dependencies.abuseProtection ?? getDefaultAuthAbuseProtection()).check({
@@ -47,26 +55,20 @@ export async function handleEmailVerification(
           operation: 'auth.verification',
         });
       return NextResponse.redirect(
-        trustedRequestUrl(
-          request,
-          '/verify-email?error=unavailable' + (participant ? '&purpose=participant' : ''),
-        ),
+        trustedRequestUrl(request, '/verify-email?error=unavailable' + purposeSuffix),
         303,
       );
     }
     const outcome = await (dependencies.command ?? requestEmailVerification)({
       email,
-      redirectTo: callbackUrl(request, participant),
+      redirectTo: callbackUrl(request, participant, invitation),
     });
     if (!outcome.ok) {
       captureOperationalError(new AppError('integration_unavailable'), {
         operation: 'auth.verification',
       });
       return NextResponse.redirect(
-        trustedRequestUrl(
-          request,
-          '/verify-email?error=unavailable' + (participant ? '&purpose=participant' : ''),
-        ),
+        trustedRequestUrl(request, '/verify-email?error=unavailable' + purposeSuffix),
         303,
       );
     }
@@ -75,18 +77,12 @@ export async function handleEmailVerification(
       operation: 'auth.verification',
     });
     return NextResponse.redirect(
-      trustedRequestUrl(
-        request,
-        '/verify-email?error=unavailable' + (participant ? '&purpose=participant' : ''),
-      ),
+      trustedRequestUrl(request, '/verify-email?error=unavailable' + purposeSuffix),
       303,
     );
   }
   return NextResponse.redirect(
-    trustedRequestUrl(
-      request,
-      '/verify-email?sent=1' + (participant ? '&purpose=participant' : ''),
-    ),
+    trustedRequestUrl(request, '/verify-email?sent=1' + purposeSuffix),
     303,
   );
 }

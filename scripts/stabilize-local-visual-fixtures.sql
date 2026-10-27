@@ -83,4 +83,15 @@ begin
   end if;
 end;
 $verify$;
+
+-- Family visuals use only this known local synthetic athlete and the local demo identity.
+select set_config('request.jwt.claim.sub',(select id::text from auth.users where email='demo.owner@badlands.example.test'),true);
+insert into public.participant_links(organization_id,athlete_id,user_id,relationship)
+select '29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000061',id,'guardian'
+from auth.users where email='demo.owner@badlands.example.test' on conflict do nothing;
+insert into public.scouting_records(id,organization_id,athlete_id,kind,title,body,status,visibility,strengths,development_areas,recommendation,created_by)
+select '29fa0000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000001','29000000-0000-4000-8000-000000000061',
+'report','Your tryout highlights','Avery brought energy, focus and strong communication to every session.','approved','athlete',
+'Quick decisions and confident puck control','Keep scanning before receiving a pass','Practise shoulder checks at the next development session.',id
+from auth.users where email='demo.owner@badlands.example.test' on conflict do nothing;
 commit;

@@ -10,6 +10,7 @@ import '@/components/layout/product-workflow.css';
 import './evaluator-workflow.css';
 import './sport-starters.css';
 import './decision-workflow.css';
+import './brand-experience.css';
 
 export const metadata: Metadata = {
   title: 'TryoutFlow',

@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardCheck, Plus, Trophy, Users } from 'lucide-react';
+import { CalendarDays, ClipboardCheck, Plus, Trophy, Users, UserRoundPlus } from 'lucide-react';
 import Link from 'next/link';
 import { Metric } from '../../../components/ui/metric';
 import { LinkButton } from '../../../components/ui/link-button';
@@ -80,6 +80,11 @@ export function OrganizationCommandCenter({
             <Users className="workflow-launch-icon" size={22} aria-hidden="true" />
             <strong>Manage athletes</strong>
             <span>Add athletes or import a roster.</span>
+          </Link>
+          <Link className="family-launch" href={`${base}/participants`} prefetch={false}>
+            <UserRoundPlus className="workflow-launch-icon" size={22} aria-hidden="true" />
+            <strong>Invite families</strong>
+            <span>Connect each athlete to their support team.</span>
           </Link>
         </section>
       ) : null}

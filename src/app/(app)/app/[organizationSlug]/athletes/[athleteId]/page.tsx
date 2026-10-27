@@ -136,6 +136,15 @@ export default async function AthleteDetailPage({
             {(profile?.stage ?? 'identified').replaceAll('_', ' ')}
           </span>
         </div>
+        {manager ? (
+          <Link
+            className="button-primary"
+            href={`/app/${slug}/participants?athlete=${athleteId}`}
+            prefetch={false}
+          >
+            Invite family
+          </Link>
+        ) : null}
       </header>
       <nav className="talent-tabs" aria-label="Athlete profile sections">
         {tabs

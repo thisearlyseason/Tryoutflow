@@ -1,3 +1,4 @@
+import { familyInvitationPath } from '@/lib/family-invitation-path';
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { captureOperationalError } from '../../../../infrastructure/observability/server-observability';
@@ -10,9 +11,12 @@ import {
 import { guardAuthFormRequest } from '../../../../modules/identity/application/guard-auth-form-request';
 import { AppError } from '../../../../modules/observability/domain/app-error';
 
-function verificationCallback(request: NextRequest, participant = false) {
+function verificationCallback(request: NextRequest, participant = false, next?: string) {
   const callback = trustedRequestUrl(request, '/auth/callback');
-  callback.searchParams.set('next', participant ? '/participant' : '/start');
+  callback.searchParams.set(
+    'next',
+    participant ? (familyInvitationPath(next) ?? '/participant') : '/start',
+  );
   return callback.toString();
 }
 
@@ -24,12 +28,22 @@ export async function handleSignUp(
   } = {},
 ) {
   const guarded = await guardAuthFormRequest(request, {
-    allowedFields: ['email', 'password', 'confirmPassword', 'cf-turnstile-response', 'purpose'],
+    allowedFields: [
+      'email',
+      'password',
+      'confirmPassword',
+      'cf-turnstile-response',
+      'purpose',
+      'next',
+    ],
   });
   if (!guarded.ok)
     return NextResponse.redirect(trustedRequestUrl(request, '/sign-up?error=invalid_input'), 303);
   const participant = guarded.fields.get('purpose') === 'participant';
-  const purposeSuffix = participant ? '&purpose=participant' : '';
+  const invitation = participant ? familyInvitationPath(guarded.fields.get('next')) : undefined;
+  const purposeSuffix = participant
+    ? `&purpose=participant${invitation ? `&next=${encodeURIComponent(invitation)}` : ''}`
+    : '';
   const email = guarded.fields.get('email') ?? '';
   const password = guarded.fields.get('password') ?? '';
   const confirmPassword = guarded.fields.get('confirmPassword') ?? '';
@@ -62,7 +76,7 @@ export async function handleSignUp(
     const result = await (dependencies.createAccount ?? createOwnerAccount)({
       email,
       password,
-      emailRedirectTo: verificationCallback(request, participant),
+      emailRedirectTo: verificationCallback(request, participant, invitation),
     });
     if (!result.ok) {
       if (result.error === 'account_creation_unavailable')

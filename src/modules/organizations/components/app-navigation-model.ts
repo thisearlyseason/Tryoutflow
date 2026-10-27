@@ -79,6 +79,7 @@ export function buildAppNavigation({
         items: [
           { href: `${base}/tryouts`, label: 'Tryouts', icon: 'tryouts' },
           { href: `${base}/athletes`, label: 'Athletes', icon: 'athletes' },
+          { href: `${base}/participants`, label: 'Family access', icon: 'athletes' },
           { href: `${base}/scouting`, label: 'Scouting', icon: 'evaluate' },
           { href: `${base}/performance`, label: 'Performance', icon: 'reports' },
           { href: `${base}/evaluators`, label: 'Evaluator team', icon: 'evaluate' },
@@ -98,7 +99,6 @@ export function buildAppNavigation({
                 },
               ]
             : []),
-          { href: `${base}/participants`, label: 'Participant access', icon: 'athletes' },
           { href: `${base}/organization/members`, label: 'Members', icon: 'organization' },
           {
             href: `${base}/organization/integrations`,

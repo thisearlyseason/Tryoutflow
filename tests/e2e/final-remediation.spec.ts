@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { APIRequestContext } from '@playwright/test';
 
-import { signInAs } from './helpers/auth';
+import { openAuthenticatedContext, signInAs } from './helpers/auth';
 import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableNextRscRequest,
@@ -356,4 +356,136 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
     ),
   ).toBe('3');
   monitor.assertClean();
+});
+
+test('coach invitation verifies a new family, links exactly one athlete, rejects another email, and revokes pending access', async ({
+  page,
+  browser,
+  baseURL,
+  request,
+  scenario,
+}, testInfo) => {
+  const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  const email = `t30-family-${testInfo.project.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}-${randomUUID().slice(0, 8)}@example.test`;
+  const password = `Family-Example-${randomUUID()}!Aa9`;
+  const athleteName = scenario.database.scalar(
+    `select given_name||' '||family_name from public.athletes where id='${scenario.ids.athleteA}'`,
+  );
+  const athleteBName = scenario.database.scalar(
+    `select given_name||' '||family_name from public.athletes where id='${scenario.ids.athleteB}'`,
+  );
+  await page.goto(`/app/${scenario.organizationSlug}/athletes/${scenario.ids.athleteA}`);
+  await page.getByRole('link', { name: 'Invite family', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Families & access' })).toBeVisible();
+  await expect(page.getByLabel('Athlete', { exact: true })).toHaveValue(scenario.ids.athleteA);
+  await page.getByLabel('Family email').fill(email);
+  await page
+    .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
+    .check();
+  await page.getByRole('button', { name: 'Create family invitation', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Share family invitation' })).toBeVisible();
+  const shareUrl = await page.getByLabel('Private invitation link').inputValue();
+  expect(new URL(shareUrl).origin).toBe('https://task30.e2e.example.test');
+  // The declared fixture host maps to this isolated server; no external request is made.
+  const invitePath = new URL(shareUrl).pathname;
+  await page.waitForLoadState('networkidle');
+  const wrong = await openAuthenticatedContext({
+    browser,
+    baseURL: baseURL!,
+    user: scenario.users.otherOwner,
+    organizationSlug: scenario.otherOrganizationSlug,
+  });
+  const familyContext = await browser.newContext({ baseURL });
+  const family = await familyContext.newPage();
+  const familyMonitor = monitorBrowserErrors(family);
+  try {
+    await wrong.page.goto(invitePath);
+    await wrong.page.waitForLoadState('networkidle');
+    expectCancellableServerAction(wrong.monitor, wrong.page, 'refused family invitation redirect');
+    await wrong.page.getByRole('button', { name: 'Accept family invitation' }).click();
+    await expect(wrong.page.getByRole('alert')).toContainText(
+      'This invitation could not be accepted',
+    );
+    expect(
+      scenario.database.scalar(
+        `select count(*) from public.participant_links where user_id='${scenario.users.otherOwner.id}' and athlete_id='${scenario.ids.athleteA}'`,
+      ),
+    ).toBe('0');
+    await wrong.page.waitForLoadState('networkidle');
+    wrong.monitor.assertClean();
+
+    await family.goto(invitePath);
+    await family.waitForLoadState('networkidle');
+    await family.getByRole('link', { name: 'Create a family account' }).click();
+    await expect(family.locator('input[name="next"]')).toHaveValue(invitePath);
+    await family.getByLabel('Email', { exact: true }).fill(email);
+    await family.getByLabel('Password', { exact: true }).fill(password);
+    await family.getByLabel('Confirm password').and(family.locator('input')).fill(password);
+    await family.getByRole('button', { name: 'Create account', exact: true }).click();
+    await expect(family.getByRole('status')).toContainText('Check your inbox');
+    await family.waitForLoadState('networkidle');
+    await family.goto(await confirmationUrl(request, email));
+    await expect(family).toHaveURL(new RegExp(invitePath + '$', 'u'));
+    await expect(family.getByRole('button', { name: 'Accept family invitation' })).toBeVisible();
+    await family.waitForLoadState('networkidle');
+    expectCancellableServerAction(familyMonitor, family, 'verified family invitation acceptance');
+    await family.getByRole('button', { name: 'Accept family invitation' }).click();
+    await expect(family).toHaveURL(/\/participant$/u);
+    await expect(family.getByRole('heading', { name: athleteName, exact: true })).toBeVisible();
+    await expect(family.getByRole('heading', { name: athleteBName, exact: true })).toHaveCount(0);
+    await expect(family.getByRole('navigation', { name: 'Primary navigation' })).toHaveCount(0);
+    expect(
+      scenario.database.scalar(
+        `select count(*) from public.organization_members where user_id=(select id from auth.users where email='${email}')`,
+      ),
+    ).toBe('0');
+    await family.waitForLoadState('networkidle');
+    await family.goto(invitePath);
+    await family.waitForLoadState('networkidle');
+    expectCancellableServerAction(familyMonitor, family, 'idempotent family acceptance replay');
+    await family.getByRole('button', { name: 'Accept family invitation' }).click();
+    await expect(family).toHaveURL(/\/participant$/u);
+    await expect(family.getByRole('heading', { name: athleteName, exact: true })).toBeVisible();
+    expect(
+      scenario.database.scalar(
+        `select count(*) from public.participant_links where athlete_id='${scenario.ids.athleteA}' and user_id=(select id from auth.users where email='${email}')`,
+      ),
+    ).toBe('1');
+
+    await page.goto(
+      `/app/${scenario.organizationSlug}/participants?athlete=${scenario.ids.athleteB}`,
+    );
+    await page.getByLabel('Family email').fill(email);
+    await page
+      .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
+      .check();
+    await page.getByRole('button', { name: 'Create family invitation', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Share family invitation' })).toBeVisible();
+    const revokedPath = new URL(await page.getByLabel('Private invitation link').inputValue())
+      .pathname;
+    const invitationCard = page
+      .getByRole('article')
+      .filter({ has: page.getByRole('heading', { name: athleteBName, exact: true }) })
+      .filter({ hasText: email });
+    await invitationCard.getByRole('button', { name: 'Revoke invitation' }).click();
+    await expect(invitationCard.getByText('Revoked', { exact: true })).toBeVisible();
+    await family.waitForLoadState('networkidle');
+    await family.goto(revokedPath);
+    await family.waitForLoadState('networkidle');
+    expectCancellableServerAction(familyMonitor, family, 'revoked family invitation refusal');
+    await family.getByRole('button', { name: 'Accept family invitation' }).click();
+    await expect(family.getByRole('alert')).toContainText('This invitation could not be accepted');
+    expect(
+      scenario.database.scalar(
+        `select count(*) from public.participant_links where athlete_id='${scenario.ids.athleteB}' and user_id=(select id from auth.users where email='${email}')`,
+      ),
+    ).toBe('0');
+    await family.waitForLoadState('networkidle');
+    await page.waitForLoadState('networkidle');
+    monitor.assertClean();
+    familyMonitor.assertClean();
+  } finally {
+    await wrong.context.close();
+    await familyContext.close();
+  }
 });

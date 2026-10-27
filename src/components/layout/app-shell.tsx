@@ -33,7 +33,7 @@ export function AppShell({
     : null;
   if (!groupedNavigation || !organization || !roleLabel) {
     return (
-      <div className="app-frame">
+      <div className="app-frame brand-workspace">
         <main className="app-main" id="main-content">
           {children}
         </main>
@@ -45,8 +45,8 @@ export function AppShell({
     <div
       className={
         mode === 'game-day'
-          ? 'app-frame app-frame-workspace theme-game-day'
-          : 'app-frame app-frame-workspace'
+          ? 'app-frame app-frame-workspace brand-workspace theme-game-day'
+          : 'app-frame app-frame-workspace brand-workspace'
       }
     >
       <AppNavigation groups={groupedNavigation} organization={organization} roleLabel={roleLabel} />

@@ -44,7 +44,7 @@ const cases = [
   ['performance', 'Performance lab'],
   ['scouting', 'Scouting workspace'],
   ['search', 'Search your organization'],
-  ['participants', 'Participant access'],
+  ['participants', 'Families & access'],
   ['tryouts/[tryoutId]/stations', 'Stations & rotations'],
   ['tryouts/[tryoutId]/scenarios', 'Roster scenarios'],
   ['tryouts/[tryoutId]/operations', 'Event operations'],

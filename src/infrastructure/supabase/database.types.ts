@@ -2193,6 +2193,76 @@ export type Database = {
           },
         ];
       };
+      family_invitations: {
+        Row: {
+          accepted_at: string | null;
+          accepted_by: string | null;
+          athlete_id: string;
+          created_at: string;
+          created_by: string;
+          email: string;
+          expires_at: string;
+          id: string;
+          linked_id: string | null;
+          organization_id: string;
+          relationship: string;
+          revoked_at: string | null;
+          token_digest: string;
+        };
+        Insert: {
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          athlete_id: string;
+          created_at?: string;
+          created_by: string;
+          email: string;
+          expires_at?: string;
+          id?: string;
+          linked_id?: string | null;
+          organization_id: string;
+          relationship: string;
+          revoked_at?: string | null;
+          token_digest: string;
+        };
+        Update: {
+          accepted_at?: string | null;
+          accepted_by?: string | null;
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string;
+          email?: string;
+          expires_at?: string;
+          id?: string;
+          linked_id?: string | null;
+          organization_id?: string;
+          relationship?: string;
+          revoked_at?: string | null;
+          token_digest?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: 'family_invitations_linked_id_fkey';
+            columns: ['linked_id'];
+            isOneToOne: false;
+            referencedRelation: 'participant_links';
+            referencedColumns: ['id'];
+          },
+          {
+            foreignKeyName: 'family_invitations_organization_id_athlete_id_fkey';
+            columns: ['organization_id', 'athlete_id'];
+            isOneToOne: false;
+            referencedRelation: 'athletes';
+            referencedColumns: ['organization_id', 'id'];
+          },
+          {
+            foreignKeyName: 'family_invitations_organization_id_fkey';
+            columns: ['organization_id'];
+            isOneToOne: false;
+            referencedRelation: 'organizations';
+            referencedColumns: ['id'];
+          },
+        ];
+      };
       guardians: {
         Row: {
           created_at: string;
@@ -5208,6 +5278,7 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      accept_family_invitation: { Args: { p_token_digest: string }; Returns: string };
       accept_organization_invitation: {
         Args: { p_token_digest: string };
         Returns: {
@@ -5893,6 +5964,16 @@ export type Database = {
           isOneToOne: true;
           isSetofReturn: false;
         };
+      };
+      create_family_invitation: {
+        Args: {
+          p_athlete_id: string;
+          p_email: string;
+          p_organization_id: string;
+          p_relationship: string;
+          p_token_digest: string;
+        };
+        Returns: string;
       };
       create_organization_invitation: {
         Args: {
@@ -7244,6 +7325,10 @@ export type Database = {
         Returns: {
           outcome: string;
         }[];
+      };
+      revoke_family_invitation: {
+        Args: { p_invitation_id: string; p_organization_id: string };
+        Returns: boolean;
       };
       revoke_orphaned_staff_assignments: { Args: never; Returns: number };
       rotate_registration_confirmation_token: {

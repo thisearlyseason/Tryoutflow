@@ -14,11 +14,13 @@ export function SignUpForm({
   deterministicToken,
   emailPlaceholder,
   participant = false,
+  next,
 }: {
   siteKey?: string;
   deterministicToken?: string;
   emailPlaceholder: string;
   participant?: boolean;
+  next?: string;
 }) {
   const protection = useBotProtectedSubmission(deterministicToken);
   const { pending } = protection;
@@ -64,6 +66,7 @@ export function SignUpForm({
         </p>
       ) : null}
       {participant && <input type="hidden" name="purpose" value="participant" />}
+      {participant && next ? <input type="hidden" name="next" value={next} /> : null}
       <FormField htmlFor="email" label="Email" required>
         {({ describedBy }) => (
           <Input

@@ -408,6 +408,47 @@ describe('authentication session boundaries', () => {
     );
   });
 
+  it.each([
+    ['/invite/family/' + 'A'.repeat(43), '/invite/family/' + 'A'.repeat(43)],
+    ['https://attacker.example/collect', '/participant'],
+    ['/app/badlands/home', '/participant'],
+  ])(
+    'retains only a family invitation through signup and verification resend: %s',
+    async (next, destination) => {
+      auth.signUp.mockResolvedValue({ data: { user: { id: 'family-user' } }, error: null });
+      auth.resend.mockResolvedValue({ data: {}, error: null });
+      const callback = 'http://localhost/auth/callback?next=' + encodeURIComponent(destination);
+      const response = await handleSignUp(
+        authFormRequest('/auth/sign-up', {
+          email: 'family@example.test',
+          password: 'Correct horse battery 7!',
+          confirmPassword: 'Correct horse battery 7!',
+          purpose: 'participant',
+          next,
+        }),
+        { abuseProtection: allowAuthProtection },
+      );
+      expect(auth.signUp).toHaveBeenCalledWith(
+        expect.objectContaining({ options: { emailRedirectTo: callback } }),
+      );
+      const continuation = new URL(response.headers.get('location')!);
+      expect(continuation.searchParams.get('next')).toBe(
+        destination === '/participant' ? null : destination,
+      );
+      await handleEmailVerification(
+        authFormRequest('/auth/verification', {
+          email: 'family@example.test',
+          purpose: 'participant',
+          next,
+        }),
+        { abuseProtection: allowAuthProtection },
+      );
+      expect(auth.resend).toHaveBeenCalledWith(
+        expect.objectContaining({ options: { emailRedirectTo: callback } }),
+      );
+    },
+  );
+
   it('does not create an account when bot verification fails', async () => {
     const response = await handleSignUp(
       authFormRequest('/auth/sign-up', {

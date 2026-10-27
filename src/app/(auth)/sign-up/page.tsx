@@ -1,9 +1,12 @@
+import { familyInvitationPath } from '@/lib/family-invitation-path';
 import { FIELD_EXAMPLES } from '../../../components/forms/field-examples';
 import { AuthShell } from '../../../components/layout/auth-shell';
 import { getBotChallengeConfiguration } from '../../../modules/identity/ui/bot-challenge';
 import { SignUpForm } from '../../../modules/identity/ui/sign-up-form';
 
-type SignUpPageProps = { searchParams: Promise<{ error?: string; purpose?: string }> };
+type SignUpPageProps = {
+  searchParams: Promise<{ error?: string; purpose?: string; next?: string }>;
+};
 
 const messages: Record<string, string> = {
   invalid_input: 'Check the email and matching password fields, then try again.',
@@ -14,17 +17,26 @@ const messages: Record<string, string> = {
 export default async function SignUpPage({ searchParams }: SignUpPageProps) {
   const parameters = await searchParams;
   const participant = parameters.purpose === 'participant';
+  const invitation = participant ? familyInvitationPath(parameters.next) : undefined;
   return (
     <AuthShell
       description={
         participant
-          ? 'Accounts are for adults aged 18 or older. Create your athlete or family account, verify your email, then ask your organizer to link the appropriate athlete profile.'
+          ? invitation
+            ? 'Accounts are for adults aged 18 or older. Create your family account, verify your email, then accept your coach’s invitation.'
+            : 'Accounts are for adults aged 18 or older. Create your athlete or family account, verify your email, then ask your organizer to link the appropriate athlete profile.'
           : 'Accounts are for adults aged 18 or older. Use your own email. After verification, you’ll create your organization and workspace address.'
       }
       eyebrow={participant ? 'Athlete and family access' : 'New organization'}
       footer={
         <>
-          <a href={participant ? '/sign-in?next=/participant' : '/sign-in'}>
+          <a
+            href={
+              participant
+                ? `/sign-in?next=${encodeURIComponent(invitation ?? '/participant')}`
+                : '/sign-in'
+            }
+          >
             Already have an account? Sign in
           </a>
           <a href={participant ? '/sign-up' : '/sign-up?purpose=participant'}>
@@ -45,6 +57,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
       ) : null}
       <SignUpForm
         participant={participant}
+        next={invitation}
         {...getBotChallengeConfiguration()}
         emailPlaceholder={FIELD_EXAMPLES.guardianEmail}
       />
