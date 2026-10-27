@@ -95,7 +95,7 @@ export default async function Page({
               !invitation.revoked_at &&
               new Date(invitation.expires_at).getTime() > Date.now();
             const status = invitation.accepted_at
-              ? 'Connected'
+              ? 'Accepted'
               : invitation.revoked_at
                 ? 'Revoked'
                 : pending
@@ -107,8 +107,13 @@ export default async function Page({
                 <h3>{name(invitation.athlete_id)}</h3>
                 <p>{invitation.email}</p>
                 <p className="talent-meta">
-                  {invitation.relationship} · Expires{' '}
-                  {new Date(invitation.expires_at).toLocaleDateString('en-CA', { timeZone: 'UTC' })}
+                  {invitation.relationship === 'guardian' ? 'Parent / guardian' : 'Adult athlete'} ·{' '}
+                  {invitation.accepted_at ? 'Accepted' : 'Invitation expires'}{' '}
+                  {new Date(invitation.accepted_at ?? invitation.expires_at).toLocaleDateString(
+                    'en-CA',
+                    { timeZone: 'UTC' },
+                  )}{' '}
+                  UTC
                 </p>
                 {pending ? (
                   <RevokeFamilyInvitationButton slug={slug} id={invitation.id} />
@@ -140,7 +145,7 @@ export default async function Page({
       {!links.data?.length && (
         <EmptyState
           title="No participant accounts linked"
-          description="Use “Link a participant account” to connect an athlete or guardian after verifying their identity."
+          description="Invite a family above, or directly link an existing verified account after confirming their relationship to the athlete."
         />
       )}
       {links.data?.map((l) => (

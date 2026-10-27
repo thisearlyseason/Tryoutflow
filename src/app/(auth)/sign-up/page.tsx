@@ -28,6 +28,15 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
           : 'Accounts are for adults aged 18 or older. Use your own email. After verification, you’ll create your organization and workspace address.'
       }
       eyebrow={participant ? 'Athlete and family access' : 'New organization'}
+      proofItems={
+        participant
+          ? [
+              'Your linked athletes',
+              'Approved feedback and event updates',
+              'Schedules and registration',
+            ]
+          : undefined
+      }
       footer={
         <>
           <a

@@ -34,8 +34,21 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
 
   return (
     <AuthShell
-      description="Keep your organization secure by confirming the email connected to your account."
+      description={
+        participant
+          ? 'Confirm your email to securely connect with your athlete.'
+          : 'Keep your organization secure by confirming the email connected to your account.'
+      }
       eyebrow="Account security"
+      proofItems={
+        participant
+          ? [
+              'Your linked athletes',
+              'Approved feedback and event updates',
+              'Schedules and registration',
+            ]
+          : undefined
+      }
       footer={
         <a
           href={

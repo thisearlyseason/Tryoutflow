@@ -282,6 +282,7 @@ select is(
       and has_function_privilege('authenticated',routine.oid,'EXECUTE')
   ),
   array[
+    'accept_family_invitation',
     'accept_organization_invitation',
     'assign_evaluator',
     'assign_tryout_number',
@@ -315,6 +316,7 @@ select is(
     'create_athlete_import_preview',
     'create_calibration_case',
     'create_decision_message_batch_v2',
+    'create_family_invitation',
     'create_organization_invitation',
     'create_organization_with_owner',
     'create_registration_form_revision',
@@ -407,6 +409,7 @@ select is(
     'retry_integration_sync_job_v4',
     'revise_roster_version',
     'revoke_evaluator_assignment',
+    'revoke_family_invitation',
     'save_athlete_contact',
     'save_athlete_portrait',
     'save_communication_template',
