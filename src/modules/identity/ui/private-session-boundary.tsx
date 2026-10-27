@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/infrastructure/supabase/client';
+import { ProductBrandBar } from '@/components/layout/product-brand-bar';
 
 /** Server routes authorize first; this removes stale UI when that browser session ends. */
 export function PrivateSessionBoundary({
@@ -16,8 +17,10 @@ export function PrivateSessionBoundary({
   const router = useRouter();
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
   const [waitingForConnection, setWaitingForConnection] = useState(false);
+  const [signInHref, setSignInHref] = useState('/sign-in');
   const retryVerification = useRef<(() => void) | null>(null);
   useEffect(() => {
+    setSignInHref(`/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`);
     const client = createBrowserSupabaseClient();
     let active = true;
     let generation = 0;
@@ -39,7 +42,9 @@ export function PrivateSessionBoundary({
         setWaitingForConnection(true);
         return;
       }
-      router.replace(`/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`);
+      const destination = `/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`;
+      setSignInHref(destination);
+      router.replace(destination);
     }
     function waitForConnection() {
       if (denied) return;
@@ -174,18 +179,34 @@ export function PrivateSessionBoundary({
     };
   }, [router, userId]);
   return verifiedUserId !== userId ? (
-    <div>
-      <p role="status">
-        {waitingForConnection
-          ? 'Reconnect to verify your session and continue to your private workspace.'
-          : 'Sign in to continue to your private workspace.'}
-      </p>
-      {waitingForConnection && (
-        <button type="button" onClick={() => retryVerification.current?.()}>
-          Retry session verification
-        </button>
-      )}
-    </div>
+    <main className="organization-entry">
+      <section className="organization-entry-panel" aria-labelledby="private-session-heading">
+        <ProductBrandBar label="Secure workspace" />
+        <div className="organization-entry-content">
+          <header className="organization-entry-intro">
+            <h1 id="private-session-heading">Your private workspace</h1>
+            <p role="status">
+              {waitingForConnection
+                ? 'Reconnect to verify your session and continue to your private workspace.'
+                : 'Sign in to continue to your private workspace.'}
+            </p>
+          </header>
+          {waitingForConnection ? (
+            <button
+              className="button-primary"
+              type="button"
+              onClick={() => retryVerification.current?.()}
+            >
+              Retry session verification
+            </button>
+          ) : (
+            <a className="button-primary" href={signInHref}>
+              Sign in
+            </a>
+          )}
+        </div>
+      </section>
+    </main>
   ) : (
     children
   );

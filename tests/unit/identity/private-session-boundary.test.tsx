@@ -57,6 +57,11 @@ test('a signed-out session removes private content and redirects with the exact 
   expect(auth.replace).toHaveBeenCalledWith(
     '/sign-in?next=%2Fapp%2Fclub%2Freports%3Ftryout%3Dfixture',
   );
+  // A full-navigation recovery link remains usable if client routing cannot leave stale UI.
+  expect(screen.getByRole('link', { name: /^Sign in$/ })).toHaveAttribute(
+    'href',
+    '/sign-in?next=%2Fapp%2Fclub%2Freports%3Ftryout%3Dfixture',
+  );
 });
 test('expiry and an account switch hide the previously authorized account content', async () => {
   vi.useFakeTimers();
