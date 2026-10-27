@@ -376,7 +376,27 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
     `select given_name||' '||family_name from public.athletes where id='${scenario.ids.athleteB}'`,
   );
   await page.goto(`/app/${scenario.organizationSlug}/athletes/${scenario.ids.athleteA}`);
+  const familyAccessUrl = new URL(
+    `/app/${scenario.organizationSlug}/participants?athlete=${scenario.ids.athleteA}`,
+    page.url(),
+  );
+  expectCancellableNextRscRequest(
+    monitor,
+    familyAccessUrl.href,
+    'athlete profile to family invitation navigation',
+  );
+  const navigationResponse = page.waitForResponse((r) => {
+    const url = new URL(r.url());
+    url.searchParams.delete('_rsc');
+    return (
+      r.request().method() === 'GET' &&
+      r.request().headers()['rsc'] === '1' &&
+      url.href === familyAccessUrl.href
+    );
+  });
   await page.getByRole('link', { name: 'Invite family', exact: true }).click();
+  expect((await navigationResponse).status()).toBe(200);
+  expect((await navigationResponse).headers()['content-type']).toContain('text/x-component');
   await expect(page.getByRole('heading', { name: 'Families & access' })).toBeVisible();
   await expect(inviteForm.getByLabel('Athlete', { exact: true })).toHaveValue(
     scenario.ids.athleteA,
