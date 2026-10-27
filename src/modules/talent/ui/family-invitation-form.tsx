@@ -44,6 +44,7 @@ export function FamilyInvitationForm({
   }
   return (
     <form
+      aria-label="Invite a family"
       className="talent-form family-invitation-form"
       onSubmit={async (e) => {
         e.preventDefault();
@@ -85,6 +86,7 @@ export function FamilyInvitationForm({
         <label>
           Athlete
           <select
+            aria-label="Athlete"
             disabled={busy}
             required
             value={athlete}
@@ -120,6 +122,7 @@ export function FamilyInvitationForm({
         <label>
           Relationship
           <select
+            aria-label="Relationship"
             disabled={busy}
             value={relationship}
             onChange={(e) => {

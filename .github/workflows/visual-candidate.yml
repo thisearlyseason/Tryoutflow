@@ -1,0 +1,64 @@
+name: Visual candidate evidence (not a release gate)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/native-shell-migration-20261025]
+    paths: [.github/workflows/visual-candidate.yml]
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+      - run: corepack enable
+      - run: corepack npm@11.12.1 ci
+      - run: corepack npm@11.12.1 exec -- supabase start
+      - name: Use the signed primary Ubuntu archive for browser dependencies
+        run: |
+          sudo python3 - <<'PYTHON'
+          from pathlib import Path
+          sources = [Path('/etc/apt/sources.list'), Path('/etc/apt/apt-mirrors.txt')]
+          sources += list(Path('/etc/apt/sources.list.d').glob('*.sources'))
+          sources += list(Path('/etc/apt/sources.list.d').glob('*.list'))
+          for source in sources:
+              if source.is_file():
+                  original = source.read_text()
+                  updated = original.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu').replace('https://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+                  if updated != original:
+                      source.write_text(updated)
+          Path('/etc/apt/apt.conf.d/80tryoutflow-ci-timeouts').write_text('Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "2";\n')
+          PYTHON
+      - run: corepack npm@11.12.1 exec -- playwright install --with-deps chromium firefox webkit
+      - name: Prepare only the verified local fictional database
+        run: |
+          corepack npm@11.12.1 run release:state:preflight
+          corepack npm@11.12.1 exec -- supabase db reset --local
+      - name: Capture candidate references for human review
+        run: |
+          export TRYOUTFLOW_LOCAL_DEMO_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("base64url")+"Aa9!")')"
+          corepack npm@11.12.1 run demo:local -- --visual
+          corepack npm@11.12.1 run test:visual:update
+          echo "Candidate evidence only. The strict CI release gate must pass separately."
+      - name: Retain only candidate images and failure context
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-candidate-${{ github.sha }}
+          retention-days: 3
+          path: |
+            tests/e2e/visual/__snapshots__/**/*.png
+            output/playwright/visual-results/**/test-failed-*.png
+            output/playwright/visual-results/**/error-context.md
+      - name: Remove fictional database and auth residue
+        if: always()
+        run: |
+          if corepack npm@11.12.1 exec -- supabase status >/dev/null 2>&1; then
+            corepack npm@11.12.1 exec -- supabase db reset --local --no-seed
+            corepack npm@11.12.1 run release:state:residue
+          fi

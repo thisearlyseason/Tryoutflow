@@ -366,6 +366,7 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
   scenario,
 }, testInfo) => {
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  const inviteForm = page.getByRole('form', { name: 'Invite a family', exact: true });
   const email = `t30-family-${testInfo.project.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}-${randomUUID().slice(0, 8)}@example.test`;
   const password = `Family-Example-${randomUUID()}!Aa9`;
   const athleteName = scenario.database.scalar(
@@ -377,9 +378,11 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
   await page.goto(`/app/${scenario.organizationSlug}/athletes/${scenario.ids.athleteA}`);
   await page.getByRole('link', { name: 'Invite family', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Families & access' })).toBeVisible();
-  await expect(page.getByLabel('Athlete', { exact: true })).toHaveValue(scenario.ids.athleteA);
-  await page.getByLabel('Family email').fill(email);
-  await page
+  await expect(inviteForm.getByLabel('Athlete', { exact: true })).toHaveValue(
+    scenario.ids.athleteA,
+  );
+  await inviteForm.getByLabel('Family email').fill(email);
+  await inviteForm
     .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
     .check();
   await page.getByRole('button', { name: 'Create family invitation', exact: true }).click();
@@ -455,8 +458,8 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
     await page.goto(
       `/app/${scenario.organizationSlug}/participants?athlete=${scenario.ids.athleteB}`,
     );
-    await page.getByLabel('Family email').fill(email);
-    await page
+    await inviteForm.getByLabel('Family email').fill(email);
+    await inviteForm
       .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
       .check();
     await page.getByRole('button', { name: 'Create family invitation', exact: true }).click();

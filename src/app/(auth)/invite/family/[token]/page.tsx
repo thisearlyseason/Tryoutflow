@@ -61,7 +61,7 @@ export default async function FamilyInvitePage({
       {query.error ? (
         <p role="alert" className="auth-alert">
           This invitation could not be accepted. Use the invited, verified email, or ask your coach
-          for a fresh link. Existing access has not changed.
+          to check your invitation and existing family access. Existing access has not changed.
         </p>
       ) : null}
       {user ? (
