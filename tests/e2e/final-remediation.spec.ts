@@ -557,3 +557,41 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
     await familyContext.close();
   }
 });
+
+test('organization chooser signs out and switches to a different account without stale access', async ({
+  page,
+  scenario,
+}) => {
+  const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  scenario.database.execute(
+    `insert into public.organization_members(organization_id,user_id,role,status) values('${scenario.ids.otherOrganization}','${scenario.users.owner.id}','member','active')`,
+  );
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/app');
+  await expect(
+    page.getByRole('heading', { name: 'Choose your organization', exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: /^Open /u })).toHaveCount(2);
+  const signOutButton = page.getByRole('button', { name: 'Sign out', exact: true });
+  await expect(signOutButton).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.waitForLoadState('networkidle');
+  await signOutButton.click();
+  await expect(page).toHaveURL(/\/sign-in$/u);
+  await expect(
+    page.getByRole('heading', { name: 'Sign in to your account', exact: true }),
+  ).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await page.goto(`/app/${scenario.organizationSlug}/home`);
+  await expect(page).toHaveURL(/\/sign-in\?next=/u);
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toHaveCount(0);
+  await page.waitForLoadState('networkidle');
+  await signInAs(page, scenario.users.otherOwner, scenario.otherOrganizationSlug, monitor);
+  await page.goto('/app');
+  await expect(page).toHaveURL(new RegExp(`/app/${scenario.otherOrganizationSlug}/home$`, 'u'));
+  await expect(page.locator('main#main-content')).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  monitor.assertClean();
+});

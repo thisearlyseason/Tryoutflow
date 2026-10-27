@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { ArrowRight, Building2, Plus } from 'lucide-react';
+import { ArrowRight, Building2, LogOut, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { FeedbackButton } from '@/components/ui/button';
 import { ProductBrandBar } from '@/components/layout/product-brand-bar';
 
 export function OrganizationEntryFrame({
@@ -24,6 +25,12 @@ export function OrganizationEntryFrame({
             <p>{description}</p>
           </header>
           {children}
+          <form action="/auth/sign-out" method="post" className="organization-entry-sign-out">
+            <FeedbackButton className="button-quiet" type="submit">
+              <LogOut size={18} aria-hidden="true" />
+              Sign out
+            </FeedbackButton>
+          </form>
         </div>
       </section>
     </main>
