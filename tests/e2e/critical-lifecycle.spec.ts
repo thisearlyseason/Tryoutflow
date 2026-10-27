@@ -116,9 +116,12 @@ test('staff can deliberately open the family entrance without losing their staff
   await expect(page).toHaveURL(/\/participant$/u);
   await expect(page.getByRole('heading', { name: 'Athlete and family portal' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toHaveCount(0);
+  // A visible heading can precede completion of the client-navigation RSC stream.
+  await page.waitForLoadState('networkidle');
   await page.goto('/app');
   await expect(page).toHaveURL(new RegExp(`/app/${scenario.organizationSlug}/home$`, 'u'));
   await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
   monitor.assertClean();
 });
 
