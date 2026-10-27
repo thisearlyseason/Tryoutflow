@@ -7,6 +7,7 @@ export const marketingLinkClassName =
   'inline-flex min-h-[var(--target-mobile)] min-w-[var(--target-mobile)] items-center justify-center rounded-[var(--radius-control)] px-3 py-2 font-bold underline-offset-4 transition-colors duration-[var(--duration-enter)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2';
 
 const primaryLinks = [
+  { href: '/participant', label: 'Family portal' },
   { href: '/features', label: 'Features' },
   { href: '/pricing', label: 'Pricing' },
   { href: '/demo', label: 'Demo' },

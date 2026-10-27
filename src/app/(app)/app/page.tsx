@@ -22,7 +22,8 @@ export default async function AppLandingPage() {
     .order('created_at', { ascending: true })
     .order('organization_id', { ascending: true });
   if (membership.error) return <WorkspaceLoadError />;
-  if (!membership.data?.length) redirect('/start');
+  // Organization setup is an explicit organizer choice, never the default for families.
+  if (!membership.data?.length) redirect('/participant');
 
   const organizations = await client
     .from('organizations')

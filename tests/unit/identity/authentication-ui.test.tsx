@@ -71,6 +71,10 @@ describe('Performance Lab authentication shell', () => {
 
     expect(screen.getByRole('region', { name: 'TryoutFlow product summary' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Family portal', exact: true })).toHaveAttribute(
+      'href',
+      '/participant',
+    );
     expect(screen.getByRole('textbox', { name: 'Email' })).toHaveClass('field-control');
     expect(screen.getByLabelText(/^Password/)).toHaveClass('field-control');
     expect(screen.getByRole('button', { name: 'Sign in' })).toHaveClass('button-primary');

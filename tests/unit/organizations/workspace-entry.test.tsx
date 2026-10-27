@@ -87,6 +87,7 @@ describe('intentional organization entry', () => {
     expect(state.in).not.toHaveBeenCalled();
     state.memberships.error = null;
     state.memberships.data = [];
-    await expect(AppLandingPage()).rejects.toThrow('redirect:/start');
+    await expect(AppLandingPage()).rejects.toThrow('redirect:/participant');
+    expect(state.in).not.toHaveBeenCalled();
   });
 });

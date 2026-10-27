@@ -175,6 +175,10 @@ describe('public marketing routes', () => {
     render(<MarketingShell>Page content</MarketingShell>);
 
     expect(screen.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Family portal' })).toHaveAttribute(
+      'href',
+      '/participant',
+    );
     expect(screen.getByRole('link', { name: 'TryoutFlow' })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: 'Features' })).toHaveAttribute('href', '/features');
     expect(screen.getByRole('link', { name: 'Pricing' })).toHaveAttribute('href', '/pricing');

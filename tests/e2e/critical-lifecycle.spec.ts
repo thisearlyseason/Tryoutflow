@@ -75,6 +75,53 @@ async function queuedEvaluationMutation(
   );
 }
 
+test('family entrance keeps a verified account without staff membership out of the coach workspace', async ({
+  page,
+  newOwner: family,
+  scenario,
+}) => {
+  await page.goto('/');
+  await page
+    .getByRole('navigation', { name: 'Primary navigation' })
+    .getByRole('link', { name: 'Family portal' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Athlete and family portal' })).toBeVisible();
+  await expect(page.locator('input[name="next"]')).toHaveValue('/participant');
+  await page.getByLabel('Email').fill(family.email);
+  await page.getByLabel('Password', { exact: true }).fill(family.password);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/participant$/u);
+  await expect(page.getByRole('heading', { name: 'No athletes linked yet' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Mobile navigation' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Create organization' })).toHaveCount(0);
+  await page.goto('/app');
+  await expect(page).toHaveURL(/\/participant$/u);
+  await expect(page.getByRole('heading', { name: 'No athletes linked yet' })).toBeVisible();
+  const denied = await page.goto(`/app/${scenario.organizationSlug}/home`);
+  expect(denied?.status()).toBe(404);
+  await expect(page.locator('body')).not.toContainText(scenario.organizationName);
+});
+
+test('staff can deliberately open the family entrance without losing their staff workspace', async ({
+  page,
+  scenario,
+}) => {
+  const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  await page.goto('/');
+  await page
+    .getByRole('navigation', { name: 'Primary navigation' })
+    .getByRole('link', { name: 'Family portal' })
+    .click();
+  await expect(page).toHaveURL(/\/participant$/u);
+  await expect(page.getByRole('heading', { name: 'Athlete and family portal' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toHaveCount(0);
+  await page.goto('/app');
+  await expect(page).toHaveURL(new RegExp(`/app/${scenario.organizationSlug}/home$`, 'u'));
+  await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toBeVisible();
+  monitor.assertClean();
+});
+
 test('scenario 1 — new owner completes organization onboarding and publishes a configured tryout', async ({
   newOwner,
   page,
@@ -89,6 +136,9 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
     description: `role=owner; organization=${organizationSlug}; tryout=${tryoutName}`,
   });
   const monitor = await signInAs(page, newOwner);
+  await expect(page).toHaveURL(/\/participant$/u);
+  // Creating an organization is an intentional organizer action, not the family default.
+  await page.goto('/start');
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
   await expect(page.getByLabel('Workspace address', { exact: true })).not.toBeEmpty();

@@ -198,6 +198,13 @@ describe.each(cases)(
 
 it('uses athlete/family sign-in copy and participant account links together', async () => {
   render(await SignInPage({ searchParams: Promise.resolve({ next: '/participant' }) }));
+  expect(screen.getByRole('heading', { name: 'Athlete and family portal' })).toBeVisible();
+  expect(screen.getByText('Your linked athletes')).toBeVisible();
+  expect(screen.queryByText('Roster decisions and communication')).toBeNull();
+  expect(screen.getByRole('link', { name: 'Coach & staff sign-in' })).toHaveAttribute(
+    'href',
+    '/sign-in',
+  );
   expect(screen.getByText(/Sign in to your athlete and family portal/)).toBeVisible();
   expect(screen.queryByText(/Create an organization account first/)).toBeNull();
   expect(screen.getByRole('link', { name: 'Create an athlete or family account' })).toHaveAttribute(

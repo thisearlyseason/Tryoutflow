@@ -20,6 +20,7 @@ const messages: Record<string, string> = {
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const parameters = await searchParams;
+  const participant = parameters.next === '/participant';
   const message = parameters.error
     ? ((Object.hasOwn(messages, parameters.error) ? messages[parameters.error] : undefined) ??
       'Sign-in could not be completed. Check your email and password, then try again.')
@@ -28,14 +29,24 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   return (
     <AuthShell
       sportsBackground
+      proofItems={
+        participant
+          ? [
+              'Your linked athletes',
+              'Approved feedback and event updates',
+              'Schedules and registration',
+            ]
+          : undefined
+      }
       description={
         parameters.next === '/participant'
           ? 'Sign in to your athlete and family portal. New to TryoutFlow? Create an athlete or family account first.'
           : 'Sign in to return to your organization. New to TryoutFlow? Create an organization account first.'
       }
-      eyebrow="Welcome back"
+      eyebrow={participant ? 'Family portal' : 'Coach & staff sign-in'}
       footer={
         <nav aria-label="Account help">
+          {participant ? <a href="/sign-in">Coach & staff sign-in</a> : null}
           <a
             href={parameters.next === '/participant' ? '/sign-up?purpose=participant' : '/sign-up'}
           >
@@ -55,7 +66,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           </a>
         </nav>
       }
-      title="Sign in to your account"
+      title={participant ? 'Athlete and family portal' : 'Sign in to your account'}
     >
       {parameters.password_updated === '1' ? (
         <p className="auth-alert" role="status">
@@ -66,6 +77,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <p className="auth-alert" role="alert">
           {message}
         </p>
+      ) : null}
+      {!participant ? (
+        <a className="auth-create-account" href="/participant">
+          Family portal
+        </a>
       ) : null}
       <a
         className="auth-create-account"

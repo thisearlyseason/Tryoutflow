@@ -77,7 +77,7 @@ export async function signInAs(
     await page.waitForLoadState('networkidle');
     return monitor;
   }
-  await expect(page).toHaveURL(/\/app(?:\/|$)|\/start$/u);
+  await expect(page).toHaveURL(/\/app(?:\/|$)|\/participant$/u);
   await page.waitForLoadState('networkidle');
   return monitor;
 }
