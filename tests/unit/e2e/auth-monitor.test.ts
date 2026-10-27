@@ -5,8 +5,9 @@ import { EventEmitter } from 'node:events';
 import type { Browser, BrowserContext, ConsoleMessage, Page } from '@playwright/test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { playwrightExpect } = vi.hoisted(() => ({
+const { playwrightExpect, workspaceVisible } = vi.hoisted(() => ({
   playwrightExpect: vi.fn(),
+  workspaceVisible: vi.fn(),
 }));
 
 vi.mock('@playwright/test', async (importOriginal) => ({
@@ -61,6 +62,10 @@ class AuthPage extends EventEmitter {
 
   async waitForLoadState() {}
 
+  locator(selector: string) {
+    return { selector };
+  }
+
   url() {
     return this.currentUrl;
   }
@@ -69,7 +74,32 @@ class AuthPage extends EventEmitter {
 describe('Task 30 authenticated browser monitoring', () => {
   beforeEach(() => {
     playwrightExpect.mockReset();
-    playwrightExpect.mockReturnValue({ toHaveURL: vi.fn(async () => undefined) });
+    workspaceVisible.mockReset().mockResolvedValue(undefined);
+    playwrightExpect.mockReturnValue({
+      toHaveURL: vi.fn(async () => undefined),
+      toBeVisible: workspaceVisible,
+    });
+  });
+
+  it('waits for authorized workspace content before returning to a caller that may navigate', async () => {
+    let showWorkspace!: () => void;
+    workspaceVisible.mockImplementationOnce(
+      () => new Promise<void>((resolve) => (showWorkspace = resolve)),
+    );
+    let returned = false;
+    const signingIn = signInAs(new AuthPage(false) as unknown as Page, user, 'club').then(
+      (monitor) => {
+        returned = true;
+        return monitor;
+      },
+    );
+    await vi.waitFor(() => expect(workspaceVisible).toHaveBeenCalledOnce());
+    expect(playwrightExpect).toHaveBeenCalledWith({ selector: 'main#main-content' });
+    expect(returned).toBe(false);
+    showWorkspace();
+    const monitor = await signingIn;
+    expect(returned).toBe(true);
+    expect(() => monitor.assertClean()).not.toThrow();
   });
 
   it('returns a monitor that retains errors from the first sign-in navigation', async () => {
