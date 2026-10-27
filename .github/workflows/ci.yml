@@ -57,8 +57,23 @@ jobs:
           node --test scripts/tests/current-release-source-binding.test.mjs
       - name: Hosted-content native compatibility tests
         run: corepack npm@11.12.1 exec -- vitest run tests/unit/identity/native-workspace-bridge.test.tsx
-      - run: corepack npm@11.12.1 exec -- playwright install --with-deps chromium firefox webkit
       - run: corepack npm@11.12.1 exec -- supabase start
+      - name: Use the signed primary Ubuntu archive for browser dependencies
+        run: |
+          sudo python3 - <<'PYTHON'
+          from pathlib import Path
+          sources = [Path('/etc/apt/sources.list'), Path('/etc/apt/apt-mirrors.txt')]
+          sources += list(Path('/etc/apt/sources.list.d').glob('*.sources'))
+          sources += list(Path('/etc/apt/sources.list.d').glob('*.list'))
+          for source in sources:
+              if source.is_file():
+                  original = source.read_text()
+                  updated = original.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu').replace('https://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+                  if updated != original:
+                      source.write_text(updated)
+          Path('/etc/apt/apt.conf.d/80tryoutflow-ci-timeouts').write_text('Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "2";\n')
+          PYTHON
+      - run: corepack npm@11.12.1 exec -- playwright install --with-deps chromium firefox webkit
       - name: Website production readiness gate
         run: bash scripts/verify-production-readiness.sh
       - name: Retain synthetic browser and visual evidence on failure

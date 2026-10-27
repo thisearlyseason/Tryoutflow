@@ -44,6 +44,12 @@ select is((select count(*) from public.organization_members where user_id=auth.u
 select lives_ok($$select public.accept_family_invitation(repeat('a',64))$$,'lost-response replay is idempotent for the same active link');
 select is((select count(*) from public.participant_links where user_id=auth.uid()),1::bigint,'replay creates no duplicate link');
 select set_config('request.jwt.claim.sub','f1670000-0000-4000-8000-000000000001',true);
+select public.create_family_invitation('f1670000-0000-4000-8000-000000000010','f1670000-0000-4000-8000-000000000020','family-recipient@example.test','athlete',repeat('2',64));
+select set_config('request.jwt.claim.sub','f1670000-0000-4000-8000-000000000003',true);
+select lives_ok($$select public.accept_family_invitation(repeat('2',64))$$,'an already linked family can accept without changing existing access');
+select is((select relationship from public.participant_links where athlete_id='f1670000-0000-4000-8000-000000000020' and user_id=auth.uid()),'guardian','existing relationship is preserved');
+select is((select count(*) from public.participant_links where user_id=auth.uid()),1::bigint,'a second invitation does not duplicate the existing link');
+select set_config('request.jwt.claim.sub','f1670000-0000-4000-8000-000000000001',true);
 select public.create_family_invitation('f1670000-0000-4000-8000-000000000010','f1670000-0000-4000-8000-000000000020','family-recipient@example.test','guardian',repeat('b',64));
 update public.participant_links set active=false,version=version+1 where athlete_id='f1670000-0000-4000-8000-000000000020';
 select set_config('request.jwt.claim.sub','f1670000-0000-4000-8000-000000000003',true);
