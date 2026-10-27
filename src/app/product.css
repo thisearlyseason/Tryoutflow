@@ -15,7 +15,8 @@
   background: var(--color-surface);
   box-shadow: var(--shadow-raised);
 }
-.organization-entry-brand {
+.product-brandbar,
+.product-brandbar-home {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -23,13 +24,23 @@
   background: #0b1b30;
   color: #f8fbff;
 }
-.organization-entry-brand p {
+.product-brandbar-home {
+  padding: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.product-brandbar > div,
+.product-brandbar-home > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.product-brandbar p {
   margin: 0;
   color: inherit;
   font-size: 1.125rem;
   font-weight: 750;
 }
-.organization-entry-brand span:not(.brand-lockup) {
+.product-brandbar span:not(.brand-lockup) {
   color: #b9c7d7;
   font-size: 0.875rem;
 }
@@ -1073,5 +1084,50 @@ button[aria-busy='true']::before {
 @media (max-width: 480px) {
   .public-registration-brandbar > span {
     display: none;
+  }
+}
+
+/* Standalone portals share the workspace identity without changing their access rules. */
+.participant-shell {
+  min-height: 100dvh;
+  background: var(--color-canvas);
+}
+.participant-content {
+  width: 100%;
+  max-width: 1000px;
+  margin-inline: auto;
+  padding: clamp(1rem, 4vw, 2rem);
+  overflow-wrap: anywhere;
+}
+.workspace-task-card {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  overflow-wrap: anywhere;
+}
+.workspace-task-link {
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+.registration-confirmation {
+  width: calc(100% - 2rem);
+  max-width: 36rem;
+  margin: clamp(1.5rem, 5vw, 3rem) auto;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
+  overflow-wrap: anywhere;
+}
+@media print {
+  .participant-shell > .product-brandbar {
+    display: none;
+  }
+  .participant-content {
+    max-width: none;
+    padding: 0;
   }
 }

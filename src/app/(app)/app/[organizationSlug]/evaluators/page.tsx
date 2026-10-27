@@ -79,7 +79,7 @@ export default async function EvaluatorDirectoryPage({
           Invite staff
         </Link>
       </WorkspaceHeader>
-      <section className="card grid gap-3" aria-labelledby="assign-evaluators-heading">
+      <section className="card grid gap-3 p-5" aria-labelledby="assign-evaluators-heading">
         <h2 id="assign-evaluators-heading">Assign evaluators to a tryout</h2>
         <p>
           Joining the organization does not assign scoring access. Open a tryout below to invite or

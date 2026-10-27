@@ -49,8 +49,12 @@ export default async function OrganizationHomePage({
         {tasks.length ? (
           <ul className="grid gap-3 sm:grid-cols-2">
             {tasks.map((task) => (
-              <li className="card" key={task.href}>
-                <Link className="button-primary" href={task.href} prefetch={false}>
+              <li className="card workspace-task-card" key={task.href}>
+                <Link
+                  className="button-primary workspace-task-link"
+                  href={task.href}
+                  prefetch={false}
+                >
                   {task.label}
                 </Link>
               </li>

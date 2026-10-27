@@ -71,10 +71,15 @@ export function PlatformNavigation() {
   return (
     <nav
       aria-label="Platform administration"
-      className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+      className="flex flex-wrap gap-x-4 gap-y-2 border-t border-[var(--color-border)] bg-[var(--color-surface)] p-4 md:flex-col md:gap-1"
     >
       {links.map(([label, href]) => (
-        <Link className="inline-flex min-h-11 items-center" href={href} key={href} prefetch={false}>
+        <Link
+          className="inline-flex min-h-11 items-center rounded-[var(--radius-control)] px-3 py-2 hover:bg-[var(--color-surface-muted)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus)]"
+          href={href}
+          key={href}
+          prefetch={false}
+        >
           {label}
         </Link>
       ))}

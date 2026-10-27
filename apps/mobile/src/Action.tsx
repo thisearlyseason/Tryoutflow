@@ -61,7 +61,7 @@ export function Action({
           <ActivityIndicator
             accessibilityLabel={`${title} in progress`}
             animating={!reduceMotion}
-            color={variant === 'primary' ? '#fff' : '#075945'}
+            color={variant === 'primary' ? '#fff' : '#0057ff'}
           />
         ) : null}
         <Text style={[styles.text, variant !== 'primary' && styles.darkText]}>
@@ -82,17 +82,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 18,
     paddingVertical: 13,
-    backgroundColor: '#075945',
+    backgroundColor: '#0057ff',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 8,
   },
   text: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  darkText: { color: '#075945' },
+  darkText: { color: '#0057ff' },
   secondary: { backgroundColor: '#eef2f7' },
   link: { backgroundColor: 'transparent' },
   disabled: { opacity: 0.55 },
   pressed: { opacity: 0.72 },
-  error: { color: '#a52828', fontSize: 14, marginTop: 6 },
+  error: { color: '#c92a2a', fontSize: 14, marginTop: 6 },
 });

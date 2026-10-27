@@ -240,11 +240,12 @@ export default function NativeBilling({
       >
         <View style={[styles.intro, wideSignIn && !session && styles.wideIntro]}>
           <View style={[styles.header, wideSignIn && !session && styles.wideHeader]}>
-            {wideSignIn && !session ? (
-              <Image source={require('../assets/icon.png')} style={styles.brandIcon} />
-            ) : null}
+            <View style={styles.brandBar} accessibilityLabel="TryoutFlow">
+              <Image source={require('../assets/brand-mark.png')} style={styles.brandIcon} />
+              <Text style={styles.brandName}>TryoutFlow</Text>
+            </View>
             <Text style={[styles.eyebrow, wideSignIn && !session && styles.wideEyebrow]}>
-              TRYOUTFLOW
+              YOUR WORKSPACE
             </Text>
             <Text style={[styles.title, wideSignIn && !session && styles.wideTitle]}>
               {session ? 'Billing & access' : 'Welcome back.'}
@@ -659,7 +660,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#111e2c',
     minHeight: 540,
   },
-  brandIcon: { width: 76, height: 76, borderRadius: 18, marginBottom: 22 },
+  brandBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: '#0b1b30',
+  },
+  brandIcon: { width: 48, height: 48, resizeMode: 'contain', tintColor: '#fff' },
+  brandName: { color: '#f8fbff', fontSize: 20, fontWeight: '800', flexShrink: 1 },
   wideTitle: { color: '#fff', fontSize: 44, lineHeight: 50 },
   wideCopy: { color: '#dce7f1', fontSize: 18, lineHeight: 27 },
   eyebrow: { fontSize: 12, fontWeight: '800', letterSpacing: 2, color: '#294df2' },

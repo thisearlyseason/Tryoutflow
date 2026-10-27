@@ -216,7 +216,7 @@ export function RegistrationConfirmationClient({
   }
 
   return (
-    <main className="mx-auto max-w-xl p-6">
+    <main className="registration-confirmation">
       <h1 className="text-2xl font-bold">Registration confirmation</h1>
       {status === 'loading' ? (
         <p className="mt-3" aria-live="polite">

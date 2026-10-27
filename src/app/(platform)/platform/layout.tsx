@@ -3,6 +3,7 @@ import { PrivateSessionBoundary } from '@/modules/identity/ui/private-session-bo
 
 import { requirePlatformRouteContext } from '@/modules/observability/application/platform-route-context';
 import { PlatformNavigation } from '@/modules/observability/ui/platform-administration';
+import { ProductBrandBar } from '@/components/layout/product-brand-bar';
 
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
   const { user } = await requirePlatformRouteContext();
@@ -10,6 +11,7 @@ export default async function PlatformLayout({ children }: { children: ReactNode
     <PrivateSessionBoundary userId={user.id}>
       <div className="min-h-screen bg-[var(--color-canvas)] md:grid md:grid-cols-[15rem_minmax(0,1fr)]">
         <aside className="min-w-0 border-b border-[var(--color-border)] md:border-r md:border-b-0">
+          <ProductBrandBar label="Platform tools" />
           <PlatformNavigation />
         </aside>
         <main id="main-content" className="min-w-0 p-4 [overflow-wrap:anywhere] sm:p-8">

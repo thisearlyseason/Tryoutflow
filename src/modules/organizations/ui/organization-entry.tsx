@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, Building2, Plus } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { Brand } from '@/components/ui/brand';
+import { ProductBrandBar } from '@/components/layout/product-brand-bar';
 
 export function OrganizationEntryFrame({
   title,
@@ -16,13 +16,7 @@ export function OrganizationEntryFrame({
   return (
     <main className="organization-entry" id="main-content">
       <section className="organization-entry-panel" aria-labelledby="organization-entry-heading">
-        <header className="organization-entry-brand brand-on-dark">
-          <Brand compact />
-          <div>
-            <p>TryoutFlow</p>
-            <span>Your workspace</span>
-          </div>
-        </header>
+        <ProductBrandBar />
         <div className="organization-entry-content">
           <header className="organization-entry-intro">
             <p className="eyebrow">Welcome back</p>
