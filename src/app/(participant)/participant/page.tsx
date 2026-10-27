@@ -117,7 +117,9 @@ export default async function Page() {
                 <p className="eyebrow">{p.organization}</p>
                 <h2>{p.name}</h2>
                 <p>
-                  {p.profile?.sport} · {p.profile?.primary_position} · {p.profile?.current_team}
+                  {[p.profile?.sport, p.profile?.primary_position, p.profile?.current_team]
+                    .filter((value) => value?.trim())
+                    .join(' · ') || 'Sporting profile not provided.'}
                 </p>
                 <p>Birth date: {p.birth_date || 'Not provided'}</p>
               </header>
