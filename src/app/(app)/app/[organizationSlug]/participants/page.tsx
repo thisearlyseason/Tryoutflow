@@ -41,7 +41,9 @@ export default async function Page({
     c.client.from('scouting_grants').select('user_id').eq('organization_id', c.organization.id),
     c.client
       .from('family_invitations')
-      .select('id,athlete_id,email,relationship,created_at,expires_at,revoked_at,accepted_at')
+      .select(
+        'id,athlete_id,email,relationship,created_at,expires_at,revoked_at,accepted_at,linked_id',
+      )
       .eq('organization_id', c.organization.id)
       .order('created_at', { ascending: false })
       .limit(100),
@@ -166,6 +168,18 @@ export default async function Page({
           <p>
             {l.relationship} · {l.active ? 'Active family access' : 'Revoked'}
           </p>
+          {invitations.data?.find(
+            (invitation) => invitation.linked_id === l.id && invitation.accepted_at,
+          )?.email ? (
+            <p style={{ overflowWrap: 'anywhere' }}>
+              Invited email:{' '}
+              {
+                invitations.data.find(
+                  (invitation) => invitation.linked_id === l.id && invitation.accepted_at,
+                )?.email
+              }
+            </p>
+          ) : null}
           <details className="family-profile-details">
             <summary>Account reference</summary>
             <p>{l.user_id}</p>

@@ -406,9 +406,9 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
     await wrong.page.waitForLoadState('networkidle');
     expectCancellableServerAction(wrong.monitor, wrong.page, 'refused family invitation redirect');
     await wrong.page.getByRole('button', { name: 'Accept family invitation' }).click();
-    await expect(wrong.page.getByRole('alert')).toContainText(
-      'This invitation could not be accepted',
-    );
+    await expect(
+      wrong.page.getByRole('alert').filter({ hasText: 'This invitation could not be accepted' }),
+    ).toContainText('This invitation could not be accepted');
     expect(
       scenario.database.scalar(
         `select count(*) from public.participant_links where user_id='${scenario.users.otherOwner.id}' and athlete_id='${scenario.ids.athleteA}'`,
@@ -458,6 +458,12 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
     await page.goto(
       `/app/${scenario.organizationSlug}/participants?athlete=${scenario.ids.athleteB}`,
     );
+    await expect(
+      page
+        .getByRole('article')
+        .filter({ has: page.getByRole('heading', { name: athleteName, exact: true }) })
+        .filter({ hasText: 'Active family access' }),
+    ).toContainText(`Invited email: ${email}`);
     await inviteForm.getByLabel('Family email').fill(email);
     await inviteForm
       .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
@@ -478,7 +484,9 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
     await family.waitForLoadState('networkidle');
     expectCancellableServerAction(familyMonitor, family, 'revoked family invitation refusal');
     await family.getByRole('button', { name: 'Accept family invitation' }).click();
-    await expect(family.getByRole('alert')).toContainText('This invitation could not be accepted');
+    await expect(
+      family.getByRole('alert').filter({ hasText: 'This invitation could not be accepted' }),
+    ).toContainText('This invitation could not be accepted');
     expect(
       scenario.database.scalar(
         `select count(*) from public.participant_links where athlete_id='${scenario.ids.athleteB}' and user_id=(select id from auth.users where email='${email}')`,

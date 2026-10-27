@@ -9,6 +9,7 @@ on:
       - src/app/brand-experience.css
       - src/modules/talent/ui/family-workspace.tsx
       - src/modules/talent/ui/family-invitation-form.tsx
+      - tests/e2e/final-remediation.spec.ts
 
 jobs:
   capture:
