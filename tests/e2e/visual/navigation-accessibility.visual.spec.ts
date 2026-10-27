@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { signInDemoOwner, openDemoTryout } from '../helpers/visual';
+import { signInDemoOwner, openDemoTryout, prepareVisualPage } from '../helpers/visual';
 
 test('desktop sidebar keeps Audit Settings Billing reachable', async ({ page }) => {
   await signInDemoOwner(page);
@@ -45,7 +45,8 @@ test('mobile bottom navigation does not permanently occlude main focus targets',
   ]) {
     await page.goto(route);
     if (route.endsWith('/tryouts')) await openDemoTryout(page);
-    await expect(page.getByRole('main')).toBeVisible();
+    await expect(page.locator('main#main-content')).toBeVisible();
+    await prepareVisualPage(page);
     const targets = page.locator(
       'main a[href], main button:not([disabled]), main input:not([type=hidden]):not([disabled]), main select:not([disabled])',
     );
@@ -53,6 +54,11 @@ test('mobile bottom navigation does not permanently occlude main focus targets',
     for (let i = 0; i < (await targets.count()); i++) {
       const target = targets.nth(i);
       if (!(await target.isVisible())) continue;
+      const identity = await target.evaluate((element) => element.outerHTML);
+      await test.info().attach(`focus-target-${results.length}-${i}`, {
+        body: JSON.stringify({ route, index: i, identity }),
+        contentType: 'application/json',
+      });
       await target.focus();
       await expect(target).toBeFocused();
       const box = await target.boundingBox(),

@@ -72,6 +72,9 @@ jobs:
             output/playwright/visual-results/**/*-actual.png
             output/playwright/visual-results/**/*-expected.png
             output/playwright/visual-results/**/*-diff.png
+            output/playwright/visual-results/**/trace.zip
+            output/playwright/visual-results/**/test-failed-*.png
+            output/playwright/visual-results/**/error-context.md
             output/playwright/test-results/**/trace.zip
             output/playwright/test-results/**/test-failed-*.png
 
