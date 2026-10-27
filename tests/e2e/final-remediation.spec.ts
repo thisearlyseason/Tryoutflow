@@ -381,6 +381,7 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
   await expect(inviteForm.getByLabel('Athlete', { exact: true })).toHaveValue(
     scenario.ids.athleteA,
   );
+  await page.waitForLoadState('networkidle');
   await inviteForm.getByLabel('Family email').fill(email);
   await inviteForm
     .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })
@@ -464,6 +465,7 @@ test('coach invitation verifies a new family, links exactly one athlete, rejects
         .filter({ has: page.getByRole('heading', { name: athleteName, exact: true }) })
         .filter({ hasText: 'Active family access' }),
     ).toContainText(`Invited email: ${email}`);
+    await page.waitForLoadState('networkidle');
     await inviteForm.getByLabel('Family email').fill(email);
     await inviteForm
       .getByRole('checkbox', { name: 'I’ve confirmed this person should access this athlete.' })

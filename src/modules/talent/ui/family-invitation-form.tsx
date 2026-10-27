@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Copy, Link2, Share2, ShieldCheck, UserRoundPlus } from 'lucide-react';
 import { FeedbackButton } from '@/components/ui/button';
 import { createFamilyInvitation, revokeFamilyInvitation } from '../application/family-invitations';
@@ -22,7 +22,9 @@ export function FamilyInvitationForm({
   const [email, setEmail] = useState('');
   const [relationship, setRelationship] = useState('guardian');
   const [confirmed, setConfirmed] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [submitting, setBusy] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const busy = submitting || pending;
   const [message, setMessage] = useState('');
   const [shareUrl, setShareUrl] = useState('');
   const [sharedId, setSharedId] = useState('');
@@ -52,25 +54,27 @@ export function FamilyInvitationForm({
         setBusy(true);
         setMessage('');
         setShareUrl('');
-        try {
-          const result = await createFamilyInvitation(slug, {
-            athlete_id: athlete,
-            email: email.trim(),
-            relationship,
-            confirmed,
-          });
-          setMessage(result.message);
-          if (result.ok) {
-            setShareUrl(result.shareUrl);
-            setSharedId(result.invitationId);
+        startTransition(async () => {
+          try {
+            const result = await createFamilyInvitation(slug, {
+              athlete_id: athlete,
+              email: email.trim(),
+              relationship,
+              confirmed,
+            });
+            setMessage(result.message);
+            if (result.ok) {
+              setShareUrl(result.shareUrl);
+              setSharedId(result.invitationId);
+            }
+          } catch {
+            setMessage(
+              'Could not connect. Your choices are still here. Creating another invitation replaces an older pending link for this athlete and email.',
+            );
+          } finally {
+            setBusy(false);
           }
-        } catch {
-          setMessage(
-            'Could not connect. Your choices are still here. Creating another invitation replaces an older pending link for this athlete and email.',
-          );
-        } finally {
-          setBusy(false);
-        }
+        });
       }}
     >
       <div className="family-form-heading">
@@ -227,8 +231,10 @@ export function FamilyInvitationForm({
 }
 
 export function RevokeFamilyInvitationButton({ slug, id }: { slug: string; id: string }) {
-  const [busy, setBusy] = useState(false),
-    [message, setMessage] = useState('');
+  const [submitting, setBusy] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const busy = submitting || pending;
+  const [message, setMessage] = useState('');
   return (
     <div>
       <FeedbackButton
@@ -237,15 +243,18 @@ export function RevokeFamilyInvitationButton({ slug, id }: { slug: string; id: s
         busy={busy}
         disabled={busy}
         onClick={async () => {
+          if (busy) return;
           setBusy(true);
-          try {
-            const r = await revokeFamilyInvitation(slug, id);
-            setMessage(r.message);
-          } catch {
-            setMessage('Could not connect. Try again.');
-          } finally {
-            setBusy(false);
-          }
+          startTransition(async () => {
+            try {
+              const r = await revokeFamilyInvitation(slug, id);
+              setMessage(r.message);
+            } catch {
+              setMessage('Could not connect. Try again.');
+            } finally {
+              setBusy(false);
+            }
+          });
         }}
       >
         {busy ? 'Revoking…' : 'Revoke invitation'}
