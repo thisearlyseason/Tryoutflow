@@ -71,7 +71,7 @@ describe('Performance Lab authentication shell', () => {
 
     expect(screen.getByRole('region', { name: 'TryoutFlow product summary' })).toBeVisible();
     expect(screen.getByRole('heading', { name: 'Sign in to your account' })).toBeVisible();
-    expect(screen.getByRole('link', { name: 'Family portal', exact: true })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Family portal' })).toHaveAttribute(
       'href',
       '/participant',
     );
