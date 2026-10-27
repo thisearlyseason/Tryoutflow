@@ -49,6 +49,8 @@ jobs:
           corepack npm@11.12.1 run demo:local -- --visual
           corepack npm@11.12.1 run test:visual:update
           echo "Candidate evidence only. The strict CI release gate must pass separately."
+      - name: Exercise the fictional family invitation journey in all five projects
+        run: corepack npm@11.12.1 run test:e2e -- --grep "coach invitation verifies" --retries=0
       - name: Retain only candidate images and failure context
         if: always()
         uses: actions/upload-artifact@v4
@@ -59,6 +61,8 @@ jobs:
             tests/e2e/visual/__snapshots__/**/*.png
             output/playwright/visual-results/**/test-failed-*.png
             output/playwright/visual-results/**/error-context.md
+            output/playwright/test-results/**/test-failed-*.png
+            output/playwright/test-results/**/error-context.md
       - name: Remove fictional database and auth residue
         if: always()
         run: |
