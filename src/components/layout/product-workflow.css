@@ -90,7 +90,7 @@
   flex-wrap: wrap;
   margin-bottom: 1.25rem;
   padding: 0.85rem 1rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border);
   border-radius: 0.75rem;
   background: var(--color-surface);
 }
@@ -137,18 +137,35 @@
 }
 .workflow-launches > a {
   display: grid;
-  align-content: start;
-  gap: 0.4rem;
-  min-height: 88px;
-  padding: 1rem;
-  border: 1px solid var(--color-border-strong);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  column-gap: 0.85rem;
+  row-gap: 0.4rem;
+  min-height: 112px;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
   border-radius: 0.75rem;
   background: var(--color-surface);
   color: var(--color-text);
   text-decoration: none;
 }
 .workflow-launches > a:hover {
-  border-color: var(--color-performance-text);
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-selection) 25%, var(--color-surface));
+}
+.workflow-launches > a > :is(strong, span) {
+  grid-column: 2;
+}
+.workflow-launches strong {
+  font-size: 1rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.workflow-launch-icon {
+  grid-row: 1 / 3;
+  align-self: start;
+  color: var(--color-primary);
+  margin-top: 0.15rem;
 }
 .workflow-launches span {
   font-size: 0.875rem;
@@ -301,4 +318,53 @@
 }
 .workflow-dashboard .metric-value {
   font-size: 2rem;
+}
+
+/* Readable supporting detail without crowding the primary action. */
+.app-frame .tryout-more-actions {
+  width: 100%;
+}
+.app-frame
+  :is(.tryout-more-actions, .talent-record-details, .plan-features, .account-reference)
+  > summary {
+  cursor: pointer;
+  min-height: 44px;
+  align-content: center;
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+.app-frame .tryout-more-actions > .workspace-actions {
+  padding-block: 0.5rem;
+}
+.app-frame :is(.workspace-card, .tryout-card, .talent-card) {
+  overflow-wrap: anywhere;
+}
+.app-frame :is(.workspace-card, .tryout-card, .talent-card) > p {
+  max-width: 65ch;
+  line-height: 1.6;
+}
+.app-frame .talent-record-details {
+  margin-top: 1rem;
+  border-block: 1px solid var(--color-border);
+}
+.app-frame .talent-record-details .talent-record-body {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0.5rem;
+}
+.app-frame .workflow-dashboard .metric-card {
+  min-height: 104px;
+  padding: 1.1rem;
+}
+.app-frame .workflow-dashboard .metric-card::after {
+  content: none;
+}
+@media print {
+  .talent-record-details::details-content {
+    content-visibility: visible;
+  }
+  .talent-record-details > .talent-record-body {
+    display: block;
+  }
 }

@@ -163,7 +163,7 @@ describe('billing experience', () => {
     expect(screen.getByRole('status')).toHaveTextContent(
       'cancelled and will remain active until November 1, 2026',
     );
-    expect(screen.getByText(/Your athletes, evaluations/)).toBeVisible();
+    expect(screen.getByText(/Your records stay saved when plans change/)).toBeVisible();
     expect(screen.getByText('App Store')).toBeVisible();
   });
   it('shows an explicit payment warning', () => {
@@ -390,4 +390,30 @@ describe('plan-local checkout feedback', () => {
       checkoutProtocol: 'managed_v1',
     });
   });
+});
+
+it('keeps price and checkout terms visible while plan features can be expanded', () => {
+  render(
+    <BillingDashboardPanel
+      initial={{ ...initial, subscriptions: [] }}
+      organizationId={id}
+      products={[
+        {
+          key: 'pro_monthly',
+          name: 'Pro Monthly',
+          price: 'USD 14.99',
+          interval: 'month',
+          features: ['Weighted evaluations', 'Reports and exports'],
+        },
+      ]}
+      tryouts={[]}
+      analyticsEnabled={false}
+    />,
+  );
+  expect(screen.getByText('USD 14.99')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Choose plan' })).toBeVisible();
+  expect(screen.getByText('✓ Weighted evaluations')).not.toBeVisible();
+  fireEvent.click(screen.getByText('Plan features'));
+  expect(screen.getByText('✓ Weighted evaluations')).toBeVisible();
+  expect(screen.getByText('✓ Reports and exports')).toBeVisible();
 });

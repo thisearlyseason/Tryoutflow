@@ -73,7 +73,7 @@ export default async function OrganizationReportsPage({
     return summary?.kind === 'manager' ? (
       <div className="workspace-stack">
         <PageHeader
-          description="Use live evaluation and registration data to make roster decisions with confidence."
+          description="Review results and export reports."
           eyebrow="Insights"
           title="Reports"
         />
@@ -81,9 +81,7 @@ export default async function OrganizationReportsPage({
           <Link className="talent-report-link" href={`/app/${organizationSlug}/reports/scouting`}>
             <FileText size={22} aria-hidden="true" />
             <strong>Scouting & performance</strong>
-            <p>
-              Review shared evidence, follow-up priorities and athlete performance in one report.
-            </p>
+            <p>Evidence, follow-ups and athlete progress.</p>
             <span>Open scouting report →</span>
           </Link>
           {!workspace.isTeam || workspace.parent?.canManage ? (
@@ -92,19 +90,19 @@ export default async function OrganizationReportsPage({
               href={`/app/${organizationSlug}/organization/teams`}
             >
               <strong>Team overview</strong>
-              <span>Organization administrators can review activity across team workspaces.</span>
+              <span>Activity across your team workspaces.</span>
             </Link>
           ) : null}
           <Link className="talent-report-link" href={`/app/${organizationSlug}/reports/program`}>
             <TrendingUp size={22} aria-hidden="true" />
             <strong>Program progression</strong>
-            <p>See participation, attendance and movement through your prospect pipeline.</p>
+            <p>Participation, attendance and recruitment.</p>
             <span>View program report →</span>
           </Link>
           <Link className="talent-report-link" href={`/app/${organizationSlug}/reports/exports`}>
             <Download size={22} aria-hidden="true" />
             <strong>Performance exports</strong>
-            <p>Prepare a measurement export and return to download it when it is ready.</p>
+            <p>Download recorded measurements.</p>
             <span>Prepare an export →</span>
           </Link>
         </div>

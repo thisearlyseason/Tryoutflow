@@ -13,6 +13,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/modules/talent/application/actions', () => ({ saveTalent: mocks.save }));
 import { EditRecord } from '@/modules/talent/ui/record-form';
 import { EventNavigation } from '@/modules/talent/ui/event-navigation';
+import { ScoutingCards } from '@/modules/talent/ui/scouting-cards';
+import { recordDefaults } from '@/modules/talent/ui/fields';
+import type { Row } from '@/modules/talent/application/workspace';
 const props = {
   slug: 'test',
   table: 'scouting_records' as const,
@@ -124,5 +127,48 @@ describe('event navigation', () => {
       target: { value: 'rankings' },
     });
     expect(mocks.push).toHaveBeenCalledWith('/app/test/tryouts/event/rankings');
+  });
+});
+
+describe('scouting card readability', () => {
+  const record: Row<'scouting_records'> = {
+    ...recordDefaults,
+    id: 'fictional-record',
+    organization_id: 'fictional-org',
+    athlete_id: 'fictional-athlete',
+    created_by: 'fictional-scout',
+    created_at: '2026-10-27T00:00:00Z',
+    updated_at: '2026-10-27T00:00:00Z',
+    version: 1,
+    title: 'Fictional observation',
+    body: 'Full saved observation remains available for review and editing.',
+    visibility: 'private',
+    observed_at: null,
+    due_on: null,
+    assigned_user_id: null,
+    video_url: null,
+    start_seconds: null,
+    end_seconds: null,
+  };
+  const cardProps = {
+    records: [record],
+    slug: 'fictional',
+    athletes: [{ value: 'fictional-athlete', label: 'Fictional Athlete' }],
+    people: [{ value: 'fictional-scout', label: 'Fictional Scout' }],
+  };
+  it('keeps status and privacy visible while full notes can be opened and edited', () => {
+    render(<ScoutingCards {...cardProps} />);
+    expect(screen.getByText('Private · only you')).toBeVisible();
+    expect(screen.getByText('draft')).toBeVisible();
+    expect(screen.getByText(record.body)).not.toBeVisible();
+    fireEvent.click(screen.getByText('Notes & evidence'));
+    expect(screen.getByText(record.body)).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit report' }));
+    expect(screen.getByRole('dialog', { name: 'Edit report' })).toBeVisible();
+    expect(screen.getByDisplayValue(record.body)).toBeVisible();
+  });
+  it('shows full notes directly when reviewing one athlete', () => {
+    render(<ScoutingCards {...cardProps} fixedAthlete />);
+    expect(screen.getByText(record.body)).toBeVisible();
   });
 });

@@ -84,7 +84,7 @@ export default async function AthletesPage({
             </div>
           ) : null
         }
-        description="Your organization’s athlete directory. Adding an athlete here is separate from registering them for a tryout."
+        description="Manage athletes; register them separately for each tryout."
         eyebrow="People"
         title="Athletes"
       />

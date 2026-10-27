@@ -65,71 +65,74 @@ export function ScoutingCards({
             {r.observation_type} · {r.event_context || 'Event context not recorded'}
             {r.criterion ? ` · ${r.criterion}` : ''}
           </p>
-          <div className="talent-record-body">
-            {r.review_feedback && (
-              <p>
-                <strong>Reviewer feedback</strong>
-                <br />
-                {r.review_feedback}
-              </p>
-            )}
-            {r.source && (
-              <p className="talent-meta">
-                {r.source}
-                {r.observed_at
-                  ? ` · ${new Date(r.observed_at).toLocaleDateString('en-CA', { timeZone: 'UTC' })}`
-                  : ''}
-              </p>
-            )}
-            {r.body && <p>{r.body}</p>}
-            {r.strengths && (
-              <p>
-                <strong>Strengths</strong>
-                <br />
-                {r.strengths}
-              </p>
-            )}
-            {r.development_areas && (
-              <p>
-                <strong>Development areas</strong>
-                <br />
-                {r.development_areas}
-              </p>
-            )}
-            {r.recommendation && (
-              <p>
-                <strong>Next step</strong>
-                <br />
-                {r.recommendation}
-              </p>
-            )}
-            {r.due_on && (
-              <p className="talent-meta">
-                Due {r.due_on}
-                {r.assigned_user_id
-                  ? ` · ${people.find((p) => p.value === r.assigned_user_id)?.label ?? 'Assigned staff member'}`
-                  : ''}
-              </p>
-            )}
-            {r.video_url && (
-              <p>
-                <a
-                  href={videoMoment(r.video_url, r.start_seconds, r.end_seconds)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="button-secondary"
-                >
-                  Open video evidence ↗
-                </a>
-                {r.start_seconds !== null && (
-                  <small>
-                    {' '}
-                    Clip {r.start_seconds}s{r.end_seconds !== null ? `–${r.end_seconds}s` : ''}
-                  </small>
-                )}
-              </p>
-            )}
-          </div>
+          <details className="talent-record-details" open={fixedAthlete}>
+            <summary>Notes &amp; evidence</summary>
+            <div className="talent-record-body">
+              {r.review_feedback && (
+                <p>
+                  <strong>Reviewer feedback</strong>
+                  <br />
+                  {r.review_feedback}
+                </p>
+              )}
+              {r.source && (
+                <p className="talent-meta">
+                  {r.source}
+                  {r.observed_at
+                    ? ` · ${new Date(r.observed_at).toLocaleDateString('en-CA', { timeZone: 'UTC' })}`
+                    : ''}
+                </p>
+              )}
+              {r.body && <p>{r.body}</p>}
+              {r.strengths && (
+                <p>
+                  <strong>Strengths</strong>
+                  <br />
+                  {r.strengths}
+                </p>
+              )}
+              {r.development_areas && (
+                <p>
+                  <strong>Development areas</strong>
+                  <br />
+                  {r.development_areas}
+                </p>
+              )}
+              {r.recommendation && (
+                <p>
+                  <strong>Next step</strong>
+                  <br />
+                  {r.recommendation}
+                </p>
+              )}
+              {r.due_on && (
+                <p className="talent-meta">
+                  Due {r.due_on}
+                  {r.assigned_user_id
+                    ? ` · ${people.find((p) => p.value === r.assigned_user_id)?.label ?? 'Assigned staff member'}`
+                    : ''}
+                </p>
+              )}
+              {r.video_url && (
+                <p>
+                  <a
+                    href={videoMoment(r.video_url, r.start_seconds, r.end_seconds)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="button-secondary"
+                  >
+                    Open video evidence ↗
+                  </a>
+                  {r.start_seconds !== null && (
+                    <small>
+                      {' '}
+                      Clip {r.start_seconds}s{r.end_seconds !== null ? `–${r.end_seconds}s` : ''}
+                    </small>
+                  )}
+                </p>
+              )}
+            </div>
+          </details>
           <p className="talent-meta">
             {r.visibility === 'athlete'
               ? 'Approved athlete feedback'

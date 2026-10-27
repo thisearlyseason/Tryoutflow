@@ -71,7 +71,7 @@ export default async function PerformancePage({
       <WorkspaceHeader
         eyebrow="Measured performance"
         title="Performance lab"
-        description="Compare athletes using consistent tests, recorded trials and verified sources."
+        description="Compare recorded tests and athlete progress."
       >
         <Link className="button-secondary" href={`/app/${slug}/performance/import`}>
           <Upload size={16} aria-hidden="true" />

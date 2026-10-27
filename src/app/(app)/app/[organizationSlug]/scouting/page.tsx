@@ -114,7 +114,7 @@ export default async function ScoutingPage({
       <WorkspaceHeader
         eyebrow="Recruitment & development"
         title="Scouting workspace"
-        description="A clear view of your prospects, evidence and next decisions."
+        description="Track prospects, evidence and next steps."
       >
         {kind === 'pipeline' ? (
           <Link className="button-primary" href={`/app/${slug}/athletes/new`}>
@@ -130,7 +130,6 @@ export default async function ScoutingPage({
           {
             label: 'Prospects',
             value: w.athletes.length,
-            detail: 'Across your organization',
             href: '?kind=pipeline',
           },
           {
@@ -145,13 +144,11 @@ export default async function ScoutingPage({
             value: w.records.filter(
               (r) => r.kind === 'task' && !['complete', 'archived'].includes(r.status),
             ).length,
-            detail: 'Next actions to complete',
             href: '?kind=task',
           },
           {
             label: 'Reports in review',
             value: w.records.filter((r) => r.kind === 'report' && r.status === 'in_review').length,
-            detail: 'Awaiting a decision',
             href: '?kind=report&status=in_review',
           },
         ]}
@@ -260,7 +257,7 @@ export default async function ScoutingPage({
         <>
           <SectionHeading
             title="Prospect pipeline"
-            description={`${prospects.length} ${prospects.length === 1 ? 'athlete' : 'athletes'}${hasFilters ? ' match your filters' : ' in your scouting workspace'}. Open a profile to review the full picture.`}
+            description={`${prospects.length} ${prospects.length === 1 ? 'athlete' : 'athletes'}${hasFilters ? ' match your filters' : ' in your scouting workspace'}.`}
           />
           {!prospects.length ? (
             <EmptyState
@@ -300,12 +297,12 @@ export default async function ScoutingPage({
                         <strong>
                           {a.given_name} {a.family_name}
                         </strong>
-                        <small>{p?.primary_position || 'Position to be added'}</small>
+                        {p?.primary_position && <small>{p.primary_position}</small>}
                       </span>
                     </Link>
                     <div className="talent-prospect-club">
-                      <strong>{p?.current_team || 'Club to be added'}</strong>
-                      <small>{p?.competitive_level || 'Level not recorded'}</small>
+                      <strong>{p?.current_team || '—'}</strong>
+                      {p?.competitive_level && <small>{p.competitive_level}</small>}
                     </div>
                     <div>
                       <StatusPill

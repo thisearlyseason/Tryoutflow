@@ -60,7 +60,7 @@ export default async function EvaluatorDirectoryPage({
       <WorkspaceHeader
         eyebrow="People & readiness"
         title="Evaluator team"
-        description="Invite people to your organization, then assign them to a tryout. They score through My scoring."
+        description="Prepare staff and assign scoring sessions."
       >
         <Link
           prefetch={false}
@@ -81,10 +81,7 @@ export default async function EvaluatorDirectoryPage({
       </WorkspaceHeader>
       <section className="card grid gap-3 p-5" aria-labelledby="assign-evaluators-heading">
         <h2 id="assign-evaluators-heading">Assign evaluators to a tryout</h2>
-        <p>
-          Joining the organization does not assign scoring access. Open a tryout below to invite or
-          assign evaluators to its sessions, divisions or groups.
-        </p>
+        <p>Scoring requires a tryout assignment, even for organization staff.</p>
         {events.data?.length ? (
           <ul className="grid gap-2">
             {events.data.map((event) => (

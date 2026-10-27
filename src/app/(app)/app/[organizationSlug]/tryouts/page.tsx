@@ -77,7 +77,7 @@ export default async function TryoutsPage({
         actions={
           <LinkButton href={`/app/${organizationSlug}/tryouts/new`}>Create tryout</LinkButton>
         }
-        description="Create, publish, operate, and close each evaluation cycle from one durable workspace."
+        description="Set up events, run tryout day and review results."
         eyebrow="Operations"
         title="Tryouts"
       />

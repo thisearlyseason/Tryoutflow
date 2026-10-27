@@ -101,7 +101,7 @@ export function PlanCard({
         <span className="text-[var(--color-text-muted)]">CAD / month</span>
       </p>
       <p className="mt-2 flex-1 text-sm text-[var(--color-text-muted)]">
-        Provider confirmation updates access after the verified webhook is processed.
+        Access updates after your payment is confirmed.
       </p>
       <ManagedBillingCountryField
         label={`Billing country for ${plan.name}`}

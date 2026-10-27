@@ -13,10 +13,10 @@
   background: var(--color-surface);
 }
 .app-frame {
-  --color-canvas: #f3f4ef;
-  --color-border: #e0e3da;
-  --color-primary: #294df2;
-  --color-focus: #294df2;
+  --color-canvas: #f5f7fb;
+  --color-border: #dce3ed;
+  --color-primary: #0057ff;
+  --color-focus: #0057ff;
   --radius-surface: 18px;
   --radius-control: 10px;
   --shadow-surface: 0 2px 4px rgb(14 27 43 / 3%), 0 12px 30px -18px rgb(14 27 43 / 18%);
@@ -62,15 +62,15 @@
     transform 160ms;
 }
 .app-frame .app-nav-link-active {
-  background: #c7f866;
-  color: #142030;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
   box-shadow: none;
 }
 .app-frame .app-nav-link-active:hover {
-  background: #d7ff91;
+  background: var(--color-primary-hover);
 }
 .app-frame .app-nav-link-active .app-nav-icon {
-  color: #142030;
+  color: inherit;
 }
 .app-frame .app-topbar {
   background: var(--color-canvas);
@@ -86,7 +86,7 @@
   margin-bottom: 0.5rem;
 }
 .app-frame .page-header h1 {
-  font-size: clamp(2rem, 3.8vw, 3.15rem);
+  font-size: clamp(1.75rem, 3vw, 2.35rem);
   font-weight: 850;
   letter-spacing: -0.055em;
   line-height: 1.05;
@@ -109,7 +109,7 @@
 }
 .app-frame .metric-card {
   position: relative;
-  min-height: 146px;
+  min-height: 112px;
   border-radius: 16px;
   padding: 1.15rem;
   align-items: flex-start;
@@ -273,24 +273,6 @@
   .app-frame .app-topbar {
     background: color-mix(in srgb, var(--color-canvas) 90%, transparent);
     backdrop-filter: blur(14px);
-  }
-  .app-frame .dashboard-workspace .metric-card:first-child {
-    background: #294df2;
-    color: #fff;
-    border-color: #294df2;
-  }
-  .app-frame
-    .dashboard-workspace
-    .metric-card:first-child
-    :is(.metric-label, .metric-value, .metric-detail) {
-    color: #fff;
-  }
-  .app-frame .dashboard-workspace .metric-card:first-child .metric-icon {
-    background: #203bbd;
-    color: #fff;
-  }
-  .app-frame .dashboard-workspace .metric-card:first-child::after {
-    background: #c7f866;
   }
   .app-frame .tryout-card-grid {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));

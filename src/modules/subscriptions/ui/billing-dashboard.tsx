@@ -407,8 +407,8 @@ export function BillingDashboardPanel({
           </Button>
         </div>
         <p className="mt-5 text-sm text-[var(--color-text-muted)]">
-          Your athletes, evaluations, reports, and historical records stay safe when your plan
-          changes. Manage web invoices and payment details in the billing portal.
+          Your records stay saved when plans change. Manage invoices and payment details in the
+          billing portal.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -421,8 +421,7 @@ export function BillingDashboardPanel({
           <p className="eyebrow">ALL YOUR DEVICES</p>
           <p className="font-bold">One organization. Shared access.</p>
           <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-            Purchases made on the web, iPhone, or Android follow this organization. Restore mobile
-            purchases in the TryOutFlow app.
+            Access follows your organization. Restore App Store or Google Play purchases in the app.
           </p>
         </div>
       </div>
@@ -480,11 +479,16 @@ export function BillingDashboardPanel({
                     {product.interval ? ` / ${product.interval}` : ' once'}
                   </span>
                 </p>
-                <ul className="my-5 space-y-2 text-sm">
-                  {product.features.map((feature) => (
-                    <li key={feature}>✓ {feature}</li>
-                  ))}
-                </ul>
+                {product.features.length ? (
+                  <details className="plan-features">
+                    <summary>Plan features</summary>
+                    <ul className="my-3 space-y-2 text-sm">
+                      {product.features.map((feature) => (
+                        <li key={feature}>✓ {feature}</li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
                 {product.key === 'single_tryout_pro' ? (
                   <label className="mb-4 block">
                     Tryout

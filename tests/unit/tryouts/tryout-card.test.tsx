@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/modules/tryouts/application/duplicate-tryout-action', () => ({
@@ -47,7 +48,7 @@ describe('tryout card', () => {
   });
   it.each(['draft', 'published', 'finalized'] as const)(
     'allows authorized management for a %s tryout',
-    (status) => {
+    async (status) => {
       render(
         <TryoutCard
           baseHref="/app/club/tryouts/source"
@@ -57,6 +58,8 @@ describe('tryout card', () => {
           management={{ organizationSlug: 'club', tryoutId: 'source' }}
         />,
       );
+      expect(screen.getByText('Edit setup')).not.toBeVisible();
+      await userEvent.click(screen.getByText('More actions'));
       expect(screen.getByRole('link', { name: 'Edit setup' })).toHaveAttribute(
         'href',
         '/app/club/tryouts/source/setup/basics',

@@ -20,7 +20,7 @@ export default async function EvaluatorLandingPage({
   return (
     <section aria-labelledby="evaluation-landing-heading" className="grid min-w-0 gap-5">
       <PageHeader
-        description="Choose your assigned session, then an athlete to score. Only your active assignments appear here."
+        description="Open an assigned session to score athletes."
         eyebrow="Evaluator workspace"
         title="My scoring"
         actions={

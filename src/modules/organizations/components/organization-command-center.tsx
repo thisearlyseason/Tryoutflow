@@ -26,10 +26,7 @@ export function OrganizationCommandCenter({
         <div>
           <p className="eyebrow">Your workspace</p>
           <h1>What would you like to do?</h1>
-          <p>
-            Organize a tryout or open your assigned scoring sessions. These are separate tasks, even
-            when you are both an organizer and an evaluator.
-          </p>
+          <p>Manage tryouts, score athletes and review results.</p>
         </div>
         {base ? (
           <LinkButton
@@ -51,17 +48,19 @@ export function OrganizationCommandCenter({
             }
             prefetch={false}
           >
+            <CalendarDays className="workflow-launch-icon" size={22} aria-hidden="true" />
             <strong>
               {activity?.tryouts?.[0]
                 ? `Continue ${activity.tryouts[0].name} →`
                 : 'Organize a tryout →'}
             </strong>
-            <span>Set up sessions, add athletes, assign evaluators and review results.</span>
+            <span>Sessions, athletes and results.</span>
           </Link>
           {canScore ? (
             <Link href={`${base}/evaluate`} prefetch={false}>
+              <ClipboardCheck className="workflow-launch-icon" size={22} aria-hidden="true" />
               <strong>My scoring →</strong>
-              <span>Choose an assigned session and open an athlete’s scorecard.</span>
+              <span>Open your assigned scorecards.</span>
             </Link>
           ) : (
             <Link
@@ -72,16 +71,15 @@ export function OrganizationCommandCenter({
               }
               prefetch={false}
             >
+              <ClipboardCheck className="workflow-launch-icon" size={22} aria-hidden="true" />
               <strong>Set up evaluator assignments →</strong>
-              <span>
-                To score athletes, you also need an evaluator assignment. Being an organizer does
-                not assign you automatically.
-              </span>
+              <span>Scoring requires an evaluator assignment.</span>
             </Link>
           )}
           <Link href={`${base}/athletes`} prefetch={false}>
+            <Users className="workflow-launch-icon" size={22} aria-hidden="true" />
             <strong>Manage athletes →</strong>
-            <span>Add one athlete or import a spreadsheet.</span>
+            <span>Add athletes or import a roster.</span>
           </Link>
         </section>
       ) : null}
@@ -91,33 +89,25 @@ export function OrganizationCommandCenter({
       >
         <Metric
           icon={<Users size={20} />}
-          detail="Active assignments"
           label="Staff ready"
           value={projection.facts.activeStaffCount}
         />
         <Metric
           icon={<CalendarDays size={20} />}
-          detail="Scheduled across your program"
           label="Sessions"
           value={projection.facts.sessionCount}
         />
         <Metric
           icon={<ClipboardCheck size={20} />}
-          detail="Completed scorecards"
           label="Evaluations complete"
           value={projection.facts.completedEvaluationCount}
         />
         <Metric
           icon={<Trophy size={20} />}
-          detail="Confirmed team rosters"
           label="Finalized rosters"
           value={projection.facts.finalizedRosterCount}
         />
       </section>
-      <p className="workspace-note">
-        These are organization totals. Open a tryout’s Run Tryout dashboard to check arrivals,
-        scoring progress and save status.
-      </p>
       {base && activity ? (
         <div className="dashboard-columns">
           <DashboardActivity data={activity} organizationSlug={organizationSlug!} />

@@ -71,12 +71,15 @@ export function TryoutCard({
           </Link>
         ) : null}
         {management && status !== 'unavailable' ? (
-          <>
-            <Link className="button-secondary" href={`${baseHref}/setup/basics`} prefetch={false}>
-              Edit setup
-            </Link>
-            <DuplicateTryoutButton {...management} />
-          </>
+          <details className="tryout-more-actions">
+            <summary>More actions</summary>
+            <div className="workspace-actions">
+              <Link className="button-secondary" href={`${baseHref}/setup/basics`} prefetch={false}>
+                Edit setup
+              </Link>
+              <DuplicateTryoutButton {...management} />
+            </div>
+          </details>
         ) : null}
       </div>
     </article>

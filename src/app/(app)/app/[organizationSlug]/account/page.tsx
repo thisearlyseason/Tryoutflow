@@ -25,7 +25,7 @@ export default async function AccountPage({
     <section aria-labelledby="account-heading" className="grid min-w-0 gap-6">
       <header>
         <p className="eyebrow">Your account</p>
-        <h2 id="account-heading">Account details</h2>
+        <h1 id="account-heading">Account details</h1>
         <p className="mt-2 text-[var(--color-text-muted)]">
           Your identity and access for this organization.
         </p>
@@ -40,9 +40,11 @@ export default async function AccountPage({
           <dd>{describeAppRole(current.authorization)}</dd>
           <dt className="font-semibold">Organization</dt>
           <dd>{current.organization.name}</dd>
-          <dt className="font-semibold">Account ID</dt>
-          <dd className="break-all text-sm text-[var(--color-text-muted)]">{current.userId}</dd>
         </dl>
+        <details className="account-reference mt-5 border-t border-[var(--color-border)] pt-3">
+          <summary>Account reference</summary>
+          <p className="break-all text-sm text-[var(--color-text-muted)]">{current.userId}</p>
+        </details>
       </div>
       <nav aria-label="Account help" className="flex flex-wrap gap-4">
         <Link className="button-secondary" href="/support">
