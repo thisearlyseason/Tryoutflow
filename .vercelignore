@@ -11,3 +11,6 @@ output
 playwright-report
 apps/mobile
 tools/stripe-isolated-activation
+
+# Supabase CLI runtime cache is not application source.
+supabase/.temp
