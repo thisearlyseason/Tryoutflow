@@ -40,3 +40,6 @@ credentials.json
 /apps/mobile/android/app/build/
 /apps/mobile/android/local.properties
 /apps/mobile/ios/**/xcuserdata/
+
+# Generated local provider-catalog cache is not native release source.
+/.projects/
