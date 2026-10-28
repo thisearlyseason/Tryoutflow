@@ -59,10 +59,7 @@ select throws_ok($$select private.reconcile_20260930_invitation_deliveries()$$,'
 select is((select status from public.outbox_jobs where id='1b5e5294-032c-42cc-a059-bf01b2298960'),'dead_letter','earlier repair is rolled back atomically');
 select is((select count(*) from public.audit_logs where action='communication.historical_delivery_reconciled'),0::bigint,'failed repair leaves no partial audit');
 update public.outbox_jobs set attempt_count=1 where id='41c8ef42-2d5d-4c95-bdfc-8eda0079cc3c';
-update public.organization_invitations set expires_at=expires_at+interval '1 second' where id='8489a3a3-7070-4af0-9973-5e7133acee45';
-select throws_ok($$select private.reconcile_20260930_invitation_deliveries()$$,'23514',null,'changed source invitation aborts repair');
-update public.organization_invitations set expires_at=expires_at-interval '1 second' where id='8489a3a3-7070-4af0-9973-5e7133acee45';
-update repair_preserved set invitations=(select jsonb_agg(to_jsonb(t) order by t.id) from public.organization_invitations t);
+select throws_ok($$update public.organization_invitations set expires_at=expires_at+interval '1 second' where id='8489a3a3-7070-4af0-9973-5e7133acee45'$$,'55000',null,'existing source identity remains immutable');
 select is(private.reconcile_20260930_invitation_deliveries(),3,'only three proven historical jobs are repaired');
 select is(private.reconcile_20260930_invitation_deliveries(),0,'repair replay is idempotent');
 select is((select count(*) from public.outbox_jobs where id in(select job_id from repair_targets) and status='cancelled'),2::bigint,'expired rejected sends are closed without retry');
