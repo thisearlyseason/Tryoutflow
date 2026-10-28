@@ -1,8 +1,4 @@
-export default function LiveDashboardLoading() {
-  return (
-    <section aria-busy="true" aria-live="polite">
-      <p className="eyebrow">Operational snapshot</p>
-      <h2>Loading live dashboard…</h2>
-    </section>
-  );
+import { SportLoading } from '@/components/feedback/sport-loading';
+export default function Loading() {
+  return <SportLoading title="Getting you ready for game day." />;
 }

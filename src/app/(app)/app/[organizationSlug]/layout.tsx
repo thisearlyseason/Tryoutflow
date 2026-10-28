@@ -20,28 +20,32 @@ export default async function OrganizationLayout({
   const { organizationSlug } = await params;
   const { organization, authorization, client, userId } =
     await requireOrganizationRouteContext(organizationSlug);
-  const { data: hasScoutingAccess } = await client.rpc('can_use_talent', {
-    p_organization_id: organization.id,
-  });
-  const workspaces = await loadWorkspaceNavigation(client, organization.id);
   const manager = ['owner', 'administrator'].includes(authorization.organizationRole);
   const assignedIds = [...new Set(authorization.assignments.map(({ scope }) => scope.tryoutId))];
-  let events: ReturnType<typeof eventNavigationOptions> = [];
-  // Metadata only; no athlete data. An unavailable picker must not break the workspace.
-  try {
-    if (manager || assignedIds.length) {
-      let query = client
-        .from('tryouts')
-        .select('id,name')
-        .eq('organization_id', organization.id)
-        .order('updated_at', { ascending: false });
-      if (!manager) query = query.in('id', assignedIds);
-      const { data, error } = await query;
-      if (!error && data) events = eventNavigationOptions(authorization, organization.slug, data);
+  const loadEvents = async () => {
+    let events: ReturnType<typeof eventNavigationOptions> = [];
+    // Metadata only; no athlete data. An unavailable picker must not break the workspace.
+    try {
+      if (manager || assignedIds.length) {
+        let query = client
+          .from('tryouts')
+          .select('id,name')
+          .eq('organization_id', organization.id)
+          .order('updated_at', { ascending: false });
+        if (!manager) query = query.in('id', assignedIds);
+        const { data, error } = await query;
+        if (!error && data) events = eventNavigationOptions(authorization, organization.slug, data);
+      }
+    } catch {
+      /* Existing navigation remains available. */
     }
-  } catch {
-    /* Existing navigation remains available. */
-  }
+    return events;
+  };
+  const [{ data: hasScoutingAccess }, workspaces, events] = await Promise.all([
+    client.rpc('can_use_talent', { p_organization_id: organization.id }),
+    loadWorkspaceNavigation(client, organization.id),
+    loadEvents(),
+  ]);
   return (
     <PrivateSessionBoundary userId={userId}>
       <AppShell

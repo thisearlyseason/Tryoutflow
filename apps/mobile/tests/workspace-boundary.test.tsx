@@ -55,6 +55,7 @@ vi.mock('react-native', () => {
   const Box = ({ children }: any) => <div>{children}</div>;
   return {
     View: Box,
+    Image: Box,
     SafeAreaView: Box,
     Text: ({ children, accessibilityRole }: any) => (
       <span role={accessibilityRole}>{children}</span>
@@ -185,7 +186,7 @@ test('network interruption exposes retry and explicit iOS history preserves hard
   // Android can emit another load-start event for its generated network-error page.
   act(() => state.props.onLoadStart());
   expect(screen.getByRole('alert').textContent).toContain('Check your connection');
-  expect(screen.queryByText('Loading your workspace…')).toBeNull();
+  expect(screen.queryByText('Getting your game plan ready.')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Retry workspace' }));
   expect(state.reload).toHaveBeenCalledTimes(1);
   expect(screen.queryByRole('alert')).toBeNull();
@@ -404,4 +405,19 @@ test('returning from SPA billing uses dashboard history and restores full web wr
   fireEvent.click(screen.getByRole('button', { name: 'Return' }));
   expect(state.back).toHaveBeenCalledTimes(1);
   expect(state.props.containerStyle).toEqual({ flex: 1 });
+});
+
+test('branded first-load screen clears on completion and does not cover later navigation', async () => {
+  await act(async () => {
+    render(<Workspace />);
+  });
+  expect(screen.getByText('Getting your game plan ready.')).toBeTruthy();
+  act(() => {
+    state.props.onLoad();
+    state.props.onLoadEnd();
+  });
+  expect(screen.queryByText('Getting your game plan ready.')).toBeNull();
+  act(() => state.props.onLoadStart());
+  expect(screen.queryByText('Getting your game plan ready.')).toBeNull();
+  expect(screen.getByTestId('workspace')).toBeTruthy();
 });

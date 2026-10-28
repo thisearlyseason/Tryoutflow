@@ -1,21 +1,13 @@
 import * as Print from './platform/reports';
 import { useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  BackHandler,
-  Linking,
-  Platform,
-  StyleSheet,
-  StatusBar,
-  Text,
-  View,
-} from 'react-native';
+import { BackHandler, Linking, Platform, StyleSheet, StatusBar, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WebViewMessageEvent } from 'react-native-webview';
 import { v4 as randomUUID } from 'uuid';
 import NativeBilling from './NativeBilling';
 import { Action } from './Action';
+import { SportLoading } from './SportLoading';
 import {
   getWorkspaceSession,
   parseWorkspaceSession,
@@ -44,6 +36,7 @@ export default function Workspace() {
   const [back, setBack] = useState(false);
   const [forward, setForward] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -289,9 +282,10 @@ export default function Workspace() {
       /* Untrusted/invalid bridge input does not execute actions. */
     }
   }
+  const initialLoading = loading && !hasLoaded && !error && !billing;
   return (
-    <SafeAreaView style={styles.safe}>
-      {Platform.OS === 'android' ? <StatusBar barStyle="dark-content" /> : null}
+    <SafeAreaView style={[styles.safe, initialLoading && styles.loadingBackground]}>
+      <StatusBar barStyle={initialLoading ? 'light-content' : 'dark-content'} />
       {billing && session ? (
         <NativeBilling
           key={`${session.user.id}-${requestedSlug}`}
@@ -304,11 +298,6 @@ export default function Workspace() {
           {fileBusy ? (
             <Text accessibilityLiveRegion="polite" style={styles.status}>
               Preparing report for sharing…
-            </Text>
-          ) : null}
-          {loading && !error ? (
-            <Text accessibilityLiveRegion="polite" style={styles.status}>
-              Loading your workspace…
             </Text>
           ) : null}
           {error ? (
@@ -392,6 +381,7 @@ export default function Workspace() {
           setLoading(true);
           // Android may start its internal error page after onError. Keep retry visible.
         }}
+        onLoad={() => setHasLoaded(true)}
         onLoadEnd={() => setLoading(false)}
         onFileDownload={(event) => {
           const url = event.nativeEvent.downloadUrl;
@@ -413,16 +403,38 @@ export default function Workspace() {
             setError('Workspace is temporarily unavailable. Please retry.');
           }
         }}
-        renderLoading={() => <ActivityIndicator accessibilityLabel="Loading workspace" />}
         renderError={() => <View />}
       />
+      {initialLoading ? (
+        <View style={styles.loadingOverlay}>
+          <SportLoading />
+        </View>
+      ) : null}
+      {loading && hasLoaded && !error && !billing ? (
+        <View
+          pointerEvents="none"
+          style={styles.navigationProgress}
+          accessibilityLabel="Getting your game plan ready."
+          accessibilityLiveRegion="polite"
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f5f7fb' },
+  loadingBackground: { backgroundColor: '#0c1e30' },
   web: { flex: 1 },
   // WebView has its own flex wrapper: collapse the wrapper, not only the inner native view.
   hidden: { flex: 0, height: 0, maxHeight: 0, overflow: 'hidden' },
+  loadingOverlay: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  navigationProgress: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#0057ff',
+  },
   status: { padding: 12, gap: 8, color: '#101d32' },
 });

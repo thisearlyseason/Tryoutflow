@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '../../../infrastructure/supabase/database.types';
@@ -76,7 +77,8 @@ function serverGateway(client: SupabaseClient<Database>): OrganizationRouteConte
 }
 
 /** Loads only shell-safe organization fields plus live membership and assignment authority. */
-export async function requireOrganizationRouteContext(slug: string) {
+// Deduplicate layout/page reads only within one server render; never cache authority across requests.
+export const requireOrganizationRouteContext = cache(async (slug: string) => {
   const client = await createServerSupabaseClient();
   const {
     data: { user },
@@ -94,4 +96,4 @@ export async function requireOrganizationRouteContext(slug: string) {
     },
     client,
   };
-}
+});
