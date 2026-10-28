@@ -1,8 +1,9 @@
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { verifyRelease } from './current-release-dependency-audit.mjs';
+import { backportManifest, verifyDeepmergeBackport } from './native-deepmerge-backport.mjs';
 
 const allowed = ['GHSA-vfj7-8cjw-p6xm', 'GHSA-86w9-cpqp-85rv'];
 const stable = (value) =>
@@ -140,6 +141,10 @@ export function verifyNativeAuditReport(audit, lock) {
 
 export function verifyNativeReleaseAudit(root, audit, lock, pins, record) {
   if (verifyNativeAuditReport(audit, lock)) return 'clean';
+  if (audit.vulnerabilities.deepmerge) {
+    verifyDeepmergeBackport(root, audit, lock);
+    return 'verified-security-backport';
+  }
   // No changed source, finding, package, version or approval can inherit this exception.
   verifyRelease(root, record);
   verifyNativeAudit(audit, lock, pins);
@@ -151,6 +156,7 @@ if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
     if (process.argv.length !== 2) throw new Error('No override flags are supported.');
     const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
     const json = (path) => JSON.parse(readFileSync(resolve(root, path)));
+    rmSync(resolve(root, '.next/release-audit/native-backport.json'), { force: true });
     const result = spawnSync(
       'corepack',
       ['npm@11.12.1', 'audit', '--prefix', 'apps/mobile', '--json'],
@@ -179,11 +185,36 @@ if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
       clean ? undefined : json('docs/security/current-release-native-audit-pins.json'),
       clean ? undefined : json('docs/security/current-release-audit-binding.json'),
     );
-    console.log(
-      outcome === 'clean'
-        ? 'Native full registry audit: zero findings. No advisory exception used. This is not payment/store/device acceptance.'
-        : 'KNOWN HIGH NATIVE TOOL ADVISORIES ACCEPTED FOR THIS EXACT RELEASE ONLY: GHSA-vfj7-8cjw-p6xm and GHSA-86w9-cpqp-85rv; 17 pinned paths. Tooling risk remains. This is not an audit-clean or payment/store-readiness result.',
-    );
+    if (outcome === 'verified-security-backport') {
+      const manifest = backportManifest();
+      writeFileSync(
+        resolve(root, '.next/release-audit/native-backport.json'),
+        JSON.stringify(
+          {
+            outcome,
+            registryFindings: audit.metadata.vulnerabilities,
+            advisory: 'GHSA-gcqx-w48m-w2h4',
+            approval: manifest.approval,
+            verifiedFiles: manifest.files.map(({ path, patchedSha256 }) => ({
+              path,
+              sha256: patchedSha256,
+            })),
+            behaviorChecks: 18,
+          },
+          null,
+          2,
+        ),
+      );
+      console.log(
+        'Native source security backport verified: GHSA-gcqx-w48m-w2h4; all four registry findings remain reported. Exact installed hashes and 18 attack/compatibility checks passed. This is not a clean registry audit or payment/store/device acceptance.',
+      );
+    } else {
+      console.log(
+        outcome === 'clean'
+          ? 'Native full registry audit: zero findings. No advisory exception used. This is not payment/store/device acceptance.'
+          : 'KNOWN HIGH NATIVE TOOL ADVISORIES ACCEPTED FOR THIS EXACT RELEASE ONLY: GHSA-vfj7-8cjw-p6xm and GHSA-86w9-cpqp-85rv; 17 pinned paths. Tooling risk remains. This is not an audit-clean or payment/store-readiness result.',
+      );
+    }
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

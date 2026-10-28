@@ -1,0 +1,112 @@
+{
+  "package": "deepmerge",
+  "version": "4.3.1",
+  "registryIntegrity": "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A==",
+  "files": [
+    {
+      "path": "index.js",
+      "originalSha256": "12440c84957c1990ea2d5e33dc0091722dc1dc1585c6d20e0c780e568ffa9d30",
+      "patchedSha256": "7620e9ae9d35a34ad68c381086803915a37dbdc7701744983354c2f64d0c4d64",
+      "snapshot": "upstream/index.js.snapshot"
+    },
+    {
+      "path": "dist/cjs.js",
+      "originalSha256": "2e5160f84a1141bd927264afe4d15766f1e6cf07daef182b37ff53fea121de7d",
+      "patchedSha256": "ba17064616d9b1f0e7cb7c2ea33d2a457025299d247f746ac89e721c0cf97ecc",
+      "snapshot": "upstream/dist_cjs.js.snapshot"
+    },
+    {
+      "path": "dist/umd.js",
+      "originalSha256": "f33e6596482d1fb5c7c427f8ef92f2aa849eea9223acd974176b2fb27ddbf73a",
+      "patchedSha256": "2d71dbf5b9dd3b2b2e0559cd63660d1d6b61aac6b1d53e232914ae1bc9fb2723",
+      "snapshot": "upstream/dist_umd.js.snapshot"
+    }
+  ],
+  "packageJsonSha256": "f56978e7a6da1a3c6edee41abb54f98584a2fa2680458c48db820ae772fef0c9",
+  "consumerSha256": "bc703806b6df3555a114ba9ff1cb2b9f00670883da0557d0b68d9591edebdff8",
+  "lockedPackages": {
+    "deepmerge": {
+      "version": "4.3.1",
+      "resolved": "https://registry.npmjs.org/deepmerge/-/deepmerge-4.3.1.tgz",
+      "integrity": "sha512-3sUqbMEc77XqpdNO7FRyRog+eW3ph+GYCbj+rK+uYyRMuwsVy0rMiVtPn+QJlKFvWP/1PYpapqYn0Me2knFn+A=="
+    },
+    "@react-native-community/cli": {
+      "version": "20.2.0",
+      "resolved": "https://registry.npmjs.org/@react-native-community/cli/-/cli-20.2.0.tgz",
+      "integrity": "sha512-5RZKkBeUFC4hhrzySzxWmRJwXBTc2PE3L6QUgvnJk3QDxNYMY7aGuI8Gr9eZRS1DbiY10IPWqpJfqSIplzVG6A=="
+    },
+    "@react-native-community/cli-config": {
+      "version": "20.2.0",
+      "resolved": "https://registry.npmjs.org/@react-native-community/cli-config/-/cli-config-20.2.0.tgz",
+      "integrity": "sha512-GF5FxgDfOSLPi/bSiE/xvOGELwzV2GLQnDED+7ArbPi01W1Vu+hD/m+J+bwX34Pocpo767eXAVxc2h9WFUTUfQ=="
+    },
+    "@react-native-community/cli-doctor": {
+      "version": "20.2.0",
+      "resolved": "https://registry.npmjs.org/@react-native-community/cli-doctor/-/cli-doctor-20.2.0.tgz",
+      "integrity": "sha512-eZjlwmjPoBXgyD6nV5oDDocL1VH5UW4LxZcMAqyN3rQw5vq3CeJikFpNedKTtSl3P6JizIkInyIHpfrW+9qfJA=="
+    }
+  },
+  "registryCounts": {
+    "info": 0,
+    "low": 4,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 4
+  },
+  "findings": {
+    "@react-native-community/cli": {
+      "name": "@react-native-community/cli",
+      "severity": "low",
+      "range": ">=11.0.0-alpha.0",
+      "nodes": ["node_modules/@react-native-community/cli"],
+      "via": [
+        "@react-native-community/cli-config",
+        "@react-native-community/cli-doctor",
+        "deepmerge"
+      ]
+    },
+    "@react-native-community/cli-config": {
+      "name": "@react-native-community/cli-config",
+      "severity": "low",
+      "range": ">=11.0.0-alpha.0",
+      "nodes": ["node_modules/@react-native-community/cli-config"],
+      "via": ["deepmerge"]
+    },
+    "@react-native-community/cli-doctor": {
+      "name": "@react-native-community/cli-doctor",
+      "severity": "low",
+      "range": ">=11.0.0-alpha.0",
+      "nodes": ["node_modules/@react-native-community/cli-doctor"],
+      "via": ["@react-native-community/cli-config", "deepmerge"]
+    },
+    "deepmerge": {
+      "name": "deepmerge",
+      "severity": "low",
+      "range": ">=4.2.0",
+      "nodes": ["node_modules/deepmerge"],
+      "via": [
+        {
+          "source": 1243505,
+          "name": "deepmerge",
+          "dependency": "deepmerge",
+          "title": "deepmerge mergeObject() allows prototype poisoning of returned objects",
+          "url": "https://github.com/advisories/GHSA-gcqx-w48m-w2h4",
+          "severity": "low",
+          "cwe": ["CWE-1321"],
+          "cvss": {
+            "score": 5.3,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"
+          },
+          "range": ">=4.2.0 <=4.3.1"
+        }
+      ]
+    }
+  },
+  "approval": {
+    "date": "2026-10-27",
+    "timezone": "America/Edmonton",
+    "decision": "Approve the verified backport path",
+    "scope": "Only GHSA-gcqx-w48m-w2h4 on the pinned deepmerge/React Native CLI paths; report actual registry findings and fail on drift."
+  }
+}

@@ -58,7 +58,7 @@ test('a complete zero-finding report passes without consulting an exception or i
     'clean',
   );
 });
-test('changed source can pass only a genuinely clean report, not inherit the old exception', () =>
+test('changed source cannot inherit the old exception; a clean report remains independent', () =>
   fixture((root, record) => {
     assert.equal(
       verifyNativeReleaseAudit(root, oldAudit, reviewedLock, pins, record),
@@ -194,6 +194,7 @@ for (const [exitCode, expected] of [
         mkdirSync(join(root, dir), { recursive: true });
       for (const relative of [
         'current-release-native-audit.mjs',
+        'native-deepmerge-backport.mjs',
         'current-release-dependency-audit.mjs',
         'lib/verify-lint-compatibility.mjs',
       ]) {

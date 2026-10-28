@@ -15,3 +15,4 @@ apps/mobile/android/app/build/
 # Local-only research evidence and rebuildable output are not release source.
 /evidence/
 /output/
+/work/

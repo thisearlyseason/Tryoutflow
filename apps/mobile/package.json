@@ -30,6 +30,7 @@
   },
   "main": "index.ts",
   "scripts": {
+    "postinstall": "node ../../scripts/native-deepmerge-backport.mjs",
     "start": "react-native start",
     "ios": "react-native run-ios",
     "android": "react-native run-android",
