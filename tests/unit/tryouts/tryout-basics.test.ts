@@ -10,8 +10,9 @@ describe('tryout basics presentation', () => {
     expect(toDateTimeLocalValue('2026-09-10T15:00:00.000Z', 'America/Edmonton')).toBe(
       '2026-09-10T09:00',
     );
-    expect(toDateTimeLocalValue('2026-12-10T15:00:00.000Z', 'America/Edmonton')).toBe(
-      '2026-12-10T08:00',
+    // Use an observed winter date rather than assuming future timezone rules.
+    expect(toDateTimeLocalValue('2025-12-10T15:00:00.000Z', 'America/Edmonton')).toBe(
+      '2025-12-10T08:00',
     );
   });
 

@@ -56,6 +56,7 @@ const subscriptionSchema = z.object({
   refunded_at: date.nullable().optional(),
   period_type: z.string().optional(),
   ownership_type: z.string().optional(),
+  product_plan_identifier: z.string().nullable().optional(),
 });
 export const customerSchema = z.object({
   subscriber: z.object({
@@ -108,7 +109,20 @@ export function verifiedNativeSubscription(input: {
   // Reject anonymous aliases, family shares and unrelated restored customers. Never silently transfer an organization.
   if (input.customer.original_app_user_id !== input.userId)
     throw new Error('purchase_account_conflict');
-  const subscription = subscriptionSchema.parse(input.customer.subscriptions[input.productId]);
+  // Google V2 uses subscription:base-plan; V1 keys subscriptions by the store
+  // subscription ID and reports its base plan separately. Verify both parts.
+  const googleProduct =
+    input.provider === 'google' && input.productId.includes(':')
+      ? /^([^:]+):([^:]+)$/.exec(input.productId)
+      : null;
+  if (input.provider === 'google' && input.productId.includes(':') && !googleProduct)
+    throw new Error('purchase_product_conflict');
+  const subscription = subscriptionSchema.parse(
+    input.customer.subscriptions[input.productId] ??
+      (googleProduct?.[1] ? input.customer.subscriptions[googleProduct[1]] : undefined),
+  );
+  if (googleProduct && subscription.product_plan_identifier !== googleProduct[2])
+    throw new Error('purchase_product_conflict');
   const config = billingConfiguration();
   if (
     (subscription.is_sandbox ? 'sandbox' : 'production') !== config.environment ||
