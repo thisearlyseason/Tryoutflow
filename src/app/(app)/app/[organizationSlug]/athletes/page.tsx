@@ -1,5 +1,6 @@
 import { FeedbackButton } from '@/components/ui/button';
 import Link from 'next/link';
+import Form from 'next/form';
 import { notFound, redirect } from 'next/navigation';
 
 import { requireCapability } from '@/modules/organizations/application/require-capability';
@@ -88,13 +89,13 @@ export default async function AthletesPage({
         eyebrow="People"
         title="Athletes"
       />
-      <form className="talent-search">
+      <Form action="" prefetch={false} className="talent-search">
         <label>
           Search athletes
           <input type="search" name="q" defaultValue={query} placeholder="First or last name" />
         </label>
         <FeedbackButton className="button-secondary">Search</FeedbackButton>
-      </form>
+      </Form>
       <div>
         <h2 className="sr-only" id="athletes-heading">
           Athletes

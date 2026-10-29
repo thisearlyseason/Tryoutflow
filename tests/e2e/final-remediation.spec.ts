@@ -604,3 +604,49 @@ test('organization chooser signs out and switches to a different account without
   await page.waitForLoadState('networkidle');
   monitor.assertClean();
 });
+
+test('athlete search filters the current organization without reloading the workspace', async ({
+  page,
+  scenario,
+}) => {
+  const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  const directoryPath = `/app/${scenario.organizationSlug}/athletes`;
+  await page.goto(directoryPath);
+  await expect(page.getByRole('link', { name: 'Exact Aggregate', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Tie Alpha', exact: true })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  const documentRequests: string[] = [];
+  const recordDocumentRequest = (request: import('@playwright/test').Request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+      documentRequests.push(request.url());
+    }
+  };
+  page.on('request', recordDocumentRequest);
+  await page.getByRole('searchbox', { name: 'Search athletes', exact: true }).fill('Exact');
+  expectCancellableNextRscRequest(
+    monitor,
+    new URL(`${directoryPath}?q=Exact`, page.url()).toString(),
+    'athlete search page navigation',
+  );
+  const searchResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname === directoryPath &&
+      url.searchParams.get('q') === 'Exact' &&
+      response.request().method() === 'GET' &&
+      response.request().headers().rsc === '1'
+    );
+  });
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  const response = await searchResponse;
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('text/x-component');
+  await expect(page).toHaveURL(new RegExp(`${directoryPath}\\?q=Exact$`, 'u'));
+  await expect(page.getByRole('link', { name: 'Exact Aggregate', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Tie Alpha', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  expect(documentRequests).toEqual([]);
+  page.off('request', recordDocumentRequest);
+  monitor.assertClean();
+});
