@@ -84,8 +84,8 @@ android {
         applicationId "agency.tryout.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 21
-        versionName "1.0.3"
+        versionCode 22
+        versionName "1.0.4"
         testInstrumentationRunner "agency.tryout.mobile.PlatformSmokeInstrumentation"
     }
     testBuildType "release"

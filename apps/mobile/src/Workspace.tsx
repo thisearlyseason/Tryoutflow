@@ -1,6 +1,15 @@
 import * as Print from './platform/reports';
 import { useEffect, useRef, useState } from 'react';
-import { BackHandler, Linking, Platform, StyleSheet, StatusBar, Text, View } from 'react-native';
+import {
+  BackHandler,
+  Image,
+  Linking,
+  Platform,
+  StyleSheet,
+  StatusBar,
+  Text,
+  View,
+} from 'react-native';
 import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WebViewMessageEvent } from 'react-native-webview';
@@ -39,6 +48,7 @@ export default function Workspace() {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [fileBusy, setFileBusy] = useState(false);
   const [error, setError] = useState('');
+  const [loadFailed, setLoadFailed] = useState(false);
   useEffect(() => {
     let active = true;
     const cleanup = cleanupTemporaryReports(FileSystem);
@@ -284,8 +294,8 @@ export default function Workspace() {
   }
   const initialLoading = loading && !hasLoaded && !error && !billing;
   return (
-    <SafeAreaView style={[styles.safe, initialLoading && styles.loadingBackground]}>
-      <StatusBar barStyle={initialLoading ? 'light-content' : 'dark-content'} />
+    <SafeAreaView style={[styles.safe, (initialLoading || loadFailed) && styles.loadingBackground]}>
+      <StatusBar barStyle={initialLoading || loadFailed ? 'light-content' : 'dark-content'} />
       {billing && session ? (
         <NativeBilling
           key={`${session.user.id}-${requestedSlug}`}
@@ -301,12 +311,28 @@ export default function Workspace() {
             </Text>
           ) : null}
           {error ? (
-            <View style={styles.status}>
-              <Text accessibilityRole="alert">{error}</Text>
+            <View style={loadFailed ? styles.recovery : styles.status}>
+              {loadFailed ? (
+                <>
+                  <Image
+                    source={require('../assets/brand-mark.png')}
+                    style={styles.recoveryLogo}
+                    accessibilityLabel="TryoutFlow"
+                  />
+                  <Text style={styles.recoveryTitle}>Back in the game soon.</Text>
+                </>
+              ) : null}
+              <Text
+                accessibilityRole="alert"
+                style={loadFailed ? styles.recoveryMessage : undefined}
+              >
+                {error}
+              </Text>
               <Action
                 title="Retry workspace"
                 onPress={() => {
                   setError('');
+                  setLoadFailed(false);
                   view.current?.reload();
                 }}
               />
@@ -323,7 +349,7 @@ export default function Workspace() {
       <WebView
         ref={view}
         style={styles.web}
-        containerStyle={billing ? styles.hidden : styles.web}
+        containerStyle={billing || loadFailed ? styles.hidden : styles.web}
         source={{ uri: sourceUri }}
         originWhitelist={['*']}
         javaScriptEnabled
@@ -392,6 +418,7 @@ export default function Workspace() {
           else setError('This file cannot be downloaded inside the app.');
         }}
         onError={() => {
+          setLoadFailed(true);
           setLoading(false);
           setError(
             'Workspace could not load. Check your connection and retry. Your saved evaluations are not deleted.',
@@ -399,6 +426,7 @@ export default function Workspace() {
         }}
         onHttpError={(event) => {
           if (event.nativeEvent.statusCode >= 400) {
+            setLoadFailed(true);
             setLoading(false);
             setError('Workspace is temporarily unavailable. Please retry.');
           }
@@ -436,5 +464,15 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: '#0057ff',
   },
+  recovery: { flex: 1, padding: 28, gap: 22, justifyContent: 'center', backgroundColor: '#0c1e30' },
+  recoveryLogo: {
+    width: 88,
+    height: 88,
+    resizeMode: 'contain',
+    alignSelf: 'center',
+    tintColor: '#fff',
+  },
+  recoveryTitle: { color: '#fff', fontSize: 28, fontWeight: '800', textAlign: 'center' },
+  recoveryMessage: { color: '#dce8f5', fontSize: 16, lineHeight: 24, textAlign: 'center' },
   status: { padding: 12, gap: 8, color: '#101d32' },
 });

@@ -2,7 +2,7 @@ const config = {
   name: 'TryOutFlow',
   slug: 'tryoutflow',
   owner: 'thisearlyseason',
-  version: '1.0.3',
+  version: '1.0.4',
   scheme: 'tryoutflow',
   icon: './assets/icon.png',
   orientation: 'default',
@@ -18,7 +18,7 @@ const config = {
     },
   },
   android: {
-    versionCode: 21,
+    versionCode: 22,
     package: process.env.TRYOUTFLOW_ANDROID_PACKAGE ?? 'agency.tryout.mobile',
     adaptiveIcon: {
       foregroundImage: './assets/adaptive-icon.png',

@@ -186,9 +186,18 @@ test('network interruption exposes retry and explicit iOS history preserves hard
   // Android can emit another load-start event for its generated network-error page.
   act(() => state.props.onLoadStart());
   expect(screen.getByRole('alert').textContent).toContain('Check your connection');
+  expect(screen.getByText('Back in the game soon.')).toBeTruthy();
+  expect(state.props.containerStyle).toMatchObject({ flex: 0, height: 0 });
+  act(() => {
+    state.props.onLoad();
+    state.props.onLoadEnd();
+  });
+  expect(state.props.containerStyle).toMatchObject({ flex: 0, height: 0 });
   expect(screen.queryByText('Getting your game plan ready.')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Retry workspace' }));
   expect(state.reload).toHaveBeenCalledTimes(1);
+  expect(state.props.containerStyle).toEqual({ flex: 1 });
+  expect(screen.queryByText('Back in the game soon.')).toBeNull();
   expect(screen.queryByRole('alert')).toBeNull();
   act(() => {
     state.props.onNavigationStateChange({
@@ -420,4 +429,25 @@ test('branded first-load screen clears on completion and does not cover later na
   act(() => state.props.onLoadStart());
   expect(screen.queryByText('Getting your game plan ready.')).toBeNull();
   expect(screen.getByTestId('workspace')).toBeTruthy();
+});
+
+test('HTTP failure hides the failed page until retry while blocked links keep the workspace visible', async () => {
+  await act(async () => {
+    render(<Workspace />);
+  });
+  act(() => state.props.onLoadEnd());
+  act(() =>
+    state.props.onShouldStartLoadWithRequest({
+      url: 'https://untrusted.invalid',
+      isTopFrame: true,
+    }),
+  );
+  expect(state.props.containerStyle).toEqual({ flex: 1 });
+  expect(screen.queryByText('Back in the game soon.')).toBeNull();
+  act(() => state.props.onHttpError({ nativeEvent: { statusCode: 503 } }));
+  expect(state.props.containerStyle).toMatchObject({ height: 0 });
+  expect(screen.getByText('Back in the game soon.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry workspace' }));
+  expect(state.reload).toHaveBeenCalledTimes(1);
+  expect(state.props.containerStyle).toEqual({ flex: 1 });
 });
