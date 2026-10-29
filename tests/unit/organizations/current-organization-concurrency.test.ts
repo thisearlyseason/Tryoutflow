@@ -16,7 +16,7 @@ vi.mock('@/infrastructure/supabase/server', () => ({
 }));
 vi.mock('@/modules/organizations/infrastructure/membership-repository', () => ({
   SupabaseMembershipRepository: class {
-    findAuthorizationContext = m.authorize;
+    findOrganizationContext = m.authorize;
   },
 }));
 vi.mock('next/navigation', () => ({
@@ -37,7 +37,7 @@ const metadata = {
   data: [{ logo_exists: true, sha256: 'a'.repeat(64), updated_at: '2026-10-29T12:00:00Z' }],
   error: null,
 };
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetAllMocks();
   m.getUser.mockResolvedValue({ data: { user: { id: user } }, error: null });
   m.from.mockReturnValue({ select: () => ({ eq: () => ({ maybeSingle: m.organization }) }) });
@@ -53,12 +53,12 @@ beforeEach(() => {
     },
     error: null,
   });
-  m.authorize.mockResolvedValue(authorization);
+  m.authorize.mockResolvedValue({ organization: (await m.organization()).data, authorization });
   m.rpc.mockResolvedValue(metadata);
 });
-it('loads branding alongside authority but waits for authority before exposing the organization', async () => {
-  let authorize!: (value: unknown) => void,
-    completed = false;
+it('waits for fresh joined authority and skips unused branding on normal pages', async () => {
+  let authorize!: (value: unknown) => void;
+  let completed = false;
   m.authorize.mockReturnValue(
     new Promise((resolve) => {
       authorize = resolve;
@@ -69,21 +69,30 @@ it('loads branding alongside authority but waits for authority before exposing t
     return value;
   });
   await vi.waitFor(() => expect(m.authorize).toHaveBeenCalledOnce());
-  expect(m.rpc).toHaveBeenCalledWith('get_organization_logo_metadata', { p_organization_id: org });
+  expect(m.rpc).not.toHaveBeenCalled();
   expect(completed).toBe(false);
-  authorize(authorization);
-  expect((await pending).organization.logoUrl).toContain('/api/organizations/fictional-qa/logo?v=');
+  authorize({ organization: (await m.organization()).data, authorization });
+  expect((await pending).organization.logoUrl).toBeUndefined();
+});
+it('loads branding only when explicitly needed by the logo settings page', async () => {
+  const result = await requireCurrentOrganization('fictional-qa', { includeBranding: true });
+  expect(result.organization.logoUrl).toContain('/api/organizations/fictional-qa/logo?v=');
+  expect(m.rpc).toHaveBeenCalledExactlyOnceWith('get_organization_logo_metadata', {
+    p_organization_id: org,
+  });
 });
 it.each([null, { ...authorization, organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }])(
   'never exposes already-loaded branding when authority is denied or belongs to another tenant',
   async (value) => {
-    m.authorize.mockResolvedValue(value);
+    m.authorize.mockResolvedValue(
+      value === null ? null : { organization: (await m.organization()).data, authorization: value },
+    );
     await expect(requireCurrentOrganization('fictional-qa')).rejects.toThrow('not_found');
   },
 );
 it('still renders an authorized workspace if optional branding is unavailable', async () => {
   m.rpc.mockRejectedValue(new Error('metadata unavailable'));
-  const result = await requireCurrentOrganization('fictional-qa');
+  const result = await requireCurrentOrganization('fictional-qa', { includeBranding: true });
   expect(result.authorization).toEqual(authorization);
   expect(result.organization.logoUrl).toBeUndefined();
 });

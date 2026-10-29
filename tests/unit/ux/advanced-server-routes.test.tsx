@@ -173,9 +173,9 @@ describe('actual advanced server page presentation with read-only fictional back
     expect(
       state.calls.some(
         (call) =>
-          call.table === 'organization_members' &&
+          ((call.table === 'organization_members' && call.args[0] === 'user_id') ||
+            (call.table === 'organizations' && call.args[0] === 'members.user_id')) &&
           call.operation === 'eq' &&
-          call.args[0] === 'user_id' &&
           call.args[1] === ids.user,
       ),
     ).toBe(true);

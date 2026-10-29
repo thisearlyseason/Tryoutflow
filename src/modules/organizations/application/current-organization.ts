@@ -52,48 +52,43 @@ export async function loadOrganizationLogoUrl(
 }
 
 /** Resolves direct organization routes from current server session and database membership, never URL trust. */
-export async function requireCurrentOrganization(slug: string) {
+export async function requireCurrentOrganization(
+  slug: string,
+  options: { includeBranding?: boolean } = {},
+) {
   const client = await createServerSupabaseClient();
   const {
     data: { user },
   } = await client.auth.getUser();
   if (!user) notFound();
-  const organizationResult = await client
-    .from('organizations')
-    .select('id, name, slug, timezone, terminology, sport_defaults, tag_defaults')
-    .eq('slug', slug)
-    .maybeSingle();
-  if (organizationResult.error || !organizationResult.data) notFound();
-  const organizationId = parseOrganizationId(organizationResult.data.id);
-  // Branding metadata has its own live membership check and is never
-  // returned unless the independent authorization below succeeds.
-  const [authorization, logoUrl] = await Promise.all([
-    new SupabaseMembershipRepository(client).findAuthorizationContext(
-      parseUserId(user.id),
-      organizationId,
-    ),
-    loadOrganizationLogoUrl(client, {
-      id: organizationId,
-      slug: organizationResult.data.slug,
-    }),
-  ]);
+  const context = await new SupabaseMembershipRepository(client).findOrganizationContext(
+    parseUserId(user.id),
+    slug,
+  );
+  if (!context) notFound();
+  const { organization, authorization } = context;
+  const organizationId = parseOrganizationId(organization.id);
   if (
     !authorization ||
     !requireCapability(authorization, 'organization:read', { organizationId }).ok
   )
     notFound();
+  // The layout loads its own branding. Only logo settings need it again.
+  const logoUrl = options.includeBranding
+    ? await loadOrganizationLogoUrl(client, { id: organizationId, slug: organization.slug })
+    : undefined;
   return {
     client,
     userId: parseUserId(user.id),
     authorization,
     organization: {
       id: organizationId,
-      name: organizationResult.data.name,
-      slug: organizationResult.data.slug,
-      timezone: organizationResult.data.timezone,
-      terminology: stringRecord(organizationResult.data.terminology),
-      sportDefaults: strings(organizationResult.data.sport_defaults),
-      tagDefaults: strings(organizationResult.data.tag_defaults),
+      name: organization.name,
+      slug: organization.slug,
+      timezone: organization.timezone,
+      terminology: stringRecord(organization.terminology),
+      sportDefaults: strings(organization.sport_defaults),
+      tagDefaults: strings(organization.tag_defaults),
       ...(logoUrl ? { logoUrl } : {}),
     },
   };

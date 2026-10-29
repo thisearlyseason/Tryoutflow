@@ -40,12 +40,28 @@ export function readOnlyFictionalClient(state: FixtureState) {
       let rows = [...(state.tables[table] ?? [])];
       let singular = false;
       let selected = '*';
+      const embeddedFilters: { relation: string; key: string; value: unknown }[] = [];
       const project = (row: Record<string, unknown>) => {
+        if (table === 'organizations' && selected.includes('members:organization_members(')) {
+          const related = (relation: string, relatedTable: string) =>
+            (state.tables[relatedTable] ?? []).filter(
+              (record) =>
+                record.organization_id === row.id &&
+                embeddedFilters
+                  .filter((filter) => filter.relation === relation)
+                  .every((filter) => (record[filter.key] ?? null) === filter.value),
+            );
+          row = {
+            ...row,
+            members: related('members', 'organization_members'),
+            assignments: related('assignments', 'tryout_staff_assignments'),
+          };
+        }
         if (selected === '*' || selected.includes('*,') || selected.includes(',*')) return row;
         const columns = selected.split(/,(?![^()]*\))/);
         return Object.fromEntries(
           columns.flatMap((column) => {
-            const key = column.trim().split('(')[0]!.split('!')[0]!;
+            const key = column.trim().split('(')[0]!.split('!')[0]!.split(':')[0]!;
             return Object.hasOwn(row, key) ? [[key, row[key]]] : [];
           }),
         );
@@ -79,6 +95,11 @@ export function readOnlyFictionalClient(state: FixtureState) {
           return (...args: unknown[]) => {
             state.calls.push({ table, operation, args });
             if (operation === 'select') selected = String(args[0] ?? '*');
+            if (['eq', 'is'].includes(operation) && String(args[0]).includes('.')) {
+              const [relation, key] = String(args[0]).split('.');
+              embeddedFilters.push({ relation: relation!, key: key!, value: args[1] });
+              return query;
+            }
             if (operation === 'eq') rows = rows.filter((row) => row[String(args[0])] === args[1]);
             if (operation === 'neq') rows = rows.filter((row) => row[String(args[0])] !== args[1]);
             if (operation === 'is')

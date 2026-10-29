@@ -83,26 +83,32 @@ function authFormRequest(path: string, fields: Record<string, string>) {
 type PreflightQuery = {
   select(columns: string): PreflightQuery;
   eq(column: string, value: string): PreflightQuery;
-  maybeSingle(): Promise<{ data: Record<string, string> | null; error: null }>;
-  is(column: string, value: null): Promise<{ data: never[]; error: null }>;
+  is(column: string, value: null): PreflightQuery;
+  maybeSingle(): Promise<{ data: Record<string, unknown> | null; error: null }>;
 };
 
 function authorizedOrganizationLookup(userId: string) {
   const organizationId = '11111111-1111-4111-8111-111111111111';
   return vi.fn((table: string) => {
-    if (!['organizations', 'organization_members', 'tryout_staff_assignments'].includes(table))
-      throw new Error(`Unexpected preflight table: ${table}`);
-    const data: Record<string, string> | null =
-      table === 'organizations'
-        ? { id: organizationId }
-        : table === 'organization_members'
-          ? { organization_id: organizationId, user_id: userId, role: 'owner', status: 'active' }
-          : null;
+    if (table !== 'organizations') throw new Error(`Unexpected preflight table: ${table}`);
+    const data = {
+      id: organizationId,
+      name: 'Fictional organization',
+      slug: 'team',
+      timezone: 'UTC',
+      terminology: {},
+      sport_defaults: [],
+      tag_defaults: [],
+      members: [
+        { organization_id: organizationId, user_id: userId, role: 'owner', status: 'active' },
+      ],
+      assignments: [],
+    };
     const query: PreflightQuery = {
       select: vi.fn(() => query),
       eq: vi.fn(() => query),
+      is: vi.fn(() => query),
       maybeSingle: vi.fn(async () => ({ data, error: null })),
-      is: vi.fn(async () => ({ data: [], error: null })),
     };
     return query;
   });
@@ -272,11 +278,11 @@ describe('authentication session boundaries', () => {
     expect(response.cookies.get('sb-refresh')?.value).toBe('refresh-value');
     expect(response.headers.get('set-cookie')).toContain('sb-first=first-value');
     expect(response.headers.get('set-cookie')).toContain('sb-refresh=refresh-value');
-    expect(from.mock.calls.map(([table]) => table)).toEqual([
-      'organizations',
-      'organization_members',
-      'tryout_staff_assignments',
-    ]);
+    expect(from.mock.calls.map(([table]) => table)).toEqual(['organizations']);
+    const query = from.mock.results[0]!.value;
+    expect(query.eq).toHaveBeenCalledWith('members.user_id', userId);
+    expect(query.eq).toHaveBeenCalledWith('assignments.user_id', userId);
+    expect(query.is).toHaveBeenCalledWith('assignments.revoked_at', null);
   });
 
   it('offers a recovery state when an invitation token is invalid', async () => {

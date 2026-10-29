@@ -23,16 +23,16 @@ export default async function AthletesPage({
     Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pageSize = 50;
   const current = await requireCurrentOrganization(organizationSlug);
-  const talent = await current.client.rpc('can_use_talent', {
-    p_organization_id: current.organization.id,
-  });
   if (
-    !talent.data &&
     !requireCapability(current.authorization, 'athlete:read', {
       organizationId: current.organization.id,
     }).ok
-  )
-    notFound();
+  ) {
+    const talent = await current.client.rpc('can_use_talent', {
+      p_organization_id: current.organization.id,
+    });
+    if (!talent.data) notFound();
+  }
   const search = query.replace(/[^\p{L}\p{N}\s'-]/gu, ' ').trim();
   let directory = current.client
     .from('athletes')

@@ -44,7 +44,7 @@ export default async function SettingsPage({
 }) {
   const { organizationSlug } = await params;
   const search = await searchParams;
-  const current = await requireCurrentOrganization(organizationSlug);
+  const current = await requireCurrentOrganization(organizationSlug, { includeBranding: true });
   const workspace = await loadWorkspaceNavigation(current.client, current.organization.id);
   const sharedSettings = workspace.parent;
   const defaultsUpgrade = await billingUpgradePrompt(

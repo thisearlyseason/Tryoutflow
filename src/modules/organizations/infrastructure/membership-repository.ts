@@ -31,6 +31,33 @@ type AssignmentRecord = {
   expiresAt: string | null;
 };
 
+type AssignmentRow = Pick<
+  Database['public']['Tables']['tryout_staff_assignments']['Row'],
+  | 'role'
+  | 'scope_kind'
+  | 'tryout_id'
+  | 'division_id'
+  | 'session_id'
+  | 'group_id'
+  | 'athlete_id'
+  | 'revoked_at'
+  | 'expires_at'
+>;
+
+function assignmentRecord(row: AssignmentRow): AssignmentRecord {
+  return {
+    role: row.role,
+    scopeKind: row.scope_kind,
+    tryoutId: row.tryout_id,
+    divisionId: row.division_id,
+    sessionId: row.session_id,
+    groupId: row.group_id,
+    athleteId: row.athlete_id,
+    revokedAt: row.revoked_at,
+    expiresAt: row.expires_at,
+  };
+}
+
 function parseScope(record: AssignmentRecord): StaffScope | null {
   if (!record.tryoutId || !isStaffScopeKind(record.scopeKind)) {
     return null;
@@ -114,6 +141,37 @@ export function buildAuthorizationContext(
 export class SupabaseMembershipRepository {
   constructor(private readonly client: SupabaseClient<Database>) {}
 
+  /** One caller-scoped read; RLS and the existing domain checks still authorize every request. */
+  async findOrganizationContext(userId: UserId, slug: string, now = new Date()) {
+    const { data, error } = await this.client
+      .from('organizations')
+      .select(
+        'id,name,slug,timezone,terminology,sport_defaults,tag_defaults,members:organization_members(organization_id,user_id,role,status),assignments:tryout_staff_assignments(role,scope_kind,tryout_id,division_id,session_id,group_id,athlete_id,revoked_at,expires_at)',
+      )
+      .eq('slug', slug)
+      .eq('members.user_id', userId)
+      .eq('assignments.user_id', userId)
+      .is('assignments.revoked_at', null)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data || data.members.length !== 1) return null;
+    const membership = data.members[0]!;
+    if (membership.user_id !== userId || membership.organization_id !== data.id) return null;
+    const authorization = buildAuthorizationContext(
+      {
+        organizationId: data.id as OrganizationId,
+        userId,
+        role: membership.role,
+        status: membership.status,
+      },
+      data.assignments.map(assignmentRecord),
+      now,
+    );
+    if (!authorization) return null;
+    const { members: _members, assignments: _assignments, ...organization } = data;
+    return { organization, authorization };
+  }
+
   async findAuthorizationContext(
     userId: UserId,
     organizationId: OrganizationId,
@@ -157,17 +215,7 @@ export class SupabaseMembershipRepository {
         role: membershipResult.data.role,
         status: membershipResult.data.status,
       },
-      assignmentResult.data.map((assignment) => ({
-        role: assignment.role,
-        scopeKind: assignment.scope_kind,
-        tryoutId: assignment.tryout_id,
-        divisionId: assignment.division_id,
-        sessionId: assignment.session_id,
-        groupId: assignment.group_id,
-        athleteId: assignment.athlete_id,
-        revokedAt: assignment.revoked_at,
-        expiresAt: assignment.expires_at,
-      })),
+      assignmentResult.data.map(assignmentRecord),
       now,
     );
   }

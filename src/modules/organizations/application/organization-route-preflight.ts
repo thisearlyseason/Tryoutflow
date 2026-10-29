@@ -20,14 +20,13 @@ export async function organizationRoutePreflight(
   } catch {
     return false;
   }
-  const result = await client.from('organizations').select('id').eq('slug', slug).maybeSingle();
-  if (result.error) throw result.error;
-  if (!result.data) return false;
-  const organizationId = parseOrganizationId(result.data.id);
-  const authorization = await new SupabaseMembershipRepository(client).findAuthorizationContext(
+  const context = await new SupabaseMembershipRepository(client).findOrganizationContext(
     parseUserId(userId),
-    organizationId,
+    slug,
   );
+  if (!context) return false;
+  const organizationId = parseOrganizationId(context.organization.id);
+  const { authorization } = context;
   if (!authorization || !can(authorization, 'organization:read', { organizationId })) return false;
   if (segments[3] === 'organization' && segments[4] === 'audit')
     return can(authorization, 'audit:read', { organizationId });

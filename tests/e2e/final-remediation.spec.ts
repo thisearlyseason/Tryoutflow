@@ -8,6 +8,7 @@ import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableNextRscRequest,
   expectCancellableServerAction,
+  holdResponseAfterApplicationCommit,
   monitorBrowserErrors,
 } from './helpers/network';
 
@@ -651,5 +652,49 @@ test('athlete search filters the current organization without reloading the work
   await page.waitForLoadState('networkidle');
   expect(documentRequests).toEqual([]);
   page.off('request', recordDocumentRequest);
+  monitor.assertClean();
+});
+
+test('workspace navigation acknowledges a tap while fresh server data is loading', async ({
+  page,
+  scenario,
+  isMobile,
+}) => {
+  const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  await page.waitForLoadState('networkidle');
+  const targetPath = `/app/${scenario.organizationSlug}/tryouts`;
+  const navigation = page.getByRole('navigation', {
+    name: isMobile ? 'Mobile navigation' : 'Primary navigation',
+    exact: true,
+  });
+  const link = navigation.getByRole('link', { name: 'Tryouts', exact: true });
+  const delayed = await holdResponseAfterApplicationCommit(
+    page,
+    (request) =>
+      request.method() === 'GET' &&
+      new URL(request.url()).pathname === targetPath &&
+      request.headers().rsc === '1',
+  );
+  try {
+    expectCancellableNextRscRequest(
+      monitor,
+      new URL(targetPath, page.url()).toString(),
+      'delayed workspace navigation',
+    );
+    await link.click();
+    await delayed.requested;
+    await expect(link.getByRole('status')).toHaveText('Opening Tryouts…');
+    await expect(link.locator('[data-pending="true"]')).toHaveCount(1);
+    await expect(navigation).toBeVisible();
+    delayed.release();
+    await expect(page).toHaveURL(new RegExp(`${targetPath}$`, 'u'));
+    await expect(page.getByRole('heading', { name: 'Tryouts', exact: true })).toBeVisible();
+    await expect(link.getByRole('status')).toHaveCount(0);
+    await expect(link.locator('[data-pending="true"]')).toHaveCount(0);
+    expect(delayed.matchingRequestCount()).toBe(1);
+    await page.waitForLoadState('networkidle');
+  } finally {
+    await delayed.cleanup();
+  }
   monitor.assertClean();
 });

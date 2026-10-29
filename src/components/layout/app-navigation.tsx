@@ -6,12 +6,13 @@ import {
   BarChart3,
   ClipboardList,
   House,
+  LoaderCircle,
   Settings,
   UserRoundCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -37,20 +38,36 @@ export function isNavigationItemActive(pathname: string, item: NavigationItem) {
   return pathname === item.href || (item.label !== 'Home' && pathname.startsWith(`${item.href}/`));
 }
 
+function NavigationProgress({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  const { pending } = useLinkStatus();
+  return (
+    <>
+      <span aria-hidden="true" className="app-nav-icon" data-pending={pending}>
+        {pending ? (
+          <LoaderCircle size={17} className="motion-safe:animate-spin" />
+        ) : (
+          <Icon size={17} strokeWidth={2.25} />
+        )}
+      </span>
+      <span aria-live="polite" role={pending ? 'status' : undefined} className="sr-only">
+        {pending ? `Opening ${label}…` : ''}
+      </span>
+    </>
+  );
+}
+
 export function NavigationLink({ item, pathname }: { item: NavigationItem; pathname: string }) {
   const active = isNavigationItemActive(pathname, item);
   const Icon = navigationIcons[item.icon];
   return (
     <Link
       aria-current={active ? 'page' : undefined}
-      aria-label={item.accessibleLabel}
+      aria-label={item.accessibleLabel ?? item.label}
       className={active ? 'app-nav-link app-nav-link-active' : 'app-nav-link'}
       href={item.href}
       prefetch={false}
     >
-      <span aria-hidden="true" className="app-nav-icon">
-        <Icon size={17} strokeWidth={2.25} />
-      </span>
+      <NavigationProgress icon={Icon} label={item.accessibleLabel ?? item.label} />
       <span>{item.label}</span>
     </Link>
   );
