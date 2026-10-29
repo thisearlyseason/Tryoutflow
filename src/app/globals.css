@@ -999,6 +999,7 @@ textarea {
 }
 
 .app-nav-link {
+  position: relative;
   display: flex;
   min-width: var(--target-mobile);
   min-height: var(--target-mobile);
