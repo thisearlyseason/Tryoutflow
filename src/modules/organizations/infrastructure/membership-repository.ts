@@ -119,12 +119,24 @@ export class SupabaseMembershipRepository {
     organizationId: OrganizationId,
     now = new Date(),
   ): Promise<AuthorizationContext | null> {
-    const membershipResult = await this.client
-      .from('organization_members')
-      .select('organization_id, user_id, role, status')
-      .eq('organization_id', organizationId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    // Both reads are scoped to this caller and organization and protected by RLS.
+    // Run independent I/O together; never cache membership or assignment authority.
+    const [membershipResult, assignmentResult] = await Promise.all([
+      this.client
+        .from('organization_members')
+        .select('organization_id, user_id, role, status')
+        .eq('organization_id', organizationId)
+        .eq('user_id', userId)
+        .maybeSingle(),
+      this.client
+        .from('tryout_staff_assignments')
+        .select(
+          'role, scope_kind, tryout_id, division_id, session_id, group_id, athlete_id, revoked_at, expires_at',
+        )
+        .eq('organization_id', organizationId)
+        .eq('user_id', userId)
+        .is('revoked_at', null),
+    ]);
 
     if (membershipResult.error) {
       throw membershipResult.error;
@@ -133,15 +145,6 @@ export class SupabaseMembershipRepository {
     if (!membershipResult.data) {
       return null;
     }
-
-    const assignmentResult = await this.client
-      .from('tryout_staff_assignments')
-      .select(
-        'role, scope_kind, tryout_id, division_id, session_id, group_id, athlete_id, revoked_at, expires_at',
-      )
-      .eq('organization_id', organizationId)
-      .eq('user_id', userId)
-      .is('revoked_at', null);
 
     if (assignmentResult.error) {
       throw assignmentResult.error;
