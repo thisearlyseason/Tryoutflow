@@ -23,6 +23,7 @@ export type OrganizationShell = {
 
 export type OrganizationRouteContextGateway = {
   findOrganizationShellBySlug(slug: string): Promise<OrganizationShell | null>;
+  loadOrganizationLogoUrl?(organization: OrganizationShell): Promise<string | undefined>;
   findAuthorizationContext(
     userId: UserId,
     organizationId: OrganizationId,
@@ -36,9 +37,18 @@ export async function resolveOrganizationRouteContext(
 ) {
   const organization = await gateway.findOrganizationShellBySlug(slug);
   if (!organization) return null;
-  const authorization = await gateway.findAuthorizationContext(userId, organization.id);
+  // Optional branding uses its own live membership check. Neither result is
+  // exposed until the independent authorization has succeeded.
+  const [authorization, logoUrl] = await Promise.all([
+    gateway.findAuthorizationContext(userId, organization.id),
+    gateway.loadOrganizationLogoUrl?.(organization),
+  ]);
   if (!authorization || authorization.organizationId !== organization.id) return null;
-  return { organization, authorization, userId };
+  return {
+    organization: { ...organization, ...(logoUrl ? { logoUrl } : {}) },
+    authorization,
+    userId,
+  };
 }
 
 export function canManageTryoutStaffing(
@@ -73,6 +83,9 @@ function serverGateway(client: SupabaseClient<Database>): OrganizationRouteConte
         organizationId,
       );
     },
+    loadOrganizationLogoUrl(organization) {
+      return loadOrganizationLogoUrl(client, organization);
+    },
   };
 }
 
@@ -87,13 +100,8 @@ export const requireOrganizationRouteContext = cache(async (slug: string) => {
   const userId = parseUserId(user.id);
   const context = await resolveOrganizationRouteContext(slug, userId, serverGateway(client));
   if (!context) notFound();
-  const logoUrl = await loadOrganizationLogoUrl(client, context.organization);
   return {
     ...context,
-    organization: {
-      ...context.organization,
-      ...(logoUrl ? { logoUrl } : {}),
-    },
     client,
   };
 });

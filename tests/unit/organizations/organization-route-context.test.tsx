@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { OrganizationId, UserId } from '../../../src/lib/ids';
 import type { AuthorizationContext } from '../../../src/modules/organizations/application/capabilities';
@@ -124,5 +124,90 @@ describe('least-privileged organization route context', () => {
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Athletes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'My scoring' })).not.toBeInTheDocument();
+  });
+});
+
+describe('concurrent shell branding and fresh authority', () => {
+  const organization = { id: organizationId, name: 'Fictional QA', slug: 'fictional-qa' };
+  const logoUrl = '/api/organizations/fictional-qa/logo?v=2026-10-29T12%3A00%3A00Z';
+  it('starts both reads together but exposes nothing until authority completes', async () => {
+    let authorize!: (value: AuthorizationContext | null) => void;
+    const findAuthorizationContext = vi.fn(
+      () =>
+        new Promise<AuthorizationContext | null>((resolve) => {
+          authorize = resolve;
+        }),
+    );
+    const loadOrganizationLogoUrl = vi.fn(async () => logoUrl);
+    let completed = false;
+    const pending = resolveOrganizationRouteContext(organization.slug, userId, {
+      findOrganizationShellBySlug: async () => organization,
+      findAuthorizationContext,
+      loadOrganizationLogoUrl,
+    }).then((result) => {
+      completed = true;
+      return result;
+    });
+    await vi.waitFor(() => expect(findAuthorizationContext).toHaveBeenCalledOnce());
+    expect(loadOrganizationLogoUrl).toHaveBeenCalledExactlyOnceWith(organization);
+    expect(completed).toBe(false);
+    authorize(scopedDirector);
+    expect(await pending).toEqual({
+      organization: { ...organization, logoUrl },
+      authorization: scopedDirector,
+      userId,
+    });
+  });
+  it.each([
+    null,
+    { ...scopedDirector, organizationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' as OrganizationId },
+  ])('does not expose branding for denied or foreign authority', async (authorization) => {
+    await expect(
+      resolveOrganizationRouteContext(organization.slug, userId, {
+        findOrganizationShellBySlug: async () => organization,
+        findAuthorizationContext: async () => authorization,
+        loadOrganizationLogoUrl: async () => logoUrl,
+      }),
+    ).resolves.toBeNull();
+  });
+  it('reads authority again after revocation instead of reusing the previous result', async () => {
+    const findAuthorizationContext = vi
+      .fn()
+      .mockResolvedValueOnce(scopedDirector)
+      .mockResolvedValueOnce(null);
+    const gateway = {
+      findOrganizationShellBySlug: async () => organization,
+      findAuthorizationContext,
+      loadOrganizationLogoUrl: async () => logoUrl,
+    };
+    expect(
+      await resolveOrganizationRouteContext(organization.slug, userId, gateway),
+    ).not.toBeNull();
+    expect(await resolveOrganizationRouteContext(organization.slug, userId, gateway)).toBeNull();
+    expect(findAuthorizationContext).toHaveBeenCalledTimes(2);
+  });
+  it('does not request branding or authority for an unavailable organization', async () => {
+    const findAuthorizationContext = vi.fn(async () => scopedDirector);
+    const loadOrganizationLogoUrl = vi.fn(async () => logoUrl);
+    expect(
+      await resolveOrganizationRouteContext(organization.slug, userId, {
+        findOrganizationShellBySlug: async () => null,
+        findAuthorizationContext,
+        loadOrganizationLogoUrl,
+      }),
+    ).toBeNull();
+    expect(findAuthorizationContext).not.toHaveBeenCalled();
+    expect(loadOrganizationLogoUrl).not.toHaveBeenCalled();
+  });
+  it('does not turn an authorization outage into access when branding succeeds', async () => {
+    await expect(
+      resolveOrganizationRouteContext(organization.slug, userId, {
+        findOrganizationShellBySlug: async () => organization,
+        findAuthorizationContext: async () => {
+          throw new Error('authority unavailable');
+        },
+        loadOrganizationLogoUrl: async () => logoUrl,
+      }),
+    ).rejects.toThrow('authority unavailable');
   });
 });
