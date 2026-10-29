@@ -608,6 +608,7 @@ test('organization chooser signs out and switches to a different account without
 test('athlete search filters the current organization without reloading the workspace', async ({
   page,
   scenario,
+  isMobile,
 }) => {
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
   const directoryPath = `/app/${scenario.organizationSlug}/athletes`;
@@ -644,7 +645,9 @@ test('athlete search filters the current organization without reloading the work
   await expect(page).toHaveURL(new RegExp(`${directoryPath}\\?q=Exact$`, 'u'));
   await expect(page.getByRole('link', { name: 'Exact Aggregate', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Tie Alpha', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: isMobile ? 'Mobile navigation' : 'Primary navigation' }),
+  ).toBeVisible();
   await page.waitForLoadState('networkidle');
   expect(documentRequests).toEqual([]);
   page.off('request', recordDocumentRequest);
