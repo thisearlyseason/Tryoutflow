@@ -70,7 +70,7 @@ export function OrganizationEntry({
         ))}
       </ul>
       <footer className="organization-entry-footer">
-        <Link className="button-secondary" href="/start">
+        <Link className="button-secondary" href="/start" prefetch={false}>
           <Plus size={18} aria-hidden="true" />
           Create another organization
         </Link>

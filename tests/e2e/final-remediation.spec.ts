@@ -563,6 +563,13 @@ test('organization chooser signs out and switches to a different account without
   scenario,
 }) => {
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  const unsolicitedOnboardingRequests: string[] = [];
+  const recordOnboardingRequest = (request: import('@playwright/test').Request) => {
+    if (new URL(request.url()).pathname === '/start' && request.headers().rsc === '1') {
+      unsolicitedOnboardingRequests.push(request.url());
+    }
+  };
+  page.on('request', recordOnboardingRequest);
   scenario.database.execute(
     `insert into public.organization_members(organization_id,user_id,role,status) values('${scenario.ids.otherOrganization}','${scenario.users.owner.id}','member','active')`,
   );
@@ -584,6 +591,8 @@ test('organization chooser signs out and switches to a different account without
     page.getByRole('heading', { name: 'Sign in to your account', exact: true }),
   ).toBeVisible();
   await page.waitForLoadState('networkidle');
+  expect(unsolicitedOnboardingRequests).toEqual([]);
+  page.off('request', recordOnboardingRequest);
   await page.goto(`/app/${scenario.organizationSlug}/home`);
   await expect(page).toHaveURL(/\/sign-in\?next=/u);
   await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toHaveCount(0);
