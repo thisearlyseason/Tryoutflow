@@ -65,19 +65,23 @@ export async function requireCurrentOrganization(slug: string) {
     .maybeSingle();
   if (organizationResult.error || !organizationResult.data) notFound();
   const organizationId = parseOrganizationId(organizationResult.data.id);
-  const authorization = await new SupabaseMembershipRepository(client).findAuthorizationContext(
-    parseUserId(user.id),
-    organizationId,
-  );
+  // Branding metadata has its own live membership check and is never
+  // returned unless the independent authorization below succeeds.
+  const [authorization, logoUrl] = await Promise.all([
+    new SupabaseMembershipRepository(client).findAuthorizationContext(
+      parseUserId(user.id),
+      organizationId,
+    ),
+    loadOrganizationLogoUrl(client, {
+      id: organizationId,
+      slug: organizationResult.data.slug,
+    }),
+  ]);
   if (
     !authorization ||
     !requireCapability(authorization, 'organization:read', { organizationId }).ok
   )
     notFound();
-  const logoUrl = await loadOrganizationLogoUrl(client, {
-    id: organizationId,
-    slug: organizationResult.data.slug,
-  });
   return {
     client,
     userId: parseUserId(user.id),
