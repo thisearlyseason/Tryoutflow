@@ -22,6 +22,10 @@ export type OrganizationShell = {
 };
 
 export type OrganizationRouteContextGateway = {
+  findOrganizationContext?(
+    userId: UserId,
+    slug: string,
+  ): Promise<{ organization: OrganizationShell; authorization: AuthorizationContext } | null>;
   findOrganizationShellBySlug(slug: string): Promise<OrganizationShell | null>;
   loadOrganizationLogoUrl?(organization: OrganizationShell): Promise<string | undefined>;
   findAuthorizationContext(
@@ -35,6 +39,21 @@ export async function resolveOrganizationRouteContext(
   userId: UserId,
   gateway: OrganizationRouteContextGateway,
 ) {
+  if (gateway.findOrganizationContext) {
+    const context = await gateway.findOrganizationContext(userId, slug);
+    if (
+      !context ||
+      context.authorization.organizationId !== context.organization.id ||
+      context.authorization.userId !== userId
+    )
+      return null;
+    const logoUrl = await gateway.loadOrganizationLogoUrl?.(context.organization);
+    return {
+      organization: { ...context.organization, ...(logoUrl ? { logoUrl } : {}) },
+      authorization: context.authorization,
+      userId,
+    };
+  }
   const organization = await gateway.findOrganizationShellBySlug(slug);
   if (!organization) return null;
   // Optional branding uses its own live membership check. Neither result is
@@ -68,6 +87,21 @@ export function canManageTryoutStaffing(
 
 function serverGateway(client: SupabaseClient<Database>): OrganizationRouteContextGateway {
   return {
+    async findOrganizationContext(userId, slug) {
+      const context = await new SupabaseMembershipRepository(client).findOrganizationContext(
+        userId,
+        slug,
+      );
+      if (!context) return null;
+      return {
+        organization: {
+          id: parseOrganizationId(context.organization.id),
+          name: context.organization.name,
+          slug: context.organization.slug,
+        },
+        authorization: context.authorization,
+      };
+    },
     async findOrganizationShellBySlug(slug) {
       const { data, error } = await client
         .from('organizations')

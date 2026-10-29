@@ -211,3 +211,79 @@ describe('concurrent shell branding and fresh authority', () => {
     ).rejects.toThrow('authority unavailable');
   });
 });
+
+describe('joined shell authority', () => {
+  const organization = { id: organizationId, name: 'Fictional QA', slug: 'fictional-qa' };
+  const legacyRead = vi.fn(async () => {
+    throw new Error('separate lookup must not run');
+  });
+  it('uses one joined authority read and loads branding only after it authorizes the caller', async () => {
+    let authorize!: (value: {
+      organization: typeof organization;
+      authorization: AuthorizationContext;
+    }) => void;
+    const findOrganizationContext = vi.fn(
+      () =>
+        new Promise<{ organization: typeof organization; authorization: AuthorizationContext }>(
+          (resolve) => {
+            authorize = resolve;
+          },
+        ),
+    );
+    const loadOrganizationLogoUrl = vi.fn(async () => '/fictional-logo');
+    const pending = resolveOrganizationRouteContext(organization.slug, userId, {
+      findOrganizationContext,
+      findOrganizationShellBySlug: legacyRead,
+      findAuthorizationContext: legacyRead,
+      loadOrganizationLogoUrl,
+    });
+    expect(findOrganizationContext).toHaveBeenCalledExactlyOnceWith(userId, organization.slug);
+    expect(loadOrganizationLogoUrl).not.toHaveBeenCalled();
+    authorize({ organization, authorization: scopedDirector });
+    expect(await pending).toEqual({
+      organization: { ...organization, logoUrl: '/fictional-logo' },
+      authorization: scopedDirector,
+      userId,
+    });
+    expect(loadOrganizationLogoUrl).toHaveBeenCalledExactlyOnceWith(organization);
+    expect(legacyRead).not.toHaveBeenCalled();
+  });
+  it.each([
+    null,
+    { ...scopedDirector, organizationId: 'foreign' as OrganizationId },
+    { ...scopedDirector, userId: 'foreign' as UserId },
+  ])('denies absent or mismatched joined authority before branding', async (authorization) => {
+    const loadOrganizationLogoUrl = vi.fn(async () => '/fictional-logo');
+    expect(
+      await resolveOrganizationRouteContext(organization.slug, userId, {
+        findOrganizationContext: async () =>
+          authorization ? { organization, authorization } : null,
+        findOrganizationShellBySlug: legacyRead,
+        findAuthorizationContext: legacyRead,
+        loadOrganizationLogoUrl,
+      }),
+    ).toBeNull();
+    expect(loadOrganizationLogoUrl).not.toHaveBeenCalled();
+  });
+  it('rechecks joined authority on a subsequent resolution and never falls back after an outage', async () => {
+    const findOrganizationContext = vi
+      .fn()
+      .mockResolvedValueOnce({ organization, authorization: scopedDirector })
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('authority unavailable'));
+    const gateway = {
+      findOrganizationContext,
+      findOrganizationShellBySlug: legacyRead,
+      findAuthorizationContext: legacyRead,
+    };
+    expect(
+      await resolveOrganizationRouteContext(organization.slug, userId, gateway),
+    ).not.toBeNull();
+    expect(await resolveOrganizationRouteContext(organization.slug, userId, gateway)).toBeNull();
+    await expect(
+      resolveOrganizationRouteContext(organization.slug, userId, gateway),
+    ).rejects.toThrow('authority unavailable');
+    expect(findOrganizationContext).toHaveBeenCalledTimes(3);
+    expect(legacyRead).not.toHaveBeenCalled();
+  });
+});
