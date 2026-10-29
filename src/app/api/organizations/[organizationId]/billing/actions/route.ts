@@ -1,3 +1,4 @@
+import { resumeNativePurchase } from '@/modules/subscriptions/application/native-purchase-resume';
 import { managedBillingCountryAllowed } from '@/modules/subscriptions/providers/managed-billing-country';
 import { managedPrePaymentEnforcementAvailable } from '@/modules/subscriptions/providers/stripe-managed-coverage';
 import { assertManagedPrice } from '@/modules/subscriptions/providers/stripe-managed-payments';
@@ -274,6 +275,44 @@ export async function POST(
       p_provider: input.provider,
     });
     if (error) {
+      if (error.message === 'purchase_in_progress' && input.provider !== 'stripe') {
+        const resumedId = await resumeNativePurchase({
+          context: await providerContext(organizationId),
+          scope: {
+            organizationId,
+            purchaserId: user.id,
+            provider: input.provider,
+            productKey: input.product,
+            tryoutId: input.tryoutId,
+          },
+          hasLegacySubscription: async () => {
+            const { data, error: legacyError } = await client.rpc(
+              'get_owned_subscription_account',
+              {
+                p_organization_id: organizationId,
+              },
+            );
+            if (legacyError) throw legacyError;
+            const legacy = data[0];
+            return (
+              !!legacy?.provider_subscription_id &&
+              ['active', 'trialing', 'past_due'].includes(legacy.state)
+            );
+          },
+          reserve: async (id) => {
+            const result = await client.rpc('reserve_billing_purchase', {
+              p_id: id,
+              p_organization_id: organizationId,
+              p_tryout_id: input.tryoutId!,
+              p_product_key: input.product,
+              p_provider: input.provider,
+            });
+            if (result.error) throw result.error;
+            return result.data;
+          },
+        });
+        if (resumedId) return Response.json({ intentId: resumedId, productId: productConfig });
+      }
       if (error.message === 'purchase_in_progress' && input.provider === 'stripe') {
         const url = await resumePendingStripeCheckout({
           stripe: stripeBillingClient(),
