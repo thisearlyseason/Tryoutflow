@@ -11,13 +11,14 @@ insert into public.organization_members(organization_id,user_id,role,status) val
 set local request.jwt.claim.sub='f1130000-0000-4000-8000-000000000001';
 create temporary table duplicate_sources(source_id uuid,copied_id uuid,source_status text);
 create function pg_temp.seed_duplicate_source(source_status text) returns uuid language plpgsql as $$
-declare org uuid := 'f1130000-0000-4000-8000-000000000010'; t uuid; d uuid; s uuid; f uuid; fv uuid; r uuid; rv uuid;
+declare org uuid := 'f1130000-0000-4000-8000-000000000010'; t uuid; d uuid; s uuid; f uuid; fv uuid; r uuid; rv uuid; publication_outcome text;
 begin
+  -- Keep publication eligibility stable as the calendar advances.
   insert into public.tryouts(organization_id,name,slug,sport,timezone,description,registration_starts_at,registration_ends_at,starts_at,ends_at,blind_mode,terminology)
-  values(org,repeat('A',160),'duplicate-source-'||source_status,'Hockey','America/Edmonton','Description','2026-10-01','2026-11-01','2026-11-02','2026-11-03',true,'{"athlete":"Skater"}') returning id into t;
+  values(org,repeat('A',160),'duplicate-source-'||source_status,'Hockey','America/Edmonton','Description',now()-interval '1 day',now()+interval '7 days',now()+interval '8 days',now()+interval '9 days',true,'{"athlete":"Skater"}') returning id into t;
   insert into public.tryout_divisions(organization_id,tryout_id,name,description,min_age,max_age,sort_order) values(org,t,'U15','Division details',12,15,0) returning id into d;
   insert into public.tryout_positions(organization_id,tryout_id,name,code,is_preset,sort_order) values(org,t,'Forward','F',true,0);
-  insert into public.tryout_sessions(organization_id,tryout_id,division_id,name,location,capacity,starts_at,ends_at,sort_order) values(org,t,d,'Skills','Arena',30,'2026-11-02 16:00Z','2026-11-02 18:00Z',0) returning id into s;
+  insert into public.tryout_sessions(organization_id,tryout_id,division_id,name,location,capacity,starts_at,ends_at,sort_order) values(org,t,d,'Skills','Arena',30,now()+interval '8 days 1 hour',now()+interval '8 days 3 hours',0) returning id into s;
   insert into public.session_groups(organization_id,tryout_id,session_id,name,capacity,sort_order) values(org,t,s,'Blue',15,0);
   insert into public.registration_forms(organization_id,tryout_id,name) values(org,t,'Chosen form') returning id into f;
   insert into public.registration_form_versions(organization_id,tryout_id,registration_form_id,version_number,schema)
@@ -32,7 +33,10 @@ begin
   insert into public.tryout_staff_assignments(organization_id,user_id,role,scope_kind,tryout_id,granted_by_user_id)
   values(org,'f1130000-0000-4000-8000-000000000002','director','tryout',t,auth.uid());
   if source_status<>'draft' then
-    perform * from public.publish_tryout(org,t,0);
+    select outcome into publication_outcome from public.publish_tryout(org,t,0);
+    if publication_outcome is distinct from 'published' then
+      raise exception 'duplicate source fixture could not publish: %',publication_outcome;
+    end if;
     if source_status='finalized' then update public.tryouts set status='finalized',finalized_at=clock_timestamp() where id=t; end if;
   end if;
   return t;
