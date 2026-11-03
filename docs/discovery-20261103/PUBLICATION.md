@@ -1,20 +1,41 @@
 # Discovery publication status — 2026-11-03
 
-## Website
+## Website — deployed and verified
 
-SEO/GEO changes are committed on `codex/discovery-20261103`, based on the actual live source `3053cdd18487feabc508a48a806e596420b9cd6e`, rather than the older original chat checkout. The existing native bridge, navigation prefetch controls and performance changes are preserved. No production deployment or promotion occurred. Live deployment remains `dpl_DBhoLD2XXhNa293v527DgwBMLxAf`.
+The SEO/GEO changes are live at https://www.tryout.agency. Production deployment is `dpl_YPgQDP1Ycm8SG6sbiWD96V7DtyGY`, built from commit `dd34fb60c973aa2ee86b70af1f7c38f7f65ed82c` on `codex/discovery-20261103`. The previous production deployment was `dpl_DBhoLD2XXhNa293v527DgwBMLxAf`. The candidate was built without automatic domain promotion, checked, and promoted only after all required CI jobs succeeded.
 
-The production build, mocked authenticated marketing navigation gate and typecheck passed. Local unit run: 2001 passed; 15 operation fixtures failed because they hardcode `/usr/bin/git`, which is blocked by the machine's unaccepted Xcode license. No license was accepted.
+The release uses the existing production checkout, preserving the native bridge, navigation prefetch controls and performance changes. No production database migrations were applied.
 
-CI run https://github.com/thisearlyseason/Tryoutflow/actions/runs/41691056370 failed at dependency audit before application tests. Fresh audits identify minimatch GHSA-g3hv-75wg-m249 in the existing ESLint 9 tree. An ESLint 10.14.0/minimatch 11.0.1 trial cleared the audit but failed with Next 16.4.1's bundled parser (`scopeManager.addGlobals is not a function`). That trial was completely reverted. The release gate and existing integrity records remain unchanged. A supported parser/linter remediation is required before publishing; do not force the major-version override or bypass the audit.
+### Dependency and test repairs
 
-The independently patchable native Joi advisory GHSA-4528-x5fx-h6hg is fixed in the lockfile (17.13.8 to 17.13.9). The native audit then passes its existing verified deepmerge-backport policy, with four low registry findings still explicitly reported. Restored lint parity plus native audit/backport tests: 256 passed. This is not native device or binary release validation.
+- ESLint is pinned to 10.14.0 and minimatch to the patched 11.0.1. The maintained Babel ESLint parser 8.0.7 with Babel core 8.1.0 replaces Next's older bundled parser in the lint configuration. JS, JSX, TS, TSX, MTS and CTS parsing, scope handling, syntax rejection and real Next diagnostics are checked.
+- All 201 frozen Next rule diagnostics match with both parsers after accounting for ESLint 10's documented removal of `nodeType`. The existing private Next-rule compatibility package and integrity record are unchanged. No audit exception or disabled rule was added.
+- js-yaml 4.3.2 is now an explicit test dependency; ESLint 9 previously supplied it transitively.
+- The duplication database fixture used a registration window that expired November 1. It now uses transaction-relative dates and explicitly checks the publication result. The production lifecycle guards are unchanged.
+- The previously prepared native Joi 17.13.9 patch remains included. The native audit retains the existing verified deepmerge-backport policy and explicitly reports its four low registry findings.
 
-Local provider catalog caches are excluded from Vercel upload. No credentials or permission changes were made.
+### Completed verification
+
+[CI run 41694737052, attempt 2](https://github.com/thisearlyseason/Tryoutflow/actions/runs/41694737052) passed all required scope, web, native and verify jobs for the exact deployed source. The earlier same-source attempt was canceled after its browser log appeared stale; it is not counted as a complete release pass.
+
+- Full website and production dependency audits: **zero findings**.
+- Formatting, lint, typecheck, build, 326 lint-toolchain tests and 17 route-parity checks passed.
+- Database: 2,932 checks across 103 files.
+- Unit: 2,016 tests across 186 files.
+- Integration: 229 tests on each of two complete passes; provider contracts: 147 tests.
+- Visual regression and repeatability: 14 tests each.
+- Strict five-project browser gate: **200 passed**, with retries disabled.
+- Final repository-state, secret-boundary and isolated test-state cleanup checks passed. Native typechecking, behavioral checks and unsigned JavaScript bundle compilation also passed; this does not certify a signed device/store release.
+
+After promotion, the live domain was independently confirmed to point to the tested deployment. All 12 public pages returned 200 with unique titles/descriptions, canonical production URLs, index/follow metadata, social metadata, server-rendered headings and parseable structured data. The sitemap contains exactly those 12 URLs. robots.txt advertises it. All 26 discovered internal links resolved without HTTP errors; nine private/auth/API/utility routes retained noindex headers; the unknown-page check returned 404. The live homepage showed no horizontal overflow or browser errors.
+
+The temporary deployment-protection token generated by Vercel CLI for candidate verification was revoked after use. Task-created build cache was removed; existing unrelated work was preserved. No search ranking, indexing, AI citation or conversion gain is claimed by this release.
+
+Supporting local receipts are in `work/discovery-audit-fix/` in the release checkout. A sanitized release receipt and live verification JSON are also retained in the original checkout's `docs/discovery-20261103/`. The live screenshot is `work/discovery-20261103/live-home.png` in that original checkout.
 
 ## Saved store drafts
 
-Apple: app 6812832082, en-US. Saved and independently read back title, subtitle, description, keywords, promotional text, marketing URL and privacy URL. Selected Sports as primary category. The title is `TryoutFlow: Tryout Manager`; subtitle is `Athlete scoring & team rosters`. Privacy URL is https://www.tryout.agency/privacy. Marketing URL is the planned https://www.tryout.agency/platforms route, which must be deployed before submission.
+Apple: app 6812832082, en-US. Saved and independently read back title, subtitle, description, keywords, promotional text, marketing URL and privacy URL. Selected Sports as primary category. The title is `TryoutFlow: Tryout Manager`; subtitle is `Athlete scoring & team rosters`. Privacy URL is https://www.tryout.agency/privacy. Marketing URL https://www.tryout.agency/platforms is now live and verified.
 
 Apple remains PREPARE_FOR_SUBMISSION with old version 1.0.0 build 11 selected. That build's notes describe a companion-only product. The new workspace copy must not be submitted with that old binary. Supply and verify the matching workspace binary and genuine native screenshots first. No review submission or public release occurred.
 
@@ -22,10 +43,8 @@ Google Play: package agency.tryout.mobile, en-US. Saved as draft and reloaded to
 
 Existing store artwork was inspected and contains web preview inserts, so it was not uploaded as native screenshots. Screenshot requirements are recorded in SCREENSHOTS.md. Save receipts and sanitized Apple API readback are retained in the original checkout's docs/discovery-20261103 and work/discovery-20261103 directories.
 
-## Next release steps
+## Remaining store and measurement work
 
-1. Resolve the minimatch advisory with a compatible, tested linter/parser dependency combination or upstream patch; preserve all existing audit gates.
-2. Rerun exact-source CI, build a production candidate without domain promotion, verify public metadata/private noindex and then promote and verify the live domain.
-3. Verify current native workspace binaries, capture genuine screenshots, complete store prerequisites and ensure metadata matches the selected build before submission.
+Website publication is complete. Store review still requires matching native workspace binaries, genuine native screenshots and the remaining store prerequisites described above. Search Console access and post-release acquisition measurements remain separate work; no indexing or traffic uplift has yet been measured.
 
-Sources: https://github.com/advisories/GHSA-g3hv-75wg-m249 ; https://github.com/advisories/GHSA-4528-x5fx-h6hg ; https://eslint.org/docs/latest/use/migrate-to-10.0.0
+Dependency references: [minimatch advisory](https://github.com/advisories/GHSA-g3hv-75wg-m249), [Joi advisory](https://github.com/advisories/GHSA-4528-x5fx-h6hg), [ESLint 10 migration](https://eslint.org/docs/latest/use/migrate-to-10.0.0), [Babel ESLint parser](https://babeljs.io/docs/babel-eslint-parser).
