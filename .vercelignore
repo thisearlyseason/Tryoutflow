@@ -14,3 +14,6 @@ tools/stripe-isolated-activation
 
 # Supabase CLI runtime cache is not application source.
 supabase/.temp
+
+# Local provider catalog cache is not application source.
+.projects
