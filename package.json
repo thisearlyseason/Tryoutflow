@@ -66,6 +66,8 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
+    "@babel/core": "8.1.0",
+    "@babel/eslint-parser": "8.0.7",
     "@playwright/test": "1.62.1",
     "@tailwindcss/postcss": "4.3.3",
     "@testing-library/jest-dom": "7.0.1",
@@ -80,14 +82,13 @@
     "@vitest/coverage-v8": "4.1.12",
     "eslint": "10.14.0",
     "fake-indexeddb": "6.2.5",
+    "js-yaml": "4.3.2",
     "jsdom": "29.0.0",
     "prettier": "3.9.6",
     "supabase": "2.116.0",
     "tailwindcss": "4.3.3",
     "typescript": "7.0.2",
-    "vitest": "4.1.12",
-    "@babel/core": "8.1.0",
-    "@babel/eslint-parser": "8.0.7"
+    "vitest": "4.1.12"
   },
   "overrides": {
     "vite": "8.2.4",
