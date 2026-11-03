@@ -5,7 +5,7 @@ import { PageHero } from '../../../modules/marketing/ui/page-hero';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/features',
-  title: 'Features | TryoutFlow',
+  title: 'Tryout Registration, Scoring & Rosters | TryoutFlow',
   description:
     'See the TryoutFlow workflow for registration, check-in, evaluation, rankings, rosters, messages, and exports.',
 });
@@ -50,20 +50,51 @@ export default function FeaturesPage() {
         aria-labelledby="feature-stages"
         className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8"
       >
-        <h2 className="sr-only" id="feature-stages">
+        <p className="sr-only" id="feature-stages">
           TryoutFlow workflow features
-        </h2>
+        </p>
         <ol className="grid gap-px overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border)] bg-[var(--color-border)] md:grid-cols-2 lg:grid-cols-3">
           {stages.map(([title, detail], index) => (
             <li className="min-w-0 bg-[var(--color-surface)] p-6" key={title}>
               <p className="font-[family-name:var(--font-bib)] text-4xl text-[var(--color-primary)]">
                 0{index + 1}
               </p>
-              <h3 className="mt-8 text-2xl font-black">{title}</h3>
+              <h2 className="mt-8 text-2xl font-black">{title}</h2>
               <p className="mt-3 leading-7 text-[var(--color-text-muted)]">{detail}</p>
             </li>
           ))}
         </ol>
+      </section>
+      <section className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+        <h2 className="text-3xl font-black">Adapt the evaluation to your sport</h2>
+        <p className="mt-4 leading-7">
+          Choose your sport when setting up a tryout and define the skills, scoring scale and
+          weights your staff will use. The demo uses hockey; organizations can configure their own
+          evaluation criteria instead of relying on a single universal athlete score.
+        </p>
+        <h2 className="mt-8 text-2xl font-bold">How do coaches compare athletes?</h2>
+        <p className="mt-3 leading-7">
+          Review scores alongside evaluation completion, compare athletes and check ties before
+          building a roster. Rankings support your judgment and do not automatically select the
+          team.
+        </p>
+        <h2 className="mt-8 text-2xl font-bold">What should staff prepare first?</h2>
+        <p className="mt-3 leading-7">
+          Set up sessions, registration fields and a scoring rubric, then assign evaluators before
+          publishing. Use the{' '}
+          <a className="underline" href="/how-to">
+            role-specific setup guides
+          </a>{' '}
+          and{' '}
+          <a className="underline" href="/demo">
+            interactive tryout demo
+          </a>{' '}
+          to explore the process. Check{' '}
+          <a className="underline" href="/pricing">
+            plan features
+          </a>{' '}
+          before choosing advanced tools.
+        </p>
       </section>
       <section className="border-y border-[var(--color-border)] bg-[var(--color-text)] px-4 py-14 text-white">
         <div className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-3">

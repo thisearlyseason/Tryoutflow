@@ -18,6 +18,11 @@ const publicMarketingPaths = new Set([
   '/how-to',
   '/privacy',
   '/terms',
+  '/support',
+  '/delete-account',
+  '/platforms',
+  '/robots.txt',
+  '/sitemap.xml',
   '/fonts/manrope/Manrope-Variable.ttf',
 ]);
 

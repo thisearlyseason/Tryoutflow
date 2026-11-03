@@ -1,0 +1,46 @@
+{
+  "apple": {
+    "name": {
+      "count": 26,
+      "limit": 30,
+      "unit": "characters"
+    },
+    "subtitle": {
+      "count": 30,
+      "limit": 30,
+      "unit": "characters"
+    },
+    "keywords": {
+      "count": 86,
+      "limit": 100,
+      "unit": "UTF-8 bytes"
+    },
+    "promotionalText": {
+      "count": 165,
+      "limit": 170,
+      "unit": "characters"
+    },
+    "description": {
+      "count": 1782,
+      "limit": 4000,
+      "unit": "characters"
+    }
+  },
+  "google-play": {
+    "title": {
+      "count": 26,
+      "limit": 30,
+      "unit": "characters"
+    },
+    "shortDescription": {
+      "count": 79,
+      "limit": 80,
+      "unit": "characters"
+    },
+    "fullDescription": {
+      "count": 1595,
+      "limit": 4000,
+      "unit": "characters"
+    }
+  }
+}

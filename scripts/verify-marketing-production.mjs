@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
-export const MARKETING_PRODUCTION_ORIGIN = 'https://marketing.tryoutflow.test';
+export const MARKETING_PRODUCTION_ORIGIN = 'https://www.tryout.agency';
 export const MARKETING_PATHS = [
   '/',
   '/features',
@@ -18,6 +18,8 @@ export const MARKETING_PATHS = [
   '/how-to',
   '/privacy',
   '/terms',
+  '/platforms',
+  '/support',
 ];
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');

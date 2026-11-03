@@ -5,7 +5,7 @@ import { AudiencePage } from '../../../../modules/marketing/ui/audience-page';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/for/clubs',
-  title: 'For Clubs | TryoutFlow',
+  title: 'Club Tryout Management Software | TryoutFlow',
   description: 'Coordinate consistent tryout operations for every team in a club.',
 });
 

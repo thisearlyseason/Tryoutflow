@@ -80,7 +80,7 @@ function DemoWorkspaceContent({
           <p className="text-xs font-black uppercase tracking-widest text-[var(--color-primary)]">
             TryoutFlow / Demo club
           </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{state.eventName}</h1>
+          <h2 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">{state.eventName}</h2>
           <p className="mt-2 text-[var(--color-text-muted)]">
             Try a check-in, score an athlete, then build your team.
           </p>

@@ -5,7 +5,7 @@ import { AudiencePage } from '../../../../modules/marketing/ui/audience-page';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/for/associations',
-  title: 'For Associations | TryoutFlow',
+  title: 'Association Tryout Management | TryoutFlow',
   description:
     'Coordinate association tryout programs with consistent workflow and explicit oversight.',
 });

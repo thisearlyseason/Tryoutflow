@@ -1,0 +1,11 @@
+{
+  "locale": "en-US",
+  "title": "TryoutFlow: Tryout Manager",
+  "shortDescription": "Organize sports tryouts, score athletes and review team rosters with your staff",
+  "fullDescription": "Organize tryout day from registration to roster review.\n\nTryoutFlow gives coaches, clubs and associations a shared place to manage sports tryouts. Use your organization account to open the workspace and tools available to your role and plan.\n\nPrepare: configure your tryout, sessions, registration fields and evaluation criteria.\nCheck in: find registrations, track arrivals and organize athlete numbers and groups.\nEvaluate: record scores and notes for assigned athletes and check save and sync status.\nReview: compare athlete results with completion context, then build and review team rosters.\nCommunicate: coordinate participant messages while keeping selection decisions with your staff.\n\nThe Android workspace connects to the TryoutFlow service. Internet access is required to sign in, load data and synchronize results. Do not assume all workflows are available offline.\n\nStaff need an account and access to an organization. Features depend on role and plan. Paid plans and Google Play purchases are available where enabled. Prices and availability vary by region; review the purchase screen for billing terms. Manage Google Play subscriptions in your Google Play account. Uninstalling the app does not cancel a subscription.\n\nParents can register using the link supplied by the organization running the tryout. Contact that organization for schedules, registration questions and selection decisions.\n\nTryoutFlow is operated by GameDay Technologies, part of Gameday Sports.\nWebsite: https://www.tryout.agency\nSupport: gamedaysportstech@gmail.com\nPrivacy: https://www.tryout.agency/privacy",
+  "category": "SPORTS",
+  "tagsRecommendation": ["Sports (select only if available in Console)"],
+  "website": "https://www.tryout.agency/platforms",
+  "supportEmail": "gamedaysportstech@gmail.com",
+  "privacyPolicyUrl": "https://www.tryout.agency/privacy"
+}

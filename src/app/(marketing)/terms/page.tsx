@@ -5,7 +5,7 @@ import { LegalDraftStatus } from '../../../modules/marketing/ui/legal-draft-stat
 
 export const metadata: Metadata = marketingMetadata({
   path: '/terms',
-  title: 'Terms Draft | TryoutFlow',
+  title: 'Terms of Use | TryoutFlow',
   description:
     'Review the prelaunch TryoutFlow terms draft and its unresolved legal approval items.',
 });

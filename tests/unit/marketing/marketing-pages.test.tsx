@@ -59,7 +59,12 @@ const routes: readonly RouteExpectation[] = [
     heading: /association/i,
   },
   { path: '/pricing', Page: PricingPage, metadata: pricingMetadata, heading: /pricing/i },
-  { path: '/demo', Page: DemoPage, metadata: demoMetadata, heading: /U15 Hockey/i },
+  {
+    path: '/demo',
+    Page: DemoPage,
+    metadata: demoMetadata,
+    heading: /interactive TryoutFlow demo/i,
+  },
   { path: '/privacy', Page: PrivacyPage, metadata: privacyMetadata, heading: /privacy/i },
   { path: '/terms', Page: TermsPage, metadata: termsMetadata, heading: /terms/i },
 ];
@@ -86,8 +91,8 @@ describe('public marketing routes', () => {
 
       expect(screen.getByRole('heading', { level: 1, name: heading })).toBeVisible();
       expect(container.querySelectorAll('h1')).toHaveLength(1);
-      expect(canonicalUrl(metadata)).toBe(`https://tryoutflow.test${path}`);
-      expect(metadata.robots).toMatchObject({ index: true, follow: true });
+      expect(canonicalUrl(metadata)).toBe(`https://www.tryout.agency${path}`);
+      expect(metadata.robots).toMatchObject({ index: false, follow: true });
     },
   );
 

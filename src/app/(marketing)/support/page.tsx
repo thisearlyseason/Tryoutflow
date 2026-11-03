@@ -30,10 +30,15 @@ export default function SupportPage() {
       </p>
       <h2 className="mt-8 text-2xl font-bold">Accounts and subscriptions</h2>
       <p className="mt-3 leading-7">
-        The native app is an account and subscription companion. Coaching workflows are available on
-        the website. Manage web subscriptions from your organization billing page; manage native
-        subscriptions in the store used to purchase them. Deleting an account or uninstalling the
-        app does not cancel a subscription.
+        The website provides the coaching workspace. Current mobile workspace builds also provide
+        access to your organization’s workflows; available features depend on your role, plan and
+        installed version. See our{' '}
+        <Link prefetch={false} className="underline" href="/platforms">
+          web and mobile guide
+        </Link>
+        . Manage web subscriptions from your organization billing page; manage native subscriptions
+        in the store used to purchase them. Deleting an account or uninstalling the app does not
+        cancel a subscription.
       </p>
       <nav aria-label="Support resources" className="mt-6 flex flex-wrap gap-5">
         <Link prefetch={false} className="underline" href="/how-to">

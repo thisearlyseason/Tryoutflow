@@ -6,7 +6,7 @@ import './pricing.css';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/pricing',
-  title: 'Pricing | TryoutFlow',
+  title: 'Tryout Software Plans & Pricing | TryoutFlow',
   description:
     'Find your TryoutFlow plan: Pro with a 7-day free trial, Organization, or Single Tryout Pro. Monthly, annual, and one-time pricing in USD.',
 });

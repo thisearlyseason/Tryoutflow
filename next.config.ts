@@ -5,6 +5,29 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   async headers() {
     return [
+      ...(process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production'
+        ? [{ source: '/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] }]
+        : []),
+      ...[
+        '/app/:path*',
+        '/participant/:path*',
+        '/platform/:path*',
+        '/register/:path*',
+        '/api/:path*',
+        '/auth/:path*',
+        '/native',
+        '/start',
+        '/sign-in',
+        '/sign-up',
+        '/forgot-password',
+        '/reset-password',
+        '/verify-email',
+        '/invite/:path*',
+        '/delete-account',
+      ].map((source) => ({
+        source,
+        headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }],
+      })),
       {
         source: '/:path*',
         headers: [

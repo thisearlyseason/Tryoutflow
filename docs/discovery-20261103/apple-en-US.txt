@@ -1,0 +1,53 @@
+locale
+en-US
+
+name
+TryoutFlow: Tryout Manager
+
+subtitle
+Athlete scoring & team rosters
+
+keywords
+sports,coach,club,hockey,registration,checkin,rankings,evaluator,selection,association
+
+promotionalText
+Bring registration, athlete scoring and roster review into one organized workspace. Explore TryoutFlow with your staff and keep coaches in control of team decisions.
+
+description
+Run your next sports tryout with a shared workflow for your coaching staff.
+
+TryoutFlow helps teams, clubs and associations organize registration, check athletes in, record evaluations and review roster decisions. Sign in to your organization to access the workspace available to your role and plan.
+
+PREPARE YOUR TRYOUT
+Set up sessions, registration fields and evaluation criteria. Give staff clear assignments before athletes arrive.
+
+EVALUATE WITH CONTEXT
+Record athlete scores and notes in assigned evaluation sessions. Review rankings alongside completion information and compare athletes before making decisions.
+
+BUILD YOUR ROSTER
+Bring results into roster review and keep final selections with coaches and directors. Coordinate participant communication through your organization.
+
+ONE ORGANIZATION WORKSPACE
+Current mobile workspace builds connect to the TryoutFlow service. An internet connection is required for sign-in, loading data and synchronization. Check displayed save and sync status before leaving a device; the entire app is not available offline.
+
+ACCOUNT AND PLAN INFORMATION
+An account and organization access are required for staff workflows. Features vary by role and plan. Paid plans and in-app purchases are available where enabled; review the price, renewal period and terms before purchasing. Manage Apple subscriptions through your Apple account. Deleting the app does not cancel a subscription.
+
+Parents should use the registration link provided by their sports organization. Contact that organization about schedules, registration or roster decisions.
+
+TryoutFlow is operated by GameDay Technologies and is part of Gameday Sports.
+Support: gamedaysportstech@gmail.com
+Privacy: https://www.tryout.agency/privacy
+Terms: https://www.tryout.agency/terms
+
+primaryCategory
+SPORTS
+
+marketingUrl
+https://www.tryout.agency/platforms
+
+supportUrl
+https://www.tryout.agency/support
+
+privacyPolicyUrl
+https://www.tryout.agency/privacy

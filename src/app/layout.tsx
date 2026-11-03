@@ -15,6 +15,8 @@ import './brand-experience.css';
 export const metadata: Metadata = {
   title: 'TryoutFlow',
   description: 'Run fair, organized tryouts.',
+  // Public marketing pages explicitly opt in. Account and registration screens stay private.
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

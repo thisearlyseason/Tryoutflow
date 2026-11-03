@@ -109,6 +109,9 @@ export function MarketingShell({
           <nav aria-label="Legal navigation">
             <p className="font-black">Help and policies</p>
             <div className="mt-2 flex flex-wrap gap-1 md:flex-col md:items-start">
+              <Link prefetch={false} className={marketingLinkClassName} href="/platforms">
+                Web &amp; mobile
+              </Link>
               <Link prefetch={false} className={marketingLinkClassName} href="/support">
                 Support
               </Link>

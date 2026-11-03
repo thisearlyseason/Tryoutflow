@@ -24,10 +24,11 @@ import {
   WorkflowExplorer,
 } from '../../modules/marketing/ui/landing-interactions';
 import './landing.css';
+import { ProductSchema } from '@/modules/marketing/ui/product-schema';
 
 export const metadata: Metadata = marketingMetadata({
   path: '/',
-  title: 'TryoutFlow | Better tryouts. Better decisions.',
+  title: 'TryoutFlow | Sports Tryout & Athlete Evaluation Software',
   description:
     'Bring registration, check-in, athlete evaluation, rankings, rosters and family communication together. See how TryoutFlow helps your team run a better tryout.',
 });
@@ -67,6 +68,7 @@ const guides = [
 export default function HomePage() {
   return (
     <LandingReveal>
+      <ProductSchema />
       <section className="landing-hero" aria-labelledby="landing-title">
         <div className="landing-hero-copy">
           <p className="landing-kicker">
@@ -81,8 +83,9 @@ export default function HomePage() {
             <strong>Bring out the team.</strong>
           </p>
           <p className="landing-hero-description">
-            From the first registration to the final roster, give your athletes, staff and families
-            a tryout experience that moves everyone forward.
+            TryoutFlow is sports tryout and athlete evaluation software for coaches, clubs and
+            associations. Bring registration, check-in, scoring and roster decisions into one
+            workspace.
           </p>
           <div className="landing-actions">
             <Link prefetch={false} className="landing-button landing-button-blue" href="/demo">
