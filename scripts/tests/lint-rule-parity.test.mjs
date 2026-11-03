@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import { Linter } from 'eslint';
+import babelParser from '@babel/eslint-parser';
 import { verifyLintCompatibility } from '../lib/verify-lint-compatibility.mjs';
 const require = createRequire(import.meta.url);
 const plugin = require('@tryoutflow/next-lint-compat');
@@ -27,7 +28,33 @@ for (const [index, vector] of vectors.entries())
       ],
       { filename: vector.filename },
     );
-    assert.deepEqual(actual, vector.expectedDiagnostics);
+    // ESLint 10 removed nodeType; every remaining frozen diagnostic field must match.
+    const expected = vector.expectedDiagnostics.map(
+      ({ nodeType: _nodeType, ...message }) => message,
+    );
+    assert.deepEqual(actual, expected);
+    const parsed = new Linter({ cwd: '/' }).verify(
+      vector.code,
+      [
+        {
+          files: ['**/*.{js,jsx,mjs,ts,tsx,mts,cts}'],
+          languageOptions: {
+            ...vector.languageOptions,
+            parser: babelParser,
+            parserOptions: {
+              ...vector.languageOptions?.parserOptions,
+              requireConfigFile: false,
+              babelOptions: { babelrc: false, configFile: false, parserOpts: { plugins: ['jsx'] } },
+            },
+          },
+          plugins: { '@next/next': plugin },
+          settings: vector.settings,
+          rules: { [`@next/next/${vector.rule}`]: ['warn', ...vector.options] },
+        },
+      ],
+      { filename: vector.filename },
+    );
+    assert.deepEqual(parsed, expected);
   });
 
 test('parser is supplied by the pinned patched runtime Next package', () => {
