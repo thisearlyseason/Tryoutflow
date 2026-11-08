@@ -132,7 +132,10 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
     new RegExp(`/app/${organizationSlug}/tryouts/.+/setup/divisions$`, 'u'),
   );
   await expect(page.getByRole('heading', { name: 'Guided setup' })).toBeVisible();
-  await page.getByRole('link', { name: /Basics/ }).click();
+  await page
+    .getByRole('navigation', { name: 'Tryout setup progress' })
+    .getByRole('link', { name: 'Tryout details', exact: true })
+    .click();
   await expect(page.getByLabel('Sport')).toHaveValue('Hockey');
   await expect(page.getByLabel(/Timezone/u)).toHaveValue('America/Edmonton');
   await expect(page.getByLabel('Registration opens')).toHaveValue('2026-09-01T09:00');

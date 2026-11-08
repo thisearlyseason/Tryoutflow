@@ -151,7 +151,10 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   await page.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(/\/tryouts\/[0-9a-f-]+\/setup\/divisions$/u);
   const authoredTryoutId = /\/tryouts\/([0-9a-f-]+)\/setup\/divisions$/u.exec(page.url())?.[1];
-  await page.getByRole('link', { name: /Basics/ }).click();
+  await page
+    .getByRole('navigation', { name: 'Tryout setup progress' })
+    .getByRole('link', { name: 'Tryout details', exact: true })
+    .click();
   expect(authoredTryoutId).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
   );

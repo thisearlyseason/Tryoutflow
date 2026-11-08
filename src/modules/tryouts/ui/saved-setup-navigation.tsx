@@ -11,7 +11,10 @@ export function SavedSetupNavigation({ href, message }: { href: string; message:
   }, [href, router]);
   return (
     <div role="status">
-      {message} <Link href={href}>Continue setup</Link>
+      {message}{' '}
+      <Link href={href} prefetch={false}>
+        Continue setup
+      </Link>
     </div>
   );
 }

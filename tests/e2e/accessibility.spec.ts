@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Page, Request } from '@playwright/test';
 
 import { expectNoCriticalAccessibilityViolations } from './helpers/accessibility';
 import { signInAs } from './helpers/auth';
@@ -91,15 +91,59 @@ test('tryout wizard preserves native labels and critical accessibility semantics
     description: `role=owner; organization=${scenario.organizationSlug}; screen=tryout-wizard`,
   });
   const monitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
-  const name = `Task 31 wizard ${scenario.key}`;
-  await createDraftForWizard(page, scenario.organizationSlug, name);
-  expectCancellableServerAction(monitor, page, 'Task 31 draft creation redirect');
-  await page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(page).toHaveURL(/\/setup\/divisions$/u);
-  await page.getByRole('link', { name: /Basics/ }).click();
-  await auditHeading(page, 'Tryout basics');
-  await expect(page.getByLabel('Name')).toHaveValue(name);
-  monitor.assertClean();
+  const automaticPrefetch = monitorAutomaticPrefetch(page);
+  const setupBase = new URL(`/app/${scenario.organizationSlug}/tryouts/`, page.url()).href;
+  const escapedBase = setupBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const setupNavigation = new RegExp(
+    `^${escapedBase}[0-9a-f-]{36}/setup/(?:divisions|basics)\\?_rsc=[^&#]+$`,
+    'u',
+  );
+  const failedRequests: Request[] = [];
+  const captureFailure = (request: Request) => failedRequests.push(request);
+  page.on('requestfailed', captureFailure);
+  // Chromium can cancel an already-consumed navigation stream after rendering it.
+  // Bound this to one non-prefetch GET per setup destination in this owned scenario.
+  for (const step of ['divisions', 'basics']) {
+    monitor.allowOptionalRequestFailure({
+      method: 'GET',
+      url: new RegExp(`^${escapedBase}[0-9a-f-]{36}/setup/${step}\\?_rsc=[^&#]+$`, 'u'),
+      headers: {
+        rsc: '1',
+        'next-router-prefetch': /^$/u,
+        'next-router-segment-prefetch': /^$/u,
+      },
+      errorText: 'net::ERR_ABORTED',
+      maxCount: 1,
+      label: `Consumed wizard ${step} navigation stream`,
+    });
+  }
+  try {
+    const name = `Task 31 wizard ${scenario.key}`;
+    await createDraftForWizard(page, scenario.organizationSlug, name);
+    expectCancellableServerAction(monitor, page, 'Task 31 draft creation redirect');
+    await page.getByRole('button', { name: 'Create draft' }).click();
+    await expect(page).toHaveURL(/\/setup\/divisions$/u);
+    await page
+      .getByRole('navigation', { name: 'Tryout setup progress' })
+      .getByRole('link', { name: 'Tryout details', exact: true })
+      .click();
+    await auditHeading(page, 'Tryout basics');
+    await expect(page.getByLabel('Name')).toHaveValue(name);
+    automaticPrefetch.assertNone();
+    for (const request of failedRequests) {
+      if (request.method() === 'GET' && setupNavigation.test(request.url())) {
+        expect(
+          (await request.response())?.status(),
+          'Only a setup stream that returned HTTP 200 may be cancelled after rendering',
+        ).toBe(200);
+      }
+    }
+    monitor.assertClean();
+  } finally {
+    page.off('requestfailed', captureFailure);
+    automaticPrefetch.stop();
+    monitor.stop();
+  }
 });
 
 test('check-in and mobile evaluation expose semantic controls without critical axe violations', async ({

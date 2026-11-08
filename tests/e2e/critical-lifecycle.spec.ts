@@ -164,7 +164,10 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   expectCancellableServerAction(monitor, page, 'draft tryout creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(/\/setup\/divisions$/u);
-  await page.getByRole('link', { name: /Basics/ }).click();
+  await page
+    .getByRole('navigation', { name: 'Tryout setup progress' })
+    .getByRole('link', { name: 'Tryout details', exact: true })
+    .click();
 
   await page.getByLabel('Name').fill(tryoutName);
   await page.getByLabel('Sport').fill('Hockey');

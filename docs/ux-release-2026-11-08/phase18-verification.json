@@ -1,0 +1,74 @@
+{
+  "phase": 18,
+  "applicationBase": "de40fff2d9baa46ecd7e6c0f2618d18863de2c3b",
+  "changes": {
+    "src/modules/tryouts/ui/saved-setup-navigation.tsx": "2a93d85e1167706efe04fce15cf738ce8f36412d8fc912842d7af63e09ab1c44",
+    "tests/e2e/accessibility.spec.ts": "c61f75488844df6d636632bb6593dd213240fd5a096ef698e856ceda3b01e45b",
+    "tests/e2e/critical-lifecycle.spec.ts": "2bcf4ed0437c3f1903530ed67316b6b09aabed732e0940a957abb4a29abda5e5",
+    "tests/e2e/complete-branded-journey.spec.ts": "ebcd5495c51c1a7ffa65e51a9833fc7e80fde2b50e806e9143f1b7e818ae69f5",
+    "tests/e2e/final-remediation.spec.ts": "ce519e6164d6e37ed63963d0e96587d691b6173c697531d10c6a5aadae9a565a"
+  },
+  "passed": {
+    "sqlFiles": 103,
+    "sqlAssertions": 2932,
+    "generatedTypePassesMatchingTrackedBytes": 2,
+    "generatedTypesSha256": "47956307de7eb6946ca2b380fbb10b023105f91ca692b8d60aa3f3b0af9fcec6",
+    "integrationFilesPerPass": 35,
+    "integrationTestsPerPass": 229,
+    "integrationPasses": 2,
+    "providerContractFiles": 4,
+    "providerContractTests": 147,
+    "unitFiles": 218,
+    "unitTests": 2261,
+    "wizardProfiles": ["chromium", "firefox", "webkit", "Mobile Chrome", "Mobile Safari"],
+    "authVisualCases": 4,
+    "lintToolchainTests": 326,
+    "lintParityCases": 17,
+    "lint": true,
+    "typecheck": true
+  },
+  "notPassed": {
+    "canonicalReleaseGate": "Node24.12.0 pin differs from host24.22.1; no pin/guard waiver",
+    "full200CaseBrowserMatrix": "Initial diagnostic stopped after5passed,1failed,1interrupted,193unrun; targeted wizard fix separately5/5passed",
+    "fullVisualGate": "Prepared-font control4authpass,owner-home differs from old baseline; fullvisual not certified",
+    "authenticatedPreviewRuntime": "Protected by VercelSSO; no access change",
+    "nativeIOSStore": "Separate remaining QA"
+  },
+  "review": {
+    "critical": 0,
+    "important": 0,
+    "minor": 0,
+    "scope": "five-file focused patch; separate evidence boundaries retained"
+  },
+  "evidence": {
+    "database-suite.log": "2df1635e9fb963bda44e848b03730395407f2385142760c5d7057971d2a6cfbe",
+    "integration-pass-1.log": "161ffa771d0b54fd5099d5484041c741ebb3cb3c4de01512c96b37091cdad837",
+    "integration-pass-2.log": "3a274c2ca530e779c462af36016f9d1343f4f04e2f7e4183df47f1ca4e46eea4",
+    "provider-contracts.log": "8f17a41073a78ae349fc5ab0c7f22748d0170058f9ce7757f53c1c8557a79270",
+    "unit-final.log": "52616c1c4d6501d08ddaaab1c3b87f06a7f362819eff0c3590a09ee8320381b3",
+    "wizard-prefetch-red.log": "308b563e6274597dda8a8a91ae01f4c6b897ca8765126712d00cb57e0c21722d",
+    "wizard-five-browser.log": "ea0a66c1684db8147a22b435a91e6427b31256c03c930f7f7ed750db601858d6",
+    "linux-visual-font-control.log": "4fe58b202139d3ab2fecfdb9c078abe8569518b055589c12d788ac71654c0903",
+    "cleanup-verification.json": "60bde3e42e09a88d050d2c04768e78bf1afe29e3fca55968831f9e7bcfde111e"
+  },
+  "preservation": {
+    "source": {
+      "originalSealedFilesUnchanged": 1530,
+      "productionProtectedFilesUnchanged": 175,
+      "mismatches": []
+    },
+    "cleanup": {
+      "residueAudit": "zero; application port3112 closed",
+      "disposableProjectRemoved": "tryoutflow-lint-verify-5c8442a9b803",
+      "ownedBrowserStopped": "tryoutflow-lint-verify-5c8442a9b803-browser",
+      "originalConfigRestored": true,
+      "originalTempFilesRestored": true,
+      "existingContainerIdsAndMountsPreserved": 81,
+      "comparison": "Mount lists normalized by destination; two raw-order differences, zero actual changes",
+      "leftOwnedContainers": [],
+      "leftOwnedVolumes": [],
+      "leftOwnedNetworks": []
+    },
+    "existingStaffGrantsAndFixtureUnchanged": true
+  }
+}
