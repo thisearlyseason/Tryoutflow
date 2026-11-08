@@ -34,7 +34,7 @@ if [[ "${TRYOUTFLOW_RELEASE_LOCK_HELD:-}" != '1' ]]; then
 fi
 unset TRYOUTFLOW_RELEASE_LOCK_HELD
 
-readonly EXPECTED_NODE_VERSION='v24.12.0'
+readonly EXPECTED_NODE_VERSION='v24.22.1'
 readonly EXPECTED_NPM_VERSION='11.12.1'
 readonly EXPECTED_SUPABASE_VERSION='2.116.0'
 readonly PUBLIC_BUILD_ORIGIN='https://release.tryoutflow.test'

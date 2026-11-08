@@ -14,6 +14,7 @@ const parserOptions = (plugins) => ({
 export default [
   {
     ignores: [
+      'work/**',
       '.next/**',
       'tests/fixtures/**/.next/**',
       'coverage/**',

@@ -60,6 +60,25 @@ function isExactLocalProductionBrowserBoundary(
   }
 }
 
+function vercelPreviewOrigin(environment: Record<string, string | undefined>): string | undefined {
+  // Only this project's provider-injected deployment identity may override the public origin.
+  // Never derive a hosted redirect origin from Host or forwarded headers.
+  if (
+    environment.VERCEL !== '1' ||
+    environment.VERCEL_ENV !== 'preview' ||
+    environment.VERCEL_PROJECT_ID !== 'prj_3oAxXhX98AXJ2mEWYi56n5iZneWI'
+  )
+    return undefined;
+  if (
+    environment.NEXT_PUBLIC_APP_URL === 'https://tryout-ux-qa-tylers-projects-5b59182e.vercel.app'
+  )
+    return environment.NEXT_PUBLIC_APP_URL;
+  const hostname = environment.VERCEL_URL;
+  if (!hostname || !/^tryout-[a-z0-9](?:[a-z0-9-]{0,54}[a-z0-9])?\.vercel\.app$/u.test(hostname))
+    return undefined;
+  return `https://${hostname}`;
+}
+
 /** Reconstructs the browser-visible same origin from deployment-controlled request metadata. */
 export function getTrustedRequestOrigin(
   request: NextRequest,
@@ -69,7 +88,8 @@ export function getTrustedRequestOrigin(
     return requestHeaderOrigin(request);
   if (environment.NODE_ENV !== 'production') return requestHeaderOrigin(request);
   try {
-    return getPublicAppOrigin(environment);
+    const canonicalOrigin = getPublicAppOrigin(environment);
+    return vercelPreviewOrigin(environment) ?? canonicalOrigin;
   } catch {
     throw new Error('Production canonical origin is invalid');
   }
