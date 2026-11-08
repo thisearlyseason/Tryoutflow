@@ -93,7 +93,7 @@ async function createReleaseFixture() {
   await chmod(resolve(root, 'scripts/verify-production-readiness.sh'), 0o755);
   await Promise.all([
     writeFile(resolve(root, '.env.example'), 'NEXT_PUBLIC_APP_URL=http://localhost:3000\n'),
-    writeFile(resolve(root, '.nvmrc'), '24.12.0\n'),
+    writeFile(resolve(root, '.nvmrc'), '24.22.1\n'),
     writeFile(
       resolve(root, 'package.json'),
       JSON.stringify({ packageManager: 'npm@11.12.1', devDependencies: { supabase: '2.116.0' } }),
@@ -108,7 +108,7 @@ async function createReleaseFixture() {
       `#!/usr/bin/env bash
 set -euo pipefail
 printf 'node %s\\n' "$*" >> "$TRYOUTFLOW_COMMAND_LOG"
-if [[ "$*" == "--version" ]]; then printf '%s\\n' "\${TRYOUTFLOW_NODE_VERSION:-v24.12.0}"; exit 0; fi
+if [[ "$*" == "--version" ]]; then printf '%s\\n' "\${TRYOUTFLOW_NODE_VERSION:-v24.22.1}"; exit 0; fi
 if [[ "$*" == scripts/reset-isolated-release-database.mjs* && "\${TRYOUTFLOW_ALLOW_ISOLATED_RESET:-}" == 1 ]]; then exit "\${TRYOUTFLOW_RESET_EXIT_CODE:-0}"; fi
 if [[ "$*" == "scripts/current-release-dependency-audit.mjs" ]]; then exit "\${TRYOUTFLOW_AUDIT_EXIT_CODE:-0}"; fi
 exit 64
@@ -669,7 +669,7 @@ describe('release evidence documentation', () => {
       readFile(resolve(repositoryRoot, '.github/workflows/ci.yml'), 'utf8'),
     ]);
 
-    expect(readme).toContain('Node.js 24.12.0');
+    expect(readme).toContain('Node.js 24.22.1');
     expect(readme).toContain('npm 11.12.1');
     expect(readme).toContain('Supabase CLI 2.116.0');
     expect(readme.match(/bash scripts\/verify-production-readiness\.sh/gu)).toHaveLength(1);

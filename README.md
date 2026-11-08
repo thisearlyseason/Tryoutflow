@@ -8,7 +8,7 @@ The application is a modular Next.js 16 monolith with typed application/domain m
 
 ## Pinned local toolchain
 
-- Node.js 24.12.0 (`.nvmrc`)
+- Node.js 24.22.1 (`.nvmrc`)
 - npm 11.12.1 through Corepack (`packageManager`)
 - Supabase CLI 2.116.0 from repository dependencies
 - Docker for the local Supabase stack
