@@ -29,39 +29,18 @@ import type {
 } from '@/modules/registration/domain/form-schema';
 import {
   DEFAULT_BUILT_IN_FIELDS,
-  getBuiltInFields,
   isRequiredBuiltIn,
 } from '@/modules/registration/domain/built-in-fields';
 import { PARTICIPATION_WAIVER_STARTER } from '@/modules/registration/domain/waiver-starter';
 import { RegistrationWaiver } from '@/modules/registration/ui/registration-waiver';
 
 type Field = RegistrationFormSchema['fields'][number];
-export type EditableRegistrationForm = {
-  name: string;
-  fields: Field[];
-  builtInFields?: RegistrationBuiltInField[];
-  notificationEmail?: string;
-};
-type Question =
-  { type: 'builtIn'; field: RegistrationBuiltInField } | { type: 'custom'; field: Field };
-
-const identityKeys = new Set([
-  'custom_birth_date',
-  'custom_guardian_name',
-  'custom_guardian_email',
-  'custom_guardian_phone',
-]);
-const defaultFields: Field[] = [
-  {
-    key: 'custom_waiver',
-    label: 'Waiver and consent',
-    kind: 'consent',
-    waiverText: PARTICIPATION_WAIVER_STARTER,
-    required: true,
-    sortOrder: 0,
-  },
-];
-
+export type { EditableRegistrationForm } from './registration-editor-values';
+import {
+  registrationValues,
+  type EditableRegistrationForm,
+  type Question,
+} from './registration-editor-values';
 const builtInTypes: Record<RegistrationBuiltInKey, string> = {
   givenName: 'Short text',
   familyName: 'Short text',
@@ -252,24 +231,29 @@ function CustomFieldDetails({
   );
 }
 
-export function RegistrationFormEditor({ initial }: { initial?: EditableRegistrationForm }) {
+export function RegistrationFormEditor({
+  initial,
+  values,
+  onValuesChange,
+}: {
+  initial?: EditableRegistrationForm;
+  values?: Record<string, string>;
+  onValuesChange?: (values: Record<string, string>) => void;
+}) {
   const dragContextId = useId();
   const notificationHelpId = useId();
-  const [formName, setFormName] = useState(initial?.name ?? '');
+  const [local, setLocal] = useState(() => registrationValues(initial));
+  const draft = values ?? local;
+  const update = onValuesChange ?? setLocal;
+  const formName = draft.name ?? '';
+  const setFormName = (name: string) => update({ ...draft, name });
+  const questions = JSON.parse(draft.questions!) as Question[];
+  const setQuestions = (change: Question[] | ((rows: Question[]) => Question[])) =>
+    update({
+      ...draft,
+      questions: JSON.stringify(typeof change === 'function' ? change(questions) : change),
+    });
   const [notificationEmail, setNotificationEmail] = useState(initial?.notificationEmail ?? '');
-  const [questions, setQuestions] = useState<Question[]>(() => {
-    const builtIns: Question[] = getBuiltInFields(initial ?? {}).map((field) => ({
-      type: 'builtIn',
-      field: { ...field },
-    }));
-    const custom: Question[] = (initial?.fields ?? defaultFields)
-      .filter((field) => !identityKeys.has(field.key))
-      .map((field) => ({ type: 'custom', field: { ...field } }));
-    // Older forms ordered only additional questions; their built-ins always came first.
-    return initial?.builtInFields
-      ? [...builtIns, ...custom].sort((a, b) => a.field.sortOrder - b.field.sortOrder)
-      : [...builtIns, ...custom.sort((a, b) => a.field.sortOrder - b.field.sortOrder)];
-  });
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const settingsRef = useRef<HTMLFieldSetElement>(null);
   useEffect(() => {

@@ -183,3 +183,5 @@ export default async function TryoutOverviewPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Tryout overview | TryoutFlow' };

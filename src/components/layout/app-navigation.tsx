@@ -35,7 +35,9 @@ const navigationIcons: Record<NavigationIcon, LucideIcon> = {
 };
 
 export function isNavigationItemActive(pathname: string, item: NavigationItem) {
-  return pathname === item.href || (item.label !== 'Home' && pathname.startsWith(`${item.href}/`));
+  return [item.href, ...(item.activePaths ?? [])].some(
+    (path) => pathname === path || (item.label !== 'Home' && pathname.startsWith(`${path}/`)),
+  );
 }
 
 function NavigationProgress({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
@@ -61,7 +63,7 @@ export function NavigationLink({ item, pathname }: { item: NavigationItem; pathn
   const Icon = navigationIcons[item.icon];
   return (
     <Link
-      aria-current={active ? 'page' : undefined}
+      aria-current={pathname === item.href ? 'page' : undefined}
       aria-label={item.accessibleLabel ?? item.label}
       className={active ? 'app-nav-link app-nav-link-active' : 'app-nav-link'}
       href={item.href}
@@ -147,31 +149,36 @@ export function AppNavigation({
           </div>
         </div>
         <nav aria-label="Primary navigation" className="app-navigation">
-          {groups.map((group) =>
-            group.id === 'organization' ? (
-              <details
-                className="app-nav-group workflow-settings"
-                key={group.id}
-                open={group.items.some((item) => isNavigationItemActive(pathname, item))}
-              >
-                <summary>{group.label}</summary>
-                <div>
-                  {group.items.map((item) => (
-                    <NavigationLink item={item} key={item.href} pathname={pathname} />
-                  ))}
-                </div>
-              </details>
-            ) : (
-              <section aria-labelledby={`nav-${group.id}`} className="app-nav-group" key={group.id}>
-                <h2 id={`nav-${group.id}`}>{group.label}</h2>
-                <div>
-                  {group.items.map((item) => (
-                    <NavigationLink item={item} key={item.href} pathname={pathname} />
-                  ))}
-                </div>
-              </section>
-            ),
-          )}
+          {groups
+            .filter((group) => group.presentation !== 'context')
+            .map((group) => {
+              const links = group.items.map((item) => (
+                <NavigationLink item={item} key={item.href} pathname={pathname} />
+              ));
+              if (group.presentation === 'disclosure') {
+                const active = group.items.some((item) => isNavigationItemActive(pathname, item));
+                return (
+                  <details
+                    className="app-nav-tools"
+                    key={`${group.id}:${active}`}
+                    open={active || undefined}
+                  >
+                    <summary>{group.label}</summary>
+                    <div>{links}</div>
+                  </details>
+                );
+              }
+              return (
+                <section
+                  aria-labelledby={`nav-${group.id}`}
+                  className="app-nav-group"
+                  key={group.id}
+                >
+                  <h2 id={`nav-${group.id}`}>{group.label}</h2>
+                  <div>{links}</div>
+                </section>
+              );
+            })}
         </nav>
         <form action="/auth/sign-out" className="app-sign-out" method="post">
           <Link

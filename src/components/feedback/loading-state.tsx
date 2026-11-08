@@ -11,7 +11,7 @@ export function LoadingState({ label = 'Loading' }: LoadingStateProps) {
     >
       <span
         aria-hidden="true"
-        className="size-3 animate-pulse rounded-full bg-[var(--color-primary)]"
+        className="size-3 motion-safe:animate-pulse rounded-full bg-[var(--color-primary)]"
       />
       <span>{label}</span>
     </div>

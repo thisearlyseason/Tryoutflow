@@ -10,6 +10,7 @@ import { requireCurrentOrganization } from '@/modules/organizations/application/
 import { updateOrganizationLogo } from '@/modules/organizations/application/update-organization-logo';
 import { updateOrganizationSettings } from '@/modules/organizations/application/update-organization-settings';
 import { PageHeader } from '@/components/layout/page-header';
+import { OrganizationMark } from '@/modules/organizations/components/organization-mark';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,67 @@ export default async function SettingsPage({
   const { organizationSlug } = await params;
   const search = await searchParams;
   const current = await requireCurrentOrganization(organizationSlug, { includeBranding: true });
+  if (
+    !can(current.authorization, 'organization:update', {
+      organizationId: current.organization.id,
+    })
+  ) {
+    return (
+      <div className="workspace-stack">
+        <PageHeader
+          title="Organization settings"
+          description="View the settings used by your organization."
+          eyebrow="Organization"
+        />
+        <section className="workspace-card" aria-labelledby="readonly-settings-heading">
+          <h2 id="readonly-settings-heading" className="workspace-card-title">
+            Read-only settings
+          </h2>
+          <p>
+            An owner or administrator can change these settings. Ask them if an update is needed.
+          </p>
+          <OrganizationMark
+            accessible
+            name={current.organization.name}
+            logoUrl={current.organization.logoUrl}
+            size={80}
+          />
+          <dl className="grid gap-4 sm:grid-cols-2">
+            {[
+              ['Timezone', current.organization.timezone],
+              [
+                'Singular athlete terminology',
+                current.organization.terminology.athlete ?? 'Athlete',
+              ],
+              [
+                'Plural athlete terminology',
+                current.organization.terminology.athletes ?? 'Athletes',
+              ],
+              [
+                'Sport defaults',
+                current.organization.sportDefaults.join(', ') || 'None configured',
+              ],
+              [
+                'Quick-tag defaults',
+                current.organization.tagDefaults.join(', ') || 'None configured',
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="min-w-0">
+                <dt className="font-bold">{label}</dt>
+                <dd className="break-words">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <Link
+            className="button-secondary inline-flex min-h-11 items-center"
+            href={`/app/${organizationSlug}/home`}
+          >
+            Back to your work
+          </Link>
+        </section>
+      </div>
+    );
+  }
   const workspace = await loadWorkspaceNavigation(current.client, current.organization.id);
   const sharedSettings = workspace.parent;
   const defaultsUpgrade = await billingUpgradePrompt(
@@ -279,3 +341,5 @@ export default async function SettingsPage({
     </div>
   );
 }
+
+export const metadata = { title: 'Organization settings | TryoutFlow' };

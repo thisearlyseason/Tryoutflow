@@ -132,6 +132,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
     'placeholder',
     'U15 Fall Evaluations',
   );
+  await page.getByLabel('Use an existing cycle').selectOption('');
   await expect(page.getByLabel('New cycle name')).toHaveAttribute(
     'placeholder',
     '2026 Fall Season',
@@ -141,14 +142,16 @@ test('isolated owner completes the branded tryout journey and removes the logo c
   const cycleName = `2026 Fall Season ${suffix}`;
   await page.getByLabel('Tryout name').fill(tryoutName);
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('Use an existing cycle').selectOption('');
   await page.getByLabel('New cycle name').fill(cycleName);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill(registrationOpens!);
   await page.getByLabel('Registration closes').fill(registrationCloses!);
   expectCancellableServerAction(ownerMonitor, page, 'cycle-backed draft creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(page).toHaveURL(/\/tryouts\/[0-9a-f-]+\/setup\/basics$/u);
-  const authoredTryoutId = /\/tryouts\/([0-9a-f-]+)\/setup\/basics$/u.exec(page.url())?.[1];
+  await expect(page).toHaveURL(/\/tryouts\/[0-9a-f-]+\/setup\/divisions$/u);
+  const authoredTryoutId = /\/tryouts\/([0-9a-f-]+)\/setup\/divisions$/u.exec(page.url())?.[1];
+  await page.getByRole('link', { name: /Basics/ }).click();
   expect(authoredTryoutId).toMatch(
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
   );
@@ -378,7 +381,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
     'rankings to rosters navigation RSC request',
   );
   await page.getByRole('link', { name: 'Next: Build rosters' }).click();
-  await expect(page.getByRole('heading', { name: `${tryoutName} rosters` })).toBeVisible();
+  await expect(page.getByRole('heading', { name: `${tryoutName} official rosters` })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Create a draft roster' })).toBeVisible();
   await page.getByLabel('Team 1 name').fill('North');
   await page.getByLabel('Team 2 name').fill('South');

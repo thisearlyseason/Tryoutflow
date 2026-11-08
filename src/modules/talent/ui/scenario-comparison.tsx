@@ -17,14 +17,14 @@ export function ScenarioComparison({
   const athleteIds = [...new Set(selected.map((m) => m.athlete_id))];
   return (
     <section className="talent-card">
-      <h2>Compare alternatives</h2>
+      <h2>Compare scenario selections</h2>
       <p>
         Review shared selections, different role choices and response states. Archived alternatives
         retain their original rationale.
       </p>
       <div className="talent-table">
         <table>
-          <caption className="sr-only">Roster scenario comparison</caption>
+          <caption className="sr-only">Draft option comparison</caption>
           <thead>
             <tr>
               <th>Athlete</th>
@@ -33,7 +33,7 @@ export function ScenarioComparison({
                   {s.name}
                   <br />
                   <small>
-                    {s.status} · target {s.target_size}
+                    Scenario status: {s.status} · target {s.target_size}
                   </small>
                 </th>
               ))}

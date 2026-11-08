@@ -242,3 +242,5 @@ export default async function Page({
     </article>
   );
 }
+
+export const metadata = { title: 'Tryout decision packet | TryoutFlow' };

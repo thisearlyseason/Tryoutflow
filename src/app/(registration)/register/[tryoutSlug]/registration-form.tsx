@@ -1,5 +1,7 @@
 'use client';
 
+import { useFamilyRecovery } from '@/modules/registration/ui/use-family-recovery';
+import { FamilyRecoveryPanel } from '@/modules/registration/ui/family-recovery-panel';
 import { FeedbackButton } from '@/components/ui/button';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -20,7 +22,10 @@ import { OrganizationMark } from '../../../../modules/organizations/components/o
 
 import { RegistrationBuiltInFieldInput } from '../../../../modules/registration/ui/registration-built-in-field';
 import { RegistrationCustomField } from '../../../../modules/registration/ui/registration-custom-field';
-import { registrationFieldErrors } from '../../../../modules/registration/ui/registration-field-errors';
+import {
+  registrationFieldErrors,
+  registrationFieldError,
+} from '../../../../modules/registration/ui/registration-field-errors';
 import {
   REGISTRATION_STEPS,
   RegistrationReview,
@@ -29,7 +34,7 @@ import {
   type RegistrationStepIndex,
 } from '../../../../modules/registration/ui/registration-steps';
 import {
-  LEGACY_IDENTITY_FIELDS,
+  legacyRegistrationField,
   getOrderedRegistrationFields,
   getBuiltInField,
   type OrderedRegistrationField,
@@ -91,19 +96,30 @@ function registrationReviewItems(
   });
 }
 
-export function RegistrationForm({
-  tryoutSlug,
-  botSiteKey,
-  deterministicBotToken,
-  testLoaderFailure,
-  prefill,
-}: {
+type RegistrationProps = {
   tryoutSlug: string;
   botSiteKey?: string;
   deterministicBotToken?: string;
   testLoaderFailure?: string;
   prefill?: Record<string, string>;
-}) {
+  recoveryContext?: string;
+};
+export function RegistrationForm(props: RegistrationProps) {
+  return (
+    <RegistrationFields
+      key={JSON.stringify([props.tryoutSlug, props.recoveryContext ?? 'public'])}
+      {...props}
+    />
+  );
+}
+function RegistrationFields({
+  tryoutSlug,
+  botSiteKey,
+  deterministicBotToken,
+  testLoaderFailure,
+  prefill,
+  recoveryContext,
+}: RegistrationProps) {
   const [registrationWindow, setRegistrationWindow] = useState<RegistrationWindowResponse | null>(
     null,
   );
@@ -119,17 +135,43 @@ export function RegistrationForm({
   const formRef = useRef<HTMLFormElement>(null);
   const detailsHeadingRef = useRef<HTMLHeadingElement>(null);
   const reviewHeadingRef = useRef<HTMLHeadingElement>(null);
+  const submissionErrorRef = useRef<HTMLParagraphElement>(null);
+  const [focusSubmissionError, setFocusSubmissionError] = useState(false);
   const [loadOutcome, setLoadOutcome] = useState<'loading' | 'not_found' | 'unavailable'>(
     'loading',
   );
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [formChanged, setFormChanged] = useState(false);
+  const [allowPrefill, setAllowPrefill] = useState(true);
   const [busy, setBusy] = useState(false);
   const [challengeResetKey, setChallengeResetKey] = useState(0);
   const [localBotToken, setLocalBotToken] = useState(deterministicBotToken);
   const [botReady, setBotReady] = useState(Boolean(deterministicBotToken));
   const [botVerificationToken, setBotVerificationToken] = useState(deterministicBotToken ?? '');
   const idempotencyKey = useRef<string | null>(null);
+  const family = useFamilyRecovery(
+    tryout
+      ? { tryoutSlug, formVersionId: tryout.formVersionId, context: recoveryContext ?? 'public' }
+      : undefined,
+    formRef,
+    () => {
+      setAllowPrefill(false);
+      if (formChanged) setLoadAttempt((attempt) => attempt + 1);
+      setCurrentStep(0);
+      setReviewItems([]);
+      setFieldErrors({});
+      setValidationAttempted(false);
+      setError(null);
+      setPendingFocus(null);
+      setFocusStepAfterTransition(true);
+    },
+    (fields) =>
+      Boolean(
+        tryout &&
+        (!fields.divisionId || tryout.divisions.some((row) => row.id === fields.divisionId)) &&
+        (!fields.positionId || tryout.positions.some((row) => row.id === fields.positionId)),
+      ),
+  );
 
   function stableIdempotencyKey() {
     if (idempotencyKey.current) return idempotencyKey.current;
@@ -215,10 +257,21 @@ export function RegistrationForm({
     setFocusStepAfterTransition(false);
   }, [currentStep, focusStepAfterTransition, pendingFocus]);
 
+  useEffect(() => {
+    if (focusSubmissionError && error && !busy) {
+      submissionErrorRef.current?.focus();
+      setFocusSubmissionError(false);
+    }
+  }, [focusSubmissionError, error, busy]);
+
   function continueFromStep(fields: OrderedRegistrationField[]) {
     const form = formRef.current;
-    if (!form || currentStep === 2) return;
-    const invalidFields = errorsForStep(registrationFieldErrors(form), fields, currentStep);
+    if (!form || currentStep === 2 || busy || family.blocked) return;
+    const invalidFields = errorsForStep(
+      registrationFieldErrors(form, tryout?.formSchema),
+      fields,
+      currentStep,
+    );
     setValidationAttempted(true);
     setFieldErrors(invalidFields);
     const firstInvalid = Object.keys(invalidFields)[0];
@@ -243,8 +296,8 @@ export function RegistrationForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!tryout || formChanged) return;
-    const invalidFields = registrationFieldErrors(event.currentTarget);
+    if (!tryout || formChanged || busy || family.blocked) return;
+    const invalidFields = registrationFieldErrors(event.currentTarget, tryout.formSchema);
     setValidationAttempted(true);
     setFieldErrors(invalidFields);
     if (Object.keys(invalidFields).length > 0) {
@@ -263,11 +316,14 @@ export function RegistrationForm({
     const fields = new FormData(event.currentTarget);
     const responses: Record<string, unknown> = {};
     for (const field of tryout.formSchema.fields.filter((field) => field.enabled !== false)) {
-      const identityName = LEGACY_IDENTITY_FIELDS[field.key];
+      const identityName = legacyRegistrationField(field.key);
       const value = fields.get(identityName ?? field.key);
       responses[field.key] =
         field.kind === 'consent' || field.kind === 'checkbox' ? value === 'on' : value;
     }
+    const recoverySubmission = family.beforeSubmit();
+    if (recoverySubmission.blocked) return;
+    setFocusSubmissionError(false);
     setBusy(true);
     setError(null);
     try {
@@ -295,6 +351,18 @@ export function RegistrationForm({
       if (!response.ok) {
         if (response.status === 409) {
           setFormChanged(true);
+          formRef.current
+            ?.querySelectorAll<HTMLInputElement>('input[type=checkbox]')
+            .forEach((input) => {
+              input.checked = false;
+            });
+          if (formRef.current)
+            setReviewItems(
+              registrationReviewItems(
+                formRef.current,
+                getOrderedRegistrationFields(tryout.formSchema),
+              ),
+            );
           throw new Error('form_changed');
         }
         if (response.status === 429) throw new Error('rate_limited');
@@ -305,6 +373,7 @@ export function RegistrationForm({
         delivery?: 'queued' | 'not_configured' | 'not_attempted';
         manualConfirmationToken?: string;
       };
+      family.complete(recoverySubmission.ticket);
       if (result.manualConfirmationToken) {
         try {
           window.sessionStorage.setItem(
@@ -344,10 +413,11 @@ export function RegistrationForm({
           : caught instanceof Error && caught.message === 'rate_limited'
             ? 'Too many registration attempts. Please wait a few minutes and try again.'
             : caught instanceof Error && caught.message === 'invalid'
-              ? 'Please review the required fields and try again.'
-              : 'We could not submit your registration right now. Please try again.',
+              ? 'Registration could not be verified. Review your details, complete any security check, and try again.'
+              : 'We could not confirm your registration. Your entries are still here. Please try again.',
       );
       setBusy(false);
+      setFocusSubmissionError(true);
     }
   }
 
@@ -424,135 +494,152 @@ export function RegistrationForm({
             <p>Complete each short step, then review the registration before submitting.</p>
           </div>
         </header>
+        <FamilyRecoveryPanel recovery={family} pending={busy} />
         <RegistrationStepProgress currentStep={currentStep} />
         <form
           ref={formRef}
           className="mt-6 grid gap-6"
           onSubmit={submit}
           onChange={(event) => {
-            if (validationAttempted) setFieldErrors(registrationFieldErrors(event.currentTarget));
+            family.changed();
+            if (validationAttempted)
+              setFieldErrors(registrationFieldErrors(event.currentTarget, tryout.formSchema));
           }}
           noValidate
         >
-          {Object.keys(visibleFieldErrors).length > 0 ? (
-            <div
-              role="alert"
-              className="rounded-[var(--radius-surface)] border border-[var(--color-destructive)] bg-[var(--color-destructive-surface)] p-4 text-[var(--color-destructive)]"
-            >
-              <p className="font-bold">Please complete or correct the highlighted fields.</p>
-              <ul className="mt-2 list-inside list-disc">
-                {Object.keys(visibleFieldErrors).map((name) => (
-                  <li key={name}>
-                    <FeedbackButton
-                      type="button"
-                      className="min-h-11 text-left underline"
-                      onClick={() => focusField(name)}
-                    >
-                      {orderedFields.find((item) => item.field.key === name)?.field.label ?? name}
-                    </FeedbackButton>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          <section hidden={currentStep === 2} aria-labelledby={`registration-step-${currentStep}`}>
-            <div className="mb-5">
-              <p className="eyebrow">Registration details</p>
-              <h2
-                ref={detailsHeadingRef}
-                id={`registration-step-${currentStep}`}
-                className="mt-1 text-2xl font-bold"
-                tabIndex={-1}
+          <fieldset className="contents" disabled={busy || family.blocked}>
+            {Object.keys(visibleFieldErrors).length > 0 ? (
+              <div
+                role="alert"
+                className="rounded-[var(--radius-surface)] border border-[var(--color-destructive)] bg-[var(--color-destructive-surface)] p-4 text-[var(--color-destructive)]"
               >
-                {REGISTRATION_STEPS[currentStep].title}
-              </h2>
-              <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-                {REGISTRATION_STEPS[currentStep].description}
-              </p>
-            </div>
-            {prefill && (
-              <p className="mb-4 text-sm">
-                Identity details were filled from your linked athlete profile. Review them before
-                submitting.
-              </p>
-            )}
-            <div className="grid gap-4">
-              {orderedFields.map((item, index) => (
-                <div
-                  key={`${item.type}-${item.field.key}`}
-                  hidden={fieldStep(index, orderedFields.length) !== currentStep}
-                >
-                  {item.type === 'builtIn' ? (
-                    <RegistrationBuiltInFieldInput
-                      field={item.field}
-                      error={fieldErrors[item.field.key]}
-                      defaultValue={prefill?.[item.field.key]}
-                      divisions={tryout.divisions}
-                      positions={tryout.positions}
-                    />
-                  ) : (
-                    <RegistrationCustomField
-                      field={item.field}
-                      error={fieldErrors[item.field.key]}
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-          <div hidden={currentStep !== 2}>
-            <RegistrationReview headingRef={reviewHeadingRef} items={reviewItems} />
-          </div>
-          <TurnstileClientChallenge
-            action="public_registration"
-            deterministicToken={localBotToken}
-            resetKey={challengeResetKey}
-            onReadyChange={setBotReady}
-            onTokenChange={setBotVerificationToken}
-            siteKey={botSiteKey}
-          />
-          {error && <p role="alert">{error}</p>}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-5">
-            {currentStep > 0 ? (
-              <Button type="button" variant="secondary" onClick={backFromStep}>
-                Back
-              </Button>
-            ) : (
-              <span />
-            )}
-            {currentStep < 2 ? (
-              <Button type="button" onClick={() => continueFromStep(orderedFields)}>
-                {currentStep === 1 ? 'Continue to review' : 'Continue'}
-              </Button>
-            ) : (
-              <div className="flex flex-wrap gap-3">
-                {formChanged ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setLoadAttempt((attempt) => attempt + 1)}
-                  >
-                    Reload form
-                  </Button>
-                ) : null}
-                <Button
-                  busy={busy}
-                  disabled={
-                    !botReady ||
-                    formChanged ||
-                    (Boolean(
-                      getBuiltInField(tryout.formSchema, 'positionId')?.enabled &&
-                      getBuiltInField(tryout.formSchema, 'positionId')?.required,
-                    ) &&
-                      tryout.positions.length === 0)
-                  }
-                  type="submit"
-                >
-                  Submit registration
-                </Button>
+                <p className="font-bold">Please complete or correct the highlighted fields.</p>
+                <ul className="mt-2 list-inside list-disc">
+                  {Object.keys(visibleFieldErrors).map((name) => (
+                    <li key={name}>
+                      <FeedbackButton
+                        type="button"
+                        className="min-h-11 text-left underline"
+                        onClick={() => focusField(name)}
+                      >
+                        {orderedFields.find((item) => item.field.key === name)?.field.label ?? name}
+                      </FeedbackButton>
+                    </li>
+                  ))}
+                </ul>
               </div>
+            ) : null}
+            <section
+              hidden={currentStep === 2}
+              aria-labelledby={`registration-step-${currentStep}`}
+            >
+              <div className="mb-5">
+                <p className="eyebrow">Registration details</p>
+                <h2
+                  ref={detailsHeadingRef}
+                  id={`registration-step-${currentStep}`}
+                  className="mt-1 text-2xl font-bold"
+                  tabIndex={-1}
+                >
+                  {REGISTRATION_STEPS[currentStep].title}
+                </h2>
+                <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+                  {REGISTRATION_STEPS[currentStep].description}
+                </p>
+              </div>
+              {prefill && allowPrefill && (
+                <p className="mb-4 text-sm">
+                  Identity details were filled from your linked athlete profile. Review them before
+                  submitting.
+                </p>
+              )}
+              <div className="grid gap-4">
+                {orderedFields.map((item, index) => (
+                  <div
+                    key={`${item.type}-${item.field.key}`}
+                    hidden={fieldStep(index, orderedFields.length) !== currentStep}
+                  >
+                    {item.type === 'builtIn' ? (
+                      <RegistrationBuiltInFieldInput
+                        field={item.field}
+                        error={registrationFieldError(fieldErrors, item.field.key)}
+                        defaultValue={allowPrefill ? prefill?.[item.field.key] : undefined}
+                        divisions={tryout.divisions}
+                        positions={tryout.positions}
+                      />
+                    ) : (
+                      <RegistrationCustomField
+                        field={item.field}
+                        error={registrationFieldError(fieldErrors, item.field.key)}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+            <div hidden={currentStep !== 2}>
+              <RegistrationReview headingRef={reviewHeadingRef} items={reviewItems} />
+            </div>
+            <TurnstileClientChallenge
+              action="public_registration"
+              deterministicToken={localBotToken}
+              resetKey={challengeResetKey}
+              onReadyChange={setBotReady}
+              onTokenChange={setBotVerificationToken}
+              siteKey={botSiteKey}
+            />
+            {error && (
+              <p
+                ref={submissionErrorRef}
+                role="alert"
+                tabIndex={-1}
+                className="rounded-lg border border-[var(--color-destructive)] p-3 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--color-focus)]"
+              >
+                {error}
+              </p>
             )}
-          </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-border)] pt-5">
+              {currentStep > 0 ? (
+                <Button type="button" variant="secondary" onClick={backFromStep}>
+                  Back
+                </Button>
+              ) : (
+                <span />
+              )}
+              {currentStep < 2 ? (
+                <Button type="button" onClick={() => continueFromStep(orderedFields)}>
+                  {currentStep === 1 ? 'Continue to review' : 'Continue'}
+                </Button>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  {formChanged ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+                    >
+                      Reload form
+                    </Button>
+                  ) : null}
+                  <Button
+                    busy={busy}
+                    disabled={
+                      !botReady ||
+                      formChanged ||
+                      (Boolean(
+                        getBuiltInField(tryout.formSchema, 'positionId')?.enabled &&
+                        getBuiltInField(tryout.formSchema, 'positionId')?.required,
+                      ) &&
+                        tryout.positions.length === 0)
+                    }
+                    type="submit"
+                  >
+                    Submit registration
+                  </Button>
+                </div>
+              )}
+            </div>
+          </fieldset>
         </form>
       </section>
     </main>

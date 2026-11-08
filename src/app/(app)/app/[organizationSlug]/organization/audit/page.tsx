@@ -41,3 +41,5 @@ export default async function OrganizationAuditPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Organization audit history | TryoutFlow' };

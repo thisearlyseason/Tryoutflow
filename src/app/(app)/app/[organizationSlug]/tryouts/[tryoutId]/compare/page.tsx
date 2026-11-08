@@ -34,7 +34,7 @@ export default async function ComparePage({
   return (
     <section aria-labelledby="comparison-heading" className="min-w-0">
       <p className="eyebrow">Side-by-side evidence</p>
-      <h2 id="comparison-heading">Athlete comparison</h2>
+      <h1 id="comparison-heading">Athlete comparison</h1>
       <p className="mb-6 mt-2 text-[var(--color-text-muted)]">
         Compare two to four athletes without exposing individual evaluator work or private notes.
       </p>
@@ -68,3 +68,5 @@ export default async function ComparePage({
     </section>
   );
 }
+
+export const metadata = { title: 'Compare athletes | TryoutFlow' };

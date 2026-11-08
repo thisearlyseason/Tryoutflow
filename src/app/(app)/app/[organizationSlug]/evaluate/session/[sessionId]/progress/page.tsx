@@ -71,3 +71,5 @@ export default async function EvaluationProgressPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Your evaluation progress | TryoutFlow' };

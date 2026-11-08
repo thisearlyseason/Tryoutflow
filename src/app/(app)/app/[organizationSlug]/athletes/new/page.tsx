@@ -9,5 +9,7 @@ export default async function NewAthlete({
   const { organizationSlug } = await params;
   const c = await talentContext(organizationSlug);
   if (!['owner', 'administrator'].includes(c.authorization.organizationRole)) notFound();
-  return <IdentityForm slug={organizationSlug} />;
+  return <IdentityForm slug={organizationSlug} headingLevel={1} />;
 }
+
+export const metadata = { title: 'Add a prospect | TryoutFlow' };

@@ -298,3 +298,5 @@ export default async function EvaluatorDirectoryPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Evaluator directory | TryoutFlow' };

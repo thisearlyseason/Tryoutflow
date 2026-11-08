@@ -20,9 +20,9 @@ export default async function EvaluatorLandingPage({
   return (
     <section aria-labelledby="evaluation-landing-heading" className="grid min-w-0 gap-5">
       <PageHeader
-        description="Open an assigned session to score athletes."
+        description="Only active evaluator assignments are listed. Athlete details stay inside each assigned session."
         eyebrow="Evaluator workspace"
-        title="My scoring"
+        title="Your assigned sessions"
         actions={
           <Link
             className="button-secondary inline-flex min-h-11 items-center"
@@ -80,3 +80,5 @@ export default async function EvaluatorLandingPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Your assigned sessions | TryoutFlow' };

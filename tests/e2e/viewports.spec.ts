@@ -53,6 +53,7 @@ async function createDraftForWizard(page: Page, organizationSlug: string, name: 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
   await page.getByLabel('Tryout name').fill(name);
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('Use an existing cycle').selectOption('');
   await page.getByLabel('New cycle name').fill(`${name} cycle`);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
@@ -108,7 +109,7 @@ test('tryout wizard, check-in, and mobile evaluation stay overflow-free across t
   await createDraftForWizard(page, scenario.organizationSlug, draftName);
   expectCancellableServerAction(ownerMonitor, page, 'Task 31 viewport draft creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(page).toHaveURL(/\/setup\/basics$/u);
+  await expect(page).toHaveURL(/\/setup\/divisions$/u);
   await expectOverflowFreeAtEveryViewport(page, 'tryout wizard');
   ownerMonitor.assertClean();
 

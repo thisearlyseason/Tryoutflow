@@ -8,8 +8,10 @@ import { createProspect } from '../application/actions';
 export function IdentityForm({
   slug,
   athlete,
+  headingLevel = 3,
 }: {
   slug: string;
+  headingLevel?: 1 | 3;
   athlete?: {
     id: string;
     given_name: string;
@@ -18,6 +20,7 @@ export function IdentityForm({
     updated_at: string;
   };
 }) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h3';
   const router = useRouter();
   const [id] = useState(() => athlete?.id ?? crypto.randomUUID());
   const [message, setMessage] = useState('');
@@ -49,10 +52,9 @@ export function IdentityForm({
         }
       }}
     >
-      <h3>{athlete ? 'Correct athlete identity' : 'Add an athlete'}</h3>
+      <Heading>{athlete ? 'Correct athlete identity' : 'Add a prospect'}</Heading>
       <p className="talent-meta">
-        Add an athlete to your organization’s directory. Registering them for a tryout is a separate
-        step.
+        A prospect can be scouted before registering for a tryout. Registration is a separate step.
       </p>
       <div className="talent-form-grid">
         <label>

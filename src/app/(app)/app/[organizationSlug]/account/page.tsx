@@ -67,3 +67,5 @@ export default async function AccountPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Your account | TryoutFlow' };

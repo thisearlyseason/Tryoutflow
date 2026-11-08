@@ -17,3 +17,5 @@ export default async function Page({ params }: { params: Promise<{ organizationS
     </section>
   );
 }
+
+export const metadata = { title: 'Import measurements | TryoutFlow' };

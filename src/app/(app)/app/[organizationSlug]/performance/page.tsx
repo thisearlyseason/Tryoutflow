@@ -264,3 +264,5 @@ export default async function PerformancePage({
     </section>
   );
 }
+
+export const metadata = { title: 'Performance lab | TryoutFlow' };

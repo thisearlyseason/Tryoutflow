@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RegistrationForm } from '../../../src/app/(registration)/register/[tryoutSlug]/registration-form';
@@ -17,7 +17,8 @@ const configuration = {
   },
 };
 
-function fillVisibleIdentity() {
+async function fillVisibleIdentity() {
+  await waitFor(() => expect(document.querySelector('[name=givenName]')).toBeEnabled());
   for (const [name, value] of Object.entries({
     givenName: 'Jordan',
     familyName: 'Lee',
@@ -156,7 +157,7 @@ it('renders legacy identity fields once and refreshes the consumed token after f
     target: { value: 'guardian@example.test' },
   });
   const form = container.querySelector('form')!;
-  fillVisibleIdentity();
+  await fillVisibleIdentity();
   fireEvent.submit(form);
   await screen.findByRole('alert');
   fireEvent.submit(form);
@@ -273,7 +274,7 @@ it('displays the saved waiver and binds acceptance to the loaded version, requir
     <RegistrationForm tryoutSlug="waiver-test" deterministicBotToken="verified-token" />,
   );
   await screen.findByRole('heading', { name: /Register for/ });
-  fillVisibleIdentity();
+  await fillVisibleIdentity();
   fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
   expect(await screen.findByText(wording)).toBeVisible();
   expect(container.querySelector('script')).toBeNull();
@@ -348,7 +349,7 @@ it('uses the saved built-in labels, order, visibility and requirements and omits
   expect(screen.queryByRole('textbox', { name: 'Hidden question' })).toBeNull();
   expect(screen.getByLabelText('Visible question')).not.toBeRequired();
   expect(container.querySelector('form input')).toBe(email);
-  fillVisibleIdentity();
+  await fillVisibleIdentity();
   fireEvent.submit(container.querySelector('form')!);
   await screen.findByRole('alert');
   const submission = requests[0]?.submission as Record<string, unknown>;
@@ -416,6 +417,7 @@ it('highlights all missing fields and blocks an enabled waiver even when its sav
     <RegistrationForm tryoutSlug="validation" deterministicBotToken="verified-token" />,
   );
   const first = await screen.findByRole('textbox', { name: 'Athlete first name' });
+  await waitFor(() => expect(first).toBeEnabled());
   const last = screen.getByRole('textbox', { name: 'Athlete last name' });
   const email = screen.getByLabelText('Contact email');
   const waiver = screen.getByLabelText('Participation waiver');
@@ -437,6 +439,8 @@ it('highlights all missing fields and blocks an enabled waiver even when its sav
   fireEvent.click(waiver);
   expect(waiver).not.toHaveAttribute('aria-invalid', 'true');
   fireEvent.submit(container.querySelector('form')!);
-  await screen.findByText('Please review the required fields and try again.');
+  await screen.findByText(
+    'Registration could not be verified. Review your details, complete any security check, and try again.',
+  );
   expect(requests).toHaveLength(1);
 });

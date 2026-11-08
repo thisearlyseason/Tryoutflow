@@ -139,7 +139,7 @@ export default async function CheckinPage({
   if (!sessions?.length)
     return (
       <section aria-labelledby="checkin-empty">
-        <h2 id="checkin-empty">No check-in sessions configured</h2>
+        <h1 id="checkin-empty">No check-in sessions configured</h1>
         <p>A session must be set up before athletes can check in.</p>
         {['owner', 'administrator'].includes(current.authorization.organizationRole) ? (
           <Link
@@ -157,7 +157,7 @@ export default async function CheckinPage({
   if (placements.length === 0)
     return (
       <section aria-labelledby="checkin-denied">
-        <h2 id="checkin-denied">Check-in unavailable</h2>
+        <h1 id="checkin-denied">Check-in unavailable</h1>
         <p role="alert">You do not have access to any session placement in this tryout.</p>
       </section>
     );
@@ -307,7 +307,7 @@ export default async function CheckinPage({
     <section aria-labelledby="checkin-heading" className="min-w-0">
       {journeyNavigation}
       <p className="eyebrow">Live operations</p>
-      <h2 id="checkin-heading">{tryout.name} check-in</h2>
+      <h1 id="checkin-heading">{tryout.name} check-in</h1>
       <p className="mt-2 text-[var(--color-text-muted)]">
         Find a registration, confirm placement, and assign an automatic or requested number.
       </p>
@@ -322,3 +322,5 @@ export default async function CheckinPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Tryout check-in | TryoutFlow' };

@@ -1,5 +1,6 @@
 'use client';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
+import { unstable_rethrow } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { normalizeOrganizationSlug } from '../domain/organization';
 export type CreateTeamState = { error?: string };
@@ -10,12 +11,33 @@ export function CreateTeamWorkspaceForm({
   action: (state: CreateTeamState, data: FormData) => Promise<CreateTeamState>;
   parentSlug: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, {});
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  const [state, formAction, pending] = useActionState(
+    async (previous: CreateTeamState, data: FormData): Promise<CreateTeamState> => {
+      try {
+        return await action(previous, data);
+      } catch (error) {
+        unstable_rethrow(error);
+        return {
+          error:
+            'We could not confirm this workspace. Your entries are still here. Check team workspaces in another tab before trying again.',
+        };
+      }
+    },
+    {},
+  );
+  useEffect(() => {
+    if (!pending && state.error) errorRef.current?.focus();
+  }, [pending, state]);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [customSlug, setCustomSlug] = useState(false);
   return (
-    <form action={formAction} className="workspace-card grid gap-4 sm:grid-cols-2">
+    <form
+      action={formAction}
+      aria-busy={pending}
+      className="workspace-card grid gap-4 sm:grid-cols-2"
+    >
       <div className="sm:col-span-2">
         <h2 className="text-xl font-bold">Create a team workspace</h2>
         <p className="mt-2 text-sm text-[var(--color-text-muted)]">
@@ -23,47 +45,50 @@ export function CreateTeamWorkspaceForm({
           team.
         </p>
       </div>
-      <label className="grid gap-2 font-bold">
-        Team name
-        <input
-          className="min-h-11 rounded-lg border px-3 font-normal"
-          name="name"
-          required
-          maxLength={160}
-          placeholder="U13 Falcons"
-          value={name}
-          onChange={(event) => {
-            setName(event.target.value);
-            if (!customSlug)
-              setSlug(
-                normalizeOrganizationSlug(`${parentSlug.slice(0, 35)}-${event.target.value}`)
-                  .slice(0, 63)
-                  .replace(/-$/, ''),
-              );
-          }}
-        />
-      </label>
-      <label className="grid gap-2 font-bold">
-        Workspace address
-        <input
-          className="min-h-11 min-w-0 rounded-lg border px-3 font-normal"
-          name="slug"
-          required
-          minLength={3}
-          maxLength={63}
-          pattern="[a-z0-9]+(-[a-z0-9]+)*"
-          value={slug}
-          onChange={(event) => {
-            setCustomSlug(true);
-            setSlug(event.target.value);
-          }}
-        />
-        <span className="text-xs font-normal text-[var(--color-text-muted)]">
-          /app/{slug || 'your-team'}
-        </span>
-      </label>
-      {state.error ? (
-        <p role="alert" className="auth-alert sm:col-span-2">
+      <fieldset disabled={pending} className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+        <legend className="sr-only">Team workspace details</legend>
+        <label className="grid gap-2 font-bold">
+          Team name
+          <input
+            className="min-h-11 rounded-lg border px-3 font-normal"
+            name="name"
+            required
+            maxLength={160}
+            placeholder="U13 Falcons"
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              if (!customSlug)
+                setSlug(
+                  normalizeOrganizationSlug(`${parentSlug.slice(0, 35)}-${event.target.value}`)
+                    .slice(0, 63)
+                    .replace(/-$/, ''),
+                );
+            }}
+          />
+        </label>
+        <label className="grid gap-2 font-bold">
+          Workspace address
+          <input
+            className="min-h-11 min-w-0 rounded-lg border px-3 font-normal"
+            name="slug"
+            required
+            minLength={3}
+            maxLength={63}
+            pattern="[a-z0-9]+(-[a-z0-9]+)*"
+            value={slug}
+            onChange={(event) => {
+              setCustomSlug(true);
+              setSlug(event.target.value);
+            }}
+          />
+          <span className="text-xs font-normal text-[var(--color-text-muted)]">
+            /app/{slug || 'your-team'}
+          </span>
+        </label>
+      </fieldset>
+      {!pending && state.error ? (
+        <p ref={errorRef} tabIndex={-1} role="alert" className="auth-alert sm:col-span-2">
           {state.error}
         </p>
       ) : null}

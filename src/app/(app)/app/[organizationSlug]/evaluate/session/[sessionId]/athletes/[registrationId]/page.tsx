@@ -187,3 +187,5 @@ export default async function AthleteEvaluationPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Score an athlete | TryoutFlow' };

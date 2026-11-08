@@ -317,3 +317,5 @@ export default async function MessagesPage({
     </div>
   );
 }
+
+export const metadata = { title: 'Roster decision messages | TryoutFlow' };

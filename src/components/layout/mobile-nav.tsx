@@ -3,10 +3,11 @@
 import { FeedbackButton } from '@/components/ui/button';
 
 import Link from 'next/link';
+import { workspaceGuideAudience, workspaceGuideReturnPath } from '@/modules/how-to/workspace-guide';
 import { useEffect, useRef, useState } from 'react';
 
 import type { NavigationGroup } from '../../modules/organizations/components/app-navigation-model';
-import { flattenNavigation } from '../../modules/organizations/components/app-navigation-model';
+import { selectMobileNavigation } from '../../modules/organizations/components/app-navigation-model';
 import { NavigationLink } from './app-navigation';
 import { OrganizationMark } from '../../modules/organizations/components/organization-mark';
 
@@ -97,17 +98,10 @@ export function MobileNav({
     );
   }
   if (!groups || !organization || !roleLabel) return null;
-  const items = flattenNavigation(groups);
-  const billingItem = items.find(({ href }) => href.endsWith('/organization/billing'));
-  const scoringItem = items.find(({ href }) => href.endsWith('/evaluate'));
-  const prioritizedItems = scoringItem
-    ? [
-        ...items.filter(({ href }) => href.endsWith('/home')),
-        scoringItem,
-        ...items.filter((item) => item !== scoringItem && !item.href.endsWith('/home')),
-      ]
-    : items;
-  const primaryItems = prioritizedItems.slice(0, 3);
+  const primaryItems = selectMobileNavigation(groups);
+  const guideParams = new URLSearchParams({ audience: workspaceGuideAudience(roleLabel, groups) });
+  const returnPath = workspaceGuideReturnPath(pathname);
+  if (returnPath) guideParams.set('returnTo', returnPath);
   const close = () => setMoreOpen(false);
   return (
     <nav aria-label="Mobile navigation" className="mobile-navigation">
@@ -117,11 +111,14 @@ export function MobileNav({
           <strong>{organization.name}</strong>
           <small>{roleLabel}</small>
         </span>
-        {billingItem ? (
-          <Link className="mobile-upgrade-link" href={billingItem.href} prefetch={false}>
-            Billing
-          </Link>
-        ) : null}
+        <Link
+          className="mobile-upgrade-link"
+          href={`/how-to?${guideParams.toString()}`}
+          aria-label="Help and guides"
+          prefetch={false}
+        >
+          Help
+        </Link>
       </div>
       <div
         className={
@@ -182,6 +179,14 @@ export function MobileNav({
                   ×
                 </FeedbackButton>
               </div>
+              <Link
+                className="app-nav-link"
+                href={`/how-to?${guideParams.toString()}`}
+                aria-label="How to use TryoutFlow"
+                prefetch={false}
+              >
+                Help &amp; guides
+              </Link>
               {groups.map((group) => (
                 <section
                   aria-labelledby={`mobile-nav-${group.id}`}

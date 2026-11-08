@@ -369,10 +369,12 @@ export default async function RostersPage({
         })}
         managesEvent={['owner', 'administrator'].includes(current.authorization.organizationRole)}
       />
-      <p className="eyebrow">Human decisions</p>
-      <h1 id="roster-heading">{tryout.name} rosters</h1>
+      <p className="eyebrow">Official roster workspace</p>
+      <h1 id="roster-heading">{tryout.name} official rosters</h1>
       <p className="mb-4 mt-2 max-w-3xl text-[var(--color-text-muted)]">
-        Finalize each division’s roster; history stays saved. Messages and exports are separate.
+        Build and confirm one division roster at a time. It remains a draft until you finalize it.
+        Scenario approval is separate. Finalizing preserves history and does not communicate or
+        export anything.
       </p>
       {divisions && divisions.length > 1 ? (
         <nav aria-label="Roster divisions" className="mb-5 flex min-w-0 flex-wrap gap-2">
@@ -400,3 +402,5 @@ export default async function RostersPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Official tryout rosters | TryoutFlow' };

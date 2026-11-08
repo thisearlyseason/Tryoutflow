@@ -97,3 +97,5 @@ export default async function Page({
     </section>
   );
 }
+
+export const metadata = { title: 'Search your workspace | TryoutFlow' };

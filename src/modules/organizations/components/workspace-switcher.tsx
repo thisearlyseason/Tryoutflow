@@ -26,7 +26,7 @@ export function WorkspaceSwitcher({
       <label className="grid min-w-0 max-w-full gap-1 text-sm font-bold">
         Switch workspace
         <select
-          className="min-h-11 max-w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
+          className="min-h-11 min-w-0 max-w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3"
           value={currentId}
           onChange={(event) => {
             const workspace = navigation.workspaces.find((item) => item.id === event.target.value);

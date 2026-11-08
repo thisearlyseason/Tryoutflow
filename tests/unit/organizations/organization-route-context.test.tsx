@@ -90,7 +90,7 @@ describe('least-privileged organization route context', () => {
       `/app/badlands/tryouts/${tryoutId}/staff`,
     );
     expect(screen.queryByRole('link', { name: 'Athletes' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Evaluator team' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Evaluators' })).not.toBeInTheDocument();
 
     rerender(
       <OrganizationNavigation
@@ -98,7 +98,7 @@ describe('least-privileged organization route context', () => {
         organizationSlug="badlands"
       />,
     );
-    expect(screen.getByRole('link', { name: 'Evaluator team' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Evaluators' })).toBeVisible();
     expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute(
       'href',
       '/app/badlands/organization/integrations',
@@ -118,9 +118,10 @@ describe('least-privileged organization route context', () => {
 
   it('gives an actively assigned reviewer the exact tryout report destination without organization reports', () => {
     render(<OrganizationNavigation authorization={scopedReviewer} organizationSlug="badlands" />);
-    expect(
-      screen.getByRole('link', { name: `Share Results for tryout ${tryoutId}` }),
-    ).toHaveAttribute('href', `/app/badlands/tryouts/${tryoutId}/reports`);
+    expect(screen.getByRole('link', { name: `Reports for tryout ${tryoutId}` })).toHaveAttribute(
+      'href',
+      `/app/badlands/tryouts/${tryoutId}/reports`,
+    );
     expect(screen.queryByRole('link', { name: 'Reports' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Athletes' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'My scoring' })).not.toBeInTheDocument();

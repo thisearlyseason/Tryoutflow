@@ -39,7 +39,12 @@ describe('role-aware application navigation', () => {
       organizationSlug: 'badlands',
     });
 
-    expect(groups.map(({ label }) => label)).toEqual(['Overview', 'Organize tryouts', 'Settings']);
+    expect(groups.map(({ label }) => label)).toEqual([
+      'Workspace',
+      'Athlete tools',
+      'People tools',
+      'Workspace tools',
+    ]);
     expect(flattenNavigation(groups)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: 'Home', href: '/app/badlands/home' }),
@@ -183,8 +188,8 @@ describe('role-aware application navigation', () => {
     const more = screen.getByRole('button', { name: 'More navigation' });
     expect(more).toBeVisible();
     await userEvent.click(more);
-    expect(screen.getByRole('heading', { name: 'Organize tryouts' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Athlete tools' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Workspace tools' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Close navigation' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeVisible();
     expect(screen.queryByText('01')).not.toBeInTheDocument();

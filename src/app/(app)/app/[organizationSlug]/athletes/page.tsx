@@ -6,6 +6,8 @@ import { notFound, redirect } from 'next/navigation';
 import { requireCapability } from '@/modules/organizations/application/require-capability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
 import { normalizeAthleteDirectoryPage } from '@/modules/athletes/application/directory-pagination';
+import { EmptyState } from '@/components/feedback/empty-state';
+import { ErrorState } from '@/components/feedback/error-state';
 import { PageHeader } from '@/components/layout/page-header';
 
 export default async function AthletesPage({
@@ -13,12 +15,14 @@ export default async function AthletesPage({
   searchParams,
 }: {
   params: Promise<{ organizationSlug: string }>;
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ page?: string | string[]; q?: string | string[] }>;
 }) {
   const { organizationSlug } = await params;
   const filters = await searchParams;
-  const query = (filters.q ?? '').trim().slice(0, 120);
-  const requestedPage = Number(filters.page ?? '1');
+  const rawQuery = Array.isArray(filters.q) ? filters.q[0] : filters.q;
+  const query = (rawQuery ?? '').trim().slice(0, 120);
+  const rawPage = Array.isArray(filters.page) ? filters.page[0] : filters.page;
+  const requestedPage = Number(rawPage ?? '1');
   const requestedSafePage =
     Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pageSize = 50;
@@ -49,8 +53,14 @@ export default async function AthletesPage({
     .order('given_name')
     .order('id')
     .range((requestedSafePage - 1) * pageSize, requestedSafePage * pageSize - 1);
+  const unavailable = Boolean(error) || athletes === null;
+  const retryParams = new URLSearchParams();
+  if (query) retryParams.set('q', query);
+  if (requestedSafePage > 1) retryParams.set('page', String(requestedSafePage));
+  const directoryHref = `/app/${organizationSlug}/athletes`;
+  const retryHref = `${directoryHref}${retryParams.size ? `?${retryParams}` : ''}`;
   const page = normalizeAthleteDirectoryPage(requestedPage, count ?? 0, pageSize);
-  if (!error && page !== requestedSafePage)
+  if (!unavailable && page !== requestedSafePage)
     redirect(`?page=${page}&q=${encodeURIComponent(query)}`);
   const administrative = ['owner', 'administrator'].includes(
     current.authorization.organizationRole,
@@ -59,8 +69,8 @@ export default async function AthletesPage({
     <section aria-labelledby="athletes-heading" className="workspace-stack">
       <PageHeader
         actions={
-          administrative ? (
-            <div className="flex gap-2">
+          administrative && (unavailable || Boolean(query) || Boolean(athletes?.length)) ? (
+            <div className="flex flex-wrap gap-2">
               <Link
                 prefetch={false}
                 className="button-primary"
@@ -92,7 +102,13 @@ export default async function AthletesPage({
       <Form action="" prefetch={false} className="talent-search">
         <label>
           Search athletes
-          <input type="search" name="q" defaultValue={query} placeholder="First or last name" />
+          <input
+            key={query}
+            type="search"
+            name="q"
+            defaultValue={query}
+            placeholder="First or last name"
+          />
         </label>
         <FeedbackButton className="button-secondary">Search</FeedbackButton>
       </Form>
@@ -100,12 +116,18 @@ export default async function AthletesPage({
         <h2 className="sr-only" id="athletes-heading">
           Athletes
         </h2>
-        {error ? (
-          <div className="mt-6 rounded-lg border border-[var(--color-danger)] p-4" role="alert">
-            The athlete directory could not be loaded. Refresh to try again.
-          </div>
+        {unavailable ? (
+          <ErrorState
+            title="Athletes temporarily unavailable"
+            description="The athlete directory could not be loaded. Try again, or change your search."
+            action={
+              <a className="button-secondary inline-flex min-h-11 items-center" href={retryHref}>
+                Retry athletes
+              </a>
+            }
+          />
         ) : null}
-        {athletes && athletes.length > 0 && (
+        {!unavailable && athletes && athletes.length > 0 && (
           <div className="card overflow-x-auto">
             <table aria-label="Athlete directory" className="w-full min-w-[520px] text-left">
               <thead>
@@ -160,12 +182,53 @@ export default async function AthletesPage({
           </div>
         )}
 
-        {athletes?.length === 0 ? (
-          <p className="mt-6 text-[var(--color-text-muted)]">
-            No athletes yet. Import a reviewed CSV or publish registration.
-          </p>
+        {!unavailable && athletes?.length === 0 ? (
+          <EmptyState
+            title={
+              query
+                ? 'No matching athletes'
+                : administrative
+                  ? 'No athletes yet'
+                  : 'No athletes available'
+            }
+            description={
+              query
+                ? 'Try a different name or clear the search to return to the directory.'
+                : administrative
+                  ? 'Add a prospect or import reviewed athlete records. Athletes also appear here when families register for a tryout.'
+                  : 'Athletes appear here after they are added or registered. Ask an owner or administrator to add records or check your access.'
+            }
+            action={
+              query ? (
+                <Link
+                  className="button-secondary inline-flex min-h-11 items-center"
+                  href={directoryHref}
+                  prefetch={false}
+                >
+                  Clear search
+                </Link>
+              ) : administrative ? (
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Link
+                    className="button-secondary inline-flex min-h-11 items-center"
+                    href={`${directoryHref}/new`}
+                    prefetch={false}
+                  >
+                    Add prospect
+                  </Link>
+                  <Link
+                    className="button-primary inline-flex min-h-11 items-center"
+                    href={`${directoryHref}/import`}
+                    prefetch={false}
+                  >
+                    Import athletes
+                  </Link>
+                </div>
+              ) : undefined
+            }
+          />
         ) : null}
-        {!error && (count ?? 0) > 0 ? (
+        {!unavailable && (count ?? 0) > 0 ? (
           <nav
             aria-label="Athlete pages"
             className="mt-6 flex flex-wrap items-center justify-between gap-3"
@@ -199,3 +262,5 @@ export default async function AthletesPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Athletes | TryoutFlow' };

@@ -285,3 +285,5 @@ export default async function Page({
     </section>
   );
 }
+
+export const metadata = { title: 'Participant access | TryoutFlow' };

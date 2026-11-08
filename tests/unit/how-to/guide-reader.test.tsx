@@ -1,17 +1,73 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GuideAudienceReader } from '../../../src/modules/how-to/guide-reader';
 import { guides, guideAudiences, guideLabels } from '../../../src/modules/how-to/guide-content';
 import screenshots from '../../../src/modules/how-to/screenshots.json';
 
-const route = vi.hoisted(() => ({ audience: 'evaluators' }));
+const route = vi.hoisted(() => ({ audience: 'evaluators', returnTo: '' }));
 vi.mock('next/navigation', () => ({
-  useSearchParams: () => new URLSearchParams({ audience: route.audience }),
+  useSearchParams: () =>
+    new URLSearchParams({ audience: route.audience, returnTo: route.returnTo }),
 }));
 
+afterEach(() => {
+  route.returnTo = '';
+});
+
 describe('role-specific how-to guides', () => {
+  it.each(['/participant', '/participant/account'])(
+    'returns a family guide to its canonical portal path: %s',
+    (returnTo) => {
+      route.audience = 'parents';
+      route.returnTo = returnTo;
+      render(<GuideAudienceReader />);
+      expect(screen.getByRole('link', { name: 'Back to family portal' })).toHaveAttribute(
+        'href',
+        returnTo,
+      );
+    },
+  );
+  it.each([
+    '/participant/../app/other',
+    '/participant/account?next=https://evil.test',
+    '/participant%2Faccount',
+    '/participant/other',
+  ])('rejects unapproved family return paths: %s', (returnTo) => {
+    route.audience = 'parents';
+    route.returnTo = returnTo;
+    render(<GuideAudienceReader />);
+    expect(screen.queryByRole('link', { name: 'Back to family portal' })).toBeNull();
+  });
+
+  it('returns to the current workspace and retains the destination when changing guides', () => {
+    route.returnTo = '/app/fixture/tryouts/event/check-in';
+    render(<GuideAudienceReader />);
+    expect(screen.getByRole('link', { name: 'Back to your workspace' })).toHaveAttribute(
+      'href',
+      route.returnTo,
+    );
+    const choice = within(
+      screen.getByRole('navigation', { name: 'Choose your how-to guide' }),
+    ).getByRole('link', { name: /^Coaches/ });
+    const url = new URL(choice.getAttribute('href')!, 'https://tryoutflow.test');
+    expect(url.searchParams.get('returnTo')).toBe(route.returnTo);
+  });
+
+  it.each([
+    'https://example.com',
+    '//example.com',
+    '/app/fixture/../../evil',
+    '/app/fixture\\evil',
+    '/sign-in',
+    '/app/fixture?next=evil',
+  ])('does not render an untrusted workspace return destination: %s', (returnTo) => {
+    route.returnTo = returnTo;
+    render(<GuideAudienceReader />);
+    expect(screen.queryByRole('link', { name: 'Back to your workspace' })).toBeNull();
+  });
+
   it.each(guideAudiences)('opens every supported guide directly: %s', (audience) => {
     route.audience = audience;
     render(<GuideAudienceReader />);

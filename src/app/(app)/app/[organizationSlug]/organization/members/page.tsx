@@ -305,3 +305,5 @@ export default async function MembersPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Members and permissions | TryoutFlow' };

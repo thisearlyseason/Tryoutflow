@@ -38,7 +38,7 @@ export default async function Layout({
           ['registration', 'Registration'],
           ['eligibility', 'Eligibility'],
           ['stations', 'Stations'],
-          ['scenarios', 'Scenarios'],
+          ['scenarios', 'Compare draft options'],
         ]
       : []),
     ...(director
@@ -62,7 +62,7 @@ export default async function Layout({
                 ['compare', 'Compare athletes'],
               ]
             : []),
-          ['rosters', 'Rosters'],
+          ['rosters', 'Official roster'],
           ['reports', 'Reports'],
         ]
       : []),

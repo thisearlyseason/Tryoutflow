@@ -122,15 +122,17 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/tryouts/new$`, 'u'));
   await page.getByLabel('Tryout name').fill('AC01 Verified Owner Tryout');
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('Use an existing cycle').selectOption('');
   await page.getByLabel('New cycle name').fill('2026 Fall Cycle');
   await page.getByLabel('Registration opens').fill('2026-09-01T09:00');
   await page.getByLabel('Registration closes').fill('2026-09-10T21:00');
   expectCancellableServerAction(monitor, page, 'anonymous owner draft creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(
-    new RegExp(`/app/${organizationSlug}/tryouts/.+/setup/basics$`, 'u'),
+    new RegExp(`/app/${organizationSlug}/tryouts/.+/setup/divisions$`, 'u'),
   );
   await expect(page.getByRole('heading', { name: 'Guided setup' })).toBeVisible();
+  await page.getByRole('link', { name: /Basics/ }).click();
   await expect(page.getByLabel('Sport')).toHaveValue('Hockey');
   await expect(page.getByLabel(/Timezone/u)).toHaveValue('America/Edmonton');
   await expect(page.getByLabel('Registration opens')).toHaveValue('2026-09-01T09:00');
@@ -160,6 +162,7 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/new`);
   await expect(page.getByRole('group', { name: 'Cycle or season' })).toBeVisible();
+  await page.getByLabel('Use an existing cycle').selectOption('');
   await expect(page.getByLabel('New cycle name')).toBeVisible();
 
   await page.goto(`/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/overview`);

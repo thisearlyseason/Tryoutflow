@@ -5,6 +5,11 @@ import { useRouter } from 'next/navigation';
 import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createBrowserSupabaseClient } from '@/infrastructure/supabase/client';
 import { ProductBrandBar } from '@/components/layout/product-brand-bar';
+import {
+  clearAllSetupRecovery,
+  claimRecoveryOwner,
+  type RecoveryOwner,
+} from '@/modules/tryouts/ui/setup-recovery-store';
 
 /** Server routes authorize first; this removes stale UI when that browser session ends. */
 export function PrivateSessionBoundary({
@@ -16,6 +21,7 @@ export function PrivateSessionBoundary({
 }) {
   const router = useRouter();
   const [verifiedUserId, setVerifiedUserId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
   const [waitingForConnection, setWaitingForConnection] = useState(false);
   const [signInRequired, setSignInRequired] = useState(false);
   const [signInHref, setSignInHref] = useState('/sign-in');
@@ -26,6 +32,7 @@ export function PrivateSessionBoundary({
     const client = createBrowserSupabaseClient();
     let active = true;
     let generation = 0;
+    let recoveryOwner: RecoveryOwner | string = userId;
     let departing = false;
     let retryOnConnection = false;
     let denied = false;
@@ -37,6 +44,8 @@ export function PrivateSessionBoundary({
       setWaitingForConnection(false);
       generation += 1;
       if (!active) return;
+      void clearAllSetupRecovery(recoveryOwner);
+      setChecking(false);
       setVerifiedUserId(null);
       setSignInRequired(true);
       if (departing) return;
@@ -76,7 +85,7 @@ export function PrivateSessionBoundary({
       const observed = ++generation;
       retryOnConnection = false;
       setWaitingForConnection(false);
-      setVerifiedUserId(null);
+      setChecking(true);
       try {
         const { data, error } = await client.auth.getUser();
         if (!active || generation !== observed) return;
@@ -107,7 +116,12 @@ export function PrivateSessionBoundary({
             expiry = setTimeout(expire, session.expires_at * 1000 - Date.now());
             needsExpiryProof = false;
           }
-          setVerifiedUserId(userId);
+          recoveryOwner =
+            (await claimRecoveryOwner(userId, () => active && generation === observed)) ?? userId;
+          if (active && generation === observed) {
+            setVerifiedUserId(userId);
+            setChecking(false);
+          }
         }
       } catch (error) {
         if (active && generation === observed && !unavailable(error)) lock();
@@ -131,7 +145,7 @@ export function PrivateSessionBoundary({
     const depart = () => {
       departing = true;
       generation += 1;
-      setVerifiedUserId(null);
+      setChecking(true);
     };
     const resume = () => {
       departing = false;
@@ -181,38 +195,46 @@ export function PrivateSessionBoundary({
       document.removeEventListener('visibilitychange', visible);
     };
   }, [router, userId]);
-  return verifiedUserId !== userId ? (
-    <main className="organization-entry">
-      <section className="organization-entry-panel" aria-labelledby="private-session-heading">
-        <ProductBrandBar label="Secure workspace" />
-        <div className="organization-entry-content">
-          <header className="organization-entry-intro">
-            <h1 id="private-session-heading">Your private workspace</h1>
-            <p role="status">
-              {waitingForConnection
-                ? 'Reconnect to verify your session and continue to your private workspace.'
-                : signInRequired
-                  ? 'Sign in to continue to your private workspace.'
-                  : 'Your private workspace stays hidden until your session is verified.'}
-            </p>
-          </header>
-          {waitingForConnection || !signInRequired ? (
-            <button
-              className="button-primary"
-              type="button"
-              onClick={() => retryVerification.current?.()}
-            >
-              Retry session verification
-            </button>
-          ) : (
-            <a className="button-primary" href={signInHref}>
-              Sign in
-            </a>
-          )}
+  const authorized = verifiedUserId === userId;
+  return (
+    <>
+      {(!authorized || checking) && (
+        <main className="organization-entry">
+          <section className="organization-entry-panel" aria-labelledby="private-session-heading">
+            <ProductBrandBar label="Secure workspace" />
+            <div className="organization-entry-content">
+              <header className="organization-entry-intro">
+                <h1 id="private-session-heading">Your private workspace</h1>
+                <p role="status">
+                  {waitingForConnection
+                    ? 'Reconnect to verify your session and continue to your private workspace.'
+                    : signInRequired
+                      ? 'Sign in to continue to your private workspace.'
+                      : 'Your private workspace stays hidden until your session is verified.'}
+                </p>
+              </header>
+              {waitingForConnection || !signInRequired ? (
+                <button
+                  className="button-primary"
+                  type="button"
+                  onClick={() => retryVerification.current?.()}
+                >
+                  Retry session verification
+                </button>
+              ) : (
+                <a className="button-primary" href={signInHref}>
+                  Sign in
+                </a>
+              )}
+            </div>
+          </section>
+        </main>
+      )}
+      {authorized && (
+        <div hidden={checking} inert={checking} style={{ display: checking ? 'none' : 'contents' }}>
+          {children}
         </div>
-      </section>
-    </main>
-  ) : (
-    children
+      )}
+    </>
   );
 }

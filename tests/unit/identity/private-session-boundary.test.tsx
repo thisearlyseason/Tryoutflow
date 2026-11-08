@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { renderToString } from 'react-dom/server';
 import { AuthRetryableFetchError } from '@supabase/supabase-js';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -27,6 +28,7 @@ vi.mock('@/infrastructure/supabase/client', () => ({
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
   auth.getUser.mockResolvedValue({ data: { user: { id: 'owner-fixture' } }, error: null });
   auth.getSession.mockResolvedValue({
     data: {
@@ -40,6 +42,13 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
 });
+function expectPrivateMasked() {
+  const content = screen.queryByText('Private athlete report');
+  if (content) {
+    expect(content).not.toBeVisible();
+    expect(content.closest('[inert]')).not.toBeNull();
+  }
+}
 async function open() {
   await act(async () => {
     render(
@@ -52,8 +61,12 @@ async function open() {
 test('a signed-out session removes private content and redirects with the exact private destination', async () => {
   await open();
   expect(screen.getByText('Private athlete report')).toBeTruthy();
+  localStorage.setItem('tryoutflow.setup-recovery.v1.fixture', 'local copy');
+  localStorage.setItem('other.preference', 'keep');
   act(() => auth.changed?.('SIGNED_OUT', null));
   expect(screen.queryByText('Private athlete report')).toBeNull();
+  expect(localStorage.getItem('tryoutflow.setup-recovery.v1.fixture')).toBeNull();
+  expect(localStorage.getItem('other.preference')).toBe('keep');
   expect(auth.replace).toHaveBeenCalledWith(
     '/sign-in?next=%2Fapp%2Fclub%2Freports%3Ftryout%3Dfixture',
   );
@@ -112,7 +125,8 @@ test('a browser history restore re-verifies authority before showing cached priv
       }),
   );
   act(() => window.dispatchEvent(new Event('pageshow')));
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expect(screen.getByText('Private athlete report')).not.toBeVisible();
+  expect(screen.getByText('Private athlete report').closest('[inert]')).not.toBeNull();
   await act(async () => {
     finish({ data: { user: null }, error: null });
   });
@@ -178,7 +192,7 @@ test('beforeunload invalidates pending getUser and suppresses departing-document
   );
   act(() => window.dispatchEvent(new Event('pageshow')));
   act(() => window.dispatchEvent(new Event('beforeunload')));
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   await act(async () => {
     finish({
       data: { user: null },
@@ -186,7 +200,7 @@ test('beforeunload invalidates pending getUser and suppresses departing-document
     });
   });
   expect(auth.replace).not.toHaveBeenCalled();
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
 });
 test('active-document getUser errors still fail closed and redirect', async () => {
   auth.getUser.mockResolvedValueOnce({
@@ -229,7 +243,7 @@ test('pageshow after departure requires fresh proof and rejects a revoked sessio
       }),
   );
   act(() => window.dispatchEvent(new Event('pageshow')));
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   await act(async () => {
     finish({ data: { user: null }, error: null });
   });
@@ -249,7 +263,7 @@ test.each(['pointerdown', 'keydown'])(
       }),
     );
     act(() => window.dispatchEvent(new Event('beforeunload')));
-    expect(screen.queryByText('Private athlete report')).toBeNull();
+    expectPrivateMasked();
     let finish!: (value: any) => void;
     auth.getUser.mockImplementationOnce(
       () =>
@@ -262,7 +276,7 @@ test.each(['pointerdown', 'keydown'])(
     )?.[1] as EventListener;
     act(() => interact({ isTrusted: true } as Event));
     listeners.mockRestore();
-    expect(screen.queryByText('Private athlete report')).toBeNull();
+    expectPrivateMasked();
     await act(async () => {
       finish({ data: { user: { id: 'owner-fixture' } }, error: null });
     });
@@ -280,14 +294,14 @@ test('synthetic interaction cannot reactivate a departing document', async () =>
   act(() => document.dispatchEvent(new Event('keydown')));
   fireEvent.click(screen.getByRole('button', { name: 'Retry session verification' }));
   expect(auth.getUser).toHaveBeenCalledTimes(calls);
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
 });
 
 test('pagehide without beforeunload masks, invalidates pending proof and requires fresh pageshow authority', async () => {
   await open();
   expect(screen.getByText('Private athlete report')).toBeTruthy();
   act(() => window.dispatchEvent(new Event('pagehide')));
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   let finishOld!: (value: any) => void;
   auth.getUser.mockImplementationOnce(
     () =>
@@ -297,11 +311,11 @@ test('pagehide without beforeunload masks, invalidates pending proof and require
   );
   act(() => window.dispatchEvent(new Event('pageshow')));
   act(() => window.dispatchEvent(new Event('pagehide')));
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   await act(async () => {
     finishOld({ data: { user: { id: 'owner-fixture' } }, error: null });
   });
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   expect(auth.replace).not.toHaveBeenCalled();
   let finishFresh!: (value: any) => void;
   auth.getUser.mockImplementationOnce(
@@ -311,7 +325,7 @@ test('pagehide without beforeunload masks, invalidates pending proof and require
       }),
   );
   act(() => window.dispatchEvent(new Event('pageshow')));
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   await act(async () => {
     finishFresh({ data: { user: { id: 'owner-fixture' } }, error: null });
   });
@@ -331,7 +345,7 @@ test('hidden document trusted input never resumes departing verification', async
     act(() => interact({ isTrusted: true } as Event));
   }
   expect(auth.getUser).toHaveBeenCalledTimes(calls);
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   visibility.mockRestore();
   listeners.mockRestore();
 });
@@ -366,7 +380,7 @@ test.each(['returned', 'thrown'])(
     if (kind === 'returned') auth.getUser.mockResolvedValueOnce({ data: { user: null }, error });
     else auth.getUser.mockRejectedValueOnce(error);
     await act(async () => window.dispatchEvent(new Event('pageshow')));
-    expect(screen.queryByText('Private athlete report')).toBeNull();
+    expectPrivateMasked();
     expect(screen.getByRole('status').textContent).toContain('Reconnect');
     expect(auth.replace).not.toHaveBeenCalled();
     let finish!: (value: any) => void;
@@ -377,7 +391,7 @@ test.each(['returned', 'thrown'])(
         }),
     );
     act(() => window.dispatchEvent(new Event('online')));
-    expect(screen.queryByText('Private athlete report')).toBeNull();
+    expectPrivateMasked();
     await act(async () => finish({ data: { user: { id: 'owner-fixture' } }, error: null }));
     expect(screen.getByText('Private athlete report')).toBeTruthy();
     expect(auth.replace).not.toHaveBeenCalled();
@@ -489,7 +503,7 @@ test('manual retry recovers when connectivity returned before the failed request
     error: new AuthRetryableFetchError('offline', 0),
   });
   await act(async () => window.dispatchEvent(new Event('pageshow')));
-  expect(screen.queryByText('Private athlete report')).toBeNull();
+  expectPrivateMasked();
   await act(async () =>
     fireEvent.click(screen.getByRole('button', { name: 'Retry session verification' })),
   );
@@ -684,4 +698,82 @@ test('transport failure during expiry proof stays masked and retry verifies both
   } finally {
     online.mockRestore();
   }
+});
+
+function StatefulPrivateForm() {
+  const [note, setNote] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  return (
+    <>
+      <input
+        aria-label="Unsaved note"
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+      />
+      <button type="button" onClick={() => setConfirmed(true)}>
+        Show confirmation
+      </button>
+      {confirmed && <p>One-time confirmation link</p>}
+    </>
+  );
+}
+test.each(['pageshow', 'visibilitychange'])(
+  'same-user %s rechecks hide and preserve mounted form and result state',
+  async (eventName) => {
+    await act(async () => {
+      render(
+        <PrivateSessionBoundary userId="owner-fixture">
+          <StatefulPrivateForm />
+        </PrivateSessionBoundary>,
+      );
+    });
+    const input = screen.getByLabelText('Unsaved note');
+    fireEvent.change(input, { target: { value: 'Keep this unfinished entry' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Show confirmation' }));
+    let finish!: (value: any) => void;
+    auth.getUser.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    act(() => (eventName === 'pageshow' ? window : document).dispatchEvent(new Event(eventName)));
+    expect(input).toBeInTheDocument();
+    expect(input).not.toBeVisible();
+    expect(input.closest('[inert]')).not.toBeNull();
+    expect(screen.queryByRole('textbox', { name: 'Unsaved note' })).toBeNull();
+    await act(async () => {
+      finish({ data: { user: { id: 'owner-fixture' } }, error: null });
+    });
+    expect(screen.getByLabelText('Unsaved note')).toBe(input);
+    expect(input).toBeVisible();
+    expect(input).toHaveValue('Keep this unfinished entry');
+    expect(screen.getByText('One-time confirmation link')).toBeVisible();
+  },
+);
+test('logout during a recheck destroys retained state and a stale result cannot reopen it', async () => {
+  await act(async () => {
+    render(
+      <PrivateSessionBoundary userId="owner-fixture">
+        <StatefulPrivateForm />
+      </PrivateSessionBoundary>,
+    );
+  });
+  const input = screen.getByLabelText('Unsaved note');
+  fireEvent.change(input, { target: { value: 'Private unfinished entry' } });
+  let finish!: (value: any) => void;
+  auth.getUser.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  act(() => window.dispatchEvent(new Event('pageshow')));
+  act(() => auth.changed?.('SIGNED_OUT', null));
+  expect(input).not.toBeInTheDocument();
+  await act(async () => {
+    finish({ data: { user: { id: 'owner-fixture' } }, error: null });
+  });
+  expect(screen.queryByLabelText('Unsaved note')).toBeNull();
+  expect(auth.replace).toHaveBeenCalled();
 });

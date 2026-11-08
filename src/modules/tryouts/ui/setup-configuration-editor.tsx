@@ -1,77 +1,90 @@
 'use client';
 
-import { useState, type ComponentProps } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ComponentProps } from 'react';
 import { Input } from '@/components/ui/input';
 import { FIELD_EXAMPLES } from '@/components/forms/field-examples';
 import { Button } from '@/components/ui/button';
 import type { SetupConfiguration, SetupCategory } from '../domain/setup-configuration';
 import { SportStarterPicker } from './sport-starter-picker';
-import { toDateTimeLocalValue } from './tryout-basics';
+import {
+  divisionValues,
+  sessionValues,
+  rubricValues,
+  type EditorValues,
+} from './setup-editor-values';
+
+// React resets native selects after form actions, including recoverable errors.
+// Reapply the current controlled value after the wizard's action state commits.
+export const SetupEditorActionContext = createContext<unknown>(undefined);
+function EditorSelect({ value, ...props }: ComponentProps<'select'>) {
+  const select = useRef<HTMLSelectElement>(null);
+  const actionState = useContext(SetupEditorActionContext);
+  useEffect(() => {
+    if (select.current && !Array.isArray(value)) select.current.value = String(value ?? '');
+  }, [actionState, value]);
+  return <select {...props} value={value} ref={select} />;
+}
 
 type Named = { id: string; name: string };
+type ControlledEditor = { values?: EditorValues; onValuesChange?: (values: EditorValues) => void };
 
 export function DivisionEditor({
   divisions,
   addNew = false,
   selectedId,
+  values,
+  onValuesChange,
 }: {
   divisions: SetupConfiguration['divisions'];
   addNew?: boolean;
   selectedId?: string;
-}) {
-  const [id, setId] = useState(addNew ? '' : (selectedId ?? divisions[0]?.id ?? ''));
-  const selected = divisions.find((row) => row.id === id);
+} & ControlledEditor) {
+  const [local, setLocal] = useState(() =>
+    divisionValues(divisions, addNew ? '' : (selectedId ?? divisions[0]?.id ?? '')),
+  );
+  const fields = values ?? local;
+  const update = onValuesChange ?? setLocal;
+  const field = (name: string) => ({
+    name,
+    value: fields[name] ?? '',
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+      update({ ...fields, [name]: event.target.value }),
+  });
   return (
     <div className="space-y-4">
       <label className="block">
         Division to edit
-        <select className="w-full" value={id} onChange={(event) => setId(event.target.value)}>
+        <EditorSelect
+          className="w-full"
+          value={fields.divisionId}
+          onChange={(event) => update(divisionValues(divisions, event.target.value))}
+        >
           <option value="">Add a new division</option>
           {divisions.map((row) => (
             <option key={row.id} value={row.id}>
               {row.name}
             </option>
           ))}
-        </select>
+        </EditorSelect>
       </label>
-      <div key={id} className="space-y-4">
-        <input type="hidden" name="divisionId" value={id} />
-        <label className="block">
-          Division name
-          <PersistentInput
-            name="name"
-            defaultValue={selected?.name ?? ''}
-            placeholder={FIELD_EXAMPLES.division}
-            required
-            maxLength={160}
-          />
+      <input type="hidden" name="divisionId" value={fields.divisionId} />
+      <label className="block">
+        Division name
+        <Input {...field('name')} placeholder={FIELD_EXAMPLES.division} required maxLength={160} />
+      </label>
+      <label className="block">
+        Description (optional)
+        <Input {...field('description')} />
+      </label>
+      <div className="grid grid-cols-2 gap-4">
+        <label>
+          Minimum age (optional)
+          <Input {...field('minAge')} type="number" min={0} max={120} />
         </label>
-        <label className="block">
-          Description (optional)
-          <PersistentInput name="description" defaultValue={selected?.description ?? ''} />
+        <label>
+          Maximum age (optional)
+          <Input {...field('maxAge')} type="number" min={0} max={120} />
         </label>
-        <div className="grid grid-cols-2 gap-4">
-          <label>
-            Minimum age (optional)
-            <PersistentInput
-              type="number"
-              min={0}
-              max={120}
-              name="minAge"
-              defaultValue={selected?.min_age ?? ''}
-            />
-          </label>
-          <label>
-            Maximum age (optional)
-            <PersistentInput
-              type="number"
-              min={0}
-              max={120}
-              name="maxAge"
-              defaultValue={selected?.max_age ?? ''}
-            />
-          </label>
-        </div>
       </div>
     </div>
   );
@@ -83,143 +96,146 @@ export function SessionEditor({
   positions,
   timezone,
   selectedId,
+  values,
+  onValuesChange,
 }: {
   sessions: SetupConfiguration['sessions'];
   divisions: Named[];
   positions: Named[];
   timezone: string;
   selectedId?: string;
-}) {
-  const [id, setId] = useState(selectedId ?? sessions[0]?.id ?? '');
-  const selected = sessions.find((row) => row.id === id);
-  return (
-    <div className="space-y-4">
-      <label className="block">
-        Session to edit
-        <select className="w-full" value={id} onChange={(event) => setId(event.target.value)}>
-          <option value="">Add a new session</option>
-          {sessions.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <div key={id} className="space-y-4">
-        <input type="hidden" name="sessionId" value={id} />
-        <label className="block">
-          Division
-          <select
-            className="w-full"
-            name={id ? undefined : 'divisionId'}
-            defaultValue={selected?.division_id ?? divisions[0]?.id ?? ''}
-            disabled={Boolean(id)}
-            required
-          >
-            <option value="" disabled>
-              Select a division
-            </option>
-            {divisions.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {id ? (
-          <>
-            <input type="hidden" name="divisionId" value={selected?.division_id ?? ''} />
-            <p className="text-sm text-[var(--color-text-muted)]">
-              The division keeps this session connected to its athletes and scores. Create a new
-              session to use a different division.
-            </p>
-          </>
-        ) : null}
-        <label className="block">
-          Session name
-          <PersistentInput
-            name="name"
-            defaultValue={selected?.name ?? ''}
-            placeholder={FIELD_EXAMPLES.session}
-            maxLength={160}
-            required
-          />
-        </label>
-        <p id="tryout-session-timezone-help" className="text-sm text-[var(--color-text-muted)]">
-          Session times use {timezone}.
-        </p>
-        <label className="block">
-          Starts
-          <PersistentInput
-            aria-describedby="tryout-session-timezone-help"
-            name="startsAt"
-            type="datetime-local"
-            defaultValue={toDateTimeLocalValue(selected?.starts_at ?? null, timezone)}
-            required
-          />
-        </label>
-        <label className="block">
-          Ends
-          <PersistentInput
-            aria-describedby="tryout-session-timezone-help"
-            name="endsAt"
-            type="datetime-local"
-            defaultValue={toDateTimeLocalValue(selected?.ends_at ?? null, timezone)}
-            required
-          />
-        </label>
-        <label className="block">
-          Location (optional)
-          <PersistentInput name="location" defaultValue={selected?.location ?? ''} />
-        </label>
-        <label className="block">
-          Capacity (optional)
-          <PersistentInput
-            name="capacity"
-            type="number"
-            min={1}
-            defaultValue={selected?.capacity ?? ''}
-          />
-        </label>
-        <NamedEditor
-          key={`groups-${id}`}
-          label="Group"
-          rows={selected?.groups ?? []}
-          prefix="group"
-        />
-        <NamedEditor key={`positions-${id}`} label="Position" rows={positions} prefix="position" />
-      </div>
-    </div>
+} & ControlledEditor) {
+  const [local, setLocal] = useState(() =>
+    sessionValues(sessions, divisions, positions, timezone, selectedId ?? sessions[0]?.id ?? ''),
   );
-}
-
-function NamedEditor({ label, rows, prefix }: { label: string; rows: Named[]; prefix: string }) {
-  const [id, setId] = useState(rows[0]?.id ?? '');
-  return (
+  const fields = values ?? local;
+  const update = onValuesChange ?? setLocal;
+  const field = (name: string) => ({
+    name,
+    value: fields[name] ?? '',
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+      update({ ...fields, [name]: event.target.value }),
+  });
+  const selected = sessions.find((row) => row.id === fields.sessionId);
+  const named = (prefix: 'group' | 'position', label: string, rows: Named[]) => (
     <div className="space-y-2">
       {rows.length ? (
         <label className="block">
           {label} to edit
-          <select className="w-full" value={id} onChange={(event) => setId(event.target.value)}>
+          <EditorSelect
+            className="w-full"
+            value={fields[`${prefix}Id`]}
+            onChange={(event) =>
+              update({
+                ...fields,
+                [`${prefix}Id`]: event.target.value,
+                [`${prefix}Name`]: rows.find((row) => row.id === event.target.value)?.name ?? '',
+              })
+            }
+          >
             <option value="">Add a new {label.toLowerCase()}</option>
             {rows.map((row) => (
               <option key={row.id} value={row.id}>
                 {row.name}
               </option>
             ))}
-          </select>
+          </EditorSelect>
         </label>
       ) : null}
-      <input type="hidden" name={`${prefix}Id`} value={id} />
+      <input type="hidden" name={`${prefix}Id`} value={fields[`${prefix}Id`]} />
       <label className="block">
         {label} (optional)
-        <PersistentInput
-          key={id}
-          name={`${prefix}Name`}
+        <Input
+          {...field(`${prefix}Name`)}
           placeholder={prefix === 'group' ? FIELD_EXAMPLES.group : FIELD_EXAMPLES.position}
-          defaultValue={rows.find((row) => row.id === id)?.name ?? ''}
         />
       </label>
+    </div>
+  );
+  return (
+    <div className="space-y-4">
+      <label className="block">
+        Session to edit
+        <EditorSelect
+          className="w-full"
+          value={fields.sessionId}
+          onChange={(event) =>
+            update(sessionValues(sessions, divisions, positions, timezone, event.target.value))
+          }
+        >
+          <option value="">Add a new session</option>
+          {sessions.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.name}
+            </option>
+          ))}
+        </EditorSelect>
+      </label>
+      <input type="hidden" name="sessionId" value={fields.sessionId} />
+      <label className="block">
+        Division
+        <EditorSelect
+          className="w-full"
+          name={fields.sessionId ? undefined : 'divisionId'}
+          value={fields.divisionId}
+          onChange={(event) => update({ ...fields, divisionId: event.target.value })}
+          disabled={Boolean(fields.sessionId)}
+          required
+        >
+          <option value="" disabled>
+            Select a division
+          </option>
+          {divisions.map((row) => (
+            <option key={row.id} value={row.id}>
+              {row.name}
+            </option>
+          ))}
+        </EditorSelect>
+      </label>
+      {fields.sessionId ? (
+        <>
+          <input type="hidden" name="divisionId" value={fields.divisionId} />
+          <p className="text-sm text-[var(--color-text-muted)]">
+            The division keeps this session connected to its athletes and scores. Create a new
+            session to use a different division.
+          </p>
+        </>
+      ) : null}
+      <label className="block">
+        Session name
+        <Input {...field('name')} placeholder={FIELD_EXAMPLES.session} maxLength={160} required />
+      </label>
+      <p id="tryout-session-timezone-help" className="text-sm text-[var(--color-text-muted)]">
+        Session times use {timezone}.
+      </p>
+      <label className="block">
+        Starts
+        <Input
+          {...field('startsAt')}
+          type="datetime-local"
+          aria-describedby="tryout-session-timezone-help"
+          required
+        />
+      </label>
+      <label className="block">
+        Ends
+        <Input
+          {...field('endsAt')}
+          type="datetime-local"
+          aria-describedby="tryout-session-timezone-help"
+          required
+        />
+      </label>
+      <label className="block">
+        Location (optional)
+        <Input {...field('location')} />
+      </label>
+      <label className="block">
+        Capacity (optional)
+        <Input {...field('capacity')} type="number" min={1} />
+      </label>
+      {named('group', 'Group', selected?.groups ?? [])}
+      {named('position', 'Position', positions)}
     </div>
   );
 }
@@ -227,21 +243,32 @@ function NamedEditor({ label, rows, prefix }: { label: string; rows: Named[]; pr
 export function RubricEditor({
   sessions,
   selectedId,
+  values,
+  onValuesChange,
 }: {
   sessions: SetupConfiguration['sessions'];
   selectedId?: string;
-}) {
-  const [id, setId] = useState(selectedId ?? sessions[0]?.id ?? '');
-  const selected = sessions.find((row) => row.id === id);
+} & ControlledEditor) {
+  const [local, setLocal] = useState(() =>
+    rubricValues(sessions, selectedId ?? sessions[0]?.id ?? ''),
+  );
+  const fields = values ?? local;
+  const update = onValuesChange ?? setLocal;
+  const categories = JSON.parse(fields.categories!) as SetupCategory[];
+  const setCategories = (change: SetupCategory[] | ((rows: SetupCategory[]) => SetupCategory[])) =>
+    update({
+      ...fields,
+      categories: JSON.stringify(typeof change === 'function' ? change(categories) : change),
+    });
   return (
     <div className="space-y-4">
       <label className="block">
         Session
-        <select
+        <EditorSelect
           className="w-full"
           name="sessionId"
-          value={id}
-          onChange={(event) => setId(event.target.value)}
+          value={fields.sessionId}
+          onChange={(event) => update(rubricValues(sessions, event.target.value))}
           required
         >
           <option value="" disabled>
@@ -252,18 +279,28 @@ export function RubricEditor({
               {row.name}
             </option>
           ))}
-        </select>
+        </EditorSelect>
       </label>
-      <RubricFields key={id} initial={selected?.rubric ?? null} />
+      <RubricFields
+        name={fields.name ?? ''}
+        setName={(name) => update({ ...fields, name })}
+        categories={categories}
+        setCategories={setCategories}
+      />
     </div>
   );
 }
-
-function RubricFields({ initial }: { initial: SetupConfiguration['sessions'][number]['rubric'] }) {
-  const [categories, setCategories] = useState<SetupCategory[]>(
-    initial?.categories ?? [{ name: '', weight: 100, scaleMin: 1, scaleMax: 5 }],
-  );
-  const [name, setName] = useState(initial?.name ?? '');
+function RubricFields({
+  name,
+  setName,
+  categories,
+  setCategories,
+}: {
+  name: string;
+  setName: (name: string) => void;
+  categories: SetupCategory[];
+  setCategories: (change: SetupCategory[] | ((rows: SetupCategory[]) => SetupCategory[])) => void;
+}) {
   const total = categories.reduce((sum, row) => sum + row.weight, 0);
   const update = (index: number, patch: Partial<SetupCategory>) =>
     setCategories((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -324,7 +361,7 @@ function RubricFields({ initial }: { initial: SetupConfiguration['sessions'][num
             </label>
             <label>
               Category {index + 1} scale
-              <select
+              <EditorSelect
                 className="w-full"
                 value={row.scaleMax}
                 onChange={(event) =>
@@ -333,7 +370,7 @@ function RubricFields({ initial }: { initial: SetupConfiguration['sessions'][num
               >
                 <option value={5}>1–5</option>
                 <option value={10}>1–10</option>
-              </select>
+              </EditorSelect>
             </label>
           </div>
           <label className="block">

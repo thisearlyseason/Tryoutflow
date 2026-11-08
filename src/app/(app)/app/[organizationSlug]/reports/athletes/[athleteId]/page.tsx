@@ -112,3 +112,5 @@ export default async function Page({
     </article>
   );
 }
+
+export const metadata = { title: 'Athlete report | TryoutFlow' };

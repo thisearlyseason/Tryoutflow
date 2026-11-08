@@ -4,6 +4,23 @@ import { describe, expect, it } from 'vitest';
 import { ReportsPage } from '../../../src/modules/reports/ui/reports-page';
 
 describe('reports page', () => {
+  it('provides a primary heading for a standalone event report without promoting embedded reports', () => {
+    const summary = {
+      athleteCount: 0,
+      completedEvaluationCount: 0,
+      incompleteEvaluationCount: 0,
+      finalizedRosterCount: 0,
+      latestFinalizedRosterId: null,
+    };
+    const view = render(
+      <ReportsPage organizationId="organization" summary={summary} headingLevel={1} />,
+    );
+    expect(screen.getByRole('heading', { level: 1, name: 'Reports' })).toBeVisible();
+    view.rerender(<ReportsPage organizationId="organization" summary={summary} />);
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Reports' })).toBeVisible();
+  });
+
   it('shows a truthful empty state and bounded export help', () => {
     render(
       <ReportsPage

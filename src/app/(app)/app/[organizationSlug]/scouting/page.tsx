@@ -392,3 +392,5 @@ export default async function ScoutingPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Scouting workspace | TryoutFlow' };

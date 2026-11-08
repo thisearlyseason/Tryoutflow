@@ -55,6 +55,7 @@ export default async function TryoutReportsPage({
         )}
         {summary ? (
           <ReportsPage
+            headingLevel={1}
             organizationId={current.organization.id}
             access={summary}
             tryoutId={tryoutId}
@@ -85,3 +86,5 @@ export default async function TryoutReportsPage({
     );
   }
 }
+
+export const metadata = { title: 'Tryout reports | TryoutFlow' };

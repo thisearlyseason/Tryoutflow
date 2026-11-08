@@ -1,13 +1,11 @@
-import Link from 'next/link';
-import {
-  buildAppNavigation,
-  flattenNavigation,
-} from '@/modules/organizations/components/app-navigation-model';
-import { ErrorState } from '@/components/feedback/error-state';
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireOrganizationRouteContext } from '@/modules/organizations/application/organization-route-context';
 import { OrganizationCommandCenter } from '@/modules/organizations/components/organization-command-center';
+import { buildHomeTasks, recommendHomeWork } from '@/modules/organizations/application/home-work';
+import { buildAppNavigation } from '@/modules/organizations/components/app-navigation-model';
 import { SupabaseOnboardingProgressGateway } from '@/modules/organizations/infrastructure/supabase-onboarding-progress-gateway';
+import { loadTryoutJourney } from '@/modules/tryouts/application/load-tryout-journey';
+import { loadSingleTryoutLifecycle } from '@/modules/tryouts/application/single-tryout-lifecycle';
 
 export default async function OrganizationHomePage({
   params,
@@ -16,100 +14,121 @@ export default async function OrganizationHomePage({
 }) {
   const { organizationSlug } = await params;
   const current = await requireOrganizationRouteContext(organizationSlug);
-  const canManage = ['owner', 'administrator'].includes(current.authorization.organizationRole);
+  const { client, organization, authorization } = current;
+  const canManage = ['owner', 'administrator'].includes(authorization.organizationRole);
   if (!canManage) {
-    const { data: hasScoutingAccess } = await current.client.rpc('can_use_talent', {
-      p_organization_id: current.organization.id,
-    });
-    const assignedIds = [
-      ...new Set(current.authorization.assignments.map(({ scope }) => scope.tryoutId)),
+    const ids = [
+      ...new Set(authorization.assignments.map((assignment) => assignment.scope.tryoutId)),
     ];
-    const names = assignedIds.length
-      ? await current.client
-          .from('tryouts')
-          .select('id,name')
-          .eq('organization_id', current.organization.id)
-          .in('id', assignedIds)
-      : null;
-    const tasks = flattenNavigation(
-      buildAppNavigation({
-        authorization: current.authorization,
-        organizationSlug,
-        hasScoutingAccess: !!hasScoutingAccess,
-        tryoutNames: Object.fromEntries((names?.data ?? []).map(({ id, name }) => [id, name])),
-      }),
-    );
-    return (
-      <section className="workspace-stack">
-        <header>
-          <p className="eyebrow">Your workspace</p>
-          <h1>Choose your task</h1>
-          <p>Open a task assigned to you. Organizer setup is separate from scoring.</p>
-        </header>
-        {tasks.length ? (
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {tasks.map((task) => (
-              <li className="card workspace-task-card" key={task.href}>
-                <Link
-                  className="button-primary workspace-task-link"
-                  href={task.href}
-                  prefetch={false}
-                >
-                  {task.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>No tasks are assigned yet. Ask your organizer to assign you to a tryout session.</p>
-        )}
-      </section>
-    );
-  }
-  try {
-    const [projection, tryouts, athletes] = await Promise.all([
-      new SupabaseOnboardingProgressGateway(current.client).load(current.organization.id),
-      current.client
-        .from('tryouts')
-        .select('id,name,status,updated_at')
-        .eq('organization_id', current.organization.id)
-        .order('updated_at', { ascending: false })
-        .limit(4),
-      current.client
-        .from('athletes')
-        .select('id,given_name,family_name,created_at')
-        .eq('organization_id', current.organization.id)
-        .order('created_at', { ascending: false })
-        .limit(4),
+    const [scouting, tryouts] = await Promise.allSettled([
+      client.rpc('can_use_talent', { p_organization_id: organization.id }),
+      ids.length
+        ? client
+            .from('tryouts')
+            .select('id,name')
+            .eq('organization_id', organization.id)
+            .in('id', ids.slice(0, 100))
+            .limit(100)
+        : Promise.resolve({ data: [], error: null }),
     ]);
-    return projection ? (
-      <OrganizationCommandCenter
-        organizationSlug={current.organization.slug}
-        projection={projection}
-        showManagementActions={canManage}
-        canScore={current.authorization.assignments.some(({ role }) => role === 'evaluator')}
-        activity={{
-          tryouts: tryouts.error ? null : tryouts.data,
-          athletes: athletes.error ? null : athletes.data,
-        }}
-      />
-    ) : (
-      <ErrorState
-        title="Onboarding unavailable"
-        description="Your current role cannot view this setup progress."
-      />
-    );
-  } catch (error) {
-    captureOperationalError(error, {
-      actorId: current.userId,
-      organizationId: current.organization.id,
-      operation: 'onboarding.load',
+    const groups = buildAppNavigation({
+      authorization,
+      organizationSlug: organization.slug,
+      hasScoutingAccess:
+        scouting.status === 'fulfilled' && !scouting.value.error && !!scouting.value.data,
     });
     return (
-      <ErrorState
-        title="Onboarding unavailable"
-        description="Refresh to load the latest durable setup progress."
+      <OrganizationCommandCenter
+        organizationSlug={organization.slug}
+        organizationName={organization.name}
+        tasksUnavailable={
+          (scouting.status !== 'fulfilled' || !!scouting.value.error) && ids.length === 0
+        }
+        tasks={buildHomeTasks(
+          groups,
+          new Map(
+            (tryouts.status === 'fulfilled' && !tryouts.value.error
+              ? (tryouts.value.data ?? [])
+              : []
+            ).map((tryout) => [tryout.id, tryout.name]),
+          ),
+        )}
       />
     );
   }
+  // A failed optional summary must not hide an otherwise available event task.
+  const [projection, recent, athletes, active] = await Promise.allSettled([
+    new SupabaseOnboardingProgressGateway(client).load(organization.id),
+    client
+      .from('tryouts')
+      .select('id,name,status,updated_at')
+      .eq('organization_id', organization.id)
+      .order('updated_at', { ascending: false })
+      .limit(4),
+    client
+      .from('athletes')
+      .select('id,given_name,family_name,created_at')
+      .eq('organization_id', organization.id)
+      .order('created_at', { ascending: false })
+      .limit(4),
+    client
+      .from('tryouts')
+      .select('id')
+      .eq('organization_id', organization.id)
+      .in('status', ['draft', 'published'])
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const recentTryouts =
+    recent.status === 'fulfilled' && !recent.value.error ? recent.value.data : null;
+  const recentAthletes =
+    athletes.status === 'fulfilled' && !athletes.value.error ? athletes.value.data : null;
+  const activeTryout =
+    active.status === 'fulfilled' && !active.value.error ? active.value.data : undefined;
+  let recommendation = await recommendHomeWork(
+    activeTryout,
+    recentTryouts?.length ?? null,
+    (tryoutId) =>
+      loadTryoutJourney(client, {
+        organizationId: organization.id,
+        organizationSlug: organization.slug,
+        tryoutId,
+        authorization,
+      }),
+  );
+  if (recommendation.kind === 'journey') {
+    try {
+      const lifecycle = await loadSingleTryoutLifecycle(
+        client,
+        organization.id,
+        recommendation.journey.tryout.id,
+      );
+      if (lifecycle.locked)
+        recommendation = {
+          kind: 'results',
+          name: recommendation.journey.tryout.name,
+          href: `/app/${organization.slug}/tryouts/${recommendation.journey.tryout.id}/reports`,
+        };
+    } catch (error) {
+      captureOperationalError(error, {
+        actorId: current.userId,
+        organizationId: organization.id,
+        operation: 'onboarding.load',
+      });
+      recommendation = { kind: 'unavailable' };
+    }
+  }
+  return (
+    <OrganizationCommandCenter
+      organizationSlug={organization.slug}
+      organizationName={organization.name}
+      showManagementActions
+      projection={projection.status === 'fulfilled' ? projection.value : null}
+      recommendation={recommendation}
+      activity={{ tryouts: recentTryouts, athletes: recentAthletes }}
+    />
+  );
 }
+
+export const metadata = { title: 'Workspace home | TryoutFlow' };

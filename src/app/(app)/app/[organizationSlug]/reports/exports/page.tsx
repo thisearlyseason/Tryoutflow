@@ -59,3 +59,5 @@ export default async function Page({ params }: { params: Promise<{ organizationS
     </section>
   );
 }
+
+export const metadata = { title: 'Performance exports | TryoutFlow' };

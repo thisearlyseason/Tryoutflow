@@ -31,6 +31,7 @@ import { TryoutWizard, type TryoutWizardActionState } from '@/modules/tryouts/ui
 import { parseTryoutBasics } from '@/modules/tryouts/ui/tryout-basics';
 import { WizardProgress } from '@/modules/tryouts/ui/wizard-progress';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
+import { requireCapability } from '@/modules/organizations/application/require-capability';
 
 export default async function TryoutSetupStepPage({
   params,
@@ -42,6 +43,8 @@ export default async function TryoutSetupStepPage({
     saved?: string | string[];
     new?: string | string[];
     selected?: string | string[];
+    created?: string | string[];
+    progress?: string | string[];
   }>;
 }) {
   const { organizationSlug, step: rawStep, tryoutId } = await params;
@@ -50,6 +53,8 @@ export default async function TryoutSetupStepPage({
     saved: rawSaved,
     new: rawNew,
     selected: rawSelected,
+    created: rawCreated,
+    progress: rawProgress,
   } = await searchParams;
   const error = typeof rawError === 'string' ? rawError : undefined;
   const selectedId = typeof rawSelected === 'string' ? rawSelected : undefined;
@@ -57,6 +62,28 @@ export default async function TryoutSetupStepPage({
   if (!tryoutSetupSteps.includes(rawStep as TryoutSetupStep)) notFound();
   const step = rawStep as TryoutSetupStep;
   const current = await requireCurrentOrganization(organizationSlug);
+  if (
+    !requireCapability(current.authorization, 'tryout:write', {
+      organizationId: current.organization.id,
+      tryoutId,
+    }).ok
+  ) {
+    return (
+      <section className="workspace-stack">
+        <PageHeader
+          title="Tryout setup restricted"
+          description="Only staff assigned to manage this tryout can change its setup. Continue from your workspace to find your assigned tasks."
+          eyebrow="Tryout setup"
+        />
+        <Link
+          className="button-secondary inline-flex min-h-11 items-center"
+          href={`/app/${organizationSlug}/home`}
+        >
+          Back to your work
+        </Link>
+      </section>
+    );
+  }
   if (step === 'rubrics') {
     const upgrade = await billingUpgradePrompt(
       current.organization.id,
@@ -90,6 +117,13 @@ export default async function TryoutSetupStepPage({
   }
   const tryout = tryoutResult.data;
   if (!tryout) notFound();
+  const renderedVersion = tryout.version;
+  const versionedSetup =
+    step === 'basics' ||
+    step === 'divisions' ||
+    step === 'sessions' ||
+    step === 'rubrics' ||
+    step === 'registration';
   const lifecycle = await loadSingleTryoutLifecycle(
     current.client,
     current.organization.id,
@@ -243,15 +277,32 @@ export default async function TryoutSetupStepPage({
       };
     }
     if (!fresh.data) notFound();
+    if (
+      versionedSetup &&
+      formData.get('intent') !== 'continue-existing' &&
+      fresh.data.version !== renderedVersion
+    )
+      return {
+        status: 'form_error',
+        message:
+          'This tryout changed since you opened these details. Refresh and review the current saved version before trying again.',
+        values: submittedValues,
+      };
     if (step === 'divisions' && formData.get('intent') === 'continue-existing') {
       if (fresh.data.status !== 'draft')
-        redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/sessions`);
+        return {
+          status: 'saved',
+          href: `/app/${organizationSlug}/tryouts/${tryoutId}/setup/sessions`,
+        };
       const result = await saveTryoutSetupStep(
         { organizationId: route.organization.id, tryoutId, step },
         { authorization: route.authorization },
       );
       if (!result.ok) return { status: 'form_error', message: 'Could not save this step' };
-      redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/sessions`);
+      return {
+        status: 'saved',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/setup/sessions`,
+      };
     }
     if (fresh.data.status !== 'draft' && (step === 'publish' || step === 'review'))
       redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/overview`);
@@ -286,7 +337,12 @@ export default async function TryoutSetupStepPage({
       },
       {
         saveConfiguration: (input) =>
-          saveWizardConfiguration(input, { authorization: route.authorization }),
+          saveWizardConfiguration(
+            versionedSetup
+              ? { ...input, payload: { ...input.payload, expectedVersion: renderedVersion } }
+              : input,
+            { authorization: route.authorization },
+          ),
         saveProgress: async (input) =>
           fresh.data?.status !== 'draft'
             ? { ok: true as const, value: undefined }
@@ -305,21 +361,34 @@ export default async function TryoutSetupStepPage({
         message:
           result.code === 'invalid_input'
             ? 'Review the fields and dropdown options, then try saving again.'
-            : result.code === 'forbidden'
-              ? 'You no longer have access to change this tryout.'
-              : 'Could not save this step. Please try again.',
+            : result.code === 'conflict'
+              ? 'This tryout changed since you opened these details. Refresh and review the current saved version before trying again.'
+              : result.code === 'forbidden'
+                ? 'You no longer have access to change this tryout.'
+                : 'Could not save this step. Please try again.',
         values: result.values ?? submittedValues,
       };
+    if (step === 'basics')
+      return {
+        status: 'saved',
+        href:
+          fresh.data.status === 'draft'
+            ? `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${result.nextStep}`
+            : `/app/${organizationSlug}/tryouts/${tryoutId}/setup/basics?saved=1`,
+      };
     if (step === 'divisions' && formData.get('intent') === 'add-another') {
-      redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/divisions?saved=1&new=1`);
+      return {
+        status: 'saved',
+        href: `/app/${organizationSlug}/tryouts/${tryoutId}/setup/divisions?saved=1&new=1`,
+      };
     }
     if (fresh.data.status !== 'draft') {
       const selected = String(
         formData.get(step === 'divisions' ? 'divisionId' : 'sessionId') ?? '',
       );
-      redirect(
-        `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${step}?saved=1${selected ? `&selected=${encodeURIComponent(selected)}` : ''}`,
-      );
+      const href = `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${step}?saved=1${selected ? `&selected=${encodeURIComponent(selected)}` : ''}`;
+      if (versionedSetup) return { status: 'saved', href };
+      redirect(href);
     }
     await trackSupabaseWorkflowSafely(route.client, {
       name: 'workflow.completed',
@@ -327,7 +396,9 @@ export default async function TryoutSetupStepPage({
       organizationId: route.organization.id,
       correlationId: createCorrelationId(),
     });
-    redirect(`/app/${organizationSlug}/tryouts/${tryoutId}/setup/${result.nextStep}`);
+    const href = `/app/${organizationSlug}/tryouts/${tryoutId}/setup/${result.nextStep}`;
+    if (versionedSetup) return { status: 'saved', href };
+    redirect(href);
   }
   return (
     <section className="workspace-stack">
@@ -340,13 +411,29 @@ export default async function TryoutSetupStepPage({
         eyebrow={tryout.name}
         title={tryout.status === 'draft' ? 'Guided setup' : 'Edit tryout setup'}
       />
+      {tryout.status === 'draft' && rawCreated === '1' && rawProgress === 'retry' && (
+        <p role="status" className="workspace-note">
+          Your draft is saved. Setup progress could not be updated. Review these details and
+          continue; you do not need to create another draft.
+        </p>
+      )}
       <WizardProgress
         completedSteps={progress?.completed_steps ?? []}
         currentStep={step}
         hrefBase={`/app/${organizationSlug}/tryouts/${tryoutId}/setup`}
       />
       <TryoutWizard
-        key={`${step}-${tryout.version}-${saved}-${rawNew === '1'}-${selectedId ?? ''}`}
+        key={`${current.userId}-${current.organization.id}-${step}-${tryout.version}-${saved}-${rawNew === '1'}-${selectedId ?? ''}`}
+        recovery={
+          versionedSetup && tryout.status === 'draft'
+            ? {
+                userId: current.userId,
+                organizationId: current.organization.id,
+                form: `${step}:${tryoutId}`,
+                baseline: String(tryout.version),
+              }
+            : undefined
+        }
         action={save}
         status={tryout.status}
         singleTryout={lifecycle.single}
@@ -366,4 +453,19 @@ export default async function TryoutSetupStepPage({
       />
     </section>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ step: string }> }) {
+  const { step } = await params;
+  const titles: Record<string, string> = {
+    basics: 'Tryout basics',
+    divisions: 'Tryout divisions',
+    sessions: 'Set up tryout sessions',
+    registration: 'Set up registration',
+    rubrics: 'Set up scoring criteria',
+    review: 'Review tryout setup',
+    publish: 'Publish tryout',
+  };
+  const title = Object.hasOwn(titles, step) ? titles[step] : 'Tryout setup';
+  return { title: `${title} | TryoutFlow` };
 }

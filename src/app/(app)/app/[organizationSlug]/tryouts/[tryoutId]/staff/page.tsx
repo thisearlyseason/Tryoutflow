@@ -256,3 +256,5 @@ export default async function TryoutStaffPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Tryout staff assignments | TryoutFlow' };

@@ -163,6 +163,7 @@ it('saves custom field definitions and private destination in the atomic registr
   rpc.mockResolvedValue({ data: [{ outcome: 'saved' }], error: null });
   const payload = {
     name: 'Custom',
+    expectedVersion: 7,
     schema: {
       fields: [
         {

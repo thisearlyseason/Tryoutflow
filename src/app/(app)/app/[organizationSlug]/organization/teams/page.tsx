@@ -153,3 +153,5 @@ export default async function TeamWorkspacesPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Team workspaces | TryoutFlow' };

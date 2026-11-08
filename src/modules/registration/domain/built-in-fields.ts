@@ -34,6 +34,9 @@ export const LEGACY_IDENTITY_FIELDS: Record<string, RegistrationBuiltInKey> = {
   custom_guardian_email: 'guardianEmail',
   custom_guardian_phone: 'guardianPhone',
 };
+export function legacyRegistrationField(key: string): RegistrationBuiltInKey | undefined {
+  return Object.hasOwn(LEGACY_IDENTITY_FIELDS, key) ? LEGACY_IDENTITY_FIELDS[key] : undefined;
+}
 export type OrderedRegistrationField =
   | { type: 'builtIn'; field: RegistrationBuiltInField }
   | { type: 'custom'; field: RegistrationFormSchema['fields'][number] };
@@ -43,7 +46,7 @@ export function getOrderedRegistrationFields(
   return [
     ...getBuiltInFields(form).map((field) => ({ type: 'builtIn' as const, field })),
     ...form.fields
-      .filter((field) => !LEGACY_IDENTITY_FIELDS[field.key])
+      .filter((field) => !legacyRegistrationField(field.key))
       .map((field) => ({
         type: 'custom' as const,
         field: {

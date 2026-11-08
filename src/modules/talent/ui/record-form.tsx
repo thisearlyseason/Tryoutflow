@@ -2,7 +2,7 @@
 
 import { FeedbackButton } from '@/components/ui/button';
 
-import { Fragment, useId, useRef, useState } from 'react';
+import { Fragment, useEffect, useId, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Check, LoaderCircle, Plus, Pencil, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -80,8 +80,18 @@ export function RecordForm({
   const [message, setMessage] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
+  const [failed, setFailed] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const submitting = useRef(false);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const fieldErrors = fields.filter(
+    (field) => Object.hasOwn(errors, field.name) && errors[field.name],
+  );
+  useEffect(() => {
+    if (busy || !failed) return;
+    const target = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    (target ?? errorRef.current)?.focus();
+  }, [busy, failed, errors]);
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (submitting.current || saved) return;
@@ -89,6 +99,7 @@ export function RecordForm({
     setBusy(true);
     onBusyChange?.(true);
     setErrors({});
+    setFailed(false);
     setMessage('Saving…');
     try {
       const result = await saveTalent(slug, { table, id: recordId, version, values });
@@ -99,12 +110,13 @@ export function RecordForm({
         onDirtyChange?.(false);
         router.refresh();
       } else {
-        requestAnimationFrame(() =>
-          formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(),
-        );
+        setFailed(true);
       }
     } catch {
-      setMessage('Could not reach the server. Your entries remain here. Try again.');
+      setFailed(true);
+      setMessage(
+        'We could not confirm this save. Your entries are still here. Check the workspace in another tab before trying again.',
+      );
     } finally {
       setBusy(false);
       submitting.current = false;
@@ -121,131 +133,152 @@ export function RecordForm({
     >
       {!hideTitle && <h3>{title}</h3>}
       <p className="talent-form-hint">Fields marked * are required.</p>
+      {failed && (
+        <div ref={errorRef} role="alert" tabIndex={-1} className="talent-discard talent-error">
+          <p>{message}</p>
+          {fieldErrors.length > 0 && (
+            <ul>
+              {fieldErrors.map((field) => {
+                const controlId = `${formId}-${field.name}`;
+                return (
+                  <li key={field.name}>
+                    <a
+                      className="underline underline-offset-2"
+                      href={`#${controlId}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        document.getElementById(controlId)?.focus();
+                      }}
+                    >
+                      {field.label}: {errors[field.name]}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
       <fieldset disabled={busy || saved} className="talent-fieldset">
         <div className="talent-form-grid">
-          {fields.map((f, index) => (
-            <Fragment key={f.name}>
-              {f.section && f.section !== fields[index - 1]?.section && (
-                <div className="talent-form-section talent-wide">
-                  {hideTitle ? <h3>{f.section}</h3> : <h4>{f.section}</h4>}
-                </div>
-              )}
-              <label
-                key={f.name}
-                className={
-                  f.type === 'checkbox'
-                    ? 'talent-checkbox-field talent-wide'
-                    : f.type === 'textarea'
-                      ? 'talent-wide'
-                      : ''
-                }
-              >
-                <span>
-                  {f.label}
-                  {f.required ? ' *' : ''}
-                </span>
-                {f.type === 'textarea' ? (
-                  <textarea
-                    aria-label={f.label}
-                    aria-invalid={!!errors[f.name]}
-                    aria-describedby={
-                      [
-                        f.help && `${formId}-${f.name}-help`,
-                        errors[f.name] && `${formId}-${f.name}-error`,
-                      ]
-                        .filter(Boolean)
-                        .join(' ') || undefined
-                    }
-                    required={f.required}
-                    rows={3}
-                    maxLength={8000}
-                    value={String(values[f.name] ?? '')}
-                    onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
-                  />
-                ) : f.type === 'select' ? (
-                  <select
-                    aria-label={f.label}
-                    aria-invalid={!!errors[f.name]}
-                    aria-describedby={
-                      [
-                        f.help && `${formId}-${f.name}-help`,
-                        errors[f.name] && `${formId}-${f.name}-error`,
-                      ]
-                        .filter(Boolean)
-                        .join(' ') || undefined
-                    }
-                    value={String(values[f.name] ?? '')}
-                    required={f.required}
-                    onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
-                  >
-                    {!f.required && <option value="">Not specified</option>}
-                    {f.required && (
-                      <option value="" disabled>
-                        Select…
-                      </option>
-                    )}
-                    {f.options?.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : f.type === 'checkbox' ? (
-                  <input
-                    aria-label={f.label}
-                    aria-invalid={!!errors[f.name]}
-                    aria-describedby={
-                      [
-                        f.help && `${formId}-${f.name}-help`,
-                        errors[f.name] && `${formId}-${f.name}-error`,
-                      ]
-                        .filter(Boolean)
-                        .join(' ') || undefined
-                    }
-                    type="checkbox"
-                    checked={Boolean(values[f.name])}
-                    onChange={(e) => setValues({ ...values, [f.name]: e.target.checked })}
-                  />
-                ) : (
-                  <input
-                    aria-label={f.label}
-                    aria-invalid={!!errors[f.name]}
-                    aria-describedby={
-                      [
-                        f.help && `${formId}-${f.name}-help`,
-                        errors[f.name] && `${formId}-${f.name}-error`,
-                      ]
-                        .filter(Boolean)
-                        .join(' ') || undefined
-                    }
-                    type={f.type ?? 'text'}
-                    step={f.step ?? (f.type === 'number' ? 'any' : undefined)}
-                    required={f.required}
-                    value={
-                      f.type === 'datetime-local'
-                        ? String(values[f.name] ?? '').slice(0, 16)
-                        : String(values[f.name] ?? '')
-                    }
-                    onChange={(e) =>
-                      setValues({
-                        ...values,
-                        [f.name]:
-                          f.type === 'datetime-local' && e.target.value
-                            ? `${e.target.value}:00Z`
-                            : e.target.value,
-                      })
-                    }
-                  />
-                )}{' '}
-                {f.help && <small id={`${formId}-${f.name}-help`}>{f.help}</small>}
-                {errors[f.name] && (
-                  <strong id={`${formId}-${f.name}-error`} className="talent-error">
-                    {errors[f.name]}
-                  </strong>
+          {fields.map((f, index) => {
+            const error = Object.hasOwn(errors, f.name) ? errors[f.name] : undefined;
+            return (
+              <Fragment key={f.name}>
+                {f.section && f.section !== fields[index - 1]?.section && (
+                  <div className="talent-form-section talent-wide">
+                    {hideTitle ? <h3>{f.section}</h3> : <h4>{f.section}</h4>}
+                  </div>
                 )}
-              </label>
-            </Fragment>
-          ))}
+                <label
+                  key={f.name}
+                  className={
+                    f.type === 'checkbox'
+                      ? 'talent-checkbox-field talent-wide'
+                      : f.type === 'textarea'
+                        ? 'talent-wide'
+                        : ''
+                  }
+                >
+                  <span>
+                    {f.label}
+                    {f.required ? ' *' : ''}
+                  </span>
+                  {f.type === 'textarea' ? (
+                    <textarea
+                      id={`${formId}-${f.name}`}
+                      aria-label={f.label}
+                      aria-invalid={!!error}
+                      aria-describedby={
+                        [f.help && `${formId}-${f.name}-help`, error && `${formId}-${f.name}-error`]
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                      required={f.required}
+                      rows={3}
+                      maxLength={8000}
+                      value={String(values[f.name] ?? '')}
+                      onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
+                    />
+                  ) : f.type === 'select' ? (
+                    <select
+                      id={`${formId}-${f.name}`}
+                      aria-label={f.label}
+                      aria-invalid={!!error}
+                      aria-describedby={
+                        [f.help && `${formId}-${f.name}-help`, error && `${formId}-${f.name}-error`]
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                      value={String(values[f.name] ?? '')}
+                      required={f.required}
+                      onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
+                    >
+                      {!f.required && <option value="">Not specified</option>}
+                      {f.required && (
+                        <option value="" disabled>
+                          Select…
+                        </option>
+                      )}
+                      {f.options?.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : f.type === 'checkbox' ? (
+                    <input
+                      id={`${formId}-${f.name}`}
+                      aria-label={f.label}
+                      aria-invalid={!!error}
+                      aria-describedby={
+                        [f.help && `${formId}-${f.name}-help`, error && `${formId}-${f.name}-error`]
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                      type="checkbox"
+                      checked={Boolean(values[f.name])}
+                      onChange={(e) => setValues({ ...values, [f.name]: e.target.checked })}
+                    />
+                  ) : (
+                    <input
+                      id={`${formId}-${f.name}`}
+                      aria-label={f.label}
+                      aria-invalid={!!error}
+                      aria-describedby={
+                        [f.help && `${formId}-${f.name}-help`, error && `${formId}-${f.name}-error`]
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                      type={f.type ?? 'text'}
+                      step={f.step ?? (f.type === 'number' ? 'any' : undefined)}
+                      required={f.required}
+                      value={
+                        f.type === 'datetime-local'
+                          ? String(values[f.name] ?? '').slice(0, 16)
+                          : String(values[f.name] ?? '')
+                      }
+                      onChange={(e) =>
+                        setValues({
+                          ...values,
+                          [f.name]:
+                            f.type === 'datetime-local' && e.target.value
+                              ? `${e.target.value}:00Z`
+                              : e.target.value,
+                        })
+                      }
+                    />
+                  )}{' '}
+                  {f.help && <small id={`${formId}-${f.name}-help`}>{f.help}</small>}
+                  {error && (
+                    <strong id={`${formId}-${f.name}-error`} className="talent-error">
+                      {error}
+                    </strong>
+                  )}
+                </label>
+              </Fragment>
+            );
+          })}
         </div>
       </fieldset>
       <div className="talent-form-footer">
@@ -277,18 +310,15 @@ export function RecordForm({
               setValues({ ...defaults, ...initial });
               setSaved(false);
               setMessage('');
+              setErrors({});
+              setFailed(false);
             }}
           >
             Add another
           </FeedbackButton>
         )}
-        <p
-          role={Object.keys(errors).length ? 'alert' : 'status'}
-          className={
-            saved ? 'talent-save-success' : Object.keys(errors).length ? 'talent-error' : ''
-          }
-        >
-          {message}
+        <p role="status" className={saved ? 'talent-save-success' : ''}>
+          {failed ? '' : message}
         </p>
       </div>
     </form>

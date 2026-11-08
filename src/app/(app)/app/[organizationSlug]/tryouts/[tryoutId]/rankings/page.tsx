@@ -97,3 +97,5 @@ export default async function RankingsPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Athlete rankings | TryoutFlow' };

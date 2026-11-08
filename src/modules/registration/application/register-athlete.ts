@@ -60,7 +60,7 @@ export function validateRegistrationResponses(
     if (!fields.has(key)) throw new Error(`Unknown registration response field: ${key}`);
   }
   for (const field of fields.values()) {
-    const value = responses[field.key];
+    const value = Object.hasOwn(responses, field.key) ? responses[field.key] : undefined;
     if (field.enabled === false) {
       if (
         value !== undefined &&

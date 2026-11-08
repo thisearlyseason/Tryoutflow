@@ -21,3 +21,5 @@ export default async function EvaluatorSessionPage({
     />
   );
 }
+
+export const metadata = { title: 'Evaluation session | TryoutFlow' };

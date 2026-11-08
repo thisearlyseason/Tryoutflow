@@ -27,6 +27,7 @@ import {
   type GuideStep,
 } from './guide-content';
 import screenshots from './screenshots.json';
+import { workspaceGuideReturnPath } from './workspace-guide';
 
 type Screenshot = { width: number; height: number };
 const imageInfo: Record<string, Screenshot> = screenshots;
@@ -35,7 +36,8 @@ export function GuideAudienceReader() {
   const searchParams = useSearchParams();
   const requested = searchParams.get('audience');
   const audience = isGuideAudience(requested) ? requested : 'coaches';
-  return <GuideReader key={audience} audience={audience} />;
+  const returnTo = workspaceGuideReturnPath(searchParams.get('returnTo'));
+  return <GuideReader key={audience} audience={audience} returnTo={returnTo} />;
 }
 
 function StepScreenshot({ step, number }: { step: GuideStep; number: number }) {
@@ -111,7 +113,13 @@ function StepScreenshot({ step, number }: { step: GuideStep; number: number }) {
   );
 }
 
-export function GuideReader({ audience }: { audience: GuideAudience }) {
+export function GuideReader({
+  audience,
+  returnTo,
+}: {
+  audience: GuideAudience;
+  returnTo?: string | null;
+}) {
   const [query, setQuery] = useState('');
   const chapters = guides[audience];
   const total = chapters.reduce((count, chapter) => count + chapter.steps.length, 0);
@@ -143,6 +151,17 @@ export function GuideReader({ audience }: { audience: GuideAudience }) {
     <div className="howto">
       <section className="howto-hero" aria-labelledby="howto-title">
         <div className="howto-hero-inner">
+          {returnTo ? (
+            <Link
+              className="button-secondary mb-4 inline-flex min-h-11 items-center"
+              href={returnTo}
+              prefetch={false}
+            >
+              {returnTo.startsWith('/participant')
+                ? 'Back to family portal'
+                : 'Back to your workspace'}
+            </Link>
+          ) : null}
           <p className="howto-eyebrow">
             <BookOpen size={17} aria-hidden="true" /> THE TRYOUTFLOW PLAYBOOK
           </p>
@@ -160,7 +179,7 @@ export function GuideReader({ audience }: { audience: GuideAudience }) {
               <Link
                 prefetch={false}
                 key={role}
-                href={`/how-to?audience=${role}`}
+                href={`/how-to?audience=${role}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`}
                 aria-current={audience === role ? 'page' : undefined}
                 className={audience === role ? 'is-selected' : ''}
               >

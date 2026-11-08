@@ -128,3 +128,5 @@ export default async function OrganizationReportsPage({
     );
   }
 }
+
+export const metadata = { title: 'Organization reports | TryoutFlow' };

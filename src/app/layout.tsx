@@ -1,3 +1,5 @@
+import { FamilyRecoveryPrivacyGuard } from '@/modules/registration/ui/family-recovery-privacy-guard';
+import { SetupRecoveryPrivacyGuard } from '@/modules/tryouts/ui/setup-recovery-privacy-guard';
 import { NativeWorkspaceBridge } from '@/modules/identity/ui/native-workspace-bridge';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
@@ -24,6 +26,8 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en">
       <body>
         <NativeWorkspaceBridge />
+        <FamilyRecoveryPrivacyGuard />
+        <SetupRecoveryPrivacyGuard />
         {children}
       </body>
     </html>

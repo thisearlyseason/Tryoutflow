@@ -25,8 +25,8 @@ export function OnboardingChecklist({
     <section aria-labelledby="onboarding-heading" className="card onboarding-card">
       <div className="onboarding-heading-row">
         <div>
-          <p className="eyebrow">Season readiness</p>
-          <h2 id="onboarding-heading">Your tryout operations checklist</h2>
+          <p className="eyebrow">Organization milestones</p>
+          <h2 id="onboarding-heading">Your organization’s milestones</h2>
         </div>
         <strong>{progress.percent}%</strong>
       </div>

@@ -78,3 +78,5 @@ export default async function Page({ params }: { params: Promise<{ organizationS
     </article>
   );
 }
+
+export const metadata = { title: 'Scouting report | TryoutFlow' };

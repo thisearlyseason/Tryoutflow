@@ -150,19 +150,21 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   expectCancellableServerAction(monitor, page, 'organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/home$`, 'u'));
-  await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Set up your first tryout' })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
   await page.getByLabel('Tryout name').fill(tryoutName);
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('Use an existing cycle').selectOption('');
   await page.getByLabel('New cycle name').fill('2026 Fall Cycle');
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill(`${scheduleYear}-09-01T08:00`);
   await page.getByLabel('Registration closes').fill(`${scheduleYear}-09-30T20:00`);
   expectCancellableServerAction(monitor, page, 'draft tryout creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(page).toHaveURL(/\/setup\/basics$/u);
+  await expect(page).toHaveURL(/\/setup\/divisions$/u);
+  await page.getByRole('link', { name: /Basics/ }).click();
 
   await page.getByLabel('Name').fill(tryoutName);
   await page.getByLabel('Sport').fill('Hockey');

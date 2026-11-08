@@ -36,7 +36,6 @@ export function TimezonePicker({ describedBy }: TimezonePickerProps) {
 
   useEffect(() => {
     const supportedTimezones = getTimezones();
-    setTimezones(supportedTimezones);
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     // supportedValuesOf lists canonical zones, not every valid identifier (UTC
     // and browser aliases may be omitted). Validate detection independently.

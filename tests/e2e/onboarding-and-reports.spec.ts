@@ -137,9 +137,9 @@ test('loads durable onboarding and downloads sanitized authorized report snapsho
 }) => {
   await signIn(page);
   await page.goto('/app/badlands-hockey-academy/home');
-  await expect(
-    page.getByRole('heading', { name: 'Your tryout operations checklist' }),
-  ).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Your next action' })).toBeVisible();
+  await page.getByText('Program totals and milestones', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your organization’s milestones' })).toBeVisible();
   await expect(page.getByRole('progressbar', { name: 'Onboarding progress' })).toHaveAttribute(
     'aria-valuenow',
     '100',

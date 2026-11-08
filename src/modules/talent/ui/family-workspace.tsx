@@ -102,7 +102,7 @@ export function FamilyWorkspace({
   registrationOptions: FamilyRegistration[];
 }) {
   return (
-    <main
+    <div
       className="talent-stack talent-report participant-content family-workspace"
       id="main-content"
     >
@@ -449,6 +449,6 @@ export function FamilyWorkspace({
         <ShieldCheck size={17} aria-hidden="true" />
         Family access · Approved athlete information only
       </p>
-    </main>
+    </div>
   );
 }

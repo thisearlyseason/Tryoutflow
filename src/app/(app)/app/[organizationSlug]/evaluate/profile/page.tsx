@@ -53,3 +53,5 @@ export default async function EvaluatorProfilePage({
     </section>
   );
 }
+
+export const metadata = { title: 'Your evaluator profile | TryoutFlow' };

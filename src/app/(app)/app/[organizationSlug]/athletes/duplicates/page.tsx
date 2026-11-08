@@ -142,7 +142,7 @@ export default async function DuplicateReviewPage({
   return (
     <section aria-labelledby="duplicates-heading">
       <p className="eyebrow">Athlete directory</p>
-      <h2 id="duplicates-heading">Potential duplicates</h2>
+      <h1 id="duplicates-heading">Potential duplicates</h1>
       <p className="text-[var(--color-text-muted)]">
         Compare both records before deciding. TryoutFlow never merges athlete records automatically.
       </p>
@@ -270,3 +270,5 @@ export default async function DuplicateReviewPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Review duplicate athletes | TryoutFlow' };

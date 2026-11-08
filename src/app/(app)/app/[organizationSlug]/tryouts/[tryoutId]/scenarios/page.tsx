@@ -43,7 +43,7 @@ export default async function Page({
     { name: 'target_size', label: 'Target roster size', type: 'number', required: true, step: '1' },
     {
       name: 'status',
-      label: 'Review status',
+      label: 'Scenario review status',
       type: 'select',
       required: true,
       options: options(['draft', 'in_review', 'approved', 'archived']),
@@ -52,7 +52,7 @@ export default async function Page({
       name: 'rationale',
       label: 'Selection strategy and approval rationale',
       type: 'textarea',
-      help: 'Approval requires rationale, at least one athlete, and a selection within target size.',
+      help: 'Approval requires rationale, at least one athlete, and a selection within target size. Linked families can see offers from approved scenarios.',
     },
   ];
   return (
@@ -60,10 +60,10 @@ export default async function Page({
       <header className="talent-toolbar">
         <div>
           <p className="eyebrow">{event.name}</p>
-          <h1>Roster scenarios</h1>
+          <h1>Compare draft options</h1>
           <p>
-            Compare alternatives, document role fit, approve a selection and record responses.
-            Publish final rosters in the roster workspace.
+            Compare selection scenarios, document role fit and review responses separately from the
+            official roster.
           </p>
         </div>
         <div className="talent-header-actions">
@@ -78,11 +78,24 @@ export default async function Page({
           />
         </div>
       </header>
-      <Link href={`/app/${slug}/tryouts/${tryoutId}/rosters`}>Open final roster workspace →</Link>
+      <div className="talent-card">
+        <h2>Scenario approval and the official roster</h2>
+        <p>
+          Linked families can see offers from approved scenarios in their portal. Approving a
+          scenario does not finalize the official roster or send roster decision messages.
+        </p>
+        <Link
+          className="button-secondary"
+          href={`/app/${slug}/tryouts/${tryoutId}/rosters`}
+          prefetch={false}
+        >
+          Open official roster workspace
+        </Link>
+      </div>
       {!scenarios.data.length && (
         <EmptyState
-          title="Build a selection scenario"
-          description="Compare draft rosters and discuss selections with your staff. Approving a scenario does not finalize the official roster."
+          title="Compare a draft selection"
+          description="Create a draft roster to compare athletes, document role fit and review a balanced selection with your staff. Approving a scenario does not finalize the official roster."
         />
       )}
       <DecisionWorkflow
@@ -134,8 +147,8 @@ export default async function Page({
             <header className="talent-toolbar">
               <h2>{s.name}</h2>
               <span className="talent-tag">
-                {s.status} · {selected.filter((m) => m.response !== 'declined').length}/
-                {s.target_size} selected
+                Scenario status: {s.status} ·{' '}
+                {selected.filter((m) => m.response !== 'declined').length}/{s.target_size} selected
               </span>
             </header>
             <p className="talent-prose">{s.rationale}</p>
@@ -194,3 +207,5 @@ export default async function Page({
     </section>
   );
 }
+
+export const metadata = { title: 'Compare draft options | TryoutFlow' };

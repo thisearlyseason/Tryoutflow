@@ -150,6 +150,13 @@ describe('semantic CSS contract', () => {
     );
   });
 
+  it('checks conditional and interpolated class strings without treating other props as classes', () => {
+    expect(
+      semanticClassesInSource(
+        '<div title="auth-not-a-class" className={photo ? `auth-page ${size} auth-page-photo` : "auth-page"} />',
+      ),
+    ).toEqual(['auth-page', 'auth-page-photo']);
+  });
   it('defines every reserved semantic class used by product components', () => {
     const used = usedSemanticClasses(resolve(process.cwd(), 'src'));
     const css = rootLayoutStyles();
@@ -157,10 +164,9 @@ describe('semantic CSS contract', () => {
     expect(used).toEqual(
       expect.arrayContaining(['auth-card', 'auth-page', 'button-secondary', 'card', 'eyebrow']),
     );
-    for (const className of used) {
-      expect(css, `missing semantic CSS for .${className}`).toMatch(
-        new RegExp(`\\.${escapeRegExp(className)}(?:[\\s:{,.#>]|$)`, 'u'),
-      );
-    }
+    const missing = used.filter(
+      (className) => !new RegExp(`\\.${escapeRegExp(className)}(?:[\\s:{,.#>]|$)`, 'u').test(css),
+    );
+    expect(missing, 'semantic classes without CSS').toEqual([]);
   });
 });

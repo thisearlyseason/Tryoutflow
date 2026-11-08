@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -92,6 +92,7 @@ describe('public registration steps', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Registration details' })).toBeVisible();
+    await waitFor(() => expect(input('givenName')).toBeEnabled());
     expect(screen.getByRole('navigation', { name: 'Registration progress' })).toHaveTextContent(
       'Step 1 of 3',
     );
@@ -128,6 +129,7 @@ describe('public registration steps', () => {
       <RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />,
     );
     await screen.findByRole('heading', { name: 'Registration details' });
+    await waitFor(() => expect(input('givenName')).toBeEnabled());
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -144,6 +146,7 @@ describe('public registration steps', () => {
   it('returns from review to the step containing a newly missing field before submission', async () => {
     render(<RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />);
     await screen.findByRole('heading', { name: 'Registration details' });
+    await waitFor(() => expect(input('givenName')).toBeEnabled());
     completeFirstStep();
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
     fireEvent.change(input('team_name'), { target: { value: 'Badlands Selects' } });
@@ -163,8 +166,10 @@ describe('public registration steps', () => {
     const user = userEvent.setup();
     render(<RegistrationForm tryoutSlug="fall-camp" deterministicBotToken="verified-token" />);
     await screen.findByRole('heading', { name: 'Registration details' });
+    await waitFor(() => expect(input('givenName')).toBeEnabled());
     completeFirstStep();
 
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled());
     screen.getByRole('button', { name: 'Continue' }).focus();
     await user.keyboard('{Enter}');
     expect(screen.getByRole('heading', { name: 'Additional details' })).toHaveFocus();
@@ -173,6 +178,7 @@ describe('public registration steps', () => {
     await user.keyboard('{Enter}');
     expect(screen.getByRole('heading', { name: 'Registration details' })).toHaveFocus();
 
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled());
     screen.getByRole('button', { name: 'Continue' }).focus();
     await user.keyboard('{Enter}');
     fireEvent.change(input('team_name'), { target: { value: 'Badlands Selects' } });

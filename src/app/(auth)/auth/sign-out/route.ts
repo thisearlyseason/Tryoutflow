@@ -7,5 +7,10 @@ export async function POST(request: NextRequest) {
   const result = await signOut();
   const redirectPath = result.ok ? result.value.redirectTo : '/sign-in?error=sign_out_failed';
 
-  return NextResponse.redirect(trustedRequestUrl(request, redirectPath));
+  const destination = trustedRequestUrl(request, redirectPath);
+  // Preserve the family entry purpose without accepting a redirect URL from the request.
+  if (request.nextUrl.searchParams.get('returnTo') === 'participant') {
+    destination.searchParams.set('next', '/participant');
+  }
+  return NextResponse.redirect(destination, 303);
 }

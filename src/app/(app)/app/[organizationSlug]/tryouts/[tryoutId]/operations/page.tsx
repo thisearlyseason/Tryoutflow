@@ -172,3 +172,5 @@ export default async function Page({
     </section>
   );
 }
+
+export const metadata = { title: 'Event notices and fees | TryoutFlow' };

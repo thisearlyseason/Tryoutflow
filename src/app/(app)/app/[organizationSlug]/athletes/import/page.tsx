@@ -25,7 +25,7 @@ export default async function AthleteImportPage({
     <section aria-labelledby="athlete-import-heading" className="space-y-4">
       <div>
         <p className="eyebrow">Athlete directory</p>
-        <h2 id="athlete-import-heading">Import athletes</h2>
+        <h1 id="athlete-import-heading">Import athletes</h1>
         <p className="text-[var(--color-text-muted)]">
           Map columns, review every validation result, then explicitly confirm valid rows.
         </p>
@@ -34,3 +34,5 @@ export default async function AthleteImportPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Import athletes | TryoutFlow' };

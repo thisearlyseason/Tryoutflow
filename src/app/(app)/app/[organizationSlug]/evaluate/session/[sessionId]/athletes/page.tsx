@@ -45,3 +45,5 @@ export default async function AssignedAthletesPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Assigned athletes | TryoutFlow' };

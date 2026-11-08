@@ -31,6 +31,44 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe('responsive workspace navigation', () => {
+  it.each([
+    ['Owner', 'coaches'],
+    ['Evaluator', 'evaluators'],
+    ['Check-in', 'checkin'],
+    ['Reviewer', 'reviewers'],
+  ])(
+    'keeps role-specific help and a workspace return path available to %s',
+    async (roleLabel, audience) => {
+      render(
+        <MobileNav {...props} groups={[]} roleLabel={roleLabel} pathname="/app/fixture/evaluate" />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'More navigation' }));
+      const help = screen.getByRole('link', { name: 'How to use TryoutFlow' });
+      const url = new URL(help.getAttribute('href')!, 'https://tryoutflow.test');
+      expect(url.pathname).toBe('/how-to');
+      expect(url.searchParams.get('audience')).toBe(audience);
+      expect(url.searchParams.get('returnTo')).toBe('/app/fixture/evaluate');
+      expect(screen.getByRole('link', { name: 'Account' })).toBeVisible();
+    },
+  );
+
+  it('provides a skip link and focusable main in grouped and standalone shells', () => {
+    const view = render(<AppShell>Workspace content</AppShell>);
+    expect(screen.getByRole('link', { name: 'Skip to content' })).toHaveAttribute(
+      'href',
+      '#main-content',
+    );
+    expect(screen.getByRole('main')).toHaveAttribute('tabindex', '-1');
+    view.rerender(
+      <AppShell navigation={groups} organization={organization} roleLabel="Owner">
+        Workspace content
+      </AppShell>,
+    );
+    expect(screen.getAllByRole('link', { name: 'Skip to content' })).toHaveLength(1);
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'main-content');
+    expect(screen.getByRole('main')).toHaveAttribute('tabindex', '-1');
+  });
+
   it('collapses, restores keyboard focus, and persists the desktop preference', async () => {
     const view = render(<AppNavigation {...props} />);
     await userEvent.click(screen.getByRole('button', { name: 'Collapse navigation' }));
@@ -160,22 +198,22 @@ describe('mobile compact actions preserve full identity', () => {
         <MobileNav {...props} groups={scoped} roleLabel="Director" pathname={items[0]!.href} />,
       );
       const navigation = screen.getByRole('navigation', { name: 'Mobile navigation' });
-      const primary = within(navigation).getAllByRole('link');
+      const primary = within(navigation)
+        .getAllByRole('link')
+        .filter((link) => !link.getAttribute('href')?.startsWith('/how-to'));
       expect(primary.map((link) => link.textContent?.trim())).toEqual([
         'Run Tryout',
+        'Rankings',
         'Staff',
-        'Review Results',
       ]);
       expect(primary.map((link) => link.getAttribute('href'))).toEqual(
-        items.slice(0, 3).map((item) => item.href),
+        [items[0]!, items[2]!, items[1]!].map((item) => item.href),
       );
-      items
-        .slice(0, 3)
-        .forEach((item) =>
-          expect(
-            within(navigation).getByRole('link', { name: item.accessibleLabel }),
-          ).toHaveAttribute('href', item.href),
-        );
+      [items[0]!, items[2]!, items[1]!].forEach((item) =>
+        expect(
+          within(navigation).getByRole('link', { name: item.accessibleLabel }),
+        ).toHaveAttribute('href', item.href),
+      );
       expect(primary[0]).toHaveAttribute('aria-current', 'page');
       expect(within(navigation).getByText(organization.name)).toBeVisible();
       expect(within(navigation).getByText('Director')).toBeVisible();
@@ -208,7 +246,7 @@ describe('mobile compact actions preserve full identity', () => {
     expect(link).toHaveTextContent(label);
     expect(link).toHaveAttribute('href', '/app/fixture/custom');
   });
-  it('keeps owner primary actions, organization identity and billing route unchanged', () => {
+  it('keeps owner primary actions and retains billing in More beside direct Help', async () => {
     const owner = buildAppNavigation({
       authorization: { ...scopedAuthorization, organizationRole: 'owner', assignments: [] },
       organizationSlug: 'fixture',
@@ -218,7 +256,7 @@ describe('mobile compact actions preserve full identity', () => {
     const navigation = screen.getByRole('navigation', { name: 'Mobile navigation' });
     const primary = within(navigation)
       .getAllByRole('link')
-      .filter((link) => !link.getAttribute('href')?.endsWith('/organization/billing'));
+      .filter((link) => !link.getAttribute('href')?.startsWith('/how-to'));
     expect(primary.map((link) => link.textContent?.trim())).toEqual([
       'Home',
       'Tryouts',
@@ -231,10 +269,13 @@ describe('mobile compact actions preserve full identity', () => {
     ]);
     expect(within(navigation).getByText(organization.name)).toBeVisible();
     expect(within(navigation).getByText('Owner')).toBeVisible();
-    expect(within(navigation).getByRole('link', { name: 'Billing' })).toHaveAttribute(
-      'href',
-      '/app/fixture/organization/billing',
-    );
+    expect(within(navigation).getByRole('link', { name: 'Help and guides' })).toBeVisible();
+    await userEvent.click(within(navigation).getByRole('button', { name: 'More navigation' }));
+    expect(
+      within(screen.getByRole('dialog', { name: 'Workspace navigation' })).getByRole('link', {
+        name: 'Billing',
+      }),
+    ).toHaveAttribute('href', '/app/fixture/organization/billing');
   });
   it('keeps full scoped names in the sidebar', () => {
     const scoped = namedGroups('Long Named Regional Selection Tryout');

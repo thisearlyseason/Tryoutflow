@@ -424,3 +424,5 @@ export default async function AthleteDetailPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Athlete profile | TryoutFlow' };

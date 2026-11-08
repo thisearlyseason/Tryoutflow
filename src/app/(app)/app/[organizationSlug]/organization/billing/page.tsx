@@ -221,3 +221,5 @@ export default async function BillingPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Plan and billing | TryoutFlow' };

@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation';
-import { PrivateSessionBoundary } from '@/modules/identity/ui/private-session-boundary';
 import { createServerSupabaseClient } from '@/infrastructure/supabase/server';
-import { ProductBrandBar } from '@/components/layout/product-brand-bar';
 import {
   FamilyWorkspace,
   type FamilyPerson,
@@ -25,18 +23,11 @@ export default async function Page() {
   if ([workspace, offers, schedule, options].some((result) => result.error))
     throw new Error('Family information could not load.');
   return (
-    <PrivateSessionBoundary userId={user.id}>
-      <div className="participant-shell">
-        <ProductBrandBar label="Athlete and family portal" homeHref="/" />
-        <FamilyWorkspace
-          people={
-            (Array.isArray(workspace.data) ? workspace.data : []) as unknown as FamilyPerson[]
-          }
-          offers={(offers.data ?? []) as unknown as FamilyOffer[]}
-          schedule={(schedule.data ?? []) as unknown as FamilySession[]}
-          registrationOptions={(options.data ?? []) as unknown as FamilyRegistration[]}
-        />
-      </div>
-    </PrivateSessionBoundary>
+    <FamilyWorkspace
+      people={(Array.isArray(workspace.data) ? workspace.data : []) as unknown as FamilyPerson[]}
+      offers={(offers.data ?? []) as unknown as FamilyOffer[]}
+      schedule={(schedule.data ?? []) as unknown as FamilySession[]}
+      registrationOptions={(options.data ?? []) as unknown as FamilyRegistration[]}
+    />
   );
 }

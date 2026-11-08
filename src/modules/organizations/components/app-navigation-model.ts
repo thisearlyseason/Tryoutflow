@@ -9,12 +9,16 @@ export type NavigationItem = Readonly<{
   accessibleLabel?: string;
   compactLabel?: string;
   icon: NavigationIcon;
+  activePaths?: readonly string[];
+  mobilePriority?: number;
 }>;
 
 export type NavigationGroup = Readonly<{
   id: string;
   label: string;
   items: readonly NavigationItem[];
+  presentation?: 'context' | 'disclosure';
+  parentHref?: string;
 }>;
 
 function uniqueTryouts(authorization: AuthorizationContext, roles: readonly string[]) {
@@ -64,31 +68,66 @@ export function buildAppNavigation({
   if (managesOrganization) {
     return [
       {
-        id: 'overview',
-        label: 'Overview',
+        id: 'primary',
+        label: 'Workspace',
         items: [
-          { href: `${base}/home`, label: 'Home', icon: 'home' },
+          { href: `${base}/home`, label: 'Home', icon: 'home', mobilePriority: 0 },
           ...(authorization.assignments.some(({ role }) => role === 'evaluator')
-            ? [{ href: `${base}/evaluate`, label: 'My scoring', icon: 'evaluate' as const }]
+            ? [
+                {
+                  href: `${base}/evaluate`,
+                  label: 'My scoring',
+                  icon: 'evaluate' as const,
+                  mobilePriority: 2,
+                },
+              ]
             : []),
-        ],
-      },
-      {
-        id: 'operations',
-        label: 'Organize tryouts',
-        items: [
-          { href: `${base}/tryouts`, label: 'Tryouts', icon: 'tryouts' },
-          { href: `${base}/athletes`, label: 'Athletes', icon: 'athletes' },
-          { href: `${base}/participants`, label: 'Family access', icon: 'athletes' },
-          { href: `${base}/scouting`, label: 'Scouting', icon: 'evaluate' },
-          { href: `${base}/performance`, label: 'Performance', icon: 'reports' },
-          { href: `${base}/evaluators`, label: 'Evaluator team', icon: 'evaluate' },
+          { href: `${base}/tryouts`, label: 'Tryouts', icon: 'tryouts', mobilePriority: 1 },
+          {
+            href: `${base}/athletes`,
+            label: 'Athletes',
+            icon: 'athletes',
+            mobilePriority: 3,
+            activePaths: [`${base}/scouting`, `${base}/performance`],
+          },
+          {
+            href: `${base}/people`,
+            label: 'People',
+            icon: 'organization',
+            activePaths: [
+              `${base}/evaluators`,
+              `${base}/organization/members`,
+              `${base}/participants`,
+            ],
+          },
           { href: `${base}/reports`, label: 'Reports', icon: 'reports' },
         ],
       },
       {
-        id: 'organization',
-        label: 'Settings',
+        id: 'athlete-tools',
+        label: 'Athlete tools',
+        presentation: 'context',
+        parentHref: `${base}/athletes`,
+        items: [
+          { href: `${base}/scouting`, label: 'Scouting', icon: 'evaluate' },
+          { href: `${base}/performance`, label: 'Performance', icon: 'reports' },
+        ],
+      },
+      {
+        id: 'people-tools',
+        label: 'People tools',
+        presentation: 'context',
+        parentHref: `${base}/people`,
+        items: [
+          { href: `${base}/evaluators`, label: 'Evaluators', icon: 'evaluate' },
+          { href: `${base}/organization/members`, label: 'Members', icon: 'organization' },
+          { href: `${base}/participants`, label: 'Participant access', icon: 'athletes' },
+        ],
+      },
+      {
+        id: 'workspace-tools',
+        label: 'Workspace tools',
+        presentation: 'disclosure',
         items: [
           ...(!isTeamWorkspace
             ? [
@@ -99,7 +138,6 @@ export function buildAppNavigation({
                 },
               ]
             : []),
-          { href: `${base}/organization/members`, label: 'Members', icon: 'organization' },
           {
             href: `${base}/organization/integrations`,
             label: 'Integrations',
@@ -142,13 +180,13 @@ export function buildAppNavigation({
     ...directorTryouts.flatMap((tryoutId) => [
       scopedItem(organizationSlug, tryoutId, 'live', 'Run Tryout', 'home'),
       scopedItem(organizationSlug, tryoutId, 'staff', 'Staff', 'organization'),
-      scopedItem(organizationSlug, tryoutId, 'rankings', 'Review Results', 'reports'),
-      scopedItem(organizationSlug, tryoutId, 'rosters', 'Rosters', 'athletes'),
-      scopedItem(organizationSlug, tryoutId, 'reports', 'Share Results', 'reports'),
+      scopedItem(organizationSlug, tryoutId, 'rankings', 'Rankings', 'reports'),
+      scopedItem(organizationSlug, tryoutId, 'rosters', 'Official roster', 'athletes'),
+      scopedItem(organizationSlug, tryoutId, 'reports', 'Reports', 'reports'),
     ]),
     ...reviewerTryouts.flatMap((tryoutId) => [
-      scopedItem(organizationSlug, tryoutId, 'rosters', 'Rosters', 'athletes'),
-      scopedItem(organizationSlug, tryoutId, 'reports', 'Share Results', 'reports'),
+      scopedItem(organizationSlug, tryoutId, 'rosters', 'Official roster', 'athletes'),
+      scopedItem(organizationSlug, tryoutId, 'reports', 'Reports', 'reports'),
     ]),
   ];
   // Event names disambiguate repeated role-scoped destinations without fetching more data.
@@ -166,8 +204,51 @@ export function buildAppNavigation({
   const seen = new Set<string>();
   const deduplicated = items.filter(({ href }) => (seen.has(href) ? false : seen.add(href)));
   return deduplicated.length
-    ? [{ id: 'workspace', label: 'My workspace', items: deduplicated }]
+    ? [
+        {
+          id: 'workspace',
+          label: 'My workspace',
+          items: deduplicated.map((item) => ({
+            ...item,
+            mobilePriority: staffMobilePriority(item.href),
+          })),
+        },
+      ]
     : [];
+}
+
+/** Explicit task policy; discovery order must not decide a person's mobile shortcuts. */
+function staffMobilePriority(href: string): number | undefined {
+  const suffixes = [
+    '/evaluate',
+    '/check-in',
+    '/live',
+    '/rankings',
+    '/staff',
+    '/rosters',
+    '/reports',
+    '/scouting',
+    '/performance',
+    '/search',
+  ];
+  const index = suffixes.findIndex((suffix) => href.endsWith(suffix));
+  return index < 0 ? undefined : index;
+}
+
+export function selectMobileNavigation(groups: readonly NavigationGroup[]): NavigationItem[] {
+  const items = flattenNavigation(groups);
+  if (!items.some((item) => item.mobilePriority !== undefined)) return items.slice(0, 3);
+  const seenTasks = new Set<number>();
+  return items
+    .filter((item) => item.mobilePriority !== undefined)
+    .sort((a, b) => a.mobilePriority! - b.mobilePriority! || a.href.localeCompare(b.href))
+    .filter((item) => {
+      const priority = item.mobilePriority!;
+      if (seenTasks.has(priority)) return false;
+      seenTasks.add(priority);
+      return true;
+    })
+    .slice(0, 3);
 }
 
 export function flattenNavigation(groups: readonly NavigationGroup[]): NavigationItem[] {

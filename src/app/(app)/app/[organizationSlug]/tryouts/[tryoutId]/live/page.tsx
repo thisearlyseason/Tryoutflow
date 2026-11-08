@@ -60,7 +60,7 @@ export default async function LivePage({
     >
       {journeyNavigation}
       <p className="eyebrow">Operational snapshot</p>
-      <h2 id="live-heading">Run Tryout</h2>
+      <h1 id="live-heading">Live dashboard</h1>
       <EventActionSummary
         dashboard={result.value}
         base={`/app/${organizationSlug}/tryouts/${tryoutId}`}
@@ -107,3 +107,5 @@ export default async function LivePage({
     </section>
   );
 }
+
+export const metadata = { title: 'Live tryout dashboard | TryoutFlow' };

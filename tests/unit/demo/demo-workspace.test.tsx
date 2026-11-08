@@ -57,16 +57,16 @@ it('preserves data and deadline across reloads, then resets on return after expi
   first.unmount();
   vi.setSystemTime(Date.now() + 60000);
   const second = render(<DemoWorkspace />);
-  expect(
-    screen.getByRole('heading', { level: 2, name: /My demo tryout|U15 Hockey/ }),
-  ).toHaveTextContent('My demo tryout');
+  expect(screen.getByRole('heading', { level: 2, name: 'My demo tryout' })).toHaveTextContent(
+    'My demo tryout',
+  );
   expect(screen.getByTestId('demo-countdown')).toHaveTextContent('29:00');
   second.unmount();
   vi.setSystemTime(Date.now() + DEMO_DURATION_MS);
   render(<DemoWorkspace />);
-  expect(
-    screen.getByRole('heading', { level: 2, name: /My demo tryout|U15 Hockey/ }),
-  ).toHaveTextContent('U15 Hockey');
+  expect(screen.getByRole('heading', { level: 2, name: /U15 Hockey/ })).toHaveTextContent(
+    'U15 Hockey',
+  );
 });
 
 it('resets promptly when a suspended tab regains focus', () => {

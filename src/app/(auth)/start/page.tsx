@@ -1,56 +1,21 @@
 import { redirect } from 'next/navigation';
 import { PrivateSessionBoundary } from '@/modules/identity/ui/private-session-boundary';
 import { Suspense } from 'react';
-
 import { AuthShell } from '../../../components/layout/auth-shell';
-import { OrganizationNameFields } from '@/modules/organizations/ui/organization-name-fields';
-import { Button } from '../../../components/ui/button';
-import { FormField } from '../../../components/ui/form-field';
-import { createOrganization } from '../../../modules/organizations/application/create-organization';
 import { createServerSupabaseClient } from '../../../infrastructure/supabase/server';
-import { parseUserId } from '../../../lib/ids';
-import { trackSupabaseWorkflowSafely } from '../../../infrastructure/analytics/supabase-analytics-provider';
-import { createCorrelationId } from '../../../modules/observability/domain/correlation-id';
-import { TimezonePicker } from '../../../modules/organizations/ui/timezone-picker';
-import { StartPlan } from '../../../modules/organizations/ui/start-plan';
 import { StartErrorMessage } from '../../../modules/organizations/ui/start-error-message';
+import { StartOrganizationForm } from '../../../modules/organizations/ui/start-organization-form';
+import { startOrganizationAction } from '../../../modules/organizations/application/start-organization-action';
 
-export default async function StartPage() {
+export default async function StartPage({
+  searchParams,
+}: { searchParams?: Promise<{ plan?: string }> } = {}) {
   const client = await createServerSupabaseClient();
   const {
     data: { user },
   } = await client.auth.getUser();
   if (!user) redirect('/sign-in?next=%2Fstart');
-
-  async function submit(formData: FormData) {
-    'use server';
-    const client = await createServerSupabaseClient();
-    const {
-      data: { user },
-    } = await client.auth.getUser();
-    const wantsPro = formData.get('plan') === 'pro';
-    if (!user)
-      redirect(wantsPro ? '/sign-in?next=%2Fstart%3Fplan%3Dpro' : '/sign-in?next=%2Fstart');
-    const result = await createOrganization(
-      {
-        name: formData.get('name'),
-        slug: formData.get('slug'),
-        timezone: formData.get('timezone'),
-      },
-      { userId: parseUserId(user.id) },
-    );
-    if (!result.ok) redirect(`/start?error=${result.error.code}${wantsPro ? '&plan=pro' : ''}`);
-    await trackSupabaseWorkflowSafely(client, {
-      name: 'workflow.completed',
-      workflow: 'onboarding',
-      organizationId: result.value.organization.id,
-      correlationId: createCorrelationId(),
-    });
-    redirect(
-      `/app/${result.value.organization.slug}/${wantsPro || process.env.BILLING_ENVIRONMENT ? 'organization/billing' : 'home'}`,
-    );
-  }
-
+  const query = (await searchParams) ?? {};
   return (
     <PrivateSessionBoundary userId={user.id}>
       <AuthShell
@@ -61,24 +26,13 @@ export default async function StartPage() {
         <Suspense fallback={null}>
           <StartErrorMessage />
         </Suspense>
-        <form action={submit}>
-          <Suspense fallback={null}>
-            <StartPlan />
-          </Suspense>
-          <OrganizationNameFields />
-          <FormField
-            description="Start typing to search timezones. We select your device timezone when it is available."
-            htmlFor="timezone"
-            label="Timezone"
-            required
-          >
-            {({ describedBy }) => <TimezonePicker describedBy={describedBy} />}
-          </FormField>
-          <Button className="mt-2 w-full" type="submit">
-            Create organization
-          </Button>
-        </form>
+        <StartOrganizationForm
+          action={startOrganizationAction}
+          plan={query.plan === 'pro' ? 'pro' : undefined}
+        />
       </AuthShell>
     </PrivateSessionBoundary>
   );
 }
+
+export const metadata = { title: 'Set up your organization | TryoutFlow' };

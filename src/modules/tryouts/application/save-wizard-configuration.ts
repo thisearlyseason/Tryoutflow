@@ -91,6 +91,7 @@ export async function saveWizardConfiguration(
         .object({
           name: z.string().trim().min(1).max(160),
           schema: RegistrationFormSchema,
+          expectedVersion: z.number().int().nonnegative().optional(),
           notificationEmail: z.union([z.email().max(254), z.literal('')]).optional(),
         })
         .safeParse(payload);

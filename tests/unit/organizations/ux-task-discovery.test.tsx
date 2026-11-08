@@ -121,3 +121,31 @@ describe('task discovery without access expansion', () => {
     });
   });
 });
+
+it('does not offer live rankings to a reviewer who only has finalized result access', () => {
+  const groups = buildAppNavigation({
+    authorization: {
+      ...auth,
+      organizationRole: 'member',
+      assignments: [{ role: 'reviewer', scope: { kind: 'tryout', tryoutId: 'fictional-event' } }],
+    },
+    organizationSlug: 'qa',
+  });
+  const paths = flattenNavigation(groups).map((item) => item.href);
+  expect(paths).toContain('/app/qa/tryouts/fictional-event/rosters');
+  expect(paths).toContain('/app/qa/tryouts/fictional-event/reports');
+  expect(paths).not.toContain('/app/qa/tryouts/fictional-event/rankings');
+});
+
+it('keeps a manager evaluator destination unique across flattened discovery', () => {
+  const groups = buildAppNavigation({
+    authorization: {
+      ...auth,
+      assignments: [{ role: 'evaluator', scope: { kind: 'tryout', tryoutId: 'event' } }],
+    },
+    organizationSlug: 'qa',
+  });
+  const destinations = flattenNavigation(groups).map((item) => item.href);
+  expect(destinations.filter((href) => href === '/app/qa/evaluate')).toEqual(['/app/qa/evaluate']);
+  expect(new Set(destinations).size).toBe(destinations.length);
+});

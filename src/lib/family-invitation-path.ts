@@ -6,5 +6,9 @@ export function familyInvitationPath(value: unknown): string | undefined {
 }
 
 export function isFamilyDestination(value: unknown): boolean {
-  return value === '/participant' || Boolean(familyInvitationPath(value));
+  return (
+    value === '/participant' ||
+    value === '/participant/account' ||
+    Boolean(familyInvitationPath(value))
+  );
 }

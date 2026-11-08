@@ -5,6 +5,7 @@ import {
 import { Suspense, type ReactNode } from 'react';
 
 import { WorkspaceReturn } from './workspace-return';
+import { WorkspaceAreaNavigation } from './workspace-area-navigation';
 import { AppTopbar } from './app-topbar';
 import { AppNavigation } from './app-navigation';
 import type { NavigationGroup } from '../../modules/organizations/components/app-navigation-model';
@@ -34,7 +35,10 @@ export function AppShell({
   if (!groupedNavigation || !organization || !roleLabel) {
     return (
       <div className="app-frame brand-workspace">
-        <main className="app-main" id="main-content">
+        <a className="workspace-skip-link" href="#main-content">
+          Skip to content
+        </a>
+        <main className="app-main" id="main-content" tabIndex={-1}>
           {children}
         </main>
         {navigation as ReactNode}
@@ -49,14 +53,18 @@ export function AppShell({
           : 'app-frame app-frame-workspace brand-workspace'
       }
     >
+      <a className="workspace-skip-link" href="#main-content">
+        Skip to content
+      </a>
       <AppNavigation groups={groupedNavigation} organization={organization} roleLabel={roleLabel} />
       <div className="app-content">
         <AppTopbar groups={groupedNavigation} organization={organization} roleLabel={roleLabel} />
-        <main className="app-main" id="main-content">
+        <main className="app-main" id="main-content" tabIndex={-1}>
           <Suspense fallback={null}>
             <WorkspaceReturn groups={groupedNavigation} events={events} />
             <SelectedEvent events={events} storageKey={eventStorageKey} />
           </Suspense>
+          <WorkspaceAreaNavigation groups={groupedNavigation} />
           {children}
         </main>
       </div>

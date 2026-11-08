@@ -177,7 +177,9 @@ describe('core workflow field guidance', () => {
     const organizationName = screen.getByRole('textbox', { name: 'Organization name' });
     const timezone = screen.getByRole('combobox', { name: 'Timezone' });
     expect(organizationName).toHaveAttribute('placeholder', FIELD_EXAMPLES.organizationName);
-    expect(screen.getByRole('textbox', { name: 'Workspace address' })).toHaveValue('');
+    expect(screen.getByRole('textbox', { name: 'Your TryoutFlow workspace address' })).toHaveValue(
+      '',
+    );
     expect(screen.getByText(/not your public website/i)).toBeVisible();
     expect(timezone).toHaveAttribute('placeholder', FIELD_EXAMPLES.timezone);
     expect(timezone).toHaveAttribute('list', 'organization-timezone-options');
@@ -227,6 +229,7 @@ describe('core workflow field guidance', () => {
       p_organization_id: organizationId,
       p_tryout_id: undefined,
     });
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Tryout name' })).toBeEnabled());
     expect(screen.getByRole('textbox', { name: 'Tryout name' })).toHaveAttribute(
       'placeholder',
       FIELD_EXAMPLES.tryoutName,

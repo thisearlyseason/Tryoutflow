@@ -94,3 +94,5 @@ export default async function IntegrationsPage({
     </div>
   );
 }
+
+export const metadata = { title: 'Organization integrations | TryoutFlow' };

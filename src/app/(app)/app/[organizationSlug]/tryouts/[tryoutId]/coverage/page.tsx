@@ -116,7 +116,7 @@ export default async function Page({
               <Link
                 href={`/app/${slug}/tryouts/${tryoutId}/rankings?search=${encodeURIComponent(r.name)}`}
               >
-                View scores
+                Score evidence
               </Link>
             </div>
           </article>
@@ -126,3 +126,5 @@ export default async function Page({
     </section>
   );
 }
+
+export const metadata = { title: 'Evaluation coverage | TryoutFlow' };

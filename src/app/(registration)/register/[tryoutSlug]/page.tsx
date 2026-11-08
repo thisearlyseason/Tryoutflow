@@ -15,6 +15,7 @@ export default async function PublicRegistrationPage({
   searchParams: Promise<{ __testLoaderFailure?: string; athlete?: string }>;
 }) {
   const [{ tryoutSlug }, query] = await Promise.all([params, searchParams]);
+  let recoveryContext = 'public';
   let prefill: Record<string, string> | undefined;
   if (query.athlete && z.uuid().safeParse(query.athlete).success) {
     const client = await createServerSupabaseClient();
@@ -29,13 +30,17 @@ export default async function PublicRegistrationPage({
       const parsed = z
         .object({ givenName: z.string(), familyName: z.string(), birthDate: z.string() })
         .safeParse(r.data);
-      if (!r.error && parsed.success) prefill = parsed.data;
+      if (!r.error && parsed.success) {
+        prefill = parsed.data;
+        recoveryContext = `linked:${user.id}:${query.athlete}`;
+      }
     }
   }
   return (
     <RegistrationForm
       tryoutSlug={tryoutSlug}
       prefill={prefill}
+      recoveryContext={recoveryContext}
       botSiteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
       deterministicBotToken={
         isExactDeterministicBotTestEnvironment(process.env)

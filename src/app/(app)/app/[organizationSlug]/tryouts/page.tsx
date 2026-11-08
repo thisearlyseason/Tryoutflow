@@ -21,63 +21,60 @@ export default async function TryoutsPage({
   const { organizationSlug } = await params;
   const requestedFailure = (await searchParams).__testLoaderFailure;
   const current = await requireCurrentOrganization(organizationSlug);
+  const canCreate = requireCapability(current.authorization, 'tryout:write', {
+    organizationId: current.organization.id,
+  }).ok;
+  const unavailable = (
+    <section className="workspace-stack">
+      <PageHeader
+        title="Tryouts"
+        description="Open a tryout to see its current status and available tasks."
+      />
+      <ErrorState
+        action={
+          <a
+            className="button-secondary inline-flex min-h-11 items-center"
+            href={`/app/${organizationSlug}/tryouts`}
+          >
+            Retry
+          </a>
+        }
+        description="Tryouts could not be loaded. No data was changed."
+        title="Tryouts temporarily unavailable"
+      />
+    </section>
+  );
   if (shouldInjectTestLoaderFailure(requestedFailure, 'tryouts')) {
     captureOperationalError(new AppError('network_unavailable'), {
       actorId: current.userId,
       organizationId: current.organization.id,
       operation: 'tryouts.load',
     });
-    return (
-      <ErrorState
-        action={
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts`}
-            prefetch={false}
-          >
-            Retry
-          </Link>
-        }
-        description="Tryouts could not be loaded. No data was changed."
-        title="Tryouts temporarily unavailable"
-      />
-    );
+    return unavailable;
   }
   const tryoutsResult = await current.client
     .from('tryouts')
     .select('id, name, slug, sport, status, updated_at')
     .eq('organization_id', current.organization.id)
     .order('updated_at', { ascending: false });
-  if (tryoutsResult.error) {
-    captureOperationalError(tryoutsResult.error, {
+  if (tryoutsResult.error || tryoutsResult.data === null) {
+    captureOperationalError(tryoutsResult.error ?? new AppError('network_unavailable'), {
       actorId: current.userId,
       organizationId: current.organization.id,
       operation: 'tryouts.load',
     });
-    return (
-      <ErrorState
-        action={
-          <Link
-            className="button-secondary inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts`}
-            prefetch={false}
-          >
-            Retry
-          </Link>
-        }
-        description="Tryouts could not be loaded. No data was changed."
-        title="Tryouts temporarily unavailable"
-      />
-    );
+    return unavailable;
   }
   const tryouts = tryoutsResult.data;
   return (
     <section aria-label="Tryouts" className="workspace-stack">
       <PageHeader
         actions={
-          <LinkButton href={`/app/${organizationSlug}/tryouts/new`}>Create tryout</LinkButton>
+          canCreate && Boolean(tryouts?.length) ? (
+            <LinkButton href={`/app/${organizationSlug}/tryouts/new`}>Create tryout</LinkButton>
+          ) : undefined
         }
-        description="Set up events, run tryout day and review results."
+        description="Open a tryout to see its current status and available tasks."
         eyebrow="Operations"
         title="Tryouts"
       />
@@ -113,19 +110,27 @@ export default async function TryoutsPage({
         <div className="mt-6">
           <EmptyState
             action={
-              <Link
-                className="button-secondary inline-flex min-h-11 items-center"
-                href={`/app/${organizationSlug}/tryouts/new`}
-                prefetch={false}
-              >
-                Create tryout
-              </Link>
+              canCreate ? (
+                <Link
+                  className="button-primary inline-flex min-h-11 items-center"
+                  href={`/app/${organizationSlug}/tryouts/new`}
+                  prefetch={false}
+                >
+                  Create tryout
+                </Link>
+              ) : undefined
             }
-            description="Create a draft to begin guided setup."
-            title="No tryouts yet"
+            description={
+              canCreate
+                ? 'Create a draft to begin guided setup.'
+                : 'No tryouts are available in your current access. Ask an owner or administrator to create a tryout or check your assignments.'
+            }
+            title={canCreate ? 'No tryouts yet' : 'No tryouts available'}
           />
         </div>
       )}
     </section>
   );
 }
+
+export const metadata = { title: 'Tryouts | TryoutFlow' };

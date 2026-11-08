@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { EmptyState } from '@/components/feedback/empty-state';
+import { ErrorState } from '@/components/feedback/error-state';
 
 import { captureOperationalError } from '@/infrastructure/observability/server-observability';
 import { requireCurrentOrganization } from '@/modules/organizations/application/current-organization';
@@ -18,12 +20,16 @@ export default async function TryoutSessionsPage({
   params: Promise<{ organizationSlug: string; tryoutId: string }>;
 }) {
   const { organizationSlug, tryoutId } = await params;
-  const journeyNavigation = (
+  const journeyNavigation = (ready = false) => (
     <TryoutJourneyNavigation
-      nextAction={{
-        label: 'Open check-in',
-        href: `/app/${organizationSlug}/tryouts/${tryoutId}/check-in`,
-      }}
+      nextAction={
+        ready
+          ? {
+              label: 'Open check-in',
+              href: `/app/${organizationSlug}/tryouts/${tryoutId}/check-in`,
+            }
+          : undefined
+      }
       overviewHref={`/app/${organizationSlug}/tryouts/${tryoutId}/overview`}
     />
   );
@@ -36,7 +42,7 @@ export default async function TryoutSessionsPage({
   )
     return (
       <section aria-labelledby="sessions-denied">
-        <h2 id="sessions-denied">Sessions unavailable</h2>
+        <h1 id="sessions-denied">Sessions unavailable</h1>
         <p role="alert">You do not have access to this tryout.</p>
       </section>
     );
@@ -44,7 +50,7 @@ export default async function TryoutSessionsPage({
   const [tryoutResult, sessionsResult] = await Promise.all([
     current.client
       .from('tryouts')
-      .select('id,name')
+      .select('id,name,status')
       .eq('organization_id', current.organization.id)
       .eq('id', tryoutId)
       .maybeSingle(),
@@ -58,34 +64,62 @@ export default async function TryoutSessionsPage({
       .order('starts_at'),
   ]);
 
-  if (tryoutResult.error || sessionsResult.error) {
-    captureOperationalError(tryoutResult.error ?? sessionsResult.error, {
-      actorId: current.userId,
-      organizationId: current.organization.id,
-      tryoutId,
-      operation: 'tryouts.load',
-    });
+  if (tryoutResult.error || sessionsResult.error || sessionsResult.data === null) {
+    captureOperationalError(
+      tryoutResult.error ?? sessionsResult.error ?? new Error('Session data unavailable'),
+      {
+        actorId: current.userId,
+        organizationId: current.organization.id,
+        tryoutId,
+        operation: 'tryouts.load',
+      },
+    );
     return (
       <section aria-labelledby="sessions-unavailable">
-        {journeyNavigation}
-        <h2 id="sessions-unavailable">Sessions temporarily unavailable</h2>
-        <p role="alert">Session details could not be loaded. Refresh or try again shortly.</p>
+        {journeyNavigation()}
+        <h1 id="sessions-unavailable">Sessions temporarily unavailable</h1>
+        <ErrorState
+          title="Could not load session details"
+          description="Try loading the schedule again or return to the tryout overview."
+          action={
+            <a
+              className="button-secondary inline-flex min-h-11 items-center"
+              href={`/app/${organizationSlug}/tryouts/${tryoutId}/sessions`}
+            >
+              Retry sessions
+            </a>
+          }
+        />
       </section>
     );
   }
   if (!tryoutResult.data)
     return (
       <section aria-labelledby="sessions-not-found">
-        <h2 id="sessions-not-found">Tryout not found</h2>
+        <h1 id="sessions-not-found">Tryout not found</h1>
         <p>The tryout may have been removed or is outside your assigned scope.</p>
+        <Link
+          className="button-secondary mt-4 inline-flex min-h-11 items-center"
+          href={`/app/${organizationSlug}/tryouts`}
+          prefetch={false}
+        >
+          Back to tryouts
+        </Link>
       </section>
     );
 
+  const hasSessions = Boolean(sessionsResult.data?.length);
+  const canSetup =
+    tryoutResult.data.status === 'draft' &&
+    requireCapability(current.authorization, 'tryout:write', {
+      organizationId: current.organization.id,
+      tryoutId,
+    }).ok;
   return (
     <section aria-labelledby="sessions-heading" className="min-w-0">
-      {journeyNavigation}
+      {journeyNavigation(hasSessions)}
       <p className="eyebrow">Tryout schedule</p>
-      <h2 id="sessions-heading">{tryoutResult.data.name} sessions</h2>
+      <h1 id="sessions-heading">{tryoutResult.data.name} sessions</h1>
       <p className="mt-2 text-[var(--color-text-muted)]">
         Review the session, division, location, capacity, and group configuration used for check-in
         and evaluations.
@@ -133,20 +167,30 @@ export default async function TryoutSessionsPage({
           ))}
         </ul>
       ) : (
-        <div className="card mt-6 p-5">
-          <h3>No sessions configured</h3>
-          <p className="mt-2 text-[var(--color-text-muted)]">
-            Complete the guided setup before publishing this tryout.
-          </p>
-          <Link
-            className="button-secondary mt-4 inline-flex min-h-11 items-center"
-            href={`/app/${organizationSlug}/tryouts/${tryoutId}/setup/sessions`}
-            prefetch={false}
-          >
-            Open tryout setup
-          </Link>
+        <div className="mt-6">
+          <EmptyState
+            title={canSetup ? 'No sessions yet' : 'No sessions available'}
+            description={
+              canSetup
+                ? 'Add a session with its division, dates and location before moving on to check-in.'
+                : 'There are no sessions to show for this tryout. Ask an owner or event director to check the schedule.'
+            }
+            action={
+              canSetup ? (
+                <Link
+                  className="button-primary inline-flex min-h-11 items-center"
+                  href={`/app/${organizationSlug}/tryouts/${tryoutId}/setup/sessions`}
+                  prefetch={false}
+                >
+                  Add sessions
+                </Link>
+              ) : undefined
+            }
+          />
         </div>
       )}
     </section>
   );
 }
+
+export const metadata = { title: 'Tryout sessions | TryoutFlow' };

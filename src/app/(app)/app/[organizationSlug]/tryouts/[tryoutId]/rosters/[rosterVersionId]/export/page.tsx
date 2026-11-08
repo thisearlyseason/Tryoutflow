@@ -267,3 +267,5 @@ export default async function RosterExportPage({
     </div>
   );
 }
+
+export const metadata = { title: 'Export a finalized roster | TryoutFlow' };

@@ -216,8 +216,8 @@ describe('role and snapshot boundaries', () => {
       tryoutNames: { one: 'Basketball U14' },
     });
     expect(flattenNavigation(groups).map(({ label }) => label)).toEqual([
-      'Rosters · Basketball U14',
-      'Share Results · Basketball U14',
+      'Official roster · Basketball U14',
+      'Reports · Basketball U14',
     ]);
     expect(flattenNavigation(groups).some(({ href }) => href.endsWith('/rankings'))).toBe(false);
     expect(
@@ -318,12 +318,12 @@ describe('compact actions retain full scoped identity', () => {
   const contracts = [
     {
       role: 'director' as const,
-      actions: ['Run Tryout', 'Staff', 'Review Results', 'Rosters', 'Share Results'],
+      actions: ['Run Tryout', 'Staff', 'Rankings', 'Official roster', 'Reports'],
       segments: ['live', 'staff', 'rankings', 'rosters', 'reports'],
     },
     {
       role: 'reviewer' as const,
-      actions: ['Rosters', 'Share Results'],
+      actions: ['Official roster', 'Reports'],
       segments: ['rosters', 'reports'],
     },
     { role: 'checkin' as const, actions: ['Check-in'], segments: ['check-in'] },
@@ -378,6 +378,12 @@ describe('compact actions retain full scoped identity', () => {
           tryoutNames: { one: names[0]! },
         }),
       ),
-    ).toEqual([{ href: '/app/club/evaluate', label: 'My scoring', icon: 'evaluate' }]);
+    ).toEqual([
+      expect.objectContaining({
+        href: '/app/club/evaluate',
+        label: 'My scoring',
+        icon: 'evaluate',
+      }),
+    ]);
   });
 });

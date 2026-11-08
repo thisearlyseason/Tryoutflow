@@ -372,3 +372,5 @@ export default async function TryoutRegistrationPage({
     </section>
   );
 }
+
+export const metadata = { title: 'Tryout participants | TryoutFlow' };

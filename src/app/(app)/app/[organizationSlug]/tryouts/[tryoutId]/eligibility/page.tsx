@@ -160,3 +160,5 @@ export default async function Page({
     </section>
   );
 }
+
+export const metadata = { title: 'Tryout eligibility | TryoutFlow' };

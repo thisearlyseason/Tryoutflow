@@ -26,11 +26,14 @@ function query<T>(promise: Promise<T>) {
   const chain = {
     select: vi.fn(),
     eq: vi.fn(),
+    in: vi.fn(),
+    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
     order: vi.fn(),
     limit: vi.fn(),
     then: promise.then.bind(promise),
   };
-  for (const key of ['select', 'eq', 'order', 'limit'] as const) chain[key].mockReturnValue(chain);
+  for (const key of ['select', 'eq', 'in', 'order', 'limit'] as const)
+    chain[key].mockReturnValue(chain);
   return chain;
 }
 const organization = {

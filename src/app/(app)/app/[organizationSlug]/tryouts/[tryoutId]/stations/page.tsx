@@ -186,3 +186,5 @@ export default async function Page({
     </section>
   );
 }
+
+export const metadata = { title: 'Stations and rotations | TryoutFlow' };

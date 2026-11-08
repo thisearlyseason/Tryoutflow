@@ -19,6 +19,7 @@ async function createDraftForWizard(page: Page, organizationSlug: string, name: 
   await page.goto(`/app/${organizationSlug}/tryouts/new`);
   await page.getByLabel('Tryout name').fill(name);
   await page.getByLabel('Sport').fill('Hockey');
+  await page.getByLabel('Use an existing cycle').selectOption('');
   await page.getByLabel('New cycle name').fill(`${name} cycle`);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   await page.getByLabel('Registration opens').fill('2026-09-01T08:00');
@@ -94,7 +95,8 @@ test('tryout wizard preserves native labels and critical accessibility semantics
   await createDraftForWizard(page, scenario.organizationSlug, name);
   expectCancellableServerAction(monitor, page, 'Task 31 draft creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(page).toHaveURL(/\/setup\/basics$/u);
+  await expect(page).toHaveURL(/\/setup\/divisions$/u);
+  await page.getByRole('link', { name: /Basics/ }).click();
   await auditHeading(page, 'Tryout basics');
   await expect(page.getByLabel('Name')).toHaveValue(name);
   monitor.assertClean();
@@ -158,7 +160,7 @@ test('rankings and roster expose semantic filters, alternatives, and dialog focu
   await page.goto(
     `/app/${scenario.organizationSlug}/tryouts/${scenario.ids.tryout}/rosters?division=${scenario.ids.rosterDivision}`,
   );
-  await auditHeading(page, `${scenario.tryoutName} rosters`);
+  await auditHeading(page, `${scenario.tryoutName} official rosters`);
   const select = page.getByLabel('Select Roster Mover');
   const move = page.getByRole('button', { name: 'Move Roster Mover' });
   const forwardTab =

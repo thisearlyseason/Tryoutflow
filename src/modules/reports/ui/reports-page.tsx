@@ -11,12 +11,15 @@ export function ReportsPage({
   tryoutId,
   summary,
   access,
+  headingLevel = 2,
 }: {
   organizationId: string;
   tryoutId?: string;
   summary?: ManagerReportSummary;
   access?: ReportPageAccess;
+  headingLevel?: 1 | 2;
 }) {
+  const Heading = headingLevel === 1 ? 'h1' : 'h2';
   const query = tryoutId ? `?tryoutId=${encodeURIComponent(tryoutId)}` : '';
   const base = `/api/organizations/${organizationId}/exports`;
   const reviewer = access?.kind === 'reviewer_roster' ? access : null;
@@ -26,7 +29,7 @@ export function ReportsPage({
     return (
       <section aria-labelledby="reports-heading" className="min-w-0">
         <p className="eyebrow">Approved final report</p>
-        <h2 id="reports-heading">Reports</h2>
+        <Heading id="reports-heading">Reports</Heading>
         <p className="mt-2 max-w-3xl text-[var(--color-text-muted)]" role="status">
           This finalized roster’s verified export snapshot is unavailable. Ask an authorized manager
           to create and finalize a new roster revision.
@@ -38,7 +41,7 @@ export function ReportsPage({
     return (
       <section aria-labelledby="reports-heading" className="min-w-0">
         <p className="eyebrow">Approved final report</p>
-        <h2 id="reports-heading">Reports</h2>
+        <Heading id="reports-heading">Reports</Heading>
         <p className="mt-2 max-w-3xl text-[var(--color-text-muted)]">
           Your reviewer grant permits only this immutable finalized-roster snapshot.
         </p>
@@ -69,7 +72,7 @@ export function ReportsPage({
   return (
     <section aria-labelledby="reports-heading" className="min-w-0">
       <p className="eyebrow">Authorized snapshots</p>
-      <h2 id="reports-heading">Reports</h2>
+      <Heading id="reports-heading">Reports</Heading>
       <p className="mt-2 max-w-3xl text-[var(--color-text-muted)]">
         Downloads are generated from your current server-authorized scope. Each CSV is limited to
         5,000 rows and 4 MiB and excludes contact details, private notes, and evaluator identity.

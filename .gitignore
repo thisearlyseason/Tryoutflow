@@ -21,3 +21,6 @@ supabase/.temp/
 /output/team-workspaces/
 /output/playwright/team-workspaces/
 .vercel
+
+# Local QA scripts, test scratch and access-link files.
+/work/

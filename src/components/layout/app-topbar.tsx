@@ -3,6 +3,7 @@
 import { BookOpen, Search, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { workspaceGuideAudience } from '@/modules/how-to/workspace-guide';
 import type { NavigationGroup } from '../../modules/organizations/components/app-navigation-model';
 
 /** Search the current user's available workspace pages without exposing restricted routes. */
@@ -16,18 +17,7 @@ export function AppTopbar({
   roleLabel: string;
 }) {
   const [query, setQuery] = useState('');
-  const roles = roleLabel.split(' · ');
-  const guideAudience = roles.some((role) => ['Owner', 'Administrator', 'Director'].includes(role))
-    ? 'coaches'
-    : roles.includes('Evaluator')
-      ? 'evaluators'
-      : roles.includes('Check-in')
-        ? 'checkin'
-        : roles.includes('Reviewer')
-          ? 'reviewers'
-          : groups.some((group) => group.items.some((item) => item.href.endsWith('/scouting')))
-            ? 'scouting'
-            : 'coaches';
+  const guideAudience = workspaceGuideAudience(roleLabel, groups);
   const items = groups
     .flatMap((group) => group.items)
     .filter((item) => item.label.toLowerCase().includes(query.trim().toLowerCase()));

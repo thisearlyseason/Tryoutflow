@@ -6,7 +6,7 @@ import {
 } from '../../../src/modules/organizations/application/onboarding-progress';
 import { OnboardingChecklist } from '../../../src/modules/organizations/components/onboarding-checklist';
 import { OrganizationCommandCenter } from '../../../src/modules/organizations/components/organization-command-center';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 describe('authoritative onboarding progress', () => {
   it('derives every milestone from durable facts and reports the next incomplete step', () => {
@@ -85,7 +85,14 @@ describe('authoritative onboarding progress', () => {
 
     expect(projection.facts).toEqual(facts);
     expect(projection.progress.completedCount).toBe(8);
-    render(<OrganizationCommandCenter projection={projection} />);
+    render(
+      <OrganizationCommandCenter
+        organizationSlug="club"
+        showManagementActions
+        projection={projection}
+      />,
+    );
+    fireEvent.click(screen.getByText('Program totals and milestones'));
     expect(screen.getByText('12')).toBeVisible();
     expect(screen.getByText('83')).toBeVisible();
     expect(screen.getByText('Finalized rosters')).toBeVisible();
