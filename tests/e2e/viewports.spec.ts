@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 
 import { signInAs } from './helpers/auth';
+import { observeDraftSetupNavigation } from './helpers/setup-navigation';
 import { expect, test } from './helpers/fixtures';
 import {
   expectCancellableServerAction,
@@ -105,12 +106,21 @@ test('tryout wizard, check-in, and mobile evaluation stay overflow-free across t
   scenario,
 }) => {
   const ownerMonitor = await signInAs(page, scenario.users.owner, scenario.organizationSlug);
+  const draftNavigation = observeDraftSetupNavigation(
+    page,
+    ownerMonitor,
+    scenario.organizationSlug,
+    {
+      divisions: 1,
+    },
+  );
   const draftName = `Task 31 viewport ${scenario.key}`;
   await createDraftForWizard(page, scenario.organizationSlug, draftName);
   expectCancellableServerAction(ownerMonitor, page, 'Task 31 viewport draft creation redirect');
   await page.getByRole('button', { name: 'Create draft' }).click();
   await expect(page).toHaveURL(/\/setup\/divisions$/u);
   await expectOverflowFreeAtEveryViewport(page, 'tryout wizard');
+  await draftNavigation.assertAndStop();
   ownerMonitor.assertClean();
 
   const checkinContext = await browser.newContext({ baseURL });
