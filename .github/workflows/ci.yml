@@ -45,6 +45,32 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - name: Reserve local service ports before runner downloads
+        run: |
+          sudo python3 - <<'PYTHON'
+          import pathlib
+          import subprocess
+          import tomllib
+
+          with open('supabase/config.toml', 'rb') as source:
+              config = tomllib.load(source)
+          ports = sorted({
+              value
+              for section in ('api', 'db', 'studio', 'inbucket', 'local_smtp', 'analytics', 'edge_runtime')
+              for key, value in config.get(section, {}).items()
+              if (key == 'port' or key.endswith('_port')) and isinstance(value, int) and 0 < value < 65536
+          })
+          reserved = pathlib.Path('/proc/sys/net/ipv4/ip_local_reserved_ports')
+          existing = reserved.read_text().strip()
+          additions = ','.join(str(port) for port in ports)
+          combined = ','.join(value for value in (existing, additions) if value)
+          print(f'Configured service ports: {additions}')
+          print(f'Existing reserved ports: {existing or "(none)"}')
+          subprocess.run(['sysctl', '-w', f'net.ipv4.ip_local_reserved_ports={combined}'], check=True)
+          subprocess.run(['sysctl', 'net.ipv4.ip_local_port_range', 'net.ipv4.ip_local_reserved_ports'], check=True)
+          expression = '( ' + ' or '.join(f'sport = :{port}' for port in ports) + ' )'
+          subprocess.run(['ss', '-tanp', expression], check=True)
+          PYTHON
       - uses: actions/setup-node@v4
         with:
           node-version-file: '.nvmrc'
@@ -57,7 +83,17 @@ jobs:
           node --test scripts/tests/current-release-source-binding.test.mjs
       - name: Hosted-content native compatibility tests
         run: corepack npm@11.12.1 exec -- vitest run tests/unit/identity/native-workspace-bridge.test.tsx
-      - run: corepack npm@11.12.1 exec -- supabase start
+      - name: Start local Supabase and retain port-conflict diagnostics
+        run: |
+          if corepack npm@11.12.1 exec -- supabase start; then
+            exit 0
+          else
+            status=$?
+            sudo ss -tanp || true
+            docker ps -a --format '{{.Names}} {{.Ports}} {{.Status}}' || true
+            sysctl net.ipv4.ip_local_port_range net.ipv4.ip_local_reserved_ports || true
+            exit "$status"
+          fi
       - name: Use the signed primary Ubuntu archive for browser dependencies
         run: |
           sudo python3 - <<'PYTHON'
