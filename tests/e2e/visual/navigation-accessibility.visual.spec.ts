@@ -10,7 +10,9 @@ test('desktop sidebar keeps Audit Settings Billing reachable', async ({ page }) 
     ['Billing', 'Billing'],
   ]) {
     const nav = page.locator('.app-sidebar .app-navigation');
-    const settings = nav.locator('details.workflow-settings');
+    const settings = nav
+      .locator('details')
+      .filter({ has: page.getByText('Workspace tools', { exact: true }) });
     if (!(await settings.evaluate((element) => (element as HTMLDetailsElement).open))) {
       await settings.locator('summary').click();
     }

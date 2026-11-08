@@ -20,9 +20,9 @@ test('owner sees bounded Game-Day check-in and live operations', async ({ page }
 
   await page.goto(overviewUrl.replace('/overview', '/live'));
   await expect(
-    page.getByRole('heading', { name: 'Run Tryout', exact: true, level: 2 }),
+    page.getByRole('heading', { name: 'Live dashboard', exact: true, level: 1 }),
   ).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Run Tryout', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Live dashboard', exact: true })).toBeVisible();
   await expectVisual(page, 'game-day-live-dashboard.png');
 
   await page.setViewportSize({ width: 390, height: 844 });

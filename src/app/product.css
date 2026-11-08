@@ -274,6 +274,12 @@ button[aria-busy='true']::before {
   border-radius: var(--radius-control);
   font-size: 0.875rem;
 }
+/* Keep focused touch controls at 16px so WKWebView does not zoom the page. */
+@media (pointer: coarse) {
+  :where(input, select, textarea):not([type='checkbox']):not([type='radio']):not([type='hidden']) {
+    font-size: 1rem;
+  }
+}
 :where(input, select, textarea):focus-visible {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;

@@ -1,3 +1,4 @@
+import { observeDraftSetupNavigation } from './helpers/setup-navigation';
 import { readFile } from 'node:fs/promises';
 
 import Stripe from 'stripe';
@@ -120,7 +121,7 @@ test('staff can deliberately open the family entrance without losing their staff
   await page.waitForLoadState('networkidle');
   await page.goto('/app');
   await expect(page).toHaveURL(new RegExp(`/app/${scenario.organizationSlug}/home$`, 'u'));
-  await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your tryout workspace' })).toBeVisible();
   await page.waitForLoadState('networkidle');
   monitor.assertClean();
 });
@@ -139,13 +140,26 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
     description: `role=owner; organization=${organizationSlug}; tryout=${tryoutName}`,
   });
   const monitor = await signInAs(page, newOwner);
+  const draftNavigation = observeDraftSetupNavigation(page, monitor, organizationSlug, {
+    basics: 1,
+    divisions: 2,
+    sessions: 1,
+    registration: 1,
+    rubrics: 1,
+    review: 1,
+    publish: 1,
+  });
   await expect(page).toHaveURL(/\/participant$/u);
   // Creating an organization is an intentional organizer action, not the family default.
   await page.goto('/start');
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(organizationName);
-  await expect(page.getByLabel('Workspace address', { exact: true })).not.toBeEmpty();
-  await page.getByLabel('Workspace address', { exact: true }).fill(organizationSlug);
+  await expect(
+    page.getByLabel('Your TryoutFlow workspace address', { exact: true }),
+  ).not.toBeEmpty();
+  await page
+    .getByLabel('Your TryoutFlow workspace address', { exact: true })
+    .fill(organizationSlug);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
@@ -219,6 +233,7 @@ test('scenario 1 — new owner completes organization onboarding and publishes a
   ).toBe(
     `${scheduleYear}-09-01T14:00:00Z|${scheduleYear}-10-01T02:00:00Z|${scheduleYear}-10-01T22:00:00Z|${scheduleYear}-10-02T00:00:00Z`,
   );
+  await draftNavigation.assertAndStop();
   monitor.assertClean();
 });
 

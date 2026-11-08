@@ -139,7 +139,9 @@ export function OrganizationCommandCenter({
                 Create your first tryout
                 <ArrowRight size={18} aria-hidden="true" />
               </LinkButton>
-              <Link href="/demo">Try the sample event</Link>
+              <Link href="/demo" prefetch={false}>
+                Try the sample event
+              </Link>
             </div>
             <p className="home-next-note">
               Publishing requires eligible Pro access, which may include a trial or event pass.

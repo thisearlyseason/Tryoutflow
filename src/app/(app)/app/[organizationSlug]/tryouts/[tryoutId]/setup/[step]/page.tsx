@@ -78,6 +78,7 @@ export default async function TryoutSetupStepPage({
         <Link
           className="button-secondary inline-flex min-h-11 items-center"
           href={`/app/${organizationSlug}/home`}
+          prefetch={false}
         >
           Back to your work
         </Link>

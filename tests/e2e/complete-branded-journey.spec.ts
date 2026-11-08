@@ -1,3 +1,4 @@
+import { observeDraftSetupNavigation } from './helpers/setup-navigation';
 import { resolve } from 'node:path';
 
 import type { Locator, Page } from '@playwright/test';
@@ -76,9 +77,15 @@ test('isolated owner completes the branded tryout journey and removes the logo c
       label: 'Firefox generated icon cancellation during branded journey navigation',
       maxCount: 1,
       method: 'GET',
-      url: new RegExp(`^${escapedOrigin}/icon\\.svg\\?icon\\.[a-z0-9]+\\.svg$`, 'u'),
+      url: new RegExp(`^${escapedOrigin}/icon\\.svg\\?icon\\.[a-z0-9_-]+\\.svg$`, 'u'),
     });
   }
+  const draftNavigation = observeDraftSetupNavigation(
+    page,
+    ownerMonitor,
+    scenario.organizationSlug,
+    { basics: 1, divisions: 2, sessions: 1, registration: 1, rubrics: 1, review: 1, publish: 1 },
+  );
   const settingsPath = `/app/${scenario.organizationSlug}/organization/settings`;
   const [registrationOpens, registrationCloses, sessionStarts, sessionEnds] = scenario.database
     .scalar(
@@ -360,7 +367,7 @@ test('isolated owner completes the branded tryout journey and removes the logo c
     `${baseURL}/app/${scenario.organizationSlug}/tryouts/${authoredTryoutId}/live`,
   );
   await expect(
-    page.getByRole('heading', { name: 'Run Tryout', exact: true, level: 2 }),
+    page.getByRole('heading', { name: 'Live dashboard', exact: true, level: 1 }),
   ).toBeVisible();
   await completeAuthoredEvaluation();
   expectCancellableNextRscRequest(
@@ -512,13 +519,13 @@ test('isolated owner completes the branded tryout journey and removes the logo c
       );
       await evaluationPage
         .getByRole('main')
-        .getByRole('link', { name: 'My scoring', exact: true })
+        .getByRole('link', { name: /^My scoring\b/u })
         .click();
       await expect(evaluationPage).toHaveURL(
         `${baseURL}/app/${scenario.organizationSlug}/evaluate`,
       );
       await expect(
-        evaluationPage.getByRole('heading', { name: 'My scoring', level: 1 }),
+        evaluationPage.getByRole('heading', { name: 'Your assigned sessions', level: 1 }),
       ).toBeVisible();
       await expect(
         evaluationPage.getByRole('heading', { name: 'Your assigned sessions', level: 2 }),
@@ -681,5 +688,6 @@ test('isolated owner completes the branded tryout journey and removes the logo c
       `select (select count(*) from private.organization_brand_assets where organization_id='${scenario.ids.organization}')::text||'|'||(select count(*) from public.audit_logs where organization_id='${scenario.ids.organization}' and action in('organization.logo_updated','organization.logo_removed'))::text`,
     ),
   ).toBe('0|3');
+  await draftNavigation.assertAndStop();
   ownerMonitor.assertClean();
 });

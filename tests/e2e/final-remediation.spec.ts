@@ -1,3 +1,4 @@
+import { observeDraftSetupNavigation } from './helpers/setup-navigation';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
@@ -84,7 +85,7 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
     label: 'optional Firefox hashed application icon navigation cancellation',
     maxCount: 1,
     method: 'GET',
-    url: /^http:\/\/127\.0\.0\.1:3112\/icon\.svg\?icon\.[a-z0-9]+\.svg$/u,
+    url: /^http:\/\/127\.0\.0\.1:3112\/icon\.svg\?icon\.[a-z0-9_-]+\.svg$/u,
   });
   const suffix = `${testInfo.project.name.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}-${randomUUID().slice(0, 8)}`;
   const email = `t30-signup-${suffix}@example.test`;
@@ -95,6 +96,7 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await page.goto('/app');
   await expect(page).toHaveURL(/\/sign-in/u);
   await page.goto('/sign-up');
+  const draftNavigation = observeDraftSetupNavigation(page, monitor, organizationSlug);
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByLabel('Confirm password').and(page.locator('input')).fill(password);
@@ -105,8 +107,12 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   await page.goto(await confirmationUrl(request, email));
   await expect(page).toHaveURL(/\/start$/u);
   await page.getByLabel('Organization name').fill(`AC01 ${testInfo.project.name} Hockey`);
-  await expect(page.getByLabel('Workspace address', { exact: true })).not.toBeEmpty();
-  await page.getByLabel('Workspace address', { exact: true }).fill(organizationSlug);
+  await expect(
+    page.getByLabel('Your TryoutFlow workspace address', { exact: true }),
+  ).not.toBeEmpty();
+  await page
+    .getByLabel('Your TryoutFlow workspace address', { exact: true })
+    .fill(organizationSlug);
   await page.getByLabel('Timezone').fill('America/Edmonton');
   expectCancellableServerAction(monitor, page, 'anonymous owner organization creation redirect');
   await page.getByRole('button', { name: 'Create organization' }).click();
@@ -115,8 +121,8 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
   // A redirect updates the URL before its Server Action stream has finished.
   // Wait for the destination UI and follow its real link instead of interrupting
   // that stream with a full-document navigation.
-  await expect(page.getByRole('heading', { name: 'What would you like to do?' })).toBeVisible();
-  const createTryout = page.getByRole('link', { name: 'Create tryout', exact: true });
+  await expect(page.getByRole('heading', { name: 'Your tryout workspace' })).toBeVisible();
+  const createTryout = page.getByRole('link', { name: 'Create your first tryout', exact: true });
   await expect(createTryout).toHaveAttribute('href', `/app/${organizationSlug}/tryouts/new`);
   await createTryout.click();
   await expect(page).toHaveURL(new RegExp(`/app/${organizationSlug}/tryouts/new$`, 'u'));
@@ -153,6 +159,7 @@ test('AC01 anonymous verified owner creates an organization and cycle-backed try
          and organization.slug='${organizationSlug}' and season.name='2026 Fall Cycle'`,
     ),
   ).toBe('1');
+  await draftNavigation.assertAndStop();
   monitor.assertClean();
 });
 
@@ -266,12 +273,12 @@ test('owner completes staff registration, returning-athlete, QR, and declared ro
     page.getByRole('heading', { name: 'Tryouts temporarily unavailable' }),
   ).toBeVisible();
   await expect(page.getByText('No data was changed.')).toBeVisible();
-  expectCancellableNextRscRequest(
-    monitor,
-    new URL(`/app/${scenario.organizationSlug}/tryouts`, page.url()).toString(),
-    'loader retry followed by membership navigation',
+  const retryUrl = new URL(`/app/${scenario.organizationSlug}/tryouts`, page.url()).toString();
+  const retryResponse = page.waitForResponse(
+    (response) => response.url() === retryUrl && response.request().isNavigationRequest(),
   );
   await page.getByRole('link', { name: 'Retry' }).click();
+  expect((await retryResponse).status()).toBe(200);
   await expect(page.getByRole('heading', { name: 'Tryouts', exact: true })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
