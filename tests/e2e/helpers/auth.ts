@@ -2,6 +2,7 @@ import type { Browser, BrowserContext, Page, Response } from '@playwright/test';
 import { expect } from '@playwright/test';
 
 import type { BrowserUser } from './fixtures';
+import { observeAppEntryRedirect } from './entry-redirect';
 import { monitorBrowserErrors, type BrowserErrorMonitor } from './network';
 
 export async function signInAs(
@@ -63,23 +64,32 @@ export async function signInAs(
   } finally {
     if (isFirefox) page.off('response', captureIconResponse);
   }
-  await page.getByLabel('Email').fill(user.email);
-  await page.getByLabel('Password', { exact: true }).fill(user.password);
-  if (onBotToken) {
-    onBotToken(await page.locator('input[name="cf-turnstile-response"]').inputValue());
-  }
-  await page.getByRole('button', { name: 'Sign in' }).click();
-  if (expectedOrganizationSlug) {
-    await expect(page).toHaveURL(new RegExp(`/app/${expectedOrganizationSlug}/home$`, 'u'));
-    // Network idle can precede the SDK's queued initial verification. Wait for
-    // authorized content before the caller deliberately leaves this document.
-    await expect(page.locator('main#main-content')).toBeVisible();
+  const entryRedirect = isFirefox
+    ? observeAppEntryRedirect(page, monitor, expectedOrganizationSlug)
+    : undefined;
+  try {
+    await page.getByLabel('Email').fill(user.email);
+    await page.getByLabel('Password', { exact: true }).fill(user.password);
+    if (onBotToken) {
+      onBotToken(await page.locator('input[name="cf-turnstile-response"]').inputValue());
+    }
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    if (expectedOrganizationSlug) {
+      await expect(page).toHaveURL(new RegExp(`/app/${expectedOrganizationSlug}/home$`, 'u'));
+      // Network idle can precede the SDK's queued initial verification. Wait for
+      // authorized content before the caller deliberately leaves this document.
+      await expect(page.locator('main#main-content')).toBeVisible();
+      await page.waitForLoadState('networkidle');
+      await entryRedirect?.assertAndStop();
+      return monitor;
+    }
+    await expect(page).toHaveURL(/\/app(?:\/|$)|\/participant$/u);
     await page.waitForLoadState('networkidle');
+    await entryRedirect?.assertAndStop();
     return monitor;
+  } finally {
+    entryRedirect?.stop();
   }
-  await expect(page).toHaveURL(/\/app(?:\/|$)|\/participant$/u);
-  await page.waitForLoadState('networkidle');
-  return monitor;
 }
 
 export async function openAuthenticatedContext(input: {

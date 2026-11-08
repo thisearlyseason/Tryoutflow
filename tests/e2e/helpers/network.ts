@@ -26,6 +26,8 @@ export type ExpectedRequestFailure = CountedExpectation &
 export type OptionalRequestFailure = Omit<ExpectedRequestFailure, 'count'> &
   Readonly<{
     maxCount: number;
+    /** When supplied, only this browser request object may consume the allowance. */
+    request?: Request;
   }>;
 
 export type ExpectedCancellableRequest = ExpectedRequestFailure;
@@ -54,7 +56,7 @@ export type OptionalConsoleError = Omit<ExpectedConsoleError, 'count'> &
 
 export type BrowserErrorMonitor = Readonly<{
   allowOptionalConsoleError(expectation: OptionalConsoleError): void;
-  allowOptionalRequestFailure(expectation: OptionalRequestFailure): void;
+  allowOptionalRequestFailure(expectation: OptionalRequestFailure): () => void;
   expectCancellableRequest(expectation: ExpectedCancellableRequest): void;
   expectCancellableRscRequest(expectation: ExpectedCancellableRscRequest): void;
   expectConsoleError(expectation: ExpectedConsoleError): void;
@@ -264,6 +266,7 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
     const optionalExpectation = optionalRequestFailures.find(
       (candidate) =>
         candidate.consumed < candidate.maxCount &&
+        (candidate.request === undefined || candidate.request === request) &&
         candidate.method === method &&
         matches(url, candidate.url) &&
         (typeof candidate.errorText === 'string'
@@ -290,7 +293,12 @@ export function monitorBrowserErrors(page: Page): BrowserErrorMonitor {
     },
     allowOptionalRequestFailure(expectation) {
       validExpectation({ count: expectation.maxCount, label: expectation.label });
-      optionalRequestFailures.push({ ...expectation, consumed: 0 });
+      const declared = { ...expectation, consumed: 0 };
+      optionalRequestFailures.push(declared);
+      return () => {
+        const index = optionalRequestFailures.indexOf(declared);
+        if (index !== -1) optionalRequestFailures.splice(index, 1);
+      };
     },
     expectCancellableRequest(expectation) {
       validExpectation(expectation);

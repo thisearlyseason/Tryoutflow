@@ -2,7 +2,7 @@
 
 import { EventEmitter } from 'node:events';
 
-import type { Page } from '@playwright/test';
+import type { Page, Request } from '@playwright/test';
 import { describe, expect, it } from 'vitest';
 
 import { monitorBrowserErrors } from '../../../tests/e2e/helpers/network';
@@ -32,6 +32,25 @@ function consoleError(text: string, url = '') {
 }
 
 describe('Task 30 browser error monitor', () => {
+  it('never permits another request with the same URL as an identity-bound allowance', () => {
+    const page = new FakePage();
+    const monitor = monitorBrowserErrors(page as unknown as Page);
+    const input = {
+      method: 'GET',
+      url: 'http://localhost/chunk.js',
+      errorText: 'NS_BINDING_ABORTED',
+    };
+    const request = failedRequest(input);
+    monitor.allowOptionalRequestFailure({
+      ...input,
+      request: request as unknown as Request,
+      maxCount: 1,
+      label: 'verified request only',
+    });
+    page.emit('requestfailed', failedRequest(input));
+    expect(() => monitor.assertClean()).toThrow(/unexpected request failure/u);
+  });
+
   it('consumes an exact method, URL, error, header, and count contract', () => {
     const page = new FakePage();
     const monitor = monitorBrowserErrors(page as unknown as Page);
